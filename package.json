@@ -12,7 +12,11 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "verify:env": "node scripts/verify-environment.js",
+    "verify:supabase": "node scripts/verify-supabase.js",
+    "verify:api": "node scripts/check-api-endpoints.js",
+    "verify:all": "npm run verify:env && npm run verify:supabase && npm run verify:api"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -30,6 +34,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.5",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "pg": "^8.18.0",
