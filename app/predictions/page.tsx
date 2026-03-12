@@ -347,7 +347,7 @@ export default function PredictionsPage() {
                     <h3>Predicciones {digits} dígitos</h3>
                     <p>Suscribite al plan Premium para predicciones de {digits} cifras con análisis estadístico real.</p>
                     <a href={UALA_LINK} target="_blank" rel="noopener noreferrer" className="ucta">
-                      💳 Suscribirme — $1.500/mes
+                      💳 Suscribirme — $10.000/mes
                     </a>
                     <div style={{fontSize:10,color:"var(--dim)"}}>Pago seguro via Ualá · Acceso inmediato</div>
                   </div>
@@ -432,7 +432,7 @@ export default function PredictionsPage() {
                     <div style={{fontFamily:"'Playfair Display',serif",fontSize:17,color:"#fff"}}>Redoblona Premium</div>
                     <div style={{fontSize:12,color:"var(--dim)",maxWidth:260,lineHeight:1.5}}>Accedé al análisis completo de redoblona con datos reales de los últimos 365 días de sorteos.</div>
                     <a href={UALA_LINK} target="_blank" rel="noopener noreferrer" className="ucta">
-                      💳 Activar Premium — $1.500/mes
+                      💳 Activar Premium — $10.000/mes
                     </a>
                   </div>
                 )}
@@ -532,7 +532,7 @@ export default function PredictionsPage() {
               <h3>Desbloqueá predicciones completas</h3>
               <p>Predicciones de 3 y 4 cifras + análisis de Redoblona basados en 365 días de sorteos reales.</p>
               <a href={UALA_LINK} target="_blank" rel="noopener noreferrer" className="ucta">
-                💳 Suscribirme por $1.500/mes
+                💳 Suscribirme por $10.000/mes
               </a>
               <div style={{fontSize:11,color:"var(--dim)",marginTop:7}}>Pago seguro via Ualá · Acceso inmediato · Cancelá cuando quieras</div>
             </div>

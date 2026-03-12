@@ -129,7 +129,7 @@ export default function LoginPage() {
             Predicciones 3 y 4 cifras <span className="badge">PREMIUM</span>
           </div>
           <a href={UALA_LINK} target="_blank" rel="noopener noreferrer" className="uala-btn">
-            💳 Suscribirme por $1.500/mes via Ualá
+            💳 Suscribirme por $10.000/mes via Ualá
           </a>
         </div>
       </div>
