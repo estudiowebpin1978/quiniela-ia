@@ -20,15 +20,19 @@ export interface UserProfile {
   premium_until: string | null;
 }
 
-// Browser client (anon key)
+// ── Browser client (anon key) — solo para auth en el frontend ──────────────
+let _browserClient: ReturnType<typeof createClient> | null = null;
 export function getSupabaseBrowser() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  if (!_browserClient) {
+    _browserClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+  }
+  return _browserClient;
 }
 
-// Server-only admin client (service_role)
+// ── Server-only admin client (service_role) — para API routes ─────────────
 export function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,12 +41,22 @@ export function getSupabaseAdmin() {
   );
 }
 
+// ── getUserProfile: usa admin para evitar problemas de RLS ────────────────
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
-  const sb = getSupabaseBrowser();
-  const { data } = await sb.from("user_profiles").select("id,email,role,premium_until").eq("id", userId).single();
-  return data ?? null;
+  try {
+    const sb = getSupabaseAdmin();
+    const { data } = await sb
+      .from("user_profiles")
+      .select("id,email,role,premium_until")
+      .eq("id", userId)
+      .single();
+    return data ?? null;
+  } catch {
+    return null;
+  }
 }
 
+// ── isPremiumActive: verifica rol y fecha de vencimiento ──────────────────
 export function isPremiumActive(profile: UserProfile | null): boolean {
   if (!profile) return false;
   if (profile.role === "admin") return true;

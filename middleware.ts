@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 
 export async function middleware(req: NextRequest) {
-  // Solo proteger rutas que requieren auth
-  const protectedPaths = ["/dashboard"];
   const path = req.nextUrl.pathname;
-  if (!protectedPaths.some((p) => path.startsWith(p))) {
-    return NextResponse.next();
-  }
 
-  // Verificar sesión via cookie
-  const token = req.cookies.get("sb-access-token")?.value;
-  if (!token) {
-    return NextResponse.redirect(new URL("/login", req.url));
+  // Rutas públicas - no requieren auth
+  const publicPaths = ["/login", "/register", "/api"];
+  if (publicPaths.some(p => path.startsWith(p))) return NextResponse.next();
+
+  // Supabase guarda la sesión en cookies con prefijo "sb-"
+  // Compatible con @supabase/supabase-js v2 y @supabase/ssr
+  const cookies = req.cookies.getAll();
+  const hasSession = cookies.some(c =>
+    c.name.startsWith("sb-") &&
+    (c.name.endsWith("-auth-token") || c.name.endsWith("-access-token"))
+  );
+
+  if (!hasSession) {
+    const loginUrl = new URL("/login", req.url);
+    loginUrl.searchParams.set("next", path);
+    return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();
 }
 
-export const config = { matcher: ["/dashboard/:path*"] };
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+};

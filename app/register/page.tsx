@@ -42,7 +42,7 @@ export default function RegisterPage() {
   return (
     <>
       <style>{S}</style>
-      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@900&family=DM+Mono:wght@400&family=Barlow+Condensed:wght@400;700&display=swap" rel="stylesheet" />
+      {/* Fonts cargadas en layout.tsx */}
       <div className="page">
         <div className="card">
           <h2>Crear cuenta</h2>
