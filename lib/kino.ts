@@ -1,0 +1,22 @@
+export const KINO: Record<number, string> = {
+  0:"El huevo",1:"El agua",2:"El niño",3:"El marinero",4:"La cama",
+  5:"El gato",6:"El perro",7:"El revólver",8:"El incendio",9:"El pájaro",
+  10:"El pez",11:"La escalera",12:"La mujer",13:"El toro",14:"El borracho",
+  15:"La niña bonita",16:"El ataúd",17:"La desgracia",18:"La sangre",19:"El pez gordo",
+  20:"La fiesta",21:"La mujer desnuda",22:"El loco",23:"El marinero viejo",24:"El caballo",
+  25:"El pavo real",26:"La gallina",27:"El piojo",28:"El conejo",29:"La bailarina",
+  30:"El viejo",31:"El cura",32:"El dinero",33:"El Cristo",34:"La cabeza",
+  35:"El pajarito",36:"El casamiento",37:"El patadón",38:"El mono",39:"El oculto",
+  40:"La víbora",41:"El garrote",42:"La flor",43:"El gato negro",44:"El preso",
+  45:"El vino",46:"El tomate",47:"El muerto",48:"El difunto que habla",49:"La carne",
+  50:"El pan",51:"El serrucho",52:"La mujer loca",53:"El beso",54:"El rey",
+  55:"La música",56:"La caída",57:"El jorobado",58:"El ahogado",59:"El viejo verde",
+  60:"El árbol",61:"El cazador",62:"La inundación",63:"La boda",64:"La llorona",
+  65:"El carnicero",66:"Las mellizas",67:"El bombero",68:"El casado",69:"El placer",
+  70:"El médico",71:"El soldado",72:"La sorpresa",73:"El hospital",74:"La fiera",
+  75:"El soldado valiente",76:"El duende",77:"Las piernas",78:"El enfermo",79:"El ladrón",
+  80:"La boca",81:"Las flores",82:"El tiburón",83:"El malo",84:"La iglesia",
+  85:"El perro rabioso",86:"El golpe",87:"La pistola",88:"Los anteojos",89:"La vieja",
+  90:"El miedo",91:"El muerto chico",92:"El doctor",93:"El borrachón",94:"El infierno",
+  95:"La misa",96:"El ahorcado",97:"El beso de amor",98:"El jorobado viejo",99:"El muerto grande"
+};
