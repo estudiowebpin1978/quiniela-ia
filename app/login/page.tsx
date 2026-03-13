@@ -1,137 +1,84 @@
 "use client";
 import { useState } from "react";
-import { getSupabaseBrowser } from "@/lib/supabase";
 
-const UALA_LINK = "https://pagar.ualabis.com.ar/order/df50920d5961bd85d19f4231747cc5d7e6ca0489da6e76a4";
+const UALA = "https://pagar.ualabis.com.ar/order/df50920d5961bd85d19f4231747cc5d7e6ca0489da6e76a4";
+const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
 export default function LoginPage() {
-  const [tab, setTab] = useState<"login"|"register">("login");
+  const [tab, setTab] = useState<"in"|"up">("in");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [pass, setPass] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState("");
 
-  const handle = async () => {
-    if (!email || !password) { setError("Completá todos los campos"); return; }
-    if (tab === "register" && password.length < 6) { setError("Mínimo 6 caracteres"); return; }
-    setLoading(true); setError(""); setSuccess("");
-    const sb = getSupabaseBrowser();
-
-    if (tab === "login") {
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) {
-        if (error.message.includes("Invalid login credentials")) setError("Email o contraseña incorrectos");
-        else if (error.message.includes("Email not confirmed")) setError("Confirmá tu email antes de ingresar. Revisá tu bandeja de entrada.");
-        else setError(error.message);
-      } else {
-        setSuccess("¡Bienvenido!");
-        setTimeout(() => window.location.href = "/predictions", 600);
-      }
-    } else {
-      const { data, error } = await sb.auth.signUp({ email, password });
-      if (error) {
-        setError(error.message);
-      } else if (data.session) {
-        // Email confirmation disabled in Supabase → login directo
-        setSuccess("¡Cuenta creada! Ingresando...");
-        setTimeout(() => window.location.href = "/predictions", 600);
-      } else {
-        // Email confirmation enabled → avisar
-        setSuccess("¡Cuenta creada! Revisá tu email para confirmar, luego iniciá sesión.");
-        setTab("login");
-      }
-    }
-    setLoading(false);
+  const go = async () => {
+    if (!email.trim() || !pass.trim()) { setErr("Completa todos los campos."); return; }
+    if (tab === "up" && pass.length < 6) { setErr("Minimo 6 caracteres."); return; }
+    setBusy(true); setErr(""); setOk("");
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), password: pass, action: tab === "up" ? "signup" : "signin" }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setErr(data.error ?? "Error desconocido."); return; }
+      if (data.needsConfirmation) { setOk("Revisa tu email para confirmar y luego inicia sesion."); setTab("in"); return; }
+      const proj = SB_URL.split("//")[1]?.split(".")[0] ?? "project";
+      localStorage.setItem("sb-"+proj+"-auth-token", JSON.stringify({ access_token: data.access_token, refresh_token: data.refresh_token ?? "", expires_at: Math.floor(Date.now()/1000)+(data.expires_in??3600), token_type: "bearer", user: data.user }));
+      setOk(tab==="in" ? "Bienvenido! Ingresando..." : "Cuenta creada! Ingresando...");
+      setTimeout(() => { window.location.href = "/predictions"; }, 500);
+    } catch { setErr("Error de conexion. Verifica tu internet."); }
+    finally { setBusy(false); }
   };
 
   return (
     <>
       <style>{`
-        /* Fonts desde layout.tsx */
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@900&family=DM+Sans:wght@400;600&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        html,body{height:100%;background:#06080f}
-        .bg{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
-          background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(99,102,241,.15),transparent 70%),
-          radial-gradient(ellipse 60% 40% at 100% 100%,rgba(201,168,76,.08),transparent 60%),#06080f}
-        .card{width:100%;max-width:420px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);
-          border-radius:24px;padding:36px 32px;backdrop-filter:blur(20px);
-          box-shadow:0 25px 60px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06)}
-        .logo{text-align:center;margin-bottom:28px}
-        .logo-icon{width:52px;height:52px;background:linear-gradient(135deg,#c9a84c,#7a6430);border-radius:14px;
-          display:inline-flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:10px}
-        .logo h1{font-family:'Playfair Display',serif;font-size:26px;font-weight:900;
-          background:linear-gradient(135deg,#f0cc6e,#c9a84c);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-        .logo p{font-size:12px;color:rgba(255,255,255,.35);margin-top:4px}
-        .tabs{display:flex;background:rgba(255,255,255,.05);border-radius:12px;padding:4px;margin-bottom:24px}
-        .ttab{flex:1;padding:10px;text-align:center;border-radius:8px;border:none;background:transparent;
-          color:rgba(255,255,255,.4);font-size:14px;font-weight:500;cursor:pointer;transition:all .2s}
-        .ttab.on{background:rgba(201,168,76,.15);color:#c9a84c;border:1px solid rgba(201,168,76,.2)}
-        label{display:block;font-size:12px;font-weight:500;color:rgba(255,255,255,.45);margin-bottom:6px;margin-top:18px}
-        input{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
-          border-radius:12px;color:#fff;font-size:15px;padding:13px 16px;outline:none;transition:border .2s}
+        body{min-height:100vh;background:#06080f;display:flex;align-items:center;justify-content:center;padding:20px;font-family:'DM Sans',sans-serif;background-image:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(99,102,241,.18),transparent 65%)}
+        .card{width:100%;max-width:400px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.09);border-radius:22px;padding:34px 28px;box-shadow:0 30px 70px rgba(0,0,0,.6)}
+        .top{text-align:center;margin-bottom:26px}
+        .ico{width:52px;height:52px;background:linear-gradient(135deg,#c9a84c,#7a6430);border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:10px}
+        h1{font-family:'Playfair Display',serif;font-size:26px;font-weight:900;background:linear-gradient(135deg,#f0cc6e,#c9a84c);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .sub{font-size:12px;color:rgba(255,255,255,.3);margin-top:4px}
+        .tabs{display:flex;background:rgba(255,255,255,.05);border-radius:11px;padding:3px;margin-bottom:22px;gap:2px}
+        .tab{flex:1;padding:9px;text-align:center;border-radius:8px;border:none;background:transparent;color:rgba(255,255,255,.35);font-size:13px;font-weight:500;cursor:pointer;transition:.2s;font-family:inherit}
+        .tab.on{background:rgba(201,168,76,.14);color:#c9a84c;border:1px solid rgba(201,168,76,.25)}
+        .lbl{display:block;font-size:11px;font-weight:600;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 5px}
+        input{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:#fff;font-size:15px;padding:12px 14px;outline:none;transition:.2s;font-family:inherit}
         input:focus{border-color:rgba(201,168,76,.5)}
         input::placeholder{color:rgba(255,255,255,.2)}
-        .btn{width:100%;background:linear-gradient(135deg,#c9a84c,#a07830);color:#fff;border:none;
-          border-radius:12px;font-size:15px;font-weight:600;padding:14px;cursor:pointer;margin-top:22px;
-          transition:all .2s}
-        .btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 24px rgba(201,168,76,.3)}
+        .btn{width:100%;background:linear-gradient(135deg,#c9a84c,#9a6f28);color:#fff;border:none;border-radius:11px;font-size:15px;font-weight:700;padding:14px;cursor:pointer;margin-top:20px;transition:.2s;font-family:inherit}
+        .btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 24px rgba(201,168,76,.35)}
         .btn:disabled{opacity:.5;cursor:not-allowed}
-        .err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);border-radius:10px;
-          padding:12px 14px;color:#fca5a5;font-size:13px;margin-top:12px;line-height:1.5}
-        .ok{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);border-radius:10px;
-          padding:12px 14px;color:#86efac;font-size:13px;margin-top:12px}
-        .div{text-align:center;margin:20px 0 0;color:rgba(255,255,255,.2);font-size:12px}
-        .uala-btn{display:block;width:100%;margin-top:10px;padding:13px;text-align:center;
-          background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.25);border-radius:12px;
-          color:#a5b4fc;font-size:13px;font-weight:500;text-decoration:none;transition:all .2s}
-        .uala-btn:hover{background:rgba(99,102,241,.2)}
-        .badge{display:inline-block;background:rgba(201,168,76,.15);border:1px solid rgba(201,168,76,.3);
-          color:#c9a84c;font-size:10px;padding:2px 7px;border-radius:20px;margin-left:5px}
-        @media(max-width:480px){.card{padding:24px 18px;border-radius:18px}}
+        .err{background:rgba(239,68,68,.09);border:1px solid rgba(239,68,68,.2);border-radius:9px;padding:11px 13px;color:#fca5a5;font-size:13px;margin-top:12px;line-height:1.6}
+        .suc{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:9px;padding:11px 13px;color:#86efac;font-size:13px;margin-top:12px}
+        .sep{text-align:center;margin:18px 0 0;color:rgba(255,255,255,.18);font-size:11px}
+        .uala{display:block;width:100%;margin-top:9px;padding:12px;text-align:center;background:rgba(99,102,241,.09);border:1px solid rgba(99,102,241,.22);border-radius:10px;color:#a5b4fc;font-size:12px;font-weight:500;text-decoration:none}
+        .pill{display:inline-block;background:rgba(201,168,76,.14);border:1px solid rgba(201,168,76,.28);color:#c9a84c;font-size:10px;padding:2px 7px;border-radius:20px;margin-left:4px}
       `}</style>
-      <div className="bg">
-        <div className="card">
-          <div className="logo">
-            <div className="logo-icon">🎰</div>
-            <h1>Quiniela IA</h1>
-            <p>Predicciones basadas en análisis estadístico real</p>
-          </div>
-
-          <div className="tabs">
-            <button className={`ttab ${tab==="login"?"on":""}`}
-              onClick={()=>{setTab("login");setError("");setSuccess("")}}>
-              Iniciar sesión
-            </button>
-            <button className={`ttab ${tab==="register"?"on":""}`}
-              onClick={()=>{setTab("register");setError("");setSuccess("")}}>
-              Crear cuenta
-            </button>
-          </div>
-
-          <label>Email</label>
-          <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
-            placeholder="tu@email.com" />
-
-          <label>Contraseña</label>
-          <input type="password" value={password} onChange={e=>setPassword(e.target.value)}
-            placeholder={tab==="register"?"Mínimo 6 caracteres":"••••••••"}
-            onKeyDown={e=>e.key==="Enter"&&handle()} />
-
-          <button className="btn" onClick={handle} disabled={loading}>
-            {loading ? "..." : tab==="login" ? "Ingresar →" : "Crear cuenta →"}
-          </button>
-
-          {error && <div className="err">⚠ {error}</div>}
-          {success && <div className="ok">✓ {success}</div>}
-
-          <div className="div">
-            Predicciones 3 y 4 cifras <span className="badge">PREMIUM</span>
-          </div>
-          <a href={UALA_LINK} target="_blank" rel="noopener noreferrer" className="uala-btn">
-            💳 Suscribirme por $10.000/mes via Ualá
-          </a>
+      <div className="card">
+        <div className="top">
+          <div className="ico">🎰</div>
+          <h1>Quiniela IA</h1>
+          <div className="sub">Predicciones estadisticas reales</div>
         </div>
+        <div className="tabs">
+          <button className={`tab ${tab==="in"?"on":""}`} onClick={()=>{setTab("in");setErr("");setOk("")}}>Iniciar sesion</button>
+          <button className={`tab ${tab==="up"?"on":""}`} onClick={()=>{setTab("up");setErr("");setOk("")}}>Crear cuenta</button>
+        </div>
+        <span className="lbl">Email</span>
+        <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com" autoComplete="email"/>
+        <span className="lbl">Contrasena</span>
+        <input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder={tab==="up"?"Minimo 6 caracteres":"..."} onKeyDown={e=>e.key==="Enter"&&!busy&&go()}/>
+        <button className="btn" onClick={go} disabled={busy}>{busy?"Verificando...":tab==="in"?"Ingresar":"Crear cuenta"}</button>
+        {err&&<div className="err">X {err}</div>}
+        {ok&&<div className="suc">OK {ok}</div>}
+        <div className="sep">Predicciones 3 y 4 cifras + Redoblona<span className="pill">PREMIUM</span></div>
+        <a href={UALA} target="_blank" rel="noopener noreferrer" className="uala">Suscribirme por $10.000/mes via Uala</a>
       </div>
     </>
   );
