@@ -57,7 +57,7 @@ export default function PredictionsPage() {
       setTop10(Array.isArray(d.top10)?d.top10:[]);
       setPreds3(Array.isArray(d.predictions3d)?d.predictions3d:[]);
       setPreds4(Array.isArray(d.predictions4d)?d.predictions4d:[]);
-      setRedoblona(d.redoblona??"");
+      setRedoblona(typeof d.redoblona==="string"?d.redoblona:"");
       setRdblList(Array.isArray(d.redoblona_pair)?d.redoblona_pair:[]);
       setFreq(Array.isArray(d.frequencyData)?d.frequencyData:[]);
       setTotalDraws(d.totalDraws??0);
@@ -297,3 +297,4 @@ export default function PredictionsPage() {
     </div>
   </>);
 }
+
