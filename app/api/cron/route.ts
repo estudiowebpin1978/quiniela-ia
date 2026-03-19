@@ -9,7 +9,15 @@ async function scrape(fechaUrl:string,turno:string):Promise<number[]>{
     const idx=html.indexOf('class="veintena"')
     if(idx<0)return[]
     const chunk=html.slice(idx,idx+4000)
-    return[...chunk.matchAll(/class="numero">(\d{4})<\/div>/g)].map(m=>parseInt(m[1])).filter((n,i,a)=>n>=0&&n<=9999&&a.indexOf(n)===i).slice(0,20)
+    const nums:number[]=[]
+    const rx=/class="numero">(\d{4})<\/div>/g
+    let mx:RegExpExecArray|null
+    while((mx=rx.exec(chunk))!==null){
+      const n=parseInt(mx[1])
+      if(n>=0&&n<=9999&&nums.indexOf(n)===-1)nums.push(n)
+      if(nums.length>=20)break
+    }
+    return nums
   }catch{return[]}
 }
 async function save(fechaStr:string,turno:string,nums:number[]):Promise<boolean>{
@@ -21,19 +29,21 @@ export async function GET(req:NextRequest){
   const secret=req.nextUrl.searchParams.get("secret")
   if(secret!==process.env.CRON_SECRET)return NextResponse.json({error:"Unauthorized"},{status:401})
   const now=new Date(Date.now()-3*3600000)
-  const y=now.getFullYear(),m=String(now.getMonth()+1).padStart(2,"0"),d=String(now.getDate()).padStart(2,"0")
-  const fechaStr=`${y}-${m}-${d}`,fechaUrl=`${d}-${m}-${String(y).slice(-2)}`
+  const y=now.getFullYear(),mo=String(now.getMonth()+1).padStart(2,"0"),d=String(now.getDate()).padStart(2,"0")
+  const fechaStr=`${y}-${mo}-${d}`,fechaUrl=`${d}-${mo}-${String(y).slice(-2)}`
   const hora=now.getHours()
-  let turnos=["Nocturna"]
-  if(hora>=10&&hora<12)turnos=["Previa"]
-  else if(hora>=12&&hora<15)turnos=["Primera"]
-  else if(hora>=15&&hora<18)turnos=["Matutina"]
-  else if(hora>=18&&hora<21)turnos=["Vespertina"]
-  const results=[]
-  for(const turno of turnos){
-    const nums=await scrape(fechaUrl,turno)
-    if(nums.length>=5){const ok=await save(fechaStr,turno,nums);results.push({turno,ok,total:nums.length,nums:nums.slice(0,5)})}
-    else results.push({turno,ok:false,total:0,msg:"Sin datos"})
+  // Quiniela Nacional Buenos Aires - horarios oficiales
+  // Previa: 10:15 | Primera: 12:00 | Matutina: 15:00 | Vespertina: 18:00 | Nocturna: 21:00
+  let turnoScrape="Nocturna"
+  let turnoNombre="Nocturna"
+  if(hora>=10&&hora<12){turnoScrape="Previa";turnoNombre="Previa"}
+  else if(hora>=12&&hora<15){turnoScrape="Primera";turnoNombre="Primera"}
+  else if(hora>=15&&hora<18){turnoScrape="Matutina";turnoNombre="Matutina"}
+  else if(hora>=18&&hora<21){turnoScrape="Vespertina";turnoNombre="Vespertina"}
+  const nums=await scrape(fechaUrl,turnoScrape)
+  if(nums.length>=5){
+    const ok=await save(fechaStr,turnoNombre,nums)
+    return NextResponse.json({ok,fechaStr,turno:turnoNombre,total:nums.length,nums:nums.slice(0,5)})
   }
-  return NextResponse.json({ok:true,fechaStr,hora,results})
+  return NextResponse.json({ok:false,fechaStr,turno:turnoNombre,msg:"Sin datos",total:0})
 }
