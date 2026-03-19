@@ -2,9 +2,10 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "crons": [
-    {
-      "path": "/api/cron?secret=CRON_SECRET_PLACEHOLDER",
-      "schedule": "30 1 * * 1-5"
-    }
+    {"path": "/api/cron?secret=quiniela2024cron", "schedule": "45 13 * * 1-6"},
+    {"path": "/api/cron?secret=quiniela2024cron", "schedule": "15 15 * * 1-6"},
+    {"path": "/api/cron?secret=quiniela2024cron", "schedule": "15 18 * * 1-6"},
+    {"path": "/api/cron?secret=quiniela2024cron", "schedule": "45 21 * * 1-6"},
+    {"path": "/api/cron?secret=quiniela2024cron", "schedule": "15 00 * * 2-7"}
   ]
 }
