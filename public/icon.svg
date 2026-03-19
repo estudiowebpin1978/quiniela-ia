@@ -1,0 +1,26 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <radialGradient id="appbg" cx="38%" cy="32%" r="70%"><stop offset="0%" stop-color="#1e1560"/><stop offset="55%" stop-color="#0d0a2a"/><stop offset="100%" stop-color="#04040e"/></radialGradient>
+  <radialGradient id="cardface" cx="32%" cy="28%" r="72%"><stop offset="0%" stop-color="#2a2060"/><stop offset="60%" stop-color="#131030"/><stop offset="100%" stop-color="#08060f"/></radialGradient>
+  <radialGradient id="bp" cx="32%" cy="28%" r="68%"><stop offset="0%" stop-color="#a78bfa"/><stop offset="45%" stop-color="#5b21b6"/><stop offset="100%" stop-color="#2e1065"/></radialGradient>
+  <radialGradient id="bg" cx="32%" cy="28%" r="68%"><stop offset="0%" stop-color="#fef08a"/><stop offset="45%" stop-color="#d4a017"/><stop offset="100%" stop-color="#7c4f00"/></radialGradient>
+  <radialGradient id="br" cx="32%" cy="28%" r="68%"><stop offset="0%" stop-color="#fda4af"/><stop offset="45%" stop-color="#dc2626"/><stop offset="100%" stop-color="#7f1d1d"/></radialGradient>
+  <radialGradient id="bgr" cx="32%" cy="28%" r="68%"><stop offset="0%" stop-color="#86efac"/><stop offset="45%" stop-color="#16a34a"/><stop offset="100%" stop-color="#052e16"/></radialGradient>
+  <radialGradient id="badge3d" cx="28%" cy="22%" r="72%"><stop offset="0%" stop-color="#fff4c2"/><stop offset="40%" stop-color="#e8b800"/><stop offset="100%" stop-color="#7a4f00"/></radialGradient>
+  <radialGradient id="shine" cx="30%" cy="25%" r="55%"><stop offset="0%" stop-color="white" stop-opacity="0.4"/><stop offset="100%" stop-color="white" stop-opacity="0"/></radialGradient>
+  <linearGradient id="bord" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fff4c2"/><stop offset="40%" stop-color="#d4a017"/><stop offset="100%" stop-color="#7a4f00"/></linearGradient>
+</defs>
+<rect width="512" height="512" rx="120" fill="url(#appbg)"/>
+<rect x="4" y="4" width="504" height="504" rx="116" fill="none" stroke="url(#bord)" stroke-width="6"/>
+<rect x="72" y="54" width="368" height="328" rx="50" fill="#04030a" opacity="0.8"/>
+<rect x="68" y="50" width="368" height="328" rx="50" fill="url(#cardface)" stroke="url(#bord)" stroke-width="3"/>
+<rect x="68" y="50" width="368" height="36" rx="36" fill="white" opacity="0.07"/>
+<circle cx="174" cy="176" r="64" fill="black" opacity="0.45"/><circle cx="170" cy="172" r="64" fill="url(#bp)"/><ellipse cx="148" cy="144" rx="20" ry="14" fill="url(#shine)" transform="rotate(-25,148,144)"/><text x="170" y="192" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="44" fill="white">42</text>
+<circle cx="342" cy="176" r="64" fill="black" opacity="0.45"/><circle cx="338" cy="172" r="64" fill="url(#bg)"/><ellipse cx="316" cy="144" rx="20" ry="14" fill="url(#shine)" transform="rotate(-25,316,144)"/><text x="338" y="192" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="44" fill="#3a1f00">07</text>
+<circle cx="174" cy="316" r="64" fill="black" opacity="0.45"/><circle cx="170" cy="312" r="64" fill="url(#br)"/><ellipse cx="148" cy="284" rx="20" ry="14" fill="url(#shine)" transform="rotate(-25,148,284)"/><text x="170" y="332" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="44" fill="white">31</text>
+<circle cx="342" cy="316" r="64" fill="black" opacity="0.45"/><circle cx="338" cy="312" r="64" fill="url(#bgr)"/><ellipse cx="316" cy="284" rx="20" ry="14" fill="url(#shine)" transform="rotate(-25,316,284)"/><text x="338" y="332" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="44" fill="#001a06">88</text>
+<rect x="36" y="414" width="440" height="62" rx="31" fill="#7a4f00" opacity="0.9"/>
+<rect x="30" y="406" width="452" height="66" rx="33" fill="url(#badge3d)"/>
+<rect x="30" y="406" width="452" height="30" rx="30" fill="white" opacity="0.2"/>
+<text x="256" y="450" text-anchor="middle" font-family="Arial Black,sans-serif" font-weight="900" font-size="36" letter-spacing="4" fill="#1a0a00">QUINIELA IA</text>
+</svg>
