@@ -6,6 +6,6 @@
     {"path": "/api/cron?secret=quiniela2024cron", "schedule": "15 15 * * 1-6"},
     {"path": "/api/cron?secret=quiniela2024cron", "schedule": "15 18 * * 1-6"},
     {"path": "/api/cron?secret=quiniela2024cron", "schedule": "45 21 * * 1-6"},
-    {"path": "/api/cron?secret=quiniela2024cron", "schedule": "15 00 * * 2-7"}
+    {"path": "/api/cron?secret=quiniela2024cron", "schedule": "15 00 * * 2-6"}
   ]
 }
