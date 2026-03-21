@@ -102,7 +102,7 @@ for i in range(args.days):
         if len(nums) >= 5:
             ok = guardar(fecha_str, turno, nums)
             if ok:
-                print(f"  OK {turno} ({len(nums)} nums): {nums[:5]}")
+                print(f"  OK {turno} ({len(nums)} nums): {nums}")
                 total += 1
             else:
                 print(f"  ERROR guardando {turno}")
