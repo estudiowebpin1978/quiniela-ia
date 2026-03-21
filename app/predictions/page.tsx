@@ -326,7 +326,14 @@ export default function Page(){
           </div>
         </div>
       </div>
-      {!pr&&<div className="cta"><div style={{fontSize:28,marginBottom:7}}>🚀</div><h3>Desbloquea el motor completo</h3><p>Predicciones de 3 y 4 cifras mas Redoblona con datos reales.</p><a href={UALA} target="_blank" rel="noopener noreferrer" className="uc" style={{fontSize:13,padding:"12px 24px"}}>Suscribirme $10.000/mes via Uala</a><div style={{fontSize:10,color:"var(--dim)",marginTop:8}}>Pago seguro. Acceso inmediato.</div></div>}
+      {!pr&&<div className="cta"><div style={{fontSize:28,marginBottom:7}}>🚀</div><h3>Desbloquea el motor completo</h3><p>Predicciones de 3 y 4 cifras mas Redoblona con datos reales.</p><a href={UALA} target="_blank" rel="noopener noreferrer" style={{fontSize:13,padding:"12px 24px",background:"linear-gradient(135deg,#6366f1,#4f46e5)",color:"#fff",borderRadius:10,textDecoration:"none"}}>Uala</a>
+              <div style={{display:"flex",flexDirection:"column",gap:6,width:"100%",maxWidth:320,margin:"8px auto 0"}}>
+                <div style={{fontSize:11,color:"#94a3b8",textAlign:"center"}}>O transferi a cualquiera de estos alias:</div>
+                <div style={{padding:"8px 12px",background:"rgba(99,102,241,.08)",border:"1px solid rgba(99,102,241,.2)",borderRadius:8,fontSize:11,color:"#a5b4fc",textAlign:"center"}}>Personal Pay: <strong>alopez94.ppay</strong></div>
+                <div style={{padding:"8px 12px",background:"rgba(245,158,11,.06)",border:"1px solid rgba(245,158,11,.2)",borderRadius:8,fontSize:11,color:"#fbbf24",textAlign:"center"}}>Naranja X: <strong>ALOPEZ3514.NX.ARS</strong></div>
+                <div style={{padding:"8px 12px",background:"rgba(34,197,94,.06)",border:"1px solid rgba(34,197,94,.2)",borderRadius:8,fontSize:11,color:"#86efac",textAlign:"center"}}>Banco Nacion: <strong>fumigacionesrosario</strong></div>
+                <div style={{fontSize:10,color:"#64748b",textAlign:"center",marginTop:2}}>Envia comprobante a <strong style={{color:"#c9a84c"}}>estudiowebpin@gmail.com</strong> - Activacion en 24hs</div>
+              </div><div style={{fontSize:10,color:"var(--dim)",marginTop:8}}>Pago seguro. Acceso inmediato.</div></div>}
       <div className="ft"><p>Soporte: <a href={"mailto:"+CONTACT}>{CONTACT}</a></p><div style={{fontSize:10,color:"#475569",marginTop:12,lineHeight:1.7,textAlign:"center",padding:"10px",borderTop:"1px solid rgba(255,255,255,.05)"}}>Herramienta de analisis estadistico con fines informativos. No realiza apuestas ni maneja dinero. La Quiniela de la Ciudad es administrada por la Loteria de la Ciudad de Buenos Aires. El juego en exceso puede causar adiccion. Linea de ayuda gratuita: <strong style={{color:"#c9a84c"}}>0800-333-0062</strong>. Solo mayores de 18 anos.</div><div className="dc"></div></div>
     </div>
   </div>
