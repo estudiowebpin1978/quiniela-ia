@@ -281,7 +281,11 @@ export default function Page(){
           <div className="dts">{[2,3,4].map(d=><button key={d} className={"dk"+(dg===d?" on":"")} onClick={()=>setDg(d)}>{d>2&&<span className="pbdg">PRO</span>}{d} digitos</button>)}</div>
           <div className={dg>2&&!pr?"lk":""}>
             <div className="g5">{cur.slice(0,dg===2?10:5).map((p:any,i:number)=><div className="cd" key={i}><div className="cn">{p.numero}</div><div className="cs">{p.significado}</div><div className="cr2">#{i+1}</div><div className="ck">{p.score>0?(typeof p.score==="number"?p.score.toFixed(3):p.score):""}</div></div>)}</div>
-            {dg>2&&!pr&&<div className="lo"><div style={{fontSize:36}}>🔐</div><h3>Predicciones {dg} digitos</h3><p>Suscribite al Premium para acceder.</p><a href={UALA} target="_blank" rel="noopener noreferrer" className="uc">Suscribirme $10.000/mes</a></div>}
+            {dg>2&&!pr&&<div className="lo"><div style={{fontSize:36}}>🔐</div><h3>Predicciones {dg} digitos</h3><p>Suscribite al Premium para acceder.</p><div style={{fontSize:11,color:"#94a3b8",marginBottom:6}}>Metodos de pago:</div>
+                        <a href={UALA} target="_blank" rel="noopener noreferrer" style={{padding:"7px 14px",background:"rgba(201,168,76,.12)",border:"1px solid rgba(201,168,76,.3)",borderRadius:8,color:"#f0cc6e",fontSize:11,fontWeight:600,textDecoration:"none",marginBottom:4,display:"block",textAlign:"center"}}>Uala</a>
+                        <div style={{fontSize:10,color:"#a5b4fc",textAlign:"center"}}>Personal Pay: <strong>alopez94.ppay</strong></div>
+                        <div style={{fontSize:10,color:"#fbbf24",textAlign:"center"}}>Naranja X: <strong>ALOPEZ3514.NX.ARS</strong></div>
+                        <div style={{fontSize:10,color:"#86efac",textAlign:"center"}}>Banco Nacion: <strong>fumigacionesrosario</strong></div></div>}
           </div>
           <div className="ib"><strong>Motor:</strong> 30% Frecuencia + 25% Atraso + 20% Tendencia + 15% Monte Carlo + 10% Primeros puestos.</div>
         </>}
