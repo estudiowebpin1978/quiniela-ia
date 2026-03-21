@@ -120,6 +120,16 @@ export default function Page(){
   const mxH=hm.length?Math.max(...hm.map((x:any)=>x.f),1):1
   function hc(f:number){const r=f/mxH;if(r>.75)return{bg:"rgba(239,68,68,.28)",bd:"rgba(239,68,68,.6)"};if(r>.55)return{bg:"rgba(245,158,11,.22)",bd:"rgba(245,158,11,.5)"};if(r>.35)return{bg:"rgba(99,102,241,.18)",bd:"rgba(99,102,241,.4)"};return{bg:"rgba(20,27,42,.5)",bd:"rgba(51,65,85,.3)"}}
   const cur=dg===2?nums:dg===3?p3.map((n:string,i:number)=>({numero:n,significado:nums[i]?.significado||"",score:nums[i]?.score||0})):p4.map((n:string,i:number)=>({numero:n,significado:nums[i]?.significado||"",score:nums[i]?.score||0}))
+
+  function proximoSorteo(sorteo:string):string {
+    const ar = new Date(Date.now() - 3*3600000)
+    const hora = ar.getHours()*100 + ar.getMinutes()
+    const hoy = ar.toLocaleDateString("es-AR",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})
+    const manana = new Date(ar.getTime()+86400000).toLocaleDateString("es-AR",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})
+    if(sorteo==="Todos") return "proximo sorteo"
+    const h:Record<string,number>={Previa:1015,Primera:1200,Matutina:1500,Vespertina:1800,Nocturna:2100}
+    return hora < (h[sorteo]||2100) ? sorteo+" del "+hoy : sorteo+" del "+manana
+  }
   return(<><style>{`
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600;700&family=DM+Mono&display=swap');
     *{box-sizing:border-box;margin:0;padding:0}:root{--g:#c9a84c;--gl:#f0cc6e;--gd:#7a6430;--bg:#06080f;--bg3:#161b22;--bd:rgba(255,255,255,.07);--t:#e2e8f0;--dim:#64748b;--ac:#6366f1}
@@ -192,7 +202,7 @@ export default function Page(){
   <div className="app">
     <nav className="nav">
       <div className="nl" onClick={()=>window.scrollTo(0,0)}><div className="ni">🎰</div><span className="nm">Quiniela IA</span></div>
-      <div className="nr">{pr&&<span className="pp">PREMIUM</span>}{em&&<span className="ne">{em.split("@")[0]}</span>}{pr&&<a href="/admin" style={{padding:"6px 12px",borderRadius:8,border:"1px solid rgba(201,168,76,.3)",color:"#c9a84c",fontSize:11,fontWeight:600,textDecoration:"none",marginRight:6}}>Admin</a>}<button className="no" onClick={logout}>Salir</button></div>
+      <div className="nr">{pr&&<span className="pp">PREMIUM</span>}{em&&<span className="ne">{em.split("@")[0]}</span>}<button className="no" onClick={logout}>Salir</button></div>
     </nav>
     <div className="wr">
       <div className="hero">
@@ -226,28 +236,40 @@ export default function Page(){
     </button>
   </div>
   
-              <div style={{background:"rgba(99,102,241,.06)",border:"1px solid rgba(99,102,241,.18)",borderRadius:14,padding:"16px 18px",marginBottom:18}}>
-                <div style={{fontSize:13,fontWeight:700,color:"#a5b4fc",marginBottom:12}}> Tips de apuesta sugeridos</div>
+              <div style={{background:"rgba(99,102,241,.06)",border:"1px solid rgba(99,102,241,.18)",borderRadius:14,padding:"14px 16px",marginBottom:16}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,flexWrap:"wrap",gap:6}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"#a5b4fc"}}> Tips de apuesta</div>
+                  <div style={{fontSize:10,color:"#c9a84c",background:"rgba(201,168,76,.1)",padding:"3px 9px",borderRadius:20,border:"1px solid rgba(201,168,76,.25)"}}>Para: {proximoSorteo(so)}</div>
+                </div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-                  <div style={{background:"rgba(99,102,241,.08)",borderRadius:10,padding:"10px 8px",textAlign:"center",border:"1px solid rgba(99,102,241,.2)"}}>
-                    <div style={{fontSize:10,color:"#a5b4fc",fontWeight:700,marginBottom:6}}>2 CIFRAS</div>
-                    <div style={{fontSize:11,color:"#e2e8f0",lineHeight:1.8}}>
-                      A primera: <strong style={{color:"#c9a84c"}}>{nums[0]?.numero||"--"}</strong><br/>
-                      A los 10: <strong style={{color:"#c9a84c",fontSize:10}}>{nums.slice(0,10).map((n:any)=>n.numero).join(" ")}</strong>
+                  <div style={{background:"rgba(99,102,241,.08)",borderRadius:10,padding:"10px 6px",border:"1px solid rgba(99,102,241,.2)"}}>
+                    <div style={{fontSize:9,color:"#a5b4fc",fontWeight:700,marginBottom:6,textAlign:"center"}}>2 CIFRAS</div>
+                    <div style={{fontSize:9,color:"#94a3b8",marginBottom:4}}>A primera y a los 10:</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:2}}>
+                      {nums.slice(0,10).map((n:any,i:number)=>(
+                        <span key={i} style={{background:"rgba(201,168,76,.15)",color:"#f0cc6e",padding:"1px 5px",borderRadius:4,fontSize:10,fontWeight:700}}>{n.numero}</span>
+                      ))}
                     </div>
+                    <div style={{fontSize:9,color:"#475569",marginTop:5}}>El 1ro a primera, los 10 a los 10</div>
                   </div>
-                  <div style={{background:"rgba(201,168,76,.06)",borderRadius:10,padding:"10px 8px",textAlign:"center",border:"1px solid rgba(201,168,76,.18)",position:"relative"}}>
-                    {!pr&&<div style={{position:"absolute",top:-8,right:6,background:"#c9a84c",color:"#000",fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:10}}>PRO</div>}
-                    <div style={{fontSize:10,color:"#c9a84c",fontWeight:700,marginBottom:6}}>3 CIFRAS</div>
-                    {pr?<div style={{fontSize:11,color:"#e2e8f0",lineHeight:1.8}}>A primera: <strong style={{color:"#f0cc6e"}}>{p3[0]||"--"}</strong><br/>A los 5: <strong style={{color:"#f0cc6e",fontSize:10}}>{p3.slice(0,5).join(" ")}</strong></div>:<div style={{fontSize:11,color:"#64748b"}}>Solo Premium</div>}
+                  <div style={{background:"rgba(201,168,76,.06)",borderRadius:10,padding:"10px 6px",border:"1px solid rgba(201,168,76,.18)",position:"relative"}}>
+                    {!pr&&<div style={{position:"absolute",top:-7,right:4,background:"#c9a84c",color:"#000",fontSize:7,fontWeight:700,padding:"1px 5px",borderRadius:8}}>PRO</div>}
+                    <div style={{fontSize:9,color:"#c9a84c",fontWeight:700,marginBottom:6,textAlign:"center"}}>3 CIFRAS</div>
+                    {pr?<><div style={{fontSize:9,color:"#94a3b8",marginBottom:4}}>A primera y a los 5:</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:2}}>{p3.slice(0,5).map((n:string,i:number)=>(<span key={i} style={{background:"rgba(201,168,76,.15)",color:"#f0cc6e",padding:"1px 5px",borderRadius:4,fontSize:10,fontWeight:700}}>{n}</span>))}</div>
+                    <div style={{fontSize:9,color:"#475569",marginTop:5}}>El 1ro a primera, los 5 a los 5</div>
+                    </>:<div style={{textAlign:"center",paddingTop:8}}><a href="https://pagar.ualabis.com.ar/order/df50920d5961bd85d19f4231747cc5d7e6ca0489da6e76a4" target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:"#c9a84c",textDecoration:"none"}}>Activar Premium</a></div>}
                   </div>
-                  <div style={{background:"rgba(245,158,11,.05)",borderRadius:10,padding:"10px 8px",textAlign:"center",border:"1px solid rgba(245,158,11,.18)",position:"relative"}}>
-                    {!pr&&<div style={{position:"absolute",top:-8,right:6,background:"#c9a84c",color:"#000",fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:10}}>PRO</div>}
-                    <div style={{fontSize:10,color:"#f59e0b",fontWeight:700,marginBottom:6}}>4 CIFRAS</div>
-                    {pr?<div style={{fontSize:11,color:"#e2e8f0",lineHeight:1.8}}>A primera: <strong style={{color:"#fbbf24"}}>{p4[0]||"--"}</strong><br/>A los 5: <strong style={{color:"#fbbf24",fontSize:10}}>{p4.slice(0,5).join(" ")}</strong></div>:<div style={{fontSize:11,color:"#64748b"}}>Solo Premium</div>}
+                  <div style={{background:"rgba(245,158,11,.05)",borderRadius:10,padding:"10px 6px",border:"1px solid rgba(245,158,11,.18)",position:"relative"}}>
+                    {!pr&&<div style={{position:"absolute",top:-7,right:4,background:"#c9a84c",color:"#000",fontSize:7,fontWeight:700,padding:"1px 5px",borderRadius:8}}>PRO</div>}
+                    <div style={{fontSize:9,color:"#f59e0b",fontWeight:700,marginBottom:6,textAlign:"center"}}>4 CIFRAS</div>
+                    {pr?<><div style={{fontSize:9,color:"#94a3b8",marginBottom:4}}>A primera y a los 5:</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:2}}>{p4.slice(0,5).map((n:string,i:number)=>(<span key={i} style={{background:"rgba(245,158,11,.12)",color:"#fbbf24",padding:"1px 5px",borderRadius:4,fontSize:10,fontWeight:700}}>{n}</span>))}</div>
+                    <div style={{fontSize:9,color:"#475569",marginTop:5}}>El 1ro a primera, los 5 a los 5</div>
+                    </>:<div style={{textAlign:"center",paddingTop:8}}><a href="https://pagar.ualabis.com.ar/order/df50920d5961bd85d19f4231747cc5d7e6ca0489da6e76a4" target="_blank" rel="noopener noreferrer" style={{fontSize:10,color:"#c9a84c",textDecoration:"none"}}>Activar Premium</a></div>}
                   </div>
                 </div>
-                <div style={{fontSize:10,color:"#64748b",marginTop:10,textAlign:"center"}}>A primera paga mas. A los 10/5 aumentan las chances. Combinalos para mejor resultado.</div>
+                <div style={{fontSize:9,color:"#475569",marginTop:8,textAlign:"center"}}>A primera paga mas. A los 10/5 aumentas las chances. Combinalos.</div>
               </div>
 <div className="tbs">
           <button className={"tb"+(tab==="pred"?" on":"")} onClick={()=>setTab("pred")}>Predicciones</button>
