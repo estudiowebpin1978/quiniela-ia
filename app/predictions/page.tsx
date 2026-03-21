@@ -202,7 +202,7 @@ export default function Page(){
   <div className="app">
     <nav className="nav">
       <div className="nl" onClick={()=>window.scrollTo(0,0)}><div className="ni">🎰</div><span className="nm">Quiniela IA</span></div>
-      <div className="nr">{pr&&<span className="pp">PREMIUM</span>}{em&&<span className="ne">{em.split("@")[0]}</span>}<button className="no" onClick={logout}>Salir</button></div>
+      <div className="nr">{pr&&<span className="pp">PREMIUM</span>}{em&&<span className="ne">{em.split("@")[0]}</span>}{pr&&<a href="/admin" style={{padding:"6px 12px",borderRadius:8,border:"1px solid rgba(201,168,76,.3)",color:"#c9a84c",fontSize:11,fontWeight:600,textDecoration:"none",marginRight:6}}>Panel Admin</a>}<button className="no" onClick={logout}>Salir</button></div>
     </nav>
     <div className="wr">
       <div className="hero">
