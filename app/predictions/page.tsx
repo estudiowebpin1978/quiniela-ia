@@ -332,7 +332,15 @@ export default function Page(){
                 <div style={{padding:"8px 12px",background:"rgba(99,102,241,.08)",border:"1px solid rgba(99,102,241,.2)",borderRadius:8,fontSize:11,color:"#a5b4fc",textAlign:"center"}}>Personal Pay: <strong>alopez94.ppay</strong></div>
                 <div style={{padding:"8px 12px",background:"rgba(245,158,11,.06)",border:"1px solid rgba(245,158,11,.2)",borderRadius:8,fontSize:11,color:"#fbbf24",textAlign:"center"}}>Naranja X: <strong>ALOPEZ3514.NX.ARS</strong></div>
                 <div style={{padding:"8px 12px",background:"rgba(34,197,94,.06)",border:"1px solid rgba(34,197,94,.2)",borderRadius:8,fontSize:11,color:"#86efac",textAlign:"center"}}>Banco Nacion: <strong>fumigacionesrosario</strong></div>
-                <div style={{fontSize:10,color:"#64748b",textAlign:"center",marginTop:2}}>Envia comprobante a <strong style={{color:"#c9a84c"}}>estudiowebpin@gmail.com</strong> - Activacion en 24hs</div>
+                <div style={{fontSize:10,color:"#64748b",textAlign:"center",marginTop:2}}>Envia el comprobante por:
+                <div style={{display:"flex",gap:6,justifyContent:"center",marginTop:6,flexWrap:"wrap"}}>
+                  <a href="https://wa.me/5493412500029?text=Hola!%20Pague%20el%20premium%20de%20Quiniela%20IA%20y%20adjunto%20el%20comprobante." target="_blank" rel="noopener noreferrer" style={{padding:"6px 12px",background:"#25D366",color:"#fff",borderRadius:8,fontSize:11,fontWeight:700,textDecoration:"none"}}>WhatsApp</a>
+                  <a href="mailto:estudiowebpin@gmail.com" style={{padding:"6px 12px",background:"rgba(201,168,76,.15)",color:"#c9a84c",borderRadius:8,fontSize:11,fontWeight:700,textDecoration:"none"}}>Email</a>
+                </div>
+                <div style={{marginTop:8,fontSize:10,color:"#475569",lineHeight:1.7}}>
+                  Sin datos de tarjeta. Paga desde tu banco.<br/>
+                  Activacion en menos de 24hs. Devolucion garantizada.
+                </div></div>
               </div><div style={{fontSize:10,color:"var(--dim)",marginTop:8}}>Pago seguro. Acceso inmediato.</div></div>}
       <div className="ft"><p>Soporte: <a href={"mailto:"+CONTACT}>{CONTACT}</a></p><div style={{fontSize:10,color:"#475569",marginTop:12,lineHeight:1.7,textAlign:"center",padding:"10px",borderTop:"1px solid rgba(255,255,255,.05)"}}>Herramienta de analisis estadistico con fines informativos. No realiza apuestas ni maneja dinero. La Quiniela de la Ciudad es administrada por la Loteria de la Ciudad de Buenos Aires. El juego en exceso puede causar adiccion. Linea de ayuda gratuita: <strong style={{color:"#c9a84c"}}>0800-333-0062</strong>. Solo mayores de 18 anos.</div><div className="dc"></div></div>
     </div>
