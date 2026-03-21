@@ -30,7 +30,7 @@ export default function LoginPage(){
       <div className="top"><div className="ico">🎰</div><h1>Quiniela IA</h1><div className="sub">Predicciones estadisticas reales</div></div>
       <div className="tabs">
         <button className={"tab"+(tab==="in"?" on":"")} onClick={()=>{setTab("in");setErr("");setOk("")}}>Iniciar sesion</button>
-        <button className={"tab"+(tab==="up"?" on":"")} onClick={()=>{setTab("up");setErr("");setOk("")}}>Crear cuenta</button>
+        <button className={"tab"+(tab==="up"?" on":"")} onClick={()=>{setTab("up");setErr("");setOk("")}}>Crear cuenta <span style={{fontSize:9,color:"#86efac",fontWeight:700}}>GRATIS</span></button>
       </div>
       <span className="lbl">Email</span>
       <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com"/>
@@ -39,8 +39,9 @@ export default function LoginPage(){
       <button className="btn" onClick={submit} disabled={busy}>{busy?"Verificando...":tab==="in"?"Ingresar":"Crear cuenta"}</button>
       {err&&<div className="err">X {err}</div>}
       {ok&&<div className="suc">OK {ok}</div>}
-      <div className="sep">Predicciones 3 y 4 cifras + Redoblona<span className="pill">PREMIUM</span></div>
-      <a href={UALA} target="_blank" rel="noopener noreferrer" className="uala">Suscribirme $10.000/mes via Uala</a>
+      <div style={{marginTop:14,padding:"12px",background:"rgba(201,168,76,.06)",border:"1px solid rgba(201,168,76,.15)",borderRadius:10,textAlign:"center"}}>
+        <p style={{fontSize:11,color:"#94a3b8",lineHeight:1.6}}>Premium desde <strong style={{color:"#c9a84c"}}>$10.000/mes</strong><br/>Pagá por Uala, Personal Pay, Naranja X o Banco Nacion</p>
+      </div>
     </div>
   </>)
 }
