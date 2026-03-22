@@ -326,12 +326,16 @@ export default function Page(){
           </div>
         </div>
       </div>
-      {!pr&&<div className="cta"><div style={{fontSize:28,marginBottom:7}}>🚀</div><h3>Desbloquea el motor completo</h3><p>Predicciones de 3 y 4 cifras mas Redoblona con datos reales.</p><a href={UALA} target="_blank" rel="noopener noreferrer" style={{fontSize:13,padding:"12px 24px",background:"linear-gradient(135deg,#6366f1,#4f46e5)",color:"#fff",borderRadius:10,textDecoration:"none"}}>Uala</a>
+      {!pr&&<div className="cta"><div style={{fontSize:28,marginBottom:7}}>🚀</div><h3>Desbloquea el motor completo</h3><p>Predicciones de 3 y 4 cifras mas Redoblona con datos reales.</p>
               <div style={{display:"flex",flexDirection:"column",gap:6,width:"100%",maxWidth:320,margin:"8px auto 0"}}>
-                <div style={{fontSize:11,color:"#94a3b8",textAlign:"center"}}>O transferi a cualquiera de estos alias:</div>
-                <div style={{padding:"8px 12px",background:"rgba(99,102,241,.08)",border:"1px solid rgba(99,102,241,.2)",borderRadius:8,fontSize:11,color:"#a5b4fc",textAlign:"center"}}>Personal Pay: <strong>alopez94.ppay</strong></div>
-                <div style={{padding:"8px 12px",background:"rgba(245,158,11,.06)",border:"1px solid rgba(245,158,11,.2)",borderRadius:8,fontSize:11,color:"#fbbf24",textAlign:"center"}}>Naranja X: <strong>ALOPEZ3514.NX.ARS</strong></div>
-                <div style={{padding:"8px 12px",background:"rgba(34,197,94,.06)",border:"1px solid rgba(34,197,94,.2)",borderRadius:8,fontSize:11,color:"#86efac",textAlign:"center"}}>Banco Nacion: <strong>fumigacionesrosario</strong></div>
+                <div style={{padding:"14px",background:"rgba(99,102,241,.1)",border:"1px solid rgba(99,102,241,.3)",borderRadius:12,textAlign:"center"}}>
+                  <div style={{fontSize:12,color:"#a5b4fc",fontWeight:700,marginBottom:6}}>Paga con Personal Pay</div>
+                  <div style={{fontSize:22,fontWeight:900,color:"#e2e8f0",letterSpacing:2,marginBottom:4}}>alopez94.ppay</div>
+                  <div style={{fontSize:10,color:"#64748b"}}>Abri tu app bancaria o billetera y transferi al alias</div>
+                </div>
+                
+                
+                
                 <div style={{fontSize:10,color:"#64748b",textAlign:"center",marginTop:2}}>Envia el comprobante por:
                 <div style={{display:"flex",gap:6,justifyContent:"center",marginTop:6,flexWrap:"wrap"}}>
                   <a href="https://wa.me/5493412500029?text=Hola!%20Pague%20el%20premium%20de%20Quiniela%20IA%20y%20adjunto%20el%20comprobante." target="_blank" rel="noopener noreferrer" style={{padding:"6px 12px",background:"#25D366",color:"#fff",borderRadius:8,fontSize:11,fontWeight:700,textDecoration:"none"}}>WhatsApp</a>
