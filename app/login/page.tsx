@@ -39,8 +39,8 @@ export default function LoginPage(){
       <button className="btn" onClick={submit} disabled={busy}>{busy?"Verificando...":tab==="in"?"Ingresar":"Crear cuenta"}</button>
       {err&&<div className="err">X {err}</div>}
       {ok&&<div className="suc">OK {ok}</div>}
-      <div style={{marginTop:14,padding:"12px",background:"rgba(201,168,76,.06)",border:"1px solid rgba(201,168,76,.15)",borderRadius:10,textAlign:"center"}}>
-        <p style={{fontSize:11,color:"#94a3b8",lineHeight:1.6}}>Premium desde <strong style={{color:"#c9a84c"}}>$10.000/mes</strong><br/>Pagá por Uala, Personal Pay, Naranja X o Banco Nacion</p>
+      <div style={{marginTop:14,textAlign:"center"}}>
+        <p style={{fontSize:11,color:"#475569",lineHeight:1.6}}>Desarrollado por <strong style={{color:"#64748b"}}>Estudio Web Pin</strong><br/><span style={{fontSize:10,color:"#374151"}}>Adrian Hugo Lopez</span></p>
       </div>
     </div>
   </>)
