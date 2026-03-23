@@ -1,7 +1,11 @@
-name: Scraper Automatico Quiniela
+name: Scraper Automatico
 on:
   schedule:
-    - cron: "30 1 * * 1-5"
+    - cron: "30 13 * * 1-6"
+    - cron: "15 15 * * 1-6"
+    - cron: "15 18 * * 1-6"
+    - cron: "45 21 * * 1-6"
+    - cron: "30 00 * * 2-6"
   workflow_dispatch:
 jobs:
   scrape:
@@ -16,4 +20,4 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python scripts/ingest_ruta1000.py --days 3
+        run: python scripts/ingest_ruta1000.py --days 1
