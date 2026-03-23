@@ -63,6 +63,9 @@ export default function Page(){
   const [dg,setDg]=useState(2)
   const [ld,setLd]=useState(false)
   const [dn,setDn]=useState(false)
+  const [misPreds,setMisPreds]=useState<any[]>([])
+  const [guardando,setGuardando]=useState(false)
+  const [guardadoOk,setGuardadoOk]=useState(false)
   const [predInfo,setPredInfo]=useState({sorteo:"",fecha:"",hora:""})
   const [er,setEr]=useState("")
   const [dt,setDt]=useState(null as any)
@@ -77,6 +80,7 @@ export default function Page(){
       if(s.expires_at&&s.expires_at<Math.floor(Date.now()/1000)){localStorage.removeItem("sb-"+proj+"-auth-token");window.location.href="/login";return}
       setEm(s.user?.email||"")
       fetch("/api/auth/me",{headers:{Authorization:"Bearer "+s.access_token}}).then(r=>r.ok?r.json():null).then(d=>{if(d?.isPremium)setPr(true)}).catch(()=>{})
+      cargarMisPreds(s.access_token)
     }catch{window.location.href="/login"}
   },[])
   useEffect(()=>{
@@ -98,6 +102,30 @@ export default function Page(){
     const rdbl=dt?.redoblona?"\nRedoblona: "+dt.redoblona:""
     const txt="QUINIELA IA - "+predInfo.sorteo+"\nFecha: "+predInfo.fecha+" "+predInfo.hora+"\n\n"+lineas+rdbl+"\n\nhttps://quiniela-ia-two.vercel.app"
     navigator.clipboard.writeText(txt).then(()=>alert("Prediccion copiada!")).catch(()=>{const el=document.createElement("textarea");el.value=txt;document.body.appendChild(el);el.select();document.execCommand("copy");document.body.removeChild(el);alert("Prediccion copiada!")})
+  }
+
+  async function guardarPrediccion(){
+    const raw=localStorage.getItem("sb-"+((process.env.NEXT_PUBLIC_SUPABASE_URL||"").split("//")[1]?.split(".")[0]||"wazkylxgqckjfkcmfotl")+"-auth-token")
+    if(!raw)return
+    const s=JSON.parse(raw)
+    setGuardando(true)
+    try{
+      const hoy=new Date(Date.now()-3*3600000)
+      const fechaStr=hoy.toISOString().split("T")[0]
+      const nums=cur.slice(0,dg===2?10:5).map((p:any)=>p.numero)
+      await fetch("/api/mis-predicciones",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+s.access_token},body:JSON.stringify({date:fechaStr,turno:so,numeros:nums})})
+      setGuardadoOk(true)
+      setTimeout(()=>setGuardadoOk(false),3000)
+      cargarMisPreds(s.access_token)
+    }catch{}
+    setGuardando(false)
+  }
+  async function cargarMisPreds(token:string){
+    try{
+      const r=await fetch("/api/mis-predicciones",{headers:{"Authorization":"Bearer "+token}})
+      const d=await r.json()
+      if(d.predictions)setMisPreds(d.predictions)
+    }catch{}
   }
   async function gen(){
     setLd(true);setEr("");setDn(false);setDt(null)
@@ -302,7 +330,34 @@ export default function Page(){
           <div className="hm">{hm.map((c:any)=>{const{bg,bd}=hc(c.f);return<div key={c.n} className="hc" style={{background:bg,borderColor:bd}} title={String(c.n).padStart(2,"0")+" - "+c.s+" - "+c.f+"x"}><span className="hn">{String(c.n).padStart(2,"0")}</span><span className="hv">{c.f}</span></div>})}</div>
         </>}
       </>}
-      <div className="shr">
+      
+              <div style={{display:"flex",alignItems:"center",gap:8,margin:"12px 0"}}>
+                <button onClick={guardarPrediccion} disabled={guardando||!dn} style={{padding:"8px 16px",background:"rgba(99,102,241,.12)",border:"1px solid rgba(99,102,241,.3)",borderRadius:8,color:"#a5b4fc",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:!dn?.5:1}}>
+                  {guardando?"Guardando...":guardadoOk?"Guardado!":"Guardar esta prediccion"}
+                </button>
+                <span style={{fontSize:10,color:"#64748b"}}>Para comparar con el resultado real</span>
+              </div>
+              {misPreds.length>0&&<div style={{background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.07)",borderRadius:14,padding:"16px",marginBottom:16}}>
+                <div style={{fontSize:13,fontWeight:700,color:"#e2e8f0",marginBottom:12}}>Mis predicciones guardadas</div>
+                {misPreds.map((p:any,i:number)=>(
+                  <div key={i} style={{borderBottom:"1px solid rgba(255,255,255,.05)",paddingBottom:10,marginBottom:10}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                      <div style={{fontSize:12,color:"#c9a84c",fontWeight:600}}>{p.turno} - {new Date(p.date).toLocaleDateString("es-AR")}</div>
+                      {p.resultado?<div style={{fontSize:11,color:p.acerto?"#86efac":"#64748b",fontWeight:600}}>{p.acerto?`Acertaste ${p.aciertos.length} numero(s)`:"Sin aciertos"}</div>:<div style={{fontSize:10,color:"#64748b"}}>Pendiente resultado</div>}
+                    </div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:p.aciertos?.length>0?6:0}}>
+                      {p.numeros.map((n:string,j:number)=>{
+                        const acerto=p.aciertos?.some((a:any)=>a.numero===n)
+                        return<span key={j} style={{padding:"2px 7px",borderRadius:4,fontSize:10,fontWeight:700,background:acerto?"rgba(134,239,172,.2)":"rgba(255,255,255,.05)",color:acerto?"#86efac":"#94a3b8",border:acerto?"1px solid rgba(134,239,172,.4)":"1px solid rgba(255,255,255,.08)"}}>{n}</span>
+                      })}
+                    </div>
+                    {p.aciertos?.length>0&&<div style={{fontSize:10,color:"#86efac"}}>
+                      {p.aciertos.map((a:any)=>`${a.numero} salio en el puesto ${a.puesto}`).join(" | ")}
+                    </div>}
+                  </div>
+                ))}
+              </div>}
+              <div className="shr">
         <div className="shr-t">Compartir Quiniela IA con amigos</div>
         <div className="shr-b">
           <button className="sb wa" onClick={()=>share("whatsapp")}>📱 WhatsApp</button>
