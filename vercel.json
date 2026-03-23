@@ -2,6 +2,6 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "crons": [
-    {"path": "/api/cron?secret=quiniela2024cron", "schedule": "15 13,15,18,21,0 * * 1-6"}
+    {"path": "/api/cron?secret=quiniela2024cron", "schedule": "0 3 * * *"}
   ]
 }
