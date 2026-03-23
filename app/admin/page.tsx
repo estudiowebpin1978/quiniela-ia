@@ -14,12 +14,26 @@ export default function AdminPage(){
   const [np,setNp]=useState("")
   const [nr,setNr]=useState("premium")
   const [creating,setCreating]=useState(false)
+  const [scraperBusy,setScraperBusy]=useState<string|null>(null)
+  const [scraperMsg,setScraperMsg]=useState("")
   useEffect(()=>{
     const proj=(process.env.NEXT_PUBLIC_SUPABASE_URL||"").split("//")[1]?.split(".")[0]||"wazkylxgqckjfkcmfotl"
     const raw=localStorage.getItem("sb-"+proj+"-auth-token")
     if(!raw){window.location.href="/login";return}
     try{const s=JSON.parse(raw);if(!s?.access_token){window.location.href="/login";return};setToken(s.access_token);load(s.access_token)}catch{window.location.href="/login"}
   },[])
+
+  async function runScraper(turno:string){
+    setScraperBusy(turno);setScraperMsg("")
+    try{
+      const days = turno==="todos"?3:1
+      const r=await fetch(`/api/cron?secret=quiniela2024cron&turno=${turno}&days=${days}`,{headers:{Authorization:"Bearer "+token}})
+      const d=await r.json()
+      if(d.ok){setScraperMsg("OK - "+JSON.stringify(d.results||d))}
+      else{setScraperMsg("Error: "+JSON.stringify(d))}
+    }catch(e:any){setScraperMsg("Error: "+e.message)}
+    setScraperBusy(null)
+  }
   async function load(tk:string){
     setLoading(true);setErr("")
     try{const r=await fetch("/api/admin",{headers:{Authorization:"Bearer "+tk}});const d=await r.json();if(!r.ok){setErr(r.status===401?"No tenes permisos de admin":d.error);setLoading(false);return};setUsers(d.users||[])}catch(e:any){setErr(e.message)}finally{setLoading(false)}
