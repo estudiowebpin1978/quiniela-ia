@@ -1,7 +1,4 @@
 {
   "framework": "nextjs",
-  "buildCommand": "npm run build",
-  "crons": [
-    {"path": "/api/cron?secret=quiniela2024cron", "schedule": "0 3 * * *"}
-  ]
+  "buildCommand": "npm run build"
 }

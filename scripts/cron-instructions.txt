@@ -1,0 +1,20 @@
+Cron gratuito (cron-job.org) + Vercel
+=====================================
+
+1) En Vercel → Settings → Environment Variables:
+   CRON_SECRET = una contraseña larga aleatoria (la misma en todos los entornos que uses).
+
+2) En https://console.cron-job.org crea un job:
+   URL: https://TU-PROYECTO.vercel.app/api/cron?secret=TU_CRON_SECRET
+   Método: GET
+   Cada 30–60 min (después de cada sorteo suele bastar; podés poner varios jobs por turno).
+
+3) Para traer los 5 turnos del día de una vez (recomendado, 1–2 veces al día):
+   URL: .../api/cron?secret=TU_CRON_SECRET&turno=todos
+
+4) Opcional: en lugar de query, podés enviar cabecera
+   Authorization: Bearer TU_CRON_SECRET
+   o
+   x-cron-secret: TU_CRON_SECRET
+
+5) La tabla Supabase `draws` debe tener columnas usadas por el scraper: date (date), turno (text), numbers (json/array).

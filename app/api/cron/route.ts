@@ -25,9 +25,17 @@ async function save(fechaStr:string,turno:string,nums:number[]):Promise<boolean>
   const r=await fetch(`${SB()}/rest/v1/draws`,{method:"POST",headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({date:fechaStr,turno,numbers:nums})})
   return r.ok
 }
-export async function GET(req:NextRequest){
-  const secret=req.nextUrl.searchParams.get("secret")
-  if(secret!==process.env.CRON_SECRET)return NextResponse.json({error:"Unauthorized"},{status:401})
+function authorizeCron(req: NextRequest): boolean {
+  const expected = process.env.CRON_SECRET
+  if (!expected) return false
+  const q = req.nextUrl.searchParams.get("secret")
+  const h = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? ""
+  const x = req.headers.get("x-cron-secret") ?? ""
+  return q === expected || h === expected || x === expected
+}
+
+export async function GET(req: NextRequest) {
+  if (!authorizeCron(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const now=new Date(Date.now()-3*3600000)
   const y=now.getFullYear(),mo=String(now.getMonth()+1).padStart(2,"0"),d=String(now.getDate()).padStart(2,"0")
   const fechaStr=`${y}-${mo}-${d}`,fechaUrl=`${d}-${mo}-${String(y).slice(-2)}`
