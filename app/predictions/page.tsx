@@ -42,6 +42,7 @@ export default function Page(){
   const [guardando,setGuardando]=useState(false)
   const [guardadoOk,setGuardadoOk]=useState(false)
   const [aiInsight,setAiInsight]=useState("")
+  const [stats,setStats]=useState<any>(null)
   const scrollRef=useRef<HTMLDivElement>(null)
   const tkRef=useRef("")
   useEffect(()=>{
@@ -56,6 +57,7 @@ export default function Page(){
       setEm(s.user?.email||"")
       fetch("/api/auth/me",{headers:{Authorization:"Bearer "+s.access_token}}).then(r=>r.ok?r.json():null).then(d=>{if(d?.isPremium)setPr(true)}).catch(()=>{})
       cargarMisPreds(s.access_token)
+      fetch("/api/estadisticas").then(r=>r.json()).then(d=>setStats(d)).catch(()=>{})
     }catch{window.location.href="/login"}
   },[])
   useEffect(()=>{
@@ -65,6 +67,14 @@ export default function Page(){
     aid=requestAnimationFrame(step)
     return()=>cancelAnimationFrame(aid)
   },[])
+
+  async function pedirNotificaciones(){
+    if(!("Notification" in window))return
+    const perm = await Notification.requestPermission()
+    if(perm==="granted"){
+      alert("Notificaciones activadas! Te avisaremos cuando salgan los resultados de cada sorteo.")
+    }
+  }
   async function gen(){
     setLd(true);setEr("");setDn(false);setDt(null)
     try{
@@ -251,6 +261,7 @@ export default function Page(){
           {pr&&<span className="pp">PREMIUM</span>}
           {em&&<span className="ne">{em.split("@")[0]}</span>}
           {pr&&<a href="/admin" className="nav-admin">Admin</a>}
+          <button onClick={pedirNotificaciones} style={{padding:"5px 10px",borderRadius:7,border:"1px solid rgba(32,213,236,.2)",background:"transparent",color:"#20d5ec",fontSize:11,cursor:"pointer",fontFamily:"inherit"}} title="Activar notificaciones">🔔</button>
           <button className="nav-out" onClick={logout}>Salir</button>
         </div>
       </nav>
@@ -259,10 +270,11 @@ export default function Page(){
           <h1>Predicciones Inteligentes</h1>
           <p>Analisis estadistico real de la Quiniela Nacional de Buenos Aires. Motor con 6 factores y datos actualizados automaticamente.</p>
           <div className="sts">
-            <div className="sc"><div className="sv">{dt?.totalSorteos||"--"}</div><div className="sl">Sorteos</div></div>
-            <div className="sc"><div className="sv">{nums[0]?.numero||"--"}</div><div className="sl">Top 1</div></div>
-            <div className="sc"><div className="sv">{pr?"PRO":"FREE"}</div><div className="sl">Acceso</div></div>
+            <div className="sc"><div className="sv">{stats?.pct||"--"}%</div><div className="sl">Aciertos 30 sorteos</div></div>
+            <div className="sc"><div className="sv">{stats?.racha||"--"}</div><div className="sl">Racha actual</div></div>
+            <div className="sc"><div className="sv">{stats?.totalSorteos||"--"}</div><div className="sl">Sorteos analizados</div></div>
           </div>
+          {stats?.mensaje&&<div style={{fontSize:11,color:"#20d5ec",background:"rgba(32,213,236,.07)",border:"1px solid rgba(32,213,236,.2)",borderRadius:20,padding:"5px 14px",marginTop:8,display:"inline-block"}}>{stats.mensaje}</div>}
         </div>
         <div style={{fontSize:10,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:"1.5px",marginBottom:8,textAlign:"center"}}>Elegí el sorteo a analizar</div>
         <div className="sorteo-btns">
