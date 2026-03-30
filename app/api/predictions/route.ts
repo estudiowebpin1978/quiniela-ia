@@ -142,7 +142,7 @@ export async function GET(req: NextRequest) {
 
     if (!rows?.length) {
       return NextResponse.json({
-        tier: premium ? "premium" : "free",
+        tier: "premium",
         numeros: [],
         totalSorteos: 0,
         sorteo,

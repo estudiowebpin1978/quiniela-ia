@@ -78,7 +78,7 @@ export default function Page(){
   async function gen(){
     setLd(true);setEr("");setDn(false);setDt(null)
     try{
-      const r=await fetch("/api/predictions?sorteo="+encodeURIComponent(so))
+      const r=await fetch("/api/predictions?sorteo="+encodeURIComponent(so),{headers:{Authorization:"Bearer "+tkRef.current}})
       const d=await r.json()
       if(!r.ok)throw new Error(d.error||"Error")
       setDt(d);setDn(true);if(d.aiInsight)setAiInsight(d.aiInsight)
