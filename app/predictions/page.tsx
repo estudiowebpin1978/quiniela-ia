@@ -41,6 +41,7 @@ export default function Page(){
   const [misPreds,setMisPreds]=useState<any[]>([])
   const [guardando,setGuardando]=useState(false)
   const [guardadoOk,setGuardadoOk]=useState(false)
+  const [aiInsight,setAiInsight]=useState("")
   const scrollRef=useRef<HTMLDivElement>(null)
   const tkRef=useRef("")
   useEffect(()=>{
@@ -70,7 +71,7 @@ export default function Page(){
       const r=await fetch("/api/predictions?sorteo="+encodeURIComponent(so))
       const d=await r.json()
       if(!r.ok)throw new Error(d.error||"Error")
-      setDt(d);setDn(true)
+      setDt(d);setDn(true);if(d.aiInsight)setAiInsight(d.aiInsight)
     }catch(e:any){setEr(e?.message||String(e))}
     finally{setLd(false)}
   }
@@ -281,6 +282,13 @@ export default function Page(){
             <div style={{fontSize:12,color:"#ff6b81",fontWeight:700}}>Para: <span style={{color:"#fff"}}>{proximoSorteo(so)}</span></div>
             <button onClick={copiar} style={{padding:"5px 12px",background:"rgba(255,45,85,.1)",border:"1px solid rgba(255,45,85,.25)",borderRadius:8,color:"#ff6b81",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Copiar</button>
           </div>
+          {aiInsight&&<div style={{background:"rgba(32,213,236,.05)",border:"1px solid rgba(32,213,236,.18)",borderRadius:12,padding:"12px 14px",marginBottom:14,display:"flex",gap:10,alignItems:"flex-start"}}>
+            <div style={{fontSize:20,flexShrink:0}}>🤖</div>
+            <div>
+              <div style={{fontSize:10,fontWeight:800,color:"#20d5ec",marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Analisis IA</div>
+              <div style={{fontSize:12,color:"#e2e8f0",lineHeight:1.7}}>{aiInsight}</div>
+            </div>
+          </div>}
           <div className="tips">
             <div style={{fontSize:11,fontWeight:800,color:"#ff6b81",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <span>Tips de apuesta</span>
