@@ -240,7 +240,6 @@ export async function GET(req: NextRequest) {
     const s4 = scoreDigits(freq4, hist4, 800)
     s3.sort((a, b) => b.score - a.score)
     s4.sort((a, b) => b.score - a.score)
-
     const pred3d = s3.slice(0, 5).map((x, i) => ({
       numero: pad(x.n, 3),
       score: Math.round(x.score * 10000) / 10000,
