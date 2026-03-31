@@ -84,7 +84,21 @@ export default function AdminPage(){
       </div>
       {loading?<div className="empty"><span className="sp" style={{width:24,height:24,borderTopColor:"#c9a84c"}}/></div>:filtered.length===0?<div className="empty">No hay usuarios{search?" con ese email":""}</div>:(
         <div style={{overflowX:"auto"}}>
-          <table className="tb">
+          <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+        <div style={{background:"rgba(255,45,85,.08)",border:"1px solid rgba(255,45,85,.2)",borderRadius:10,padding:"8px 14px",fontSize:12,color:"#ff6b81",fontWeight:700}}>
+          Total: {users.length} usuarios
+        </div>
+        <div style={{background:"rgba(32,213,236,.08)",border:"1px solid rgba(32,213,236,.2)",borderRadius:10,padding:"8px 14px",fontSize:12,color:"#20d5ec",fontWeight:700}}>
+          Premium: {users.filter(u=>u.role==="premium"||u.role==="admin").length}
+        </div>
+        <div style={{background:"rgba(201,168,76,.08)",border:"1px solid rgba(201,168,76,.2)",borderRadius:10,padding:"8px 14px",fontSize:12,color:"#c9a84c",fontWeight:700}}>
+          Admin: {users.filter(u=>u.role==="admin").length}
+        </div>
+        <div style={{background:"rgba(100,116,139,.08)",border:"1px solid rgba(100,116,139,.2)",borderRadius:10,padding:"8px 14px",fontSize:12,color:"#94a3b8",fontWeight:700}}>
+          Free: {users.filter(u=>u.role==="free"||!u.role).length}
+        </div>
+      </div>
+<table className="tb">
             <thead><tr><th>Email</th><th>Rol actual</th><th>Premium hasta</th><th>Acciones</th></tr></thead>
             <tbody>{filtered.map(u=>{const d=dl(u.premium_until);return(<tr key={u.id}>
               <td><div className="em">{u.email}</div></td>

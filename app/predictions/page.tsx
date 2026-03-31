@@ -175,11 +175,11 @@ export default function Page(){
       .sl{font-size:10px;color:#64748b;margin-top:3px;font-weight:500;letter-spacing:.3px}
       .sorteo-label{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;text-align:center}
       .sorteo-btns{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:14px}
-      .sb{padding:12px 2px 9px;border-radius:13px;background:linear-gradient(180deg,#1a1a2e,#0d0d1f);color:#64748b;border:1.5px solid rgba(255,255,255,.08);box-shadow:0 5px 0 #03030a,0 6px 15px rgba(0,0,0,.4);cursor:pointer;font-family:'Inter',sans-serif;font-weight:700;font-size:11px;text-align:center;transition:.12s;display:flex;flex-direction:column;align-items:center;gap:4px;user-select:none;letter-spacing:.2px}
-      .sb .sh{font-size:8px;font-weight:500;opacity:.55}
+      .sb{padding:13px 4px 10px;border-radius:13px;background:linear-gradient(180deg,#1a1a2e,#0d0d1f);color:#94a3b8;border:1.5px solid rgba(255,255,255,.1);box-shadow:0 5px 0 #03030a,0 6px 15px rgba(0,0,0,.4);cursor:pointer;font-family:'Inter',sans-serif;font-weight:800;font-size:12px;text-align:center;transition:.12s;display:flex;flex-direction:column;align-items:center;gap:5px;user-select:none;letter-spacing:.2px}
+      .sb .sh{font-size:10px;font-weight:600;opacity:.8;color:#64748b}
       .sb:active{transform:translateY(3px);box-shadow:none}
-      .sb.on{background:linear-gradient(180deg,#20d5ec,#00a8c8);color:#001a20;border-color:rgba(37,244,238,.6);box-shadow:0 5px 0 #006080,0 6px 20px rgba(32,213,236,.5)}
-      .sb.on .sh{opacity:.9;color:#004d5c}
+      .sb.on{background:linear-gradient(180deg,#20d5ec,#00a8c8);color:#001a20;border-color:rgba(37,244,238,.8);box-shadow:0 5px 0 #006080,0 6px 20px rgba(32,213,236,.5);font-size:13px}
+      .sb.on .sh{opacity:1;color:#004d5c;font-weight:700;font-size:11px}
       .sb:hover:not(.on){background:linear-gradient(180deg,#0d2a2e,#081a1e);color:#20d5ec;border-color:rgba(32,213,236,.2)}
       .btn3d{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:13px;font-family:'Inter',sans-serif;font-weight:800;cursor:pointer;transition:transform .08s,box-shadow .08s;user-select:none;-webkit-tap-highlight-color:transparent;width:100%;margin-bottom:8px}
       .btn3d:active{transform:translateY(4px)!important;box-shadow:none!important}
