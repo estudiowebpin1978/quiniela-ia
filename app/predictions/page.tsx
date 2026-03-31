@@ -43,7 +43,6 @@ export default function Page(){
   const [guardadoOk,setGuardadoOk]=useState(false)
   const [aiInsight,setAiInsight]=useState("")
   const [stats,setStats]=useState<any>(null)
-  const [ultimoRes,setUltimoRes]=useState<any>(null)
   const scrollRef=useRef<HTMLDivElement>(null)
   const tkRef=useRef("")
   useEffect(()=>{
@@ -59,9 +58,6 @@ export default function Page(){
       fetch("/api/auth/me",{headers:{Authorization:"Bearer "+s.access_token}}).then(r=>r.ok?r.json():null).then(d=>{if(d?.isPremium)setPr(true)}).catch(()=>{})
       cargarMisPreds(s.access_token)
       fetch("/api/estadisticas").then(r=>r.json()).then(d=>setStats(d)).catch(()=>{})
-      fetch("/api/predictions?sorteo="+so).then(r=>r.json()).then(d=>{
-        if(d?.numeros?.length>0)setUltimoRes(d)
-      }).catch(()=>{})
     }catch{window.location.href="/login"}
   },[])
   useEffect(()=>{
@@ -289,15 +285,7 @@ export default function Page(){
             <div className="sc"><div className="sv">{stats?.racha||"--"}</div><div className="sl">Racha actual</div></div>
             <div className="sc"><div className="sv">{stats?.totalSorteos||"--"}</div><div className="sl">Sorteos analizados</div></div>
           </div>
-          {ultimoRes?.numeros?.length>0&&<div style={{background:"rgba(255,45,85,.04)",border:"1px solid rgba(255,45,85,.15)",borderRadius:12,padding:"10px 14px",marginTop:10,textAlign:"center"}}>
-            <div style={{fontSize:10,color:"#ff6b81",fontWeight:700,marginBottom:6}}>Ultimo analisis — {ultimoRes.sorteo}</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:4,justifyContent:"center"}}>
-              {ultimoRes.numeros.slice(0,5).map((n:any,i:number)=>(
-                <span key={i} style={{background:"rgba(255,45,85,.15)",color:"#ff6b81",padding:"3px 8px",borderRadius:6,fontSize:12,fontWeight:800}}>{n.numero}</span>
-              ))}
-            </div>
-            <div style={{fontSize:9,color:"#475569",marginTop:5}}>Toca Generar Prediccion para analisis completo</div>
-          </div>}
+          
           {stats?.mensaje&&<div style={{fontSize:11,color:"#20d5ec",background:"rgba(32,213,236,.07)",border:"1px solid rgba(32,213,236,.2)",borderRadius:20,padding:"5px 14px",marginTop:8,display:"inline-block"}}>{stats.mensaje}</div>}
         </div>
         <div style={{fontSize:10,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:"1.5px",marginBottom:8,textAlign:"center"}}>Elegí el sorteo a analizar</div>
