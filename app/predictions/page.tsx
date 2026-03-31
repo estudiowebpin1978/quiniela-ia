@@ -178,9 +178,9 @@ export default function Page(){
       .sb{padding:12px 2px 9px;border-radius:13px;background:linear-gradient(180deg,#1a1a2e,#0d0d1f);color:#64748b;border:1.5px solid rgba(255,255,255,.08);box-shadow:0 5px 0 #03030a,0 6px 15px rgba(0,0,0,.4);cursor:pointer;font-family:'Inter',sans-serif;font-weight:700;font-size:11px;text-align:center;transition:.12s;display:flex;flex-direction:column;align-items:center;gap:4px;user-select:none;letter-spacing:.2px}
       .sb .sh{font-size:8px;font-weight:500;opacity:.55}
       .sb:active{transform:translateY(3px);box-shadow:none}
-      .sb.on{background:linear-gradient(180deg,#ff2d55,#cc0033);color:#fff;border-color:rgba(255,107,129,.6);box-shadow:0 5px 0 #800020,0 6px 20px rgba(255,45,85,.5)}
-      .sb.on .sh{opacity:.8;color:#ffb3bf}
-      .sb:hover:not(.on){background:linear-gradient(180deg,#252535,#18182a);color:#94a3b8;border-color:rgba(255,255,255,.12)}
+      .sb.on{background:linear-gradient(180deg,#20d5ec,#00a8c8);color:#001a20;border-color:rgba(37,244,238,.6);box-shadow:0 5px 0 #006080,0 6px 20px rgba(32,213,236,.5)}
+      .sb.on .sh{opacity:.9;color:#004d5c}
+      .sb:hover:not(.on){background:linear-gradient(180deg,#0d2a2e,#081a1e);color:#20d5ec;border-color:rgba(32,213,236,.2)}
       .btn3d{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:13px;font-family:'Inter',sans-serif;font-weight:800;cursor:pointer;transition:transform .08s,box-shadow .08s;user-select:none;-webkit-tap-highlight-color:transparent;width:100%;margin-bottom:8px}
       .btn3d:active{transform:translateY(4px)!important;box-shadow:none!important}
       .btn-gen{padding:18px 24px;font-size:16px;letter-spacing:.3px;background:linear-gradient(135deg,#ff2d55,#ff5c75);color:#fff;box-shadow:0 6px 0 #a0001e,0 8px 28px rgba(255,45,85,.45),inset 0 1px 0 rgba(255,255,255,.2)}
