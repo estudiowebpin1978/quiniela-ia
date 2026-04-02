@@ -19,12 +19,25 @@ function pad(n: number, l = 2) {
 }
 
 
-const SESGOS: Record<string, number[]> = {
+// Sesgos por defecto - se actualizan automaticamente cada mes
+const SESGOS_DEFAULT: Record<string, number[]> = {
   "Previa":     [95,45,15,99],
   "Primera":    [38,73,97,37,50,72,19],
   "Matutina":   [14,24,26,74,92,20],
   "Vespertina": [27,14,43,92,68,69],
   "Nocturna":   [26,35,76,45,88]
+}
+async function getSesgos(sb:string, sk:string): Promise<Record<string,number[]>> {
+  try {
+    const r = await fetch(`${sb}/rest/v1/config?key=eq.sesgos&select=value&limit=1`,{
+      headers:{"apikey":sk,"Authorization":`Bearer ${sk}`},
+      signal:AbortSignal.timeout(3000)
+    })
+    if(!r.ok) return SESGOS_DEFAULT
+    const data = await r.json()
+    if(!data?.[0]?.value) return SESGOS_DEFAULT
+    return JSON.parse(data[0].value)
+  } catch { return SESGOS_DEFAULT }
 }
 function monteCarlo(freq: number[]): number[] {
   const mc = new Array(freq.length).fill(0)
@@ -201,6 +214,7 @@ export async function GET(req: NextRequest) {
     const mxT = Math.max(...trend, 1)
     const mxM = Math.max(...mc, 1)
     const mxFF = Math.max(...ff, 1)
+    const sesgosActivos = await getSesgos(SB(), SK())
     const scores = Array.from({ length: 100 }, (_, i) => ({
       n: i,
       score:
