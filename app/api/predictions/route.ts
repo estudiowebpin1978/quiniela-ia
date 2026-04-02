@@ -18,6 +18,14 @@ function pad(n: number, l = 2) {
   return String(n).padStart(l, "0")
 }
 
+
+const SESGOS: Record<string, number[]> = {
+  "Previa":     [95,45,15,99],
+  "Primera":    [38,73,97,37,50,72,19],
+  "Matutina":   [14,24,26,74,92,20],
+  "Vespertina": [27,14,43,92,68,69],
+  "Nocturna":   [26,35,76,45,88]
+}
 function monteCarlo(freq: number[]): number[] {
   const mc = new Array(freq.length).fill(0)
   const w = freq.map((f) => f + 1)
