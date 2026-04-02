@@ -214,7 +214,7 @@ export async function GET(req: NextRequest) {
     const mxT = Math.max(...trend, 1)
     const mxM = Math.max(...mc, 1)
     const mxFF = Math.max(...ff, 1)
-    const sesgosActivos = await getSesgos(SB(), SK())
+    const sesgosActivos = await getSesgos((process.env.NEXT_PUBLIC_SUPABASE_URL||'').replace(/"/g,'').trim(),(process.env.SUPABASE_SERVICE_ROLE_KEY||'').replace(/"/g,'').trim())
     const scores = Array.from({ length: 100 }, (_, i) => ({
       n: i,
       score:
