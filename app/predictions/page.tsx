@@ -188,11 +188,15 @@ export default function Page(){
       .btn-prem{padding:14px 20px;font-size:13px;background:linear-gradient(135deg,#20d5ec,#00a8c8);color:#001a20;box-shadow:0 5px 0 #006080,0 7px 20px rgba(32,213,236,.35)}
       .btn-copy{padding:12px 20px;font-size:13px;background:linear-gradient(135deg,#2e2e3e,#1a1a28);color:#a5b4fc;border:1.5px solid rgba(99,102,241,.3);box-shadow:0 4px 0 #0a0a18}
       .btn-save{padding:12px 20px;font-size:13px;background:linear-gradient(135deg,#1e3a2e,#0f2018);color:#86efac;border:1.5px solid rgba(34,197,94,.25);box-shadow:0 4px 0 #051008}
-      .dtabs{display:flex;gap:5px;margin-bottom:14px}
-      .dk{flex:1;padding:9px 4px;text-align:center;border:1.5px solid rgba(255,255,255,.08);border-radius:10px;background:linear-gradient(180deg,#1e1e2e,#12121e);color:#475569;font-size:11px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;position:relative;box-shadow:0 3px 0 #050508;transition:.1s;user-select:none}
-      .dk:active{transform:translateY(2px);box-shadow:none}
-      .dk.on{border-color:#ff2d55;color:#ff6b81;background:linear-gradient(180deg,#2a0010,#1a0008);box-shadow:0 3px 0 #800020}
-      .pbdg{position:absolute;top:-7px;right:3px;background:linear-gradient(135deg,#20d5ec,#00a8c8);color:#001a20;font-size:7px;font-weight:800;padding:1px 5px;border-radius:8px}
+      .dtabs{display:flex;gap:6px;margin-bottom:14px}
+      .dk{flex:1;padding:12px 4px;text-align:center;border-radius:12px;font-family:'Inter',sans-serif;font-weight:800;font-size:13px;cursor:pointer;position:relative;transition:.1s;user-select:none;border:none;box-shadow:0 5px 0 rgba(0,0,0,.5)}
+      .dk:active{transform:translateY(4px);box-shadow:none}
+      .dk-2{background:linear-gradient(180deg,#ff2d55,#cc0033);color:#fff;box-shadow:0 5px 0 #800020}
+      .dk-3{background:linear-gradient(180deg,#20d5ec,#00a8c8);color:#001a20;box-shadow:0 5px 0 #006080}
+      .dk-4{background:linear-gradient(180deg,#f59e0b,#d97706);color:#1a0e00;box-shadow:0 5px 0 #7c3f00}
+      .dk.on{filter:brightness(1.15);box-shadow:0 2px 0 rgba(0,0,0,.5)}
+      .dk:not(.on){opacity:.5}
+      .pbdg{position:absolute;top:-8px;right:3px;background:#fff;color:#001a20;font-size:7px;font-weight:800;padding:2px 6px;border-radius:8px}
       .g5{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:12px}
       .cd{background:linear-gradient(145deg,#1e0f22,#100b18);border:1.5px solid rgba(255,45,85,.2);border-radius:14px;padding:15px 3px 10px;text-align:center;position:relative;box-shadow:0 5px 0 #060108,0 8px 20px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);transition:.2s;cursor:default}
       .cd:hover{transform:translateY(-2px);border-color:rgba(255,45,85,.45);box-shadow:0 6px 0 #060108,0 8px 20px rgba(255,45,85,.15)}
@@ -204,9 +208,19 @@ export default function Page(){
       .lo h3{font-size:15px;color:#fff;font-weight:700}
       .lo p{font-size:11px;color:var(--dim);max-width:200px;line-height:1.5}
       .uc{display:inline-block;background:linear-gradient(135deg,#20d5ec,#00a8c8);color:#001a20;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:800;text-decoration:none;margin-bottom:4px}
-      .tbs{display:flex;background:rgba(255,255,255,.03);border-radius:12px;padding:3px;margin-bottom:18px;gap:2px;overflow-x:auto}
-      .tb{flex:1;min-width:80px;padding:11px 6px;text-align:center;border-radius:9px;border:none;background:transparent;color:#64748b;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;transition:.15s;letter-spacing:.2px}
-      .tb.on{background:linear-gradient(135deg,rgba(255,45,85,.18),rgba(204,0,51,.12));color:#ff6b81;border:1px solid rgba(255,45,85,.3);font-weight:700}
+      .tbs{display:flex;gap:5px;margin-bottom:18px;overflow-x:auto;padding-bottom:2px}
+      .tb{flex:1;min-width:72px;padding:11px 4px;text-align:center;border-radius:12px;border:none;font-family:'Inter',sans-serif;font-weight:800;font-size:11px;cursor:pointer;white-space:nowrap;transition:.1s;user-select:none;display:flex;flex-direction:column;align-items:center;gap:3px;box-shadow:0 4px 0 rgba(0,0,0,.4)}
+      .tb:active{transform:translateY(3px);box-shadow:none}
+      .tb-pred{background:linear-gradient(180deg,#1e1e2e,#12121e);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
+      .tb-pred.on{background:linear-gradient(180deg,#ff2d55,#cc0033);color:#fff;border-color:#ff2d55;box-shadow:0 4px 0 #800020}
+      .tb-rdbl{background:linear-gradient(180deg,#1e1e2e,#12121e);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
+      .tb-rdbl.on{background:linear-gradient(180deg,#20d5ec,#00a8c8);color:#001a20;border-color:#20d5ec;box-shadow:0 4px 0 #006080}
+      .tb-freq{background:linear-gradient(180deg,#1e1e2e,#12121e);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
+      .tb-freq.on{background:linear-gradient(180deg,#a78bfa,#5b21b6);color:#fff;border-color:#a78bfa;box-shadow:0 4px 0 #2e1065}
+      .tb-mis{background:linear-gradient(180deg,#1e1e2e,#12121e);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
+      .tb-mis.on{background:linear-gradient(180deg,#22c55e,#15803d);color:#fff;border-color:#22c55e;box-shadow:0 4px 0 #064e24}
+      .tb .tb-ico{font-size:16px}
+      .tb .tb-lbl{font-size:10px}
       .ibox{background:rgba(255,45,85,.05);border:1px solid rgba(255,45,85,.15);border-radius:10px;padding:12px 14px;font-size:12px;color:#94a3b8;line-height:1.8;margin-top:10px}
       .ibox strong{color:#ff9999}
       .rdbl{background:rgba(32,213,236,.04);border:1px solid rgba(32,213,236,.18);border-radius:14px;padding:16px;margin-bottom:12px}
@@ -313,7 +327,40 @@ export default function Page(){
               <div style={{fontSize:12,color:"#e2e8f0",lineHeight:1.7}}>{aiInsight}</div>
             </div>
           </div>}
-          <div className="tips">
+                    <div className="tbs">
+            <button className={"tb tb-pred"+(tab==="pred"?" on":"")} onClick={()=>setTab("pred")}><span className="tb-ico">🎯</span><span className="tb-lbl">Predicc.</span></button>
+            <button className={"tb tb-rdbl"+(tab==="rdbl"?" on":"")} onClick={()=>setTab("rdbl")}><span className="tb-ico">🎲</span><span className="tb-lbl">Redoblona</span></button>
+            <button className={"tb tb-freq"+(tab==="freq"?" on":"")} onClick={()=>setTab("freq")}><span className="tb-ico">🔥</span><span className="tb-lbl">Frecuencias</span></button>
+            <button className={"tb tb-mis"+(tab==="mis"?" on":"")} onClick={()=>setTab("mis")}><span className="tb-ico">📋</span><span className="tb-lbl">Mis preds</span></button>
+          </div>
+          {tab==="pred"&&(<>
+            <div className="sec">Motor estadistico avanzado</div>
+            <div className="dtabs">
+              <button className={"dk dk-2"+(dg===2?" on":"")} onClick={()=>setDg(2)}>2 cifras</button>
+              <button className={"dk dk-3"+(dg===3?" on":"")} onClick={()=>setDg(3)}><span className="pbdg">PRO</span>3 cifras</button>
+              <button className={"dk dk-4"+(dg===4?" on":"")} onClick={()=>setDg(4)}><span className="pbdg">PRO</span>4 cifras</button>
+            </div>
+            <div className={dg>2&&!pr?"lk":""}>
+              <div className="g5">
+                {cur.slice(0,dg===2?10:5).map((p:any,i:number)=>(
+                  <div className="cd" key={i}>
+                    <div className="cr2">#{i+1}</div>
+                    <div className="cn">{p.numero}</div>
+                    <div className="cs">{p.significado}</div>
+                  </div>
+                ))}
+              </div>
+              {dg>2&&!pr&&(
+                <div className="lo">
+                  <div style={{fontSize:32}}>🔐</div>
+                  <h3>Predicciones {dg} digitos</h3>
+                  <p>Suscribite al Premium para acceder.</p>
+                  <a href={WA} target="_blank" rel="noopener noreferrer" className="uc">Activar por WhatsApp</a>
+                </div>
+              )}
+            </div>
+            <div className="ibox"><strong>Motor 6 factores:</strong> Frecuencia + Atraso + Ciclos + Monte Carlo + Dia semana + Tendencia. Datos reales actualizados automaticamente.</div>
+            <div className="tips">
             <div style={{fontSize:11,fontWeight:800,color:"#ff6b81",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <span>Tips de apuesta</span>
               <span style={{fontSize:10,color:"#20d5ec",background:"rgba(32,213,236,.1)",padding:"3px 9px",borderRadius:20,border:"1px solid rgba(32,213,236,.2)"}}>Para: {proximoSorteo(so)}</span>
@@ -345,38 +392,8 @@ export default function Page(){
               </div>
             </div>
           </div>
-          <div className="tbs">
-            <button className={"tb"+(tab==="pred"?" on":"")} onClick={()=>setTab("pred")}>Predicciones</button>
-            <button className={"tb"+(tab==="rdbl"?" on":"")} onClick={()=>setTab("rdbl")}>Redoblona</button>
-            <button className={"tb"+(tab==="freq"?" on":"")} onClick={()=>setTab("freq")}>Frecuencias</button>
-            <button className={"tb"+(tab==="mis"?" on":"")} onClick={()=>setTab("mis")}>Mis preds</button>
-          </div>
-          {tab==="pred"&&(<>
-            <div className="sec">Motor estadistico avanzado</div>
-            <div className="dtabs">
-              {[2,3,4].map(d=>(<button key={d} className={"dk"+(dg===d?" on":"")} onClick={()=>setDg(d)}>{d>2&&<span className="pbdg">PRO</span>}{d} digitos</button>))}
-            </div>
-            <div className={dg>2&&!pr?"lk":""}>
-              <div className="g5">
-                {cur.slice(0,dg===2?10:5).map((p:any,i:number)=>(
-                  <div className="cd" key={i}>
-                    <div className="cr2">#{i+1}</div>
-                    <div className="cn">{p.numero}</div>
-                    <div className="cs">{p.significado}</div>
-                  </div>
-                ))}
-              </div>
-              {dg>2&&!pr&&(
-                <div className="lo">
-                  <div style={{fontSize:32}}>🔐</div>
-                  <h3>Predicciones {dg} digitos</h3>
-                  <p>Suscribite al Premium para acceder.</p>
-                  <a href={WA} target="_blank" rel="noopener noreferrer" className="uc">Activar por WhatsApp</a>
-                </div>
-              )}
-            </div>
-            <div className="ibox"><strong>Motor 6 factores:</strong> Frecuencia + Atraso + Ciclos + Monte Carlo + Dia semana + Tendencia. Datos reales actualizados automaticamente.</div>
-            <div style={{display:"flex",gap:8,marginTop:10}}>
+
+          <div style={{display:"flex",gap:8,marginTop:10}}>
               <button className="btn3d btn-save" style={{marginBottom:0}} onClick={guardarPrediccion} disabled={guardando}>{guardando?"Guardando...":guardadoOk?"Guardado!":"Guardar para comparar"}</button>
               <button className="btn3d btn-copy" style={{marginBottom:0}} onClick={copiar}>Copiar</button>
             </div>
