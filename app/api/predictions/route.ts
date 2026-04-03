@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { isPremiumUser } from "../../../lib/auth-premium"
 
 const SUENOS: { [k: number]: string } = {
   0: "Huevos", 1: "Agua", 2: "Nino", 3: "San Cono", 4: "La cama", 5: "Gato", 6: "Perro", 7: "Revolver", 8: "Incendio", 9: "Arroyo",
@@ -163,7 +162,7 @@ export async function GET(req: NextRequest) {
 
     if (!rows?.length) {
       return NextResponse.json({
-        tier: "premium",
+        
         numeros: [],
         totalSorteos: 0,
         sorteo,
@@ -283,12 +282,7 @@ export async function GET(req: NextRequest) {
       generado: new Date().toISOString(),
     }
 
-    if (!premium) {
-      return NextResponse.json({
-        ...base,
-        upgradeHint: "Premium: redoblona avanzada, 3 y 4 cifras, mapa de calor completo.",
-      })
-    }
+
 
     return NextResponse.json({
       ...base,
