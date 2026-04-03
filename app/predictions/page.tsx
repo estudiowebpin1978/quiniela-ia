@@ -196,18 +196,18 @@ export default function Page(){
       .g5{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:12px}
       .cd{background:linear-gradient(145deg,#1e0f22,#100b18);border:1.5px solid rgba(255,45,85,.2);border-radius:14px;padding:15px 3px 10px;text-align:center;position:relative;box-shadow:0 5px 0 #060108,0 8px 20px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);transition:.2s;cursor:default}
       .cd:hover{transform:translateY(-2px);border-color:rgba(255,45,85,.45);box-shadow:0 6px 0 #060108,0 8px 20px rgba(255,45,85,.15)}
-      .cr2{position:absolute;top:4px;left:5px;font-size:7px;color:#475569;font-weight:700}
-      .cn{font-size:clamp(22px,5vw,32px);font-weight:900;background:linear-gradient(135deg,#ffb3c1,#ff2d55);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;margin-bottom:4px;letter-spacing:-1px}
-      .cs{font-size:9px;color:#ff9999;font-weight:500;padding:0 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.2px}
+      .cr2{position:absolute;top:4px;left:5px;font-size:9px;color:#94a3b8;font-weight:800}
+      .cn{font-size:clamp(24px,6vw,36px);font-weight:900;background:linear-gradient(135deg,#ffb3c1,#ff2d55);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;margin-bottom:5px;letter-spacing:-1px}
+      .cs{font-size:10px;color:#ffb3bf;font-weight:600;padding:0 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.2px}
       .lk{position:relative}
       .lo{position:absolute;inset:0;background:rgba(6,8,15,.93);backdrop-filter:blur(8px);border-radius:12px;border:1px solid rgba(32,213,236,.2);z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px 14px;text-align:center}
       .lo h3{font-size:15px;color:#fff;font-weight:700}
       .lo p{font-size:11px;color:var(--dim);max-width:200px;line-height:1.5}
       .uc{display:inline-block;background:linear-gradient(135deg,#20d5ec,#00a8c8);color:#001a20;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:800;text-decoration:none;margin-bottom:4px}
       .tbs{display:flex;background:rgba(255,255,255,.03);border-radius:12px;padding:3px;margin-bottom:18px;gap:2px;overflow-x:auto}
-      .tb{flex:1;min-width:80px;padding:10px 6px;text-align:center;border-radius:9px;border:none;background:transparent;color:#64748b;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;transition:.15s;letter-spacing:.2px}
+      .tb{flex:1;min-width:80px;padding:11px 6px;text-align:center;border-radius:9px;border:none;background:transparent;color:#64748b;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Inter',sans-serif;transition:.15s;letter-spacing:.2px}
       .tb.on{background:linear-gradient(135deg,rgba(255,45,85,.18),rgba(204,0,51,.12));color:#ff6b81;border:1px solid rgba(255,45,85,.3);font-weight:700}
-      .ibox{background:rgba(255,45,85,.05);border:1px solid rgba(255,45,85,.15);border-radius:10px;padding:10px 14px;font-size:11px;color:#94a3b8;line-height:1.8;margin-top:10px}
+      .ibox{background:rgba(255,45,85,.05);border:1px solid rgba(255,45,85,.15);border-radius:10px;padding:12px 14px;font-size:12px;color:#94a3b8;line-height:1.8;margin-top:10px}
       .ibox strong{color:#ff9999}
       .rdbl{background:rgba(32,213,236,.04);border:1px solid rgba(32,213,236,.18);border-radius:14px;padding:16px;margin-bottom:12px}
       .rpair{font-size:36px;font-weight:900;background:linear-gradient(135deg,#25f4ee,#20d5ec);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;letter-spacing:8px;margin:10px 0}
@@ -258,7 +258,7 @@ export default function Page(){
       .eb{background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15);border-radius:8px;padding:10px 12px;font-size:12px;color:#fca5a5;margin-bottom:12px}
       .ht{font-size:12px;color:var(--dim);text-align:center;padding:24px 0;line-height:2}
       .ht strong{color:#ff6b81}
-      .sec{font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 10px;display:flex;align-items:center;gap:8px}
+      .sec{font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 10px;display:flex;align-items:center;gap:8px}
       .sec::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.05)}
       @media(max-width:400px){.g5{gap:3px}.cd{padding:10px 2px 7px}.tips-grid{grid-template-columns:1fr}}
     `}</style>
@@ -288,7 +288,7 @@ export default function Page(){
           
           {stats?.mensaje&&<div style={{fontSize:11,color:"#20d5ec",background:"rgba(32,213,236,.07)",border:"1px solid rgba(32,213,236,.2)",borderRadius:20,padding:"5px 14px",marginTop:8,display:"inline-block"}}>{stats.mensaje}</div>}
         </div>
-        <div style={{fontSize:10,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:"1.5px",marginBottom:8,textAlign:"center"}}>Elegí el sorteo a analizar</div>
+        <div style={{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:8,textAlign:"center"}}>🎯 Elegí el sorteo que querés analizar:</div>
         <div className="sorteo-btns">
           {SORTEOS.map(s=>(
             <button key={s} className={"sb"+(so===s?" on":"")} onClick={()=>setSo(s)}>
@@ -297,9 +297,9 @@ export default function Page(){
             </button>
           ))}
         </div>
-        <button className="btn3d btn-gen" onClick={gen} disabled={ld} style={{opacity:ld?.6:1}}>{ld?"⏳ Analizando...":"⚡ Generar Prediccion"}</button>
+        <button className="btn3d btn-gen" onClick={gen} disabled={ld} style={{opacity:ld?.6:1}}>{ld?"⏳ Analizando datos...":"⚡ Generar Predicción Ahora"}</button>
         {er&&<div className="eb">Error: {er}</div>}
-        {!dn&&!ld&&<div className="ht">Selecciona el sorteo y apreta <strong>Generar Prediccion</strong><br/>Motor estadistico con datos reales de los ultimos 365 dias</div>}
+        {!dn&&!ld&&<div className="ht">👆 Seleccioná el sorteo de arriba y apretá<br/><strong>⚡ Generar Predicción Ahora</strong><br/><span style={{fontSize:11,color:"#475569"}}>Motor estadístico con datos reales actualizados</span></div>}
         {ld&&<div className="ld-box"><div className="sp"/><div>Ejecutando motor...</div></div>}
         {dn&&!ld&&(<>
           <div style={{background:"rgba(255,45,85,.06)",border:"1px solid rgba(255,45,85,.18)",borderRadius:10,padding:"9px 14px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>

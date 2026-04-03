@@ -73,26 +73,27 @@ export default function LoginPage(){
       </div>
 
       <div className="features">
-        <div className="feat"><span className="feat-ico">📊</span><div className="feat-text"><strong>Motor estadístico</strong>6 factores de análisis</div></div>
-        <div className="feat"><span className="feat-ico">🎯</span><div className="feat-text"><strong>5 sorteos diarios</strong>Previa hasta Nocturna</div></div>
-        <div className="feat"><span className="feat-ico">🔥</span><div className="feat-text"><strong>Datos reales</strong>Actualizados automáticamente</div></div>
-        <div className="feat"><span className="feat-ico">🤖</span><div className="feat-text"><strong>Análisis IA</strong>Groq + Motor estadístico</div></div>
+        <div className="feat"><span className="feat-ico">🧠</span><div className="feat-text"><strong>Motor estadístico</strong>6 factores de análisis real</div></div>
+        <div className="feat"><span className="feat-ico">🎰</span><div className="feat-text"><strong>5 sorteos diarios</strong>Previa · Primera · Matutina · Vespertina · Nocturna</div></div>
+        <div className="feat"><span className="feat-ico">📡</span><div className="feat-text"><strong>Datos reales</strong>Se actualizan solos tras cada sorteo</div></div>
+        <div className="feat"><span className="feat-ico">🤖</span><div className="feat-text"><strong>Inteligencia Artificial</strong>Analiza patrones reales</div></div>
       </div>
 
-      <div className="free-badge">✓ Crear cuenta es completamente GRATIS</div>
+      <div className="free-badge">✅ Crear cuenta es 100% GRATIS — sin tarjeta</div>
 
       <div className="card">
         <div className="tabs">
           <button className={"tab"+(tab==="up"?" on":"")} onClick={()=>{setTab("up");setErr("");setOk("")}}>
-            Crear cuenta
+            🆕 Crear cuenta
             <span className="tab-free">¡GRATIS!</span>
           </button>
           <button className={"tab"+(tab==="in"?" on":"")} onClick={()=>{setTab("in");setErr("");setOk("")}}>
-            Iniciar sesión
+            👆 Ya tengo cuenta
           </button>
         </div>
 
-        {tab==="up"&&<p style={{fontSize:12,color:"#64748b",marginBottom:8,lineHeight:1.6,textAlign:"center"}}>Creá tu cuenta gratis y empezá a analizar las predicciones estadísticas de la quiniela.</p>}
+        {tab==="up"&&<p style={{fontSize:12,color:"#64748b",marginBottom:8,lineHeight:1.6,textAlign:"center"}}>👇 Completá tus datos y empezá gratis ahora mismo.</p>}
+        {tab==="in"&&<p style={{fontSize:12,color:"#64748b",marginBottom:8,lineHeight:1.6,textAlign:"center"}}>👇 Ingresá tu email y contraseña para continuar.</p>}
 
         <span className="lbl">Email</span>
         <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com" autoComplete="email"/>
@@ -101,14 +102,14 @@ export default function LoginPage(){
         <input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder={tab==="up"?"Mínimo 6 caracteres":"Tu contraseña"} onKeyDown={e=>e.key==="Enter"&&!busy&&submit()}/>
 
         <button className={"btn "+(tab==="in"?"btn-in":"btn-up")} onClick={submit} disabled={busy}>
-          {busy?"Verificando...":tab==="in"?"Ingresar →":"Crear cuenta gratis →"}
+          {busy?"⏳ Verificando...":tab==="in"?"👆 Ingresar →":"🚀 Crear cuenta gratis →"}
         </button>
 
         {err&&<div className="err">✗ {err}</div>}
         {ok&&<div className="suc">✓ {ok}</div>}
 
         <div className="switch">
-          {tab==="up"?<>¿Ya tenés cuenta? <button onClick={()=>{setTab("in");setErr("");setOk("")}}>Iniciá sesión</button></>:<>¿No tenés cuenta? <button onClick={()=>{setTab("up");setErr("");setOk("")}}>Creala gratis</button></>}
+          {tab==="up"?<>👆 ¿Ya tenés cuenta? <button onClick={()=>{setTab("in");setErr("");setOk("")}}>Tocá acá para ingresar</button></>:<>🆕 ¿No tenés cuenta? <button onClick={()=>{setTab("up");setErr("");setOk("")}}>Creala gratis acá</button></>}
         </div>
       </div>
 
