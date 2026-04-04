@@ -408,38 +408,7 @@ export default function Page(){
               )}
             </div>
             <div className="ibox"><strong>Motor 6 factores:</strong> Frecuencia + Atraso + Ciclos + Monte Carlo + Dia semana + Tendencia. Datos reales actualizados automaticamente.</div>
-            <div className="tips">
-            <div style={{fontSize:11,fontWeight:800,color:"#ff6b81",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <span>Tips de apuesta</span>
-              <span style={{fontSize:10,color:"#20d5ec",background:"rgba(32,213,236,.1)",padding:"3px 9px",borderRadius:20,border:"1px solid rgba(32,213,236,.2)"}}>Para: {proximoSorteo(so)}</span>
-            </div>
-            <div className="tips-grid">
-              <div className="tip-box" style={{background:"rgba(255,45,85,.07)",borderColor:"rgba(255,45,85,.2)"}}>
-                <div style={{fontSize:9,fontWeight:800,color:"#ff6b81",textAlign:"center",marginBottom:6}}>2 CIFRAS</div>
-                <div style={{fontSize:9,color:"#ff9999",marginBottom:4,textAlign:"center"}}>A primera y a los 10:</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:2,justifyContent:"center"}}>
-                  {nums.slice(0,10).map((n:any,i:number)=>(<span key={i} className="tip-n" style={{background:"rgba(255,45,85,.15)",color:"#ff6b81"}}>{n.numero}</span>))}
-                </div>
-                <div style={{fontSize:8,color:"#475569",textAlign:"center",marginTop:5}}>1ro a primera, 10 a los 10</div>
-              </div>
-              <div className="tip-box" style={{background:"rgba(32,213,236,.05)",borderColor:"rgba(32,213,236,.18)",position:"relative"}}>
-                {!pr&&<div style={{position:"absolute",top:-7,right:3,background:"linear-gradient(135deg,#20d5ec,#00a8c8)",color:"#001a20",fontSize:7,fontWeight:800,padding:"1px 5px",borderRadius:8}}>PRO</div>}
-                <div style={{fontSize:9,fontWeight:800,color:"#20d5ec",textAlign:"center",marginBottom:6}}>3 CIFRAS</div>
-                {pr?<><div style={{fontSize:9,color:"#7dd9d7",marginBottom:4,textAlign:"center"}}>A primera y a los 5:</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:2,justifyContent:"center"}}>{p3.slice(0,5).map((n:string,i:number)=>(<span key={i} className="tip-n" style={{background:"rgba(32,213,236,.12)",color:"#20d5ec"}}>{n}</span>))}</div>
-                <div style={{fontSize:8,color:"#475569",textAlign:"center",marginTop:5}}>1ro a primera, 5 a los 5</div>
-                </>:<div style={{textAlign:"center",paddingTop:8,fontSize:10,color:"#475569"}}>Solo Premium</div>}
-              </div>
-              <div className="tip-box" style={{background:"rgba(245,158,11,.04)",borderColor:"rgba(245,158,11,.18)",position:"relative"}}>
-                {!pr&&<div style={{position:"absolute",top:-7,right:3,background:"linear-gradient(135deg,#20d5ec,#00a8c8)",color:"#001a20",fontSize:7,fontWeight:800,padding:"1px 5px",borderRadius:8}}>PRO</div>}
-                <div style={{fontSize:9,fontWeight:800,color:"#f59e0b",textAlign:"center",marginBottom:6}}>4 CIFRAS</div>
-                {pr?<><div style={{fontSize:9,color:"#fbbf24",marginBottom:4,textAlign:"center"}}>A primera y a los 5:</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:2,justifyContent:"center"}}>{p4.slice(0,5).map((n:string,i:number)=>(<span key={i} className="tip-n" style={{background:"rgba(245,158,11,.12)",color:"#f59e0b"}}>{n}</span>))}</div>
-                <div style={{fontSize:8,color:"#475569",textAlign:"center",marginTop:5}}>1ro a primera, 5 a los 5</div>
-                </>:<div style={{textAlign:"center",paddingTop:8,fontSize:10,color:"#475569"}}>Solo Premium</div>}
-              </div>
-            </div>
-          </div>
+            
 
           <div style={{display:"flex",gap:8,marginTop:10}}>
               <button className="btn3d btn-save" style={{marginBottom:0}} onClick={guardarPrediccion} disabled={guardando}>{guardando?"Guardando...":guardadoOk?"Guardado!":"Guardar para comparar"}</button>
