@@ -43,14 +43,17 @@ export async function POST(req: NextRequest) {
         callback_fail: "https://quiniela-ia-two.vercel.app/predictions?pago=error",
         notification_url: "https://quiniela-ia-two.vercel.app/api/webhooks/uala",
         external_reference: email
-      })
+      }),
+      signal: AbortSignal.timeout(15000)
     })
 
-    const orderData = await orderRes.json()
+    let orderData:any = {}
+    try{ orderData = await orderRes.json() }catch{}
     if (!orderRes.ok) return NextResponse.json({
       error: "Error orden",
-      status: orderRes.status,
-      detail: orderData
+      httpStatus: orderRes.status,
+      detail: orderData,
+      tokenUsed: token.slice(0,20)+"..."
     }, { status: 500 })
 
     const link = orderData.links?.checkout ||
