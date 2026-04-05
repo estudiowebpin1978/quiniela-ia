@@ -125,19 +125,14 @@ export default function Page(){
     setControlando(true);setResultadoControl(null)
     try{
       const hoy=new Date(Date.now()-3*3600000).toISOString().split("T")[0]
-      const r=await fetch(`/api/predictions?sorteo=${encodeURIComponent(so)}`,{headers:{Authorization:"Bearer "+tkRef.current}})
-      const d=await r.json()
-      // Buscar resultado real en la DB
-      const r2=await fetch(`${(process.env.NEXT_PUBLIC_SUPABASE_URL||"").replace(/"/g,"")}/rest/v1/draws?date=eq.${hoy}&turno=eq.${encodeURIComponent(so)}&select=numbers&limit=1`,{
-        headers:{"apikey":process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY||"","Authorization":"Bearer "+(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY||"")}
-      })
-      const draws=await r2.json()
-      const draw=draws?.[0]
-      if(!draw?.numbers?.length){
-        setResultadoControl({error:"Todavia no hay resultado para este sorteo. Intentá después del sorteo."})
+      // Buscar resultado real via API
+      const r2=await fetch(`/api/resultado?date=${hoy}&turno=${encodeURIComponent(so)}`)
+      const drawData=await r2.json()
+      if(!drawData?.found||!drawData?.numbers?.length){
+        setResultadoControl({error:"Todavia no hay resultado para este sorteo. Los crons cargan los datos 30 minutos despues de cada sorteo."})
         return
       }
-      const reales=draw.numbers.map((n:any)=>String(Number(n)%100).padStart(2,"0"))
+      const reales=drawData.numbers.map((n:any)=>String(Number(n)%100).padStart(2,"0"))
       const predichos=cur.slice(0,dg===2?10:5).map((p:any)=>p.numero)
       const aciertos=predichos.filter((n:string)=>reales.includes(n)).map((n:string)=>({numero:n,puesto:reales.indexOf(n)+1}))
       setResultadoControl({aciertos,predichos,reales,fecha:hoy,turno:so})
@@ -467,18 +462,23 @@ export default function Page(){
           </>)}
           {tab==="rdbl"&&(<>
             <div className="sec">Analisis de redoblona</div>
-            <div className={!pr?"lk":""} style={{minHeight:160}}>
-              {rdbl&&(<div className="rdbl">
-                <div style={{fontSize:12,color:"#20d5ec",marginBottom:4,fontWeight:700}}>Par optimo recomendado</div>
-                <div className="rpair">{rdbl}</div>
-                <div style={{fontSize:11,color:"#64748b"}}>Apostale a que ambos aparecen en el mismo sorteo.</div>
-              </div>)}
-              {r5.length>0&&(<div className="rg">{r5.map((r:any,i:number)=>(<div className="rc" key={i}><div className="rn">{r.numero}</div><div className="rk">{r.significado}</div><div className="rv">{r.veces}x redoblona</div></div>))}</div>)}
-              {!pr&&(<div style={{marginTop:12,padding:20,background:"rgba(6,8,15,.93)",backdropFilter:"blur(8px)",borderRadius:14,border:"1px solid rgba(32,213,236,.2)",display:"flex",flexDirection:"column",alignItems:"center",gap:8,textAlign:"center"}}>
-                <div style={{fontSize:28}}>🔐</div>
-                <div style={{fontWeight:700,color:"#fff"}}>Redoblona Premium</div>
-                <a href={WA} target="_blank" rel="noopener noreferrer" className="uc">Activar por WhatsApp</a>
-              </div>)}
+            <div style={{minHeight:160}}>
+              {pr?(<>
+                {rdbl&&(<div className="rdbl">
+                  <div style={{fontSize:12,color:"#25F4EE",marginBottom:4,fontWeight:700}}>Par optimo recomendado</div>
+                  <div className="rpair">{rdbl}</div>
+                  <div style={{fontSize:11,color:"#64748b"}}>Apostale a que ambos aparecen en el mismo sorteo.</div>
+                </div>)}
+                {r5.length>0&&(<div className="rg">{r5.map((r:any,i:number)=>(<div className="rc" key={i}><div className="rn">{r.numero}</div><div className="rk">{r.significado}</div><div className="rv">{r.veces}x redoblona</div></div>))}</div>)}
+              </>):(
+                <div style={{padding:30,background:"rgba(6,8,15,.95)",backdropFilter:"blur(8px)",borderRadius:14,border:"1px solid rgba(37,244,238,.2)",display:"flex",flexDirection:"column",alignItems:"center",gap:10,textAlign:"center"}}>
+                  <div style={{fontSize:36}}>🔐</div>
+                  <div style={{fontWeight:800,color:"#fff",fontSize:16}}>Redoblona Premium</div>
+                  <div style={{fontSize:12,color:"#94a3b8",maxWidth:200,lineHeight:1.6}}>El par optimo de numeros para redoblona es exclusivo para usuarios Premium.</div>
+                  <a href={WA} target="_blank" rel="noopener noreferrer" className="uc" style={{marginTop:4}}>Activar por WhatsApp</a>
+                  <div style={{fontSize:10,color:"#475569"}}>Personal Pay: alopez94.ppay — $10.000/mes</div>
+                </div>
+              )}
             </div>
           </>)}
           {tab==="freq"&&(<>
