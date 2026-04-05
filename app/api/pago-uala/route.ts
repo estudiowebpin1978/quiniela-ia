@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     const tokenData = await tokenRes.json()
     const token = tokenData.access_token
-    if (!token) return NextResponse.json({ error: "Sin token", detail: tokenData }, { status: 500 })
+    if (!token) return NextResponse.json({ error: "Sin token", detail: tokenData, keys: Object.keys(tokenData) }, { status: 500 })
 
     // 2. Crear orden de pago
     const orderRes = await fetch("https://checkout.developers.ar.ua.la/v2/api/orders", {
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     })
 
     const orderData = await orderRes.json()
-    if (!orderRes.ok) return NextResponse.json({ error: "Error orden", detail: orderData }, { status: 500 })
+    if (!orderRes.ok) return NextResponse.json({ error: "Error orden", status: orderRes.status, detail: orderData }, { status: 500 })
 
     const link = orderData.links?.checkout ||
       orderData.checkout_link ||
