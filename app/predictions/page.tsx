@@ -43,6 +43,7 @@ export default function Page(){
   const [guardadoOk,setGuardadoOk]=useState(false)
   const [controlando,setControlando]=useState(false)
   const [showCalc,setShowCalc]=useState(false)
+  const [pagandoUala,setPagandoUala]=useState(false)
   const [apCalc,setApCalc]=useState(250)
   const [rdblCalc,setRdblCalc]=useState(1000)
   const [resultadoControl,setResultadoControl]=useState<any>(null)
@@ -120,6 +121,21 @@ export default function Page(){
     }catch{}
   }
 
+
+  async function pagarUala(){
+    if(!em){alert("Necesitas estar logueado");return}
+    setPagandoUala(true)
+    try{
+      const r=await fetch("/api/pago-uala",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:em})})
+      const d=await r.json()
+      if(d.link){
+        window.open(d.link,"_blank")
+      }else{
+        alert("Error generando link de pago: "+(d.error||"intenta por WhatsApp"))
+      }
+    }catch(e:any){alert("Error: "+e.message)}
+    setPagandoUala(false)
+  }
   async function controlarJugada(){
     if(!dt?.numeros?.length){alert("Primero genera una prediccion");return}
     setControlando(true);setResultadoControl(null)
@@ -475,7 +491,10 @@ export default function Page(){
                   <div style={{fontSize:36}}>🔐</div>
                   <div style={{fontWeight:800,color:"#fff",fontSize:16}}>Redoblona Premium</div>
                   <div style={{fontSize:12,color:"#94a3b8",maxWidth:200,lineHeight:1.6}}>El par optimo de numeros para redoblona es exclusivo para usuarios Premium.</div>
-                  <a href={WA} target="_blank" rel="noopener noreferrer" className="uc" style={{marginTop:4}}>Activar por WhatsApp</a>
+                  <button onClick={pagarUala} disabled={pagandoUala} style={{background:"linear-gradient(135deg,#25F4EE,#00c0b8)",color:"#000",border:"none",borderRadius:10,padding:"9px 16px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",marginBottom:6}}>
+                    {pagandoUala?"Generando...":"Pagar con Uala"}
+                  </button>
+                  <a href={WA} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:"#94a3b8",textDecoration:"none"}}>o envianos el comprobante por WhatsApp</a>
                   <div style={{fontSize:10,color:"#475569"}}>Personal Pay: alopez94.ppay — $10.000/mes</div>
                 </div>
               )}
@@ -549,7 +568,13 @@ export default function Page(){
           <p style={{fontSize:11,color:"#64748b",maxWidth:280,margin:"0 auto 14px",lineHeight:1.5}}>Predicciones de 3 y 4 cifras mas Redoblona completa con datos reales.</p>
           <div className="pay-alias">alopez94.ppay</div>
           <div style={{fontSize:10,color:"#475569",marginBottom:12}}>Transferi $10.000 desde tu banco o billetera al alias de Personal Pay</div>
-          <a href={WA} target="_blank" rel="noopener noreferrer" className="btn3d btn-prem" style={{display:"inline-flex",width:"auto",padding:"12px 24px",textDecoration:"none",marginBottom:4}}>Enviar comprobante por WhatsApp</a>
+          <button onClick={pagarUala} disabled={pagandoUala} className="btn3d btn-prem" style={{display:"inline-flex",width:"auto",padding:"12px 24px",marginBottom:8,border:"none",cursor:"pointer"}}>
+            {pagandoUala?"Generando link...":"Pagar con Ualá — $10.000"}
+          </button>
+          <div style={{fontSize:11,color:"#475569",marginBottom:8}}>o transferi al alias:</div>
+          <a href={WA} target="_blank" rel="noopener noreferrer" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"10px 20px",background:"#25D366",color:"#fff",borderRadius:10,fontSize:13,fontWeight:700,textDecoration:"none",marginBottom:4}}>
+            WhatsApp — Enviar comprobante
+          </a>
           <div style={{fontSize:10,color:"#475569",marginTop:6,lineHeight:1.6}}>Sin datos de tarjeta · Paga desde tu banco · Activacion en 24hs</div>
         </div>)}
         <div className="ft">
