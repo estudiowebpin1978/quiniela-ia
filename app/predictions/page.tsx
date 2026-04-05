@@ -321,7 +321,7 @@ export default function Page(){
           {pr&&<span className="pp">PREMIUM</span>}
           {em&&<span className="ne">{em.split("@")[0]}</span>}
           {pr&&<a href="/admin" className="nav-admin">Admin</a>}
-          <button onClick={pedirNotificaciones} style={{padding:"5px 10px",borderRadius:7,border:"1px solid rgba(32,213,236,.2)",background:"transparent",color:"#20d5ec",fontSize:11,cursor:"pointer",fontFamily:"inherit"}} title="Activar notificaciones">🔔</button>
+          <button onClick={pedirNotificaciones} style={{padding:"5px 10px",borderRadius:7,border:"1px solid rgba(37,244,238,.2)",background:"transparent",color:"#25F4EE",fontSize:11,cursor:"pointer",fontFamily:"inherit"}} title="Tocar para activar notificaciones de resultados">🔔</button>
           <button className="nav-out" onClick={logout}>Salir</button>
         </div>
       </nav>
@@ -511,13 +511,19 @@ export default function Page(){
           </>)}
         </>)}
         <div className="shr">
-          <div className="shr-t">Compartir Quiniela IA</div>
+          <div className="shr-t">Compartir y ganar Premium gratis</div>
+          <div style={{fontSize:11,color:"#25F4EE",background:"rgba(37,244,238,.08)",border:"1px solid rgba(37,244,238,.2)",borderRadius:20,padding:"5px 14px",marginBottom:12,textAlign:"center"}}>
+            Compartí la app con amigos y gana 30 dias Premium gratis
+          </div>
           <div className="shr-b">
             <button className="sbt wa" onClick={()=>share("whatsapp")}>WhatsApp</button>
             <button className="sbt fb" onClick={()=>share("facebook")}>Facebook</button>
             <button className="sbt tw" onClick={()=>share("twitter")}>X</button>
             <button className="sbt tg" onClick={()=>share("telegram")}>Telegram</button>
             <button className="sbt cp" onClick={()=>share("copy")}>Copiar link</button>
+          </div>
+          <div style={{fontSize:10,color:"#475569",marginTop:8,textAlign:"center"}}>
+            Envia el comprobante de compartir por WhatsApp al {WA.split("?")[0].replace("https://wa.me/","+").replace("549","549 ")} y activamos tu mes gratis
           </div>
         </div>
         <div className="rev">
