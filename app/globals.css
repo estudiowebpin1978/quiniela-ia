@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gold: #c9a84c;
+  --gold-light: #f0cc6e;
+  --gold-dim: #7a6430;
+  --bg: #0a0806;
+  --bg2: #120f0a;
+  --bg3: #1c1610;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: #e8dcc8; }
