@@ -342,8 +342,8 @@ export default function Page(){
           ))}
         </div>
         <button className="btn3d btn-gen" onClick={gen} disabled={ld} style={{opacity:ld?.6:1}}>{ld?"⏳ Analizando datos...":"⚡ Generar Predicción Ahora"}</button>
-        {dn&&<button onClick={controlarJugada} disabled={controlando} style={{width:"100%",padding:"13px",borderRadius:13,border:"1.5px solid rgba(32,213,236,.3)",background:"rgba(32,213,236,.08)",color:"#20d5ec",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",marginBottom:8,boxShadow:"0 4px 0 rgba(0,168,200,.3)",transition:".1s"}}>
-          {controlando?"⏳ Verificando...":"🎯 Controlar Jugada"}
+        {dn&&<button onClick={()=>setTab("mis")} style={{width:"100%",padding:"13px",borderRadius:13,border:"1.5px solid rgba(34,197,94,.3)",background:"rgba(34,197,94,.08)",color:"#86efac",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",marginBottom:8,boxShadow:"0 4px 0 rgba(0,100,50,.3)",transition:".1s"}}>
+          📋 Mis Predicciones
         </button>}
         {dn&&<button onClick={()=>setShowCalc(!showCalc)} style={{width:"100%",padding:"13px",borderRadius:13,border:"1.5px solid rgba(201,168,76,.3)",background:"rgba(201,168,76,.08)",color:"#c9a84c",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",marginBottom:8,boxShadow:"0 4px 0 rgba(100,80,0,.3)",transition:".1s"}}>
           {showCalc?"▲ Cerrar calculadora":"💰 Sugerencias de apuesta"}
@@ -424,7 +424,6 @@ export default function Page(){
             <button className={"tb tb-pred"+(tab==="pred"?" on":"")} onClick={()=>setTab("pred")}><span className="tb-ico">🎯</span><span className="tb-lbl">Predicc.</span></button>
             <button className={"tb tb-rdbl"+(tab==="rdbl"?" on":"")} onClick={()=>setTab("rdbl")}><span className="tb-ico">🎲</span><span className="tb-lbl">Redoblona</span></button>
             <button className={"tb tb-freq"+(tab==="freq"?" on":"")} onClick={()=>setTab("freq")}><span className="tb-ico">🔥</span><span className="tb-lbl">Frecuencias</span></button>
-            <button className={"tb tb-mis"+(tab==="mis"?" on":"")} onClick={()=>setTab("mis")}><span className="tb-ico">📋</span><span className="tb-lbl">Mis preds</span></button>
           </div>
           {tab==="pred"&&(<>
             <div className="sec">Motor estadistico avanzado</div>
