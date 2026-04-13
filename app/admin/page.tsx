@@ -15,6 +15,9 @@ export default function AdminPage(){
   const [nr,setNr]=useState("premium")
   const [creating,setCreating]=useState(false)
   const [scraperDate,setScraperDate]=useState(new Date().toISOString().split("T")[0])
+  const [backtestDays,setBacktestDays]=useState(30)
+  const [backtestTurno,setBacktestTurno]=useState("Nocturna")
+  const [backtestResult,setBacktestResult]=useState<any>(null)
   useEffect(()=>{
     const proj=(process.env.NEXT_PUBLIC_SUPABASE_URL||"").split("//")[1]?.split(".")[0]||"wazkylxgqckjfkcmfotl"
     const raw=localStorage.getItem("sb-"+proj+"-auth-token")
@@ -32,6 +35,17 @@ export default function AdminPage(){
       if(d.ok){setMsg("OK - "+JSON.stringify(d.results||d))}
       else{setMsg("Error: "+JSON.stringify(d))}
     }catch(e:any){setMsg("Error: "+e.message)}
+    setBusy(null)
+  }
+  async function runBacktest(){
+    setBusy("backtest");setBacktestResult(null)
+    try{
+      const params = new URLSearchParams({days:backtestDays.toString(), turno:backtestTurno})
+      const r=await fetch(`/api/backtest?${params}`,{headers:{Authorization:"Bearer "+token}})
+      const d=await r.json()
+      if(d.error){setBacktestResult({error:d.error})}
+      else{setBacktestResult(d)}
+    }catch(e:any){setBacktestResult({error:"Error: "+e.message})}
     setBusy(null)
   }
   async function load(tk:string){
@@ -133,7 +147,26 @@ export default function AdminPage(){
       </div>
       {msg&&<div style={{padding:"10px 14px",background:"rgba(34,197,94,.08)",border:"1px solid rgba(34,197,94,.2)",borderRadius:8,fontSize:12,color:"#86efac",marginTop:8}}>{msg}</div>}
     </div>
+
+    <div style={{background:"rgba(255,255,255,.05)",border:"1px solid rgba(255,255,255,.1)",borderRadius:12,padding:16,marginBottom:16}}>
+      <div style={{fontSize:16,fontWeight:700,color:"#fff",marginBottom:12}}>📊 Backtesting del Motor</div>
+      <div style={{marginBottom:12}}>
+        <label className="fl">Días a analizar</label>
+        <input className="fi" type="number" min="7" max="365" value={backtestDays} onChange={e=>setBacktestDays(Number(e.target.value))} style={{maxWidth:100}}/>
+      </div>
+      <div style={{marginBottom:12}}>
+        <label className="fl">Sorteo</label>
+        <select className="fi" value={backtestTurno} onChange={e=>setBacktestTurno(e.target.value)} style={{maxWidth:150}}>
+          <option value="Nocturna">Nocturna</option>
+          <option value="Vespertina">Vespertina</option>
+          <option value="Matutina">Matutina</option>
+          <option value="Primera">Primera</option>
+          <option value="Previa">Previa</option>
+        </select>
+      </div>
+      <button onClick={runBacktest} disabled={busy==="backtest"} style={{padding:"10px 16px",background:"rgba(168,85,247,.1)",border:"1px solid rgba(168,85,247,.3)",borderRadius:8,color:"#c4b5fd",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+        {busy==="backtest"?"Analizando...":"Ejecutar Backtest"}
+      </button>
+      {backtestResult&&<div style={{padding:"12px 16px",background:"rgba(168,85,247,.08)",border:"1px solid rgba(168,85,247,.2)",borderRadius:8,fontSize:12,color:"#c4b5fd",marginTop:12,whiteSpace:"pre-line"}}>{JSON.stringify(backtestResult, null, 2)}</div>}
     </div>
-  </div>
-  </>)
 }
