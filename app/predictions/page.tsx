@@ -413,8 +413,6 @@ export default function Page(){
         <button onClick={()=>setTab("mis")} style={{width:"100%",padding:"14px 20px",borderRadius:13,border:"1.5px solid rgba(34,197,94,.5)",background:"linear-gradient(135deg,rgba(34,197,94,.18),rgba(34,197,94,.08))",color:"#15803d",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",marginBottom:8,boxShadow:"0 6px 0 rgba(0,100,50,.25),0 8px 20px rgba(34,197,94,.2)",transition:".12s",transform:"translateY(0)",}}>
           📋 Mis Predicciones
         </button>
-          📋 Mis Predicciones
-        </button>}
         <button onClick={()=>setShowCalc(!showCalc)} style={{width:"100%",padding:"14px 20px",borderRadius:13,border:"1.5px solid rgba(180,83,9,.5)",background:"linear-gradient(135deg,rgba(180,83,9,.16),rgba(180,83,9,.06))",color:"#92400e",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",marginBottom:8,boxShadow:"0 6px 0 rgba(120,53,15,.2),0 8px 20px rgba(180,83,9,.18)",transition:".12s",transform:"translateY(0)",}}>
           {showCalc?"▲ Cerrar calculadora":"💰 Sugerencias de apuesta"}
         </button>
@@ -528,7 +526,7 @@ export default function Page(){
             
 
           <div style={{display:"flex",gap:8,marginTop:10}}>
-              <button className="btn3d btn-save" style={{marginBottom:0}} onClick={guardarPrediccion} disabled={guardando}>{guardando?"Guardando...":guardadoOk?"Guardado!":"Guardar para comparar"}</button>
+              <button className="btn3d btn-save" style={{marginBottom:0}} onClick={() => guardarPrediccion()} disabled={guardando}>{guardando?"Guardando...":guardadoOk?"Guardado!":"Guardar para comparar"}</button>
               <button className="btn3d btn-copy" style={{marginBottom:0}} onClick={copiar}>Copiar</button>
             </div>
           </>)}

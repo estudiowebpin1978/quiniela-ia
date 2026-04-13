@@ -23,16 +23,16 @@ export default function AdminPage(){
   },[])
 
   async function runScraper(turno:string){
-    setScraperBusy(turno);setScraperMsg("")
+    setBusy(turno);setMsg("")
     try{
       const params = new URLSearchParams({secret:"quiniela2024cron", turno})
       if(scraperDate) params.set("date", scraperDate)
       const r=await fetch(`/api/cron?${params}`,{headers:{Authorization:"Bearer "+token}})
       const d=await r.json()
-      if(d.ok){setScraperMsg("OK - "+JSON.stringify(d.results||d))}
-      else{setScraperMsg("Error: "+JSON.stringify(d))}
-    }catch(e:any){setScraperMsg("Error: "+e.message)}
-    setScraperBusy(null)
+      if(d.ok){setMsg("OK - "+JSON.stringify(d.results||d))}
+      else{setMsg("Error: "+JSON.stringify(d))}
+    }catch(e:any){setMsg("Error: "+e.message)}
+    setBusy(null)
   }
   async function load(tk:string){
     setLoading(true);setErr("")
@@ -123,15 +123,15 @@ export default function AdminPage(){
       </div>
       <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
         {["Previa","Primera","Matutina","Vespertina","Nocturna"].map((turno:string)=>(
-          <button key={turno} onClick={()=>runScraper(turno)} disabled={scraperBusy===turno} style={{padding:"8px 14px",background:"rgba(201,168,76,.1)",border:"1px solid rgba(201,168,76,.3)",borderRadius:8,color:"#c9a84c",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
-            {scraperBusy===turno?"Cargando...":turno}
+          <button key={turno} onClick={()=>runScraper(turno)} disabled={busy===turno} style={{padding:"8px 14px",background:"rgba(201,168,76,.1)",border:"1px solid rgba(201,168,76,.3)",borderRadius:8,color:"#c9a84c",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+            {busy===turno?"Cargando...":turno}
           </button>
         ))}
-        <button onClick={()=>runScraper("todos")} disabled={scraperBusy==="todos"} style={{padding:"8px 14px",background:"rgba(99,102,241,.1)",border:"1px solid rgba(99,102,241,.3)",borderRadius:8,color:"#a5b4fc",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
-          {scraperBusy==="todos"?"Cargando...":"Cargar todos"}
+        <button onClick={()=>runScraper("todos")} disabled={busy==="todos"} style={{padding:"8px 14px",background:"rgba(99,102,241,.1)",border:"1px solid rgba(99,102,241,.3)",borderRadius:8,color:"#a5b4fc",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+          {busy==="todos"?"Cargando...":"Cargar todos"}
         </button>
       </div>
-      {scraperMsg&&<div style={{padding:"10px 14px",background:"rgba(34,197,94,.08)",border:"1px solid rgba(34,197,94,.2)",borderRadius:8,fontSize:12,color:"#86efac",marginTop:8}}>{scraperMsg}</div>}
+      {msg&&<div style={{padding:"10px 14px",background:"rgba(34,197,94,.08)",border:"1px solid rgba(34,197,94,.2)",borderRadius:8,fontSize:12,color:"#86efac",marginTop:8}}>{msg}</div>}
     </div>
     </div>
   </div>
