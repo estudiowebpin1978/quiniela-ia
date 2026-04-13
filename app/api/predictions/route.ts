@@ -48,7 +48,7 @@ function monteCarlo(freq: number[]): number[] {
     acc += x / tot
     cum.push(acc)
   }
-  const samples = Math.min(20000, 5000 + freq.length * 20)
+  const samples = Math.min(25000, 5000 + freq.length * 25)
   for (let s = 0; s < samples; s++) {
     const r = Math.random()
     let lo = 0,
@@ -73,11 +73,9 @@ function buildCooccurrence(rows: Row[]): number[][] {
     const set = new Set<number>()
     const list: number[] = []
 
-    // Validar y filtrar números
     for (const n of nums) {
       const num = Number(n)
       if (Number.isNaN(num)) continue
-
       const t = num % 100
       if (t >= 0 && t <= 99 && !set.has(t)) {
         set.add(t)
@@ -85,7 +83,6 @@ function buildCooccurrence(rows: Row[]): number[][] {
       }
     }
 
-    // Construir matriz de coocurrencias
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
         const a = Math.min(list[i], list[j])
@@ -127,8 +124,82 @@ function bestRedoblonaPair(
   return { a: best.a, b: best.b, label: `${pad(best.a)}-${pad(best.b)}` }
 }
 
-function scoreDigits(freq: number[], histOrder: number[], recentWindow: number) {
+function normalize(values: number[]) {
+  const max = Math.max(...values, 1)
+  const min = Math.min(...values)
+  if (max === min) return values.map(() => 0)
+  return values.map((v) => (v - min) / (max - min))
+}
+
+function nextDrawDay(sorteo: string) {
+  const ar = new Date(Date.now() - 3 * 3600000)
+  const now = ar.getHours() * 100 + ar.getMinutes()
+  const h: Record<string, number> = { Previa: 1015, Primera: 1200, Matutina: 1500, Vespertina: 1800, Nocturna: 2100 }
+  const target = new Date(ar)
+  if (now >= (h[sorteo] || 2100)) target.setDate(target.getDate() + 1)
+  return target.toLocaleDateString("es-AR", { weekday: "long" })
+}
+
+function buildDayOfWeekBias(rows: Row[], targetDay: string) {
+  const bias = new Array(100).fill(0)
+  let total = 0
+  for (const row of rows) {
+    if (!row?.date) continue
+    const date = new Date(row.date + "T00:00:00")
+    if (date.toLocaleDateString("es-AR", { weekday: "long" }) !== targetDay) continue
+    const nums = Array.isArray(row.numbers) ? row.numbers : []
+    for (const n of nums) {
+      const num = Number(n)
+      if (Number.isNaN(num)) continue
+      const t = num % 100
+      if (t >= 0 && t <= 99) {
+        bias[t]++
+        total++
+      }
+    }
+  }
+  if (!total) return bias
+  return bias.map((count) => count / total)
+}
+
+function buildPatternBias(hist: number[], recentWindow: number) {
+  const recent = hist.slice(-recentWindow)
+  if (!recent.length) return new Array(100).fill(0)
+  let even = 0,
+    odd = 0,
+    low = 0,
+    high = 0
+  for (const n of recent) {
+    if (n % 2 === 0) even++
+    else odd++
+    if (n < 50) low++
+    else high++
+  }
+  const evenRatio = even / recent.length
+  const oddRatio = odd / recent.length
+  const lowRatio = low / recent.length
+  const highRatio = high / recent.length
+  return Array.from({ length: 100 }, (_, i) => {
+    const parity = i % 2 === 0 ? evenRatio : oddRatio
+    const range = i < 50 ? lowRatio : highRatio
+    return 0.5 * parity + 0.5 * range
+  })
+}
+
+function scoreDigits(
+  freq: number[],
+  histOrder: number[],
+  recentWindow: number,
+  firstPos?: number[],
+  dayOfWeekBias?: number[],
+  patternBias?: number[],
+  sesgoSet?: Set<number>
+) {
   const len = freq.length
+  firstPos = firstPos && firstPos.length === len ? firstPos : new Array(len).fill(0)
+  dayOfWeekBias = dayOfWeekBias && dayOfWeekBias.length === len ? dayOfWeekBias : new Array(len).fill(0)
+  patternBias = patternBias && patternBias.length === len ? patternBias : new Array(len).fill(0)
+  sesgoSet = sesgoSet || new Set<number>()
   const delay = new Array(len).fill(histOrder.length)
   for (let i = histOrder.length - 1; i >= 0; i--) {
     const v = histOrder[i]
@@ -139,13 +210,25 @@ function scoreDigits(freq: number[], histOrder: number[], recentWindow: number) 
     if (v >= 0 && v < len) trend[v]++
   }
   const mc = monteCarlo(freq)
-  const mxF = Math.max(...freq, 1)
-  const mxD = Math.max(...delay, 1)
-  const mxT = Math.max(...trend, 1)
-  const mxM = Math.max(...mc, 1)
+  const freqNorm = normalize(freq)
+  const delayNorm = normalize(delay)
+  const trendNorm = normalize(trend)
+  const mcNorm = normalize(mc)
+  const firstNorm = normalize(firstPos)
+  const dayNorm = normalize(dayOfWeekBias)
+  const patternNorm = normalize(patternBias)
+
   return Array.from({ length: len }, (_, i) => ({
     n: i,
-    score: 0.32 * (freq[i] / mxF) + 0.23 * (delay[i] / mxD) + 0.22 * (trend[i] / mxT) + 0.23 * (mc[i] / mxM),
+    score:
+      0.2 * freqNorm[i] +
+      0.18 * delayNorm[i] +
+      0.16 * trendNorm[i] +
+      0.12 * mcNorm[i] +
+      0.08 * firstNorm[i] +
+      0.14 * dayNorm[i] +
+      0.1 * patternNorm[i] +
+      (sesgoSet.has(i) ? 0.02 : 0),
   }))
 }
 
@@ -306,19 +389,17 @@ export async function GET(req: NextRequest) {
 
     // Obtener sesgos activos de configuración (si existen)
     const sesgosActivos = await getSesgos(SB, SK)
+    const sesgoSet = new Set<number>(
+      (sesgosActivos[sorteo] || [])
+        .map((n) => Number(n))
+        .filter((n) => !Number.isNaN(n) && n >= 0 && n < 100)
+    )
 
-    // Calcular scores ponderados: 30% freq + 25% delay + 20% trend + 15% monte carlo + 10% primera
-    const scores = Array.from({ length: 100 }, (_, i) => ({
-      n: i,
-      score:
-        0.3 * (freq[i] / mxF) +
-        0.25 * (delay[i] / mxD) +
-        0.2 * (trend[i] / mxT) +
-        0.15 * (mc[i] / mxM) +
-        0.1 * (ff[i] / mxFF),
-    }))
+    const targetDay = nextDrawDay(sorteo)
+    const dayOfWeekBias = buildDayOfWeekBias(rowsValidos, targetDay)
+    const patternBias = buildPatternBias(hist, recentWindow)
 
-    // Ordenar por score descendente
+    const scores = scoreDigits(freq, hist, recentWindow, ff, dayOfWeekBias, patternBias, sesgoSet)
     scores.sort((a, b) => b.score - a.score)
 
     // Análisis de redoblona: números que salen juntos frecuentemente
@@ -386,6 +467,9 @@ export async function GET(req: NextRequest) {
       pct: Math.round((f / hist.length) * 10000) / 100 // Porcentaje de aparición
     }))
 
+    const confidence = Math.round((scores.slice(0, 10).reduce((sum, x) => sum + x.score, 0) / 10) * 100)
+    const aiInsight = `Motor avanzado: combina frecuencia, atraso, tendencia, Monte Carlo, momento del sorteo, patrones par/impar y bajo/alto, y sesgos de sorteo. Confianza estimada ${confidence}% en la lista top.`
+
     const base = {
       tier: premium ? ("premium" as const) : ("free" as const),
       numeros: top10,
@@ -394,6 +478,8 @@ export async function GET(req: NextRequest) {
       generado: new Date().toISOString(),
       analisisDesde: since,
       diasAnalisis: Math.floor((new Date().getTime() - new Date(since).getTime()) / 86400000),
+      confidence,
+      aiInsight,
     }
 
     return NextResponse.json({

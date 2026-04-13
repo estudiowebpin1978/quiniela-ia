@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 const CONTACT="estudiowebpin@gmail.com"
 const WA="https://wa.me/5493412500029?text=Hola!%20Quiero%20activar%20Premium%20de%20Quiniela%20IA."
 const APP_URL="https://quiniela-ia-two.vercel.app"
@@ -42,12 +42,45 @@ export default function Page(){
   const [guardadoOk,setGuardadoOk]=useState(false)
   const [controlando,setControlando]=useState(false)
   const [showCalc,setShowCalc]=useState(false)
+  const misSummary = useMemo(() => {
+    const totalSaved = misPreds.length
+    const totalAciertos = misPreds.reduce((sum:any, p:any) => sum + (p.aciertos?.length || 0), 0)
+    const totalWithHits = misPreds.filter((p:any) => p.aciertos?.length > 0).length
+    const totalWithResult = misPreds.filter((p:any) => p.resultado?.length).length
+    const successRate = totalSaved ? Math.round((totalWithHits / totalSaved) * 100) : 0
+    const avgHits = totalSaved ? Number((totalAciertos / totalSaved).toFixed(2)) : 0
+    const hitsByTurno = misPreds.reduce((acc:any, p:any) => {
+      if (p.aciertos?.length) acc[p.turno] = (acc[p.turno] || 0) + 1
+      return acc
+    }, {})
+    const bestTurno = Object.entries(hitsByTurno).sort((a:any,b:any) => b[1] - a[1])[0]?.[0] || "—"
+    return { totalSaved, totalAciertos, totalWithHits, totalWithResult, successRate, avgHits, bestTurno }
+  }, [misPreds])
   const [apCalc,setApCalc]=useState(250)
   const [rdblCalc,setRdblCalc]=useState(1000)
   const [resultadoControl,setResultadoControl]=useState<any>(null)
   const [aiInsight,setAiInsight]=useState("")
+  const [theme,setTheme]=useState<"dark"|"light">("light")
   const [stats,setStats]=useState<any>(null)
   const scrollRef=useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("quiniela-ia-theme")
+    if (savedTheme === "light" || savedTheme === "dark") {
+      setTheme(savedTheme)
+    } else {
+      setTheme("light")
+    }
+  }, [])
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem("quiniela-ia-theme", theme)
+  }, [theme])
+
+  function toggleTheme() {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"))
+  }
   const tkRef=useRef("")
   useEffect(()=>{
     const proj=(process.env.NEXT_PUBLIC_SUPABASE_URL||"").split("//")[1]?.split(".")[0]||"wazkylxgqckjfkcmfotl"
@@ -186,10 +219,12 @@ export default function Page(){
     <style>{`
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
       *{box-sizing:border-box;margin:0;padding:0}
-      :root{--red:#FE2C55;--cyan:#25F4EE;--dark:#010101;--card:#0d0d0d;--t:#FFFFFF;--dim:#94a3b8}
-      body{background:var(--dark);color:var(--t);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
-      .app{min-height:100vh;background:radial-gradient(ellipse 80% 40% at 50% -5%,rgba(254,44,85,.08),transparent 50%),#010101}
-      .nav{position:sticky;top:0;z-index:100;background:rgba(6,8,15,.98);backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.08);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;}
+      :root[data-theme="dark"]{--red:#FE2C55;--cyan:#25F4EE;--bg:#010101;--bg2:#0d0d0d;--bg3:#141b2f;--card:#0d0d0d;--surface:rgba(13,13,13,.9);--text:#FFFFFF;--dim:#94a3b8;--border:rgba(255,255,255,.08);--nav-bg:rgba(6,8,15,.98);--panel-bg:rgba(255,255,255,.04);--panel-border:rgba(255,255,255,.08);--shadow:rgba(0,0,0,.32)}
+      :root[data-theme="light"]{--red:#c91e5f;--cyan:#0369a1;--bg:#f8fafc;--bg2:#e2e8f0;--bg3:#ffffff;--card:#ffffff;--surface:rgba(255,255,255,.98);--text:#0a0e27;--dim:#334155;--border:rgba(30,41,59,.16);--nav-bg:rgba(255,255,255,.96);--panel-bg:rgba(255,255,255,.92);--panel-border:rgba(51,65,85,.18);--shadow:rgba(15,23,42,.12)}
+      body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+      .app{min-height:100vh;background:radial-gradient(ellipse 80% 40% at 50% -5%,rgba(254,44,85,.08),transparent 50%),var(--bg)}
+      .nav{position:sticky;top:0;z-index:100;background:var(--nav-bg);backdrop-filter:blur(24px);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;}
+      .card-bg{background:var(--panel-bg);border:1px solid var(--panel-border);}
       .nl{display:flex;align-items:center;gap:9px;cursor:pointer}
       .ni{width:34px;height:34px;background:linear-gradient(135deg,#FE2C55,#aa0030);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 3px 0 #700020}
       .nm{font-size:18px;font-weight:900;background:linear-gradient(135deg,#ff7090,#FE2C55);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
@@ -197,15 +232,17 @@ export default function Page(){
       .pp{background:linear-gradient(135deg,#20d5ec,#00a8c8);color:#001a20;font-size:9px;font-weight:800;padding:3px 8px;border-radius:20px}
       .ne{font-size:11px;color:var(--dim);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .nav-admin{padding:5px 10px;border-radius:7px;border:1px solid rgba(255,45,85,.3);background:transparent;color:#ff6b81;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:none}
+      .nav-theme{padding:5px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:linear-gradient(135deg,rgba(255,255,255,.12),rgba(255,255,255,.04));color:var(--text);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;box-shadow:0 4px 0 rgba(0,0,0,.15);transition:transform .12s,box-shadow .12s}
+      .nav-theme:hover{transform:translateY(-1px);box-shadow:0 6px 0 rgba(0,0,0,.18)}
       .nav-out{padding:5px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--dim);font-size:11px;cursor:pointer;font-family:inherit}
       .wr{max-width:480px;margin:0 auto;padding:20px 14px 80px}
       .hero{text-align:center;padding:8px 0 24px}
-      .hero h1{font-size:clamp(26px,7vw,48px);font-weight:900;background:linear-gradient(135deg,#FFFFFF,#ff7090,#FE2C55);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;line-height:1.1;letter-spacing:-1px}
-      .hero p{color:#94a3b8;font-size:13px;max-width:340px;margin:0 auto 16px;line-height:1.7;font-weight:400}
+      .hero h1{font-size:clamp(26px,7vw,48px);font-weight:900;background:linear-gradient(135deg,#8b6914,#c9a84c,#9d8b2c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0;padding:0;text-shadow:-2px -2px 0px rgba(139,105,20,.4),-3px -3px 0px rgba(139,105,20,.25);margin-bottom:8px;line-height:1.1;letter-spacing:-1px;filter:drop-shadow(0 4px 8px rgba(139,105,20,.25))}
+      .hero p{color:var(--dim);font-size:13px;max-width:340px;margin:0 auto 16px;line-height:1.7;font-weight:400}
       .sts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:320px;margin:0 auto}
-      .sc{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 8px;text-align:center}
+      .sc{background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:12px;padding:12px 8px;text-align:center;color:var(--text)}
       .sv{font-size:20px;font-weight:900;background:linear-gradient(135deg,#ff9090,#FE2C55);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-      .sl{font-size:10px;color:#64748b;margin-top:3px;font-weight:500;letter-spacing:.3px}
+      .sl{font-size:10px;color:var(--dim);margin-top:3px;font-weight:500;letter-spacing:.3px}
       .sorteo-label{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;text-align:center}
       .sorteo-btns{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:14px}
       .sb{padding:13px 4px 10px;border-radius:13px;background:linear-gradient(180deg,#1a1a1a,#0d0d0d);color:#94a3b8;border:1.5px solid rgba(255,255,255,.1);box-shadow:0 5px 0 #03030a,0 6px 15px rgba(0,0,0,.4);cursor:pointer;font-family:'Inter',sans-serif;font-weight:800;font-size:12px;text-align:center;transition:.12s;display:flex;flex-direction:column;align-items:center;gap:5px;user-select:none;letter-spacing:.2px}
@@ -231,14 +268,14 @@ export default function Page(){
       .dk:not(.on){opacity:.5}
       .pbdg{position:absolute;top:-8px;right:3px;background:#fff;color:#001a20;font-size:7px;font-weight:800;padding:2px 6px;border-radius:8px}
       .g5{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:12px}
-      .cd{background:linear-gradient(145deg,#1a1a1a,#0f0f0f);border:1.5px solid rgba(254,44,85,.2);border-radius:14px;padding:15px 3px 10px;text-align:center;position:relative;box-shadow:0 5px 0 #060108,0 8px 20px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);transition:.2s;cursor:default}
-      .cd:hover{transform:translateY(-2px);border-color:rgba(255,45,85,.45);box-shadow:0 6px 0 #060108,0 8px 20px rgba(255,45,85,.15)}
-      .cr2{position:absolute;top:4px;left:5px;font-size:9px;color:#94a3b8;font-weight:800}
+      .cd{background:var(--surface);border:1.5px solid var(--panel-border);border-radius:14px;padding:15px 3px 10px;text-align:center;position:relative;box-shadow:0 5px 0 var(--shadow),0 8px 20px rgba(0,0,0,.12),inset 0 1px 0 rgba(255,255,255,.06);transition:.2s;cursor:default}
+      .cd:hover{transform:translateY(-2px);border-color:rgba(255,45,85,.45);box-shadow:0 6px 0 var(--shadow),0 8px 20px rgba(255,45,85,.15)}
+      .cr2{position:absolute;top:4px;left:5px;font-size:9px;color:var(--dim);font-weight:800}
       .cn{font-size:clamp(24px,6vw,36px);font-weight:900;background:linear-gradient(135deg,#ff9090,#FE2C55);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;margin-bottom:5px;letter-spacing:-1px}
       .cs{font-size:10px;color:#ffb3bf;font-weight:600;padding:0 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.2px}
       .lk{position:relative}
-      .lo{position:absolute;inset:0;background:rgba(6,8,15,.93);backdrop-filter:blur(8px);border-radius:12px;border:1px solid rgba(32,213,236,.2);z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px 14px;text-align:center}
-      .lo h3{font-size:15px;color:#fff;font-weight:700}
+      .lo{position:absolute;inset:0;background:var(--surface);backdrop-filter:blur(8px);border-radius:12px;border:1px solid rgba(32,213,236,.2);z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px 14px;text-align:center}
+      .lo h3{font-size:15px;color:var(--text);font-weight:700}
       .lo p{font-size:11px;color:var(--dim);max-width:200px;line-height:1.5}
       .uc{display:inline-block;background:linear-gradient(135deg,#20d5ec,#00a8c8);color:#001a20;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:800;text-decoration:none;margin-bottom:4px}
       .tbs{display:flex;gap:5px;margin-bottom:18px;overflow-x:auto;padding-bottom:2px}
@@ -307,11 +344,29 @@ export default function Page(){
       .sp{width:26px;height:26px;border:2px solid rgba(255,255,255,.1);border-top-color:#ff2d55;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 10px}
       @keyframes spin{to{transform:rotate(360deg)}}
       .ld-box{text-align:center;padding:40px 20px;color:var(--dim);font-size:13px}
-      .eb{background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15);border-radius:8px;padding:10px 12px;font-size:12px;color:#fca5a5;margin-bottom:12px}
+      .eb{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.18);border-radius:8px;padding:10px 12px;font-size:12px;color:#fca5a5;margin-bottom:12px}
       .ht{font-size:12px;color:var(--dim);text-align:center;padding:24px 0;line-height:2}
       .ht strong{color:#ff6b81}
-      .sec{font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 10px;display:flex;align-items:center;gap:8px}
+      .sec{font-size:11px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 10px;display:flex;align-items:center;gap:8px}
       .sec::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.05)}
+      .saved-summary{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;margin-bottom:16px}
+      .saved-summary-card{background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:4px;box-shadow:0 12px 30px rgba(0,0,0,.05)}
+      .saved-summary-label{font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--dim);font-weight:800}
+      .saved-summary-value{font-size:24px;font-weight:900;color:var(--text)}
+      .saved-card{background:var(--surface);border:1.5px solid var(--panel-border);border-radius:16px;padding:16px;margin-bottom:14px;position:relative;transition:transform .2s,box-shadow .2s}
+      .saved-card:hover{transform:translateY(-2px);box-shadow:0 14px 28px rgba(0,0,0,.08)}
+      .saved-card-success{background:linear-gradient(135deg,rgba(34,197,94,.12),rgba(34,197,94,.05));border-color:rgba(34,197,94,.35);box-shadow:0 8px 24px rgba(34,197,94,.12)}
+      .saved-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+      .saved-card-title{font-size:13px;font-weight:800;color:var(--text)}
+      .saved-card-status{font-size:12px;font-weight:800;padding:5px 12px;border-radius:999px}
+      .saved-card-status.hit{color:#166534;background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.25)}
+      .saved-card-status.miss{color:#475569;background:rgba(255,255,255,.08);border:1px solid rgba(148,163,184,.2)}
+      .saved-numbers{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+      .saved-number{padding:6px 10px;border-radius:10px;font-size:11px;font-weight:800;background:rgba(255,255,255,.08);color:var(--dim);border:1px solid rgba(255,255,255,.1)}
+      .saved-number.hit{background:rgba(34,197,94,.22);color:#155e75;border:1.5px solid rgba(34,197,94,.35);box-shadow:0 2px 8px rgba(34,197,94,.1)}
+      .saved-results{font-size:11px;color:#15803d;font-weight:700;padding:12px 14px;background:rgba(34,197,94,.08);border-radius:12px;border:1px solid rgba(34,197,94,.16);line-height:1.6}
+      .saved-success-icon{position:absolute;top:14px;right:14px;font-size:18px}
+      @media(max-width:600px){.saved-summary{grid-template-columns:repeat(2,minmax(120px,1fr))}}
       @media(max-width:400px){.g5{gap:3px}.cd{padding:10px 2px 7px}.tips-grid{grid-template-columns:1fr}}
     `}</style>
     <div className="app">
@@ -323,6 +378,7 @@ export default function Page(){
         <div className="nr">
           {pr&&<span className="pp">PREMIUM</span>}
           {em&&<span className="ne">{em.split("@")[0]}</span>}
+          <button className="nav-theme" onClick={toggleTheme} title="Cambiar modo de color">{theme === "light" ? "🌞 Claro" : "🌙 Oscuro"}</button>
           {pr&&<a href="/admin" className="nav-admin">Admin</a>}
           <button onClick={pedirNotificaciones} style={{padding:"5px 10px",borderRadius:7,border:"1px solid rgba(37,244,238,.2)",background:"transparent",color:"#25F4EE",fontSize:11,cursor:"pointer",fontFamily:"inherit"}} title="Tocar para activar notificaciones de resultados">🔔</button>
           <button className="nav-out" onClick={logout}>Salir</button>
@@ -350,12 +406,14 @@ export default function Page(){
           ))}
         </div>
         <button className="btn3d btn-gen" onClick={gen} disabled={ld} style={{opacity:ld?.6:1}}>{ld?"⏳ Analizando datos...":"⚡ Generar Predicción Ahora"}</button>
-        {dn&&<button onClick={()=>setTab("mis")} style={{width:"100%",padding:"13px",borderRadius:13,border:"1.5px solid rgba(34,197,94,.3)",background:"rgba(34,197,94,.08)",color:"#86efac",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",marginBottom:8,boxShadow:"0 4px 0 rgba(0,100,50,.3)",transition:".1s"}}>
+        <button onClick={()=>setTab("mis")} style={{width:"100%",padding:"14px 20px",borderRadius:13,border:"1.5px solid rgba(34,197,94,.5)",background:"linear-gradient(135deg,rgba(34,197,94,.18),rgba(34,197,94,.08))",color:"#15803d",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",marginBottom:8,boxShadow:"0 6px 0 rgba(0,100,50,.25),0 8px 20px rgba(34,197,94,.2)",transition:".12s",transform:"translateY(0)",}}>
+          📋 Mis Predicciones
+        </button>
           📋 Mis Predicciones
         </button>}
-        {dn&&<button onClick={()=>setShowCalc(!showCalc)} style={{width:"100%",padding:"13px",borderRadius:13,border:"1.5px solid rgba(201,168,76,.3)",background:"rgba(201,168,76,.08)",color:"#c9a84c",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",marginBottom:8,boxShadow:"0 4px 0 rgba(100,80,0,.3)",transition:".1s"}}>
+        <button onClick={()=>setShowCalc(!showCalc)} style={{width:"100%",padding:"14px 20px",borderRadius:13,border:"1.5px solid rgba(180,83,9,.5)",background:"linear-gradient(135deg,rgba(180,83,9,.16),rgba(180,83,9,.06))",color:"#92400e",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",marginBottom:8,boxShadow:"0 6px 0 rgba(120,53,15,.2),0 8px 20px rgba(180,83,9,.18)",transition:".12s",transform:"translateY(0)",}}>
           {showCalc?"▲ Cerrar calculadora":"💰 Sugerencias de apuesta"}
-        </button>}
+        </button>
         {showCalc&&dn&&<div style={{background:"rgba(201,168,76,.04)",border:"1.5px solid rgba(201,168,76,.2)",borderRadius:16,padding:"16px",marginBottom:12}}>
           <div style={{fontSize:13,fontWeight:800,color:"#c9a84c",marginBottom:12,textAlign:"center"}}>Calculadora de premios estimados</div>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
@@ -418,14 +476,17 @@ export default function Page(){
         {ld&&<div className="ld-box"><div className="sp"/><div>Ejecutando motor...</div></div>}
         {dn&&!ld&&(<>
           <div style={{background:"rgba(255,45,85,.06)",border:"1px solid rgba(255,45,85,.18)",borderRadius:10,padding:"9px 14px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-            <div style={{fontSize:12,color:"#ff6b81",fontWeight:700}}>Para: <span style={{color:"#fff"}}>{proximoSorteo(so)}</span></div>
-            <button onClick={copiar} style={{padding:"5px 12px",background:"rgba(255,45,85,.1)",border:"1px solid rgba(255,45,85,.25)",borderRadius:8,color:"#ff6b81",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Copiar</button>
+            <div style={{fontSize:12,color:"#ff6b81",fontWeight:700,display:"flex",flexWrap:"wrap",gap:6,alignItems:"center",justifyContent:"space-between"}}>
+            <div>Para: <span style={{color:"#fff"}}>{proximoSorteo(so)}</span></div>
+            <div style={{fontSize:11,color:"#94a3b8",background:"rgba(255,255,255,.08)",borderRadius:999,padding:"4px 10px"}}>Confianza: <strong style={{color:"#fff"}}>{dt?.confidence ?? "--"}%</strong></div>
+          </div>
+          <button onClick={copiar} style={{padding:"5px 12px",background:"rgba(255,45,85,.1)",border:"1px solid rgba(255,45,85,.25)",borderRadius:8,color:"#ff6b81",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Copiar</button>
           </div>
           {aiInsight&&<div style={{background:"rgba(32,213,236,.05)",border:"1px solid rgba(32,213,236,.18)",borderRadius:12,padding:"12px 14px",marginBottom:14,display:"flex",gap:10,alignItems:"flex-start"}}>
             <div style={{fontSize:20,flexShrink:0}}>🤖</div>
             <div>
               <div style={{fontSize:10,fontWeight:800,color:"#20d5ec",marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Analisis IA</div>
-              <div style={{fontSize:12,color:"#e2e8f0",lineHeight:1.7}}>{aiInsight}</div>
+              <div style={{fontSize:12,color: theme === "light" ? "#0a0e27" : "#e2e8f0",lineHeight:1.7}}>{aiInsight}</div>
             </div>
           </div>}
                     <div className="tbs">
@@ -502,18 +563,56 @@ export default function Page(){
           {tab==="mis"&&(<>
             <div className="sec">Mis predicciones guardadas</div>
             {misPreds.length===0?(<div style={{textAlign:"center",padding:"30px",color:"#64748b",fontSize:12}}>Aun no guardaste predicciones.<br/>Genera una prediccion y apreta Guardar para comparar.</div>):(
-              misPreds.map((p:any,i:number)=>(
-                <div key={i} style={{background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.06)",borderRadius:12,padding:12,marginBottom:10}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-                    <div style={{fontSize:12,color:"#ff6b81",fontWeight:700}}>{p.turno} — {new Date(p.date + 'T00:00:00').toLocaleDateString("es-AR", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                    {p.resultado?<div style={{fontSize:11,fontWeight:700,color:p.acerto?"#86efac":"#475569"}}>{p.acerto?"Acertaste "+p.aciertos.length+"!":"Sin aciertos"}</div>:<div style={{fontSize:10,color:"#475569"}}>Pendiente</div>}
+              <>
+                <div className="saved-summary">
+                  <div className="saved-summary-card">
+                    <div className="saved-summary-label">Guardadas</div>
+                    <div className="saved-summary-value">{misSummary.totalSaved}</div>
                   </div>
-                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                    {p.numeros.map((n:string,j:number)=>{const ac=p.aciertos?.some((a:any)=>a.numero===n);return<span key={j} style={{padding:"2px 6px",borderRadius:4,fontSize:10,fontWeight:700,background:ac?"rgba(134,239,172,.2)":"rgba(255,255,255,.05)",color:ac?"#86efac":"#64748b",border:ac?"1px solid rgba(134,239,172,.4)":"1px solid rgba(255,255,255,.07)"}}>{n}</span>})}
+                  <div className="saved-summary-card">
+                    <div className="saved-summary-label">Con resultado</div>
+                    <div className="saved-summary-value">{misSummary.totalWithResult}</div>
                   </div>
-                  {p.aciertos?.length>0&&<div style={{fontSize:10,color:"#86efac",marginTop:6}}>{p.aciertos.map((a:any)=>a.numero+" en puesto "+a.puesto).join(" | ")}</div>}
+                  <div className="saved-summary-card">
+                    <div className="saved-summary-label">Predicciones con acierto</div>
+                    <div className="saved-summary-value">{misSummary.successRate}%</div>
+                  </div>
+                  <div className="saved-summary-card">
+                    <div className="saved-summary-label">Aciertos totales</div>
+                    <div className="saved-summary-value">{misSummary.totalAciertos}</div>
+                  </div>
                 </div>
-              ))
+                <div className="saved-summary" style={{marginBottom:20}}>
+                  <div className="saved-summary-card" style={{gridColumn: 'span 2'}}>
+                    <div className="saved-summary-label">Promedio aciertos</div>
+                    <div className="saved-summary-value">{misSummary.avgHits}</div>
+                  </div>
+                  <div className="saved-summary-card" style={{gridColumn: 'span 2'}}>
+                    <div className="saved-summary-label">Mejor turno</div>
+                    <div className="saved-summary-value">{misSummary.bestTurno}</div>
+                  </div>
+                </div>
+                {misPreds.map((p:any,i:number)=>{
+                  const tieneAciertos = p.aciertos && p.aciertos.length > 0;
+                  const titulo = `${p.turno} — ${new Date(p.date + 'T00:00:00').toLocaleDateString("es-AR", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`
+                  return(
+                  <div key={i} className={`saved-card ${tieneAciertos?"saved-card-success":""}`}>
+                    {tieneAciertos && <div className="saved-success-icon">✅</div>}
+                    <div className="saved-card-header">
+                      <div className="saved-card-title">{titulo}</div>
+                      {p.resultado ? (
+                        <div className={`saved-card-status ${p.acerto?"hit":"miss"}`}>{p.acerto?`🎉 ${p.aciertos.length} acierto(s)`:"Sin aciertos"}</div>
+                      ) : (
+                        <div className="saved-card-status miss">Pendiente</div>
+                      )}
+                    </div>
+                    <div className="saved-numbers">
+                      {p.numeros.map((n:string,j:number)=>{const ac=p.aciertos?.some((a:any)=>a.numero===n);return <span key={j} className={`saved-number ${ac?"hit":""}`}>{n}</span>})}
+                    </div>
+                    {p.aciertos?.length>0 && <div className="saved-results">{p.aciertos.map((a:any)=><div key={a.numero}>• {a.numero} en puesto {a.puesto}</div>)}</div>}
+                  </div>
+                )})}
+              </>
             )}
           </>)}
         </>)}

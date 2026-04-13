@@ -36,7 +36,8 @@ function authorizeCron(req: NextRequest): boolean {
 
 export async function GET(req: NextRequest) {
   if (!authorizeCron(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const now=new Date(Date.now()-3*3600000)
+  const dateParam = req.nextUrl.searchParams.get("date")
+  const now = dateParam ? new Date(dateParam + 'T00:00:00') : new Date(Date.now()-3*3600000)
   const y=now.getFullYear(),mo=String(now.getMonth()+1).padStart(2,"0"),d=String(now.getDate()).padStart(2,"0")
   const fechaStr=`${y}-${mo}-${d}`,fechaUrl=`${d}-${mo}-${String(y).slice(-2)}`
   const hora=now.getHours()
