@@ -112,6 +112,14 @@ export default function Page(){
     const h:Record<string,number>={Previa:1015,Primera:1200,Matutina:1500,Vespertina:1800,Nocturna:2100}
     return hora<(h[sorteo]||2100)?sorteo+" del "+hoy:sorteo+" del "+manana
   }
+  function fechaSorteo(sorteo:string):string{
+    const ar=new Date(Date.now()-3*3600000)
+    const hora=ar.getHours()*100+ar.getMinutes()
+    const hoy=ar.toISOString().split("T")[0]
+    const manana=new Date(ar.getTime()+86400000).toISOString().split("T")[0]
+    const h:Record<string,number>={Previa:1015,Primera:1200,Matutina:1500,Vespertina:1800,Nocturna:2100}
+    return hora<(h[sorteo]||2100)?hoy:manana
+  }
   async function cargarMisPreds(token:string){
     try{
       const r=await fetch("/api/mis-predicciones",{headers:{Authorization:"Bearer "+token}})
@@ -143,9 +151,9 @@ export default function Page(){
     if(!tkRef.current)return
     setGuardando(true)
     try{
-      const hoy=new Date(Date.now()-3*3600000).toISOString().split("T")[0]
+      const fechaSorteoStr=fechaSorteo(so)
       const nums=cur.slice(0,dg===2?10:5).map((p:any)=>p.numero)
-      await fetch("/api/mis-predicciones",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+tkRef.current},body:JSON.stringify({date:hoy,turno:so,numeros:nums})})
+      await fetch("/api/mis-predicciones",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+tkRef.current},body:JSON.stringify({date:fechaSorteoStr,turno:so,numeros:nums})})
       setGuardadoOk(true);setTimeout(()=>setGuardadoOk(false),3000)
       cargarMisPreds(tkRef.current)
     }catch{}
@@ -497,7 +505,7 @@ export default function Page(){
               misPreds.map((p:any,i:number)=>(
                 <div key={i} style={{background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.06)",borderRadius:12,padding:12,marginBottom:10}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-                    <div style={{fontSize:12,color:"#ff6b81",fontWeight:700}}>{p.turno} — {new Date(p.date).toLocaleDateString("es-AR")}</div>
+                    <div style={{fontSize:12,color:"#ff6b81",fontWeight:700}}>{p.turno} — {new Date(p.date + 'T00:00:00').toLocaleDateString("es-AR", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
                     {p.resultado?<div style={{fontSize:11,fontWeight:700,color:p.acerto?"#86efac":"#475569"}}>{p.acerto?"Acertaste "+p.aciertos.length+"!":"Sin aciertos"}</div>:<div style={{fontSize:10,color:"#475569"}}>Pendiente</div>}
                   </div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
