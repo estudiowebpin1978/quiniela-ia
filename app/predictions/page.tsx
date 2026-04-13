@@ -130,6 +130,8 @@ export default function Page(){
       const d=await r.json()
       if(!r.ok)throw new Error(d.error||"Error")
       setDt(d);setDn(true);if(d.aiInsight)setAiInsight(d.aiInsight)
+      // Guardar automáticamente en el historial
+      guardarPrediccion(true)
     }catch(e:any){setEr(e?.message||String(e))}
     finally{setLd(false)}
   }
@@ -180,14 +182,16 @@ export default function Page(){
     }catch(e:any){setResultadoControl({error:"Error: "+e.message})}
     setControlando(false)
   }
-  async function guardarPrediccion(){
+  async function guardarPrediccion(silent = false){
     if(!tkRef.current)return
     setGuardando(true)
     try{
       const fechaSorteoStr=fechaSorteo(so)
       const nums=cur.slice(0,dg===2?10:5).map((p:any)=>p.numero)
       await fetch("/api/mis-predicciones",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+tkRef.current},body:JSON.stringify({date:fechaSorteoStr,turno:so,numeros:nums})})
-      setGuardadoOk(true);setTimeout(()=>setGuardadoOk(false),3000)
+      if(!silent){
+        setGuardadoOk(true);setTimeout(()=>setGuardadoOk(false),3000)
+      }
       cargarMisPreds(tkRef.current)
     }catch{}
     setGuardando(false)
