@@ -20,3 +20,4 @@ RESUMEN-*.md
 
 validate-*.sh
 .vercel
+.vs/

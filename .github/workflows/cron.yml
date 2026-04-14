@@ -1,0 +1,27 @@
+name: Scheduled draws scraper
+
+on:
+  schedule:
+    # Ejecutar una vez al día para actualizar los resultados después de los sorteos nocturnos
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  fetch-draws:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.APP_URL }}" ]; then echo "Missing APP_URL secret"; exit 1; fi
+          if [ -z "${{ secrets.CRON_SECRET }}" ]; then echo "Missing CRON_SECRET secret"; exit 1; fi
+
+      - name: Call cron endpoint
+        run: |
+          url="${{ secrets.APP_URL }}/api/cron?secret=${{ secrets.CRON_SECRET }}"
+          echo "Calling $url"
+          response=$(curl -s -w "\n%{http_code}" "$url")
+          http_code=$(tail -n1 <<< "$response")
+          body=$(sed '$d' <<< "$response")
+          echo "HTTP status: $http_code"
+          echo "$body"
+          if [ "$http_code" != "200" ]; then exit 1; fi

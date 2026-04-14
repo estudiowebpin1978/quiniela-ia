@@ -38,6 +38,7 @@ export default function Page(){
   const [er,setEr]=useState("")
   const [dt,setDt]=useState(null as any)
   const [misPreds,setMisPreds]=useState<any[]>([])
+  const [misLoading,setMisLoading]=useState(false)
   const [guardando,setGuardando]=useState(false)
   const [guardadoOk,setGuardadoOk]=useState(false)
   const [controlando,setControlando]=useState(false)
@@ -156,10 +157,15 @@ export default function Page(){
     return hora<(h[sorteo]||2100)?hoy:manana
   }
   async function cargarMisPreds(token:string){
+    if(!token) return
+    setMisLoading(true)
     try{
       const r=await fetch("/api/mis-predicciones",{headers:{Authorization:"Bearer "+token}})
-      const d=await r.json();if(d.predictions)setMisPreds(d.predictions)
-    }catch{}
+      const d=await r.json()
+      if(d.predictions)setMisPreds(d.predictions)
+      else setMisPreds([])
+    }catch{setMisPreds([])}
+    setMisLoading(false)
   }
 
 
@@ -409,14 +415,17 @@ export default function Page(){
             </button>
           ))}
         </div>
-        <button className="btn3d btn-gen" onClick={gen} disabled={ld} style={{opacity:ld?.6:1}}>{ld?"⏳ Analizando datos...":"⚡ Generar Predicción Ahora"}</button>
-        <button onClick={()=>setTab("mis")} style={{width:"100%",padding:"14px 20px",borderRadius:13,border:"1.5px solid rgba(34,197,94,.5)",background:"linear-gradient(135deg,rgba(34,197,94,.18),rgba(34,197,94,.08))",color:"#15803d",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",marginBottom:8,boxShadow:"0 6px 0 rgba(0,100,50,.25),0 8px 20px rgba(34,197,94,.2)",transition:".12s",transform:"translateY(0)",}}>
-          📋 Mis Predicciones
-        </button>
-        <button onClick={()=>setShowCalc(!showCalc)} style={{width:"100%",padding:"14px 20px",borderRadius:13,border:"1.5px solid rgba(180,83,9,.5)",background:"linear-gradient(135deg,rgba(180,83,9,.16),rgba(180,83,9,.06))",color:"#92400e",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",marginBottom:8,boxShadow:"0 6px 0 rgba(120,53,15,.2),0 8px 20px rgba(180,83,9,.18)",transition:".12s",transform:"translateY(0)",}}>
-          {showCalc?"▲ Cerrar calculadora":"💰 Sugerencias de apuesta"}
-        </button>
-        {showCalc&&dn&&<div style={{background:"rgba(201,168,76,.04)",border:"1.5px solid rgba(201,168,76,.2)",borderRadius:16,padding:"16px",marginBottom:12}}>
+        <button className="btn3d btn-gen" onClick={gen} disabled={ld} style={{opacity: ld ? 0.6 : 1}}>{ld?"⏳ Analizando datos...":"⚡ Generar Predicción Ahora"}</button>
+        <div style={{display:"grid",gap:10,margin:"16px 0 18px"}}>
+          <button onClick={()=>{setTab("mis"); cargarMisPreds(tkRef.current)}} style={{width:"100%",padding:"14px 20px",borderRadius:13,border:"1.5px solid rgba(34,197,94,.5)",background:"linear-gradient(135deg,rgba(34,197,94,.18),rgba(34,197,94,.08))",color:"#15803d",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",boxShadow:"0 6px 0 rgba(0,100,50,.25),0 8px 20px rgba(34,197,94,.2)",transition:".12s"}}>
+            📋 Mis Predicciones
+          </button>
+          <button onClick={()=>setShowCalc(!showCalc)} style={{width:"100%",padding:"14px 20px",borderRadius:13,border:"1.5px solid rgba(180,83,9,.5)",background:"linear-gradient(135deg,rgba(180,83,9,.16),rgba(180,83,9,.06))",color:"#92400e",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",boxShadow:"0 6px 0 rgba(120,53,15,.2),0 8px 20px rgba(180,83,9,.18)",transition:".12s"}}>
+            {showCalc?"▲ Cerrar sugerencias":"💰 Sugerencias de apuesta"}
+          </button>
+          <div style={{fontSize:12,color:"#94a3b8",textAlign:"center"}}>🔔 Activa la campanita para recibir avisos de resultados y aciertos.</div>
+        </div>
+        {showCalc&&<div style={{background:"rgba(201,168,76,.04)",border:"1.5px solid rgba(201,168,76,.2)",borderRadius:16,padding:"16px",marginBottom:12}}>
           <div style={{fontSize:13,fontWeight:800,color:"#c9a84c",marginBottom:12,textAlign:"center"}}>Calculadora de premios estimados</div>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
             <div style={{fontSize:11,color:"#94a3b8",minWidth:130}}>Apuesta por cifra: <strong style={{color:"#f0cc6e"}}>${apCalc.toLocaleString("es-AR")}</strong></div>
@@ -562,61 +571,65 @@ export default function Page(){
               )})}
             </div>
           </>)}
-          {tab==="mis"&&(<>
-            <div className="sec">Mis predicciones guardadas</div>
-            {misPreds.length===0?(<div style={{textAlign:"center",padding:"30px",color:"#64748b",fontSize:12}}>Aun no guardaste predicciones.<br/>Genera una prediccion y apreta Guardar para comparar.</div>):(
-              <>
-                <div className="saved-summary">
-                  <div className="saved-summary-card">
-                    <div className="saved-summary-label">Guardadas</div>
-                    <div className="saved-summary-value">{misSummary.totalSaved}</div>
-                  </div>
-                  <div className="saved-summary-card">
-                    <div className="saved-summary-label">Con resultado</div>
-                    <div className="saved-summary-value">{misSummary.totalWithResult}</div>
-                  </div>
-                  <div className="saved-summary-card">
-                    <div className="saved-summary-label">Predicciones con acierto</div>
-                    <div className="saved-summary-value">{misSummary.successRate}%</div>
-                  </div>
-                  <div className="saved-summary-card">
-                    <div className="saved-summary-label">Aciertos totales</div>
-                    <div className="saved-summary-value">{misSummary.totalAciertos}</div>
-                  </div>
+        </>)}
+        {tab==="mis"&&(<>
+          <div className="sec">Mis predicciones guardadas</div>
+          {misLoading ? (
+            <div style={{textAlign:"center",padding:"30px",color:"#64748b",fontSize:12}}>Cargando historial de predicciones...</div>
+          ) : misPreds.length===0 ? (
+            <div style={{textAlign:"center",padding:"30px",color:"#64748b",fontSize:12}}>Aun no guardaste predicciones.<br/>Genera una prediccion y apreta Guardar para comparar.</div>
+          ) : (
+            <>
+              <div className="saved-summary">
+                <div className="saved-summary-card">
+                  <div className="saved-summary-label">Guardadas</div>
+                  <div className="saved-summary-value">{misSummary.totalSaved}</div>
                 </div>
-                <div className="saved-summary" style={{marginBottom:20}}>
-                  <div className="saved-summary-card" style={{gridColumn: 'span 2'}}>
-                    <div className="saved-summary-label">Promedio aciertos</div>
-                    <div className="saved-summary-value">{misSummary.avgHits}</div>
-                  </div>
-                  <div className="saved-summary-card" style={{gridColumn: 'span 2'}}>
-                    <div className="saved-summary-label">Mejor turno</div>
-                    <div className="saved-summary-value">{misSummary.bestTurno}</div>
-                  </div>
+                <div className="saved-summary-card">
+                  <div className="saved-summary-label">Con resultado</div>
+                  <div className="saved-summary-value">{misSummary.totalWithResult}</div>
                 </div>
-                {misPreds.map((p:any,i:number)=>{
-                  const tieneAciertos = p.aciertos && p.aciertos.length > 0;
-                  const titulo = `${p.turno} — ${new Date(p.date + 'T00:00:00').toLocaleDateString("es-AR", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`
-                  return(
-                  <div key={i} className={`saved-card ${tieneAciertos?"saved-card-success":""}`}>
-                    {tieneAciertos && <div className="saved-success-icon">✅</div>}
-                    <div className="saved-card-header">
-                      <div className="saved-card-title">{titulo}</div>
-                      {p.resultado ? (
-                        <div className={`saved-card-status ${p.acerto?"hit":"miss"}`}>{p.acerto?`🎉 ${p.aciertos.length} acierto(s)`:"Sin aciertos"}</div>
-                      ) : (
-                        <div className="saved-card-status miss">Pendiente</div>
-                      )}
-                    </div>
-                    <div className="saved-numbers">
-                      {p.numeros.map((n:string,j:number)=>{const ac=p.aciertos?.some((a:any)=>a.numero===n);return <span key={j} className={`saved-number ${ac?"hit":""}`}>{n}</span>})}
-                    </div>
-                    {p.aciertos?.length>0 && <div className="saved-results">{p.aciertos.map((a:any)=><div key={a.numero}>• {a.numero} en puesto {a.puesto}</div>)}</div>}
+                <div className="saved-summary-card">
+                  <div className="saved-summary-label">Predicciones con acierto</div>
+                  <div className="saved-summary-value">{misSummary.successRate}%</div>
+                </div>
+                <div className="saved-summary-card">
+                  <div className="saved-summary-label">Aciertos totales</div>
+                  <div className="saved-summary-value">{misSummary.totalAciertos}</div>
+                </div>
+              </div>
+              <div className="saved-summary" style={{marginBottom:20}}>
+                <div className="saved-summary-card" style={{gridColumn: 'span 2'}}>
+                  <div className="saved-summary-label">Promedio aciertos</div>
+                  <div className="saved-summary-value">{misSummary.avgHits}</div>
+                </div>
+                <div className="saved-summary-card" style={{gridColumn: 'span 2'}}>
+                  <div className="saved-summary-label">Mejor turno</div>
+                  <div className="saved-summary-value">{misSummary.bestTurno}</div>
+                </div>
+              </div>
+              {misPreds.map((p:any,i:number)=>{
+                const tieneAciertos = p.aciertos && p.aciertos.length > 0;
+                const titulo = `${p.turno} — ${new Date(p.date + 'T00:00:00').toLocaleDateString("es-AR", { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`
+                return(
+                <div key={i} className={`saved-card ${tieneAciertos?"saved-card-success":""}`}>
+                  {tieneAciertos && <div className="saved-success-icon">✅</div>}
+                  <div className="saved-card-header">
+                    <div className="saved-card-title">{titulo}</div>
+                    {p.resultado ? (
+                      <div className={`saved-card-status ${p.acerto?"hit":"miss"}`}>{p.acerto?`🎉 ${p.aciertos.length} acierto(s)`:"Sin aciertos"}</div>
+                    ) : (
+                      <div className="saved-card-status miss">Pendiente</div>
+                    )}
                   </div>
-                )})}
-              </>
-            )}
-          </>)}
+                  <div className="saved-numbers">
+                    {p.numeros.map((n:string,j:number)=>{const ac=p.aciertos?.some((a:any)=>a.numero===n);return <span key={j} className={`saved-number ${ac?"hit":""}`}>{n}</span>})}
+                  </div>
+                  {p.aciertos?.length>0 && <div className="saved-results">{p.aciertos.map((a:any)=><div key={a.numero}>• {a.numero} en puesto {a.puesto}</div>)}</div>}
+                </div>
+              )})}
+            </>
+          )}
         </>)}
         <div className="shr">
           <div className="shr-t">Compartir Quiniela IA</div>
