@@ -6,14 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "validate": "node scripts/test-setup.js"
+    "start:prod": "next start -p 3000",
+    "lint": "next lint"
   },
   "dependencies": {
-    "@ai-sdk/groq": "^3.0.31",
-    "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.4",
-    "ai": "^6.0.141",
     "next": "^16.2.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
