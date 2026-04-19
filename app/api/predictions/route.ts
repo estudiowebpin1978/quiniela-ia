@@ -237,8 +237,11 @@ export async function GET(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "")
   const sorteo = searchParams.get("sorteo") || "Todos"
 
-  const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-  const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
+  const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "").replace(/"/g, "").trim()
+  const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
+
+  console.log("SB URL:", SB ? "SET" : "EMPTY")
+  console.log("SK Key:", SK ? "SET" : "EMPTY")
 
   // Verificar si es premium desde el token
   let premium = false
@@ -265,9 +268,19 @@ export async function GET(req: NextRequest) {
   }
 
   // Validar variables de entorno
+  console.log("=== DEBUG ENV ===")
+  console.log("NEXT_PUBLIC_SUPABASE_URL:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "SET" : "NOT SET")
+  console.log("SUPABASE_URL:", process.env.SUPABASE_URL ? "SET" : "NOT SET")
+  console.log("SUPABASE_SERVICE_ROLE_KEY:", process.env.SUPABASE_SERVICE_ROLE_KEY ? "SET" : "NOT SET")
+  console.log("SUPABASE_SERVICE_KEY:", process.env.SUPABASE_SERVICE_KEY ? "SET" : "NOT SET")
+  console.log("SB value:", SB)
+  console.log("SK value:", SK ? "HAS VALUE" : "EMPTY")
+  console.log("=================")
+  
   if (!SB || !SK) {
     return NextResponse.json({ 
       error: "Configuración incompleta: Variables de entorno no definidas",
+      debug: { sb: !!SB, sk: !!SK },
       numeros: [],
       totalSorteos: 0,
       sorteo,

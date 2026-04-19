@@ -3,6 +3,11 @@ const SB=()=>(process.env.NEXT_PUBLIC_SUPABASE_URL||"").replace(/"/g,"").trim()
 const SK=()=>(process.env.SUPABASE_SERVICE_ROLE_KEY||"").replace(/"/g,"").trim()
 
 export async function GET(req:NextRequest){
+  console.log("=== DEBUG resultado ===")
+  console.log("SUPABASE_URL:", process.env.SUPABASE_URL ? "SET" : "NOT SET")
+  console.log("SUPABASE_SERVICE_ROLE_KEY:", process.env.SUPABASE_SERVICE_ROLE_KEY ? "SET" : "NOT SET")
+  console.log("========================")
+
   const{searchParams}=new URL(req.url)
   const date=searchParams.get("date")
   const turno=searchParams.get("turno")
