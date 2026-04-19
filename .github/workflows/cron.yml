@@ -2,9 +2,13 @@ name: Scheduled draws scraper
 
 on:
   schedule:
-    # Ejecutar una vez al día para actualizar los resultados después de los sorteos nocturnos
-    - cron: '0 0 * * *'
+    # Ejecutar cada hora para obtener los sorteos disponibles
+    - cron: '0 * * * *'
   workflow_dispatch:
+    inputs:
+      date:
+        description: 'Fecha específica (YYYY-MM-DD)'
+        required: false
 
 jobs:
   fetch-draws:
@@ -15,13 +19,12 @@ jobs:
           if [ -z "${{ secrets.APP_URL }}" ]; then echo "Missing APP_URL secret"; exit 1; fi
           if [ -z "${{ secrets.CRON_SECRET }}" ]; then echo "Missing CRON_SECRET secret"; exit 1; fi
 
-      - name: Call cron endpoint
+      - name: Call cron endpoint - Quiniela Nacional
         run: |
-          url="${{ secrets.APP_URL }}/api/cron?secret=${{ secrets.CRON_SECRET }}"
-          echo "Calling $url"
+          url="${{ secrets.APP_URL }}/api/cron-nacional?secret=${{ secrets.CRON_SECRET }}"
+          echo "Calling nacional: $url"
           response=$(curl -s -w "\n%{http_code}" "$url")
           http_code=$(tail -n1 <<< "$response")
           body=$(sed '$d' <<< "$response")
           echo "HTTP status: $http_code"
           echo "$body"
-          if [ "$http_code" != "200" ]; then exit 1; fi

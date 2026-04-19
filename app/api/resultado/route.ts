@@ -59,8 +59,8 @@ export async function GET(req:NextRequest){
     }
 
     // Validar que los números sean válidos
-    const numbers=Array.isArray(data[0].numbers)?data[0].numbers:[]
-    const validNumbers=numbers.filter(n=>!Number.isNaN(Number(n)))
+    const numbers=Array.isArray(data[0].numbers)?data[0].numbers as unknown[]:[]
+    const validNumbers=numbers.filter((n: unknown)=>!Number.isNaN(Number(n)))
 
     return NextResponse.json({
       found:true,

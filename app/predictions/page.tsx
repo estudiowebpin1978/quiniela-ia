@@ -188,7 +188,7 @@ export default function Page() {
     setDn(false);
     setDt(null);
     try {
-      const r = await fetch("/api/predict?sorteo=" + encodeURIComponent(so), {
+      const r = await fetch("/api/predictions?sorteo=" + encodeURIComponent(so), {
         headers: { Authorization: "Bearer " + tkRef.current },
       });
       const d = await r.json();
@@ -222,7 +222,7 @@ export default function Page() {
       year: "numeric",
     });
     const h: Record<string, number> = { Previa: 1015, Primera: 1200, Matutina: 1500, Vespertina: 1800, Nocturna: 2100 };
-    return hora < (h[sorteo] || 2100) ? sorteos + " del " + hoy : sorteos + " del " + manana;
+    return hora < (h[sorteo] || 2100) ? sorteo + " del " + hoy : sorteo + " del " + manana;
   }
 
   function fechaSorteo(sorteo: string): string {

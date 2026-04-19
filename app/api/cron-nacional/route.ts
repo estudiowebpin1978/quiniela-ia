@@ -1,23 +1,25 @@
+import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
-import cheerio from "cheerio";
+import * as cheerio from "cheerio";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_KEY!
-);
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+
+const supabase = supabaseUrl && supabaseKey
+  ? createClient(supabaseUrl, supabaseKey)
+  : null;
 
 const URL =
   "https://www.loteria-nacional.gov.ar/resultados/quiniela-nacional";
 
 const HORAS_VALIDAS = [10, 12, 15, 18, 21];
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const secret = searchParams.get("secret");
+export async function GET(req: NextRequest) {
+  const secret = req.nextUrl.searchParams.get("secret");
 
   if (secret !== process.env.CRON_SECRET) {
-    return Response.json({ error: "unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   try {
@@ -26,7 +28,7 @@ export async function GET(req: Request) {
 
     // 🧠 Evita ejecuciones innecesarias
     if (!HORAS_VALIDAS.includes(hora)) {
-      return Response.json({ skip: true, hora });
+      return NextResponse.json({ skip: true, hora });
     }
 
     const { data } = await axios.get(URL, {
@@ -35,9 +37,9 @@ export async function GET(req: Request) {
     });
 
     const $ = cheerio.load(data);
-    const sorteos: any = {};
+    const sorteos: Record<string, any[]> = {};
 
-    $("h2, h3").each((_, el) => {
+    $("h2, h3").each((_: number, el: cheerio.Element) => {
       const nombre = $(el).text().toLowerCase();
 
       if (
@@ -50,7 +52,7 @@ export async function GET(req: Request) {
         const tabla = $(el).next("table");
         const resultados: any[] = [];
 
-        tabla.find("tbody tr").each((_, row) => {
+        tabla.find("tbody tr").each((_: number, row: cheerio.Element) => {
           const puesto = $(row).find("td").eq(0).text().trim();
           const numero = $(row).find("td").eq(1).text().trim();
 
@@ -66,13 +68,18 @@ export async function GET(req: Request) {
     });
 
     if (Object.keys(sorteos).length === 0) {
-      return Response.json({ ok: false, msg: "sin datos" });
+      return NextResponse.json({ ok: false, msg: "sin datos" });
     }
 
     const fecha = ahora.toISOString().split("T")[0];
     let guardados = 0;
 
-    for (const [sorteo, resultados] of Object.entries(sorteos)) {
+    if (!supabase) {
+      return NextResponse.json({ error: "Configuración de base de datos incompleta" }, { status: 500 });
+    }
+
+    for (const [sorteo, resultadosRaw] of Object.entries(sorteos)) {
+      const resultados = resultadosRaw as any[];
       // 🛑 FILTRO CLAVE
       if (resultados.length < 20) {
         console.log(`⚠️ ${sorteo} incompleto (${resultados.length})`);
@@ -96,14 +103,14 @@ export async function GET(req: Request) {
       if (!error) guardados++;
     }
 
-    return Response.json({
+    return NextResponse.json({
       ok: true,
       guardados,
       sorteos: Object.keys(sorteos),
       hora,
     });
   } catch (error: any) {
-    return Response.json(
+    return NextResponse.json(
       {
         ok: false,
         error: error.message,

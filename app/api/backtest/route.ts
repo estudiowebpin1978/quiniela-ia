@@ -32,7 +32,7 @@ async function generatePredictionForDate(sb: string, sk: string, turno: string, 
     // Calcular atrasos
     const lastSeen = new Array(100).fill(0)
     for (let i = 0; i < rows.length; i++) {
-      const nums = Array.isArray(rows[i].numbers) ? rows[i].numbers : []
+      const nums = Array.isArray(rows[i]?.numbers) ? rows[i].numbers! : []
       for (const n of nums) {
         const num = Number(n) % 100
         if (num >= 0 && num <= 99) lastSeen[num] = i

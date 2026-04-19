@@ -234,11 +234,35 @@ function scoreDigits(
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
+  const token = req.headers.get("authorization")?.replace("Bearer ", "")
   const sorteo = searchParams.get("sorteo") || "Todos"
-  const premium = true
 
   const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
   const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
+
+  // Verificar si es premium desde el token
+  let premium = false
+  if (token && SB && SK) {
+    try {
+      const userRes = await fetch(`${SB}/auth/v1/user`, {
+        headers: { "apikey": SK, "Authorization": `Bearer ${token}` },
+        signal: AbortSignal.timeout(5000),
+      })
+      if (userRes.ok) {
+        const user = await userRes.json()
+        const profRes = await fetch(
+          `${SB}/rest/v1/user_profiles?id=eq.${user.id}&select=role,premium_until&limit=1`,
+          { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
+        )
+        if (profRes.ok) {
+          const profiles = await profRes.json()
+          const profile = profiles?.[0]
+          premium = profile?.role === "admin" ||
+            (profile?.role === "premium" && profile?.premium_until && new Date(profile.premium_until) > new Date())
+        }
+      }
+    } catch {}
+  }
 
   // Validar variables de entorno
   if (!SB || !SK) {
@@ -429,6 +453,7 @@ export async function GET(req: NextRequest) {
 
     // Top 10 números para 2 cifras
     const top10 = scores.slice(0, 10).map((x, i) => ({
+      n: x.n,
       numero: pad(x.n),
       significado: SUENOS[x.n] || "",
       score: Math.round(x.score * 10000) / 10000,
@@ -482,8 +507,18 @@ export async function GET(req: NextRequest) {
       aiInsight,
     }
 
+    // Formato compatible con frontend
+    const pred = {
+      numeros_2: top10.map(n => n.numero),
+      numeros_3: pred3d.map(p => p.numero),
+      numeros_4: pred4d.map(p => p.numero),
+      redoblona: pairPremium.label,
+      ranking: top10.map((n) => ({ numero: n.numero, score: n.score, prob: Math.round((freq[n.n] / hist.length) * 10000) / 100 })),
+    }
+
     return NextResponse.json({
       ...base,
+      pred,
       redoblona: pairPremium.label,
       redoblonaSimple,
       redoblonaNota: `Par ponderado: ${pairPremium.label}. Analisis de ${rowsValidos.length} sorteos.`,
