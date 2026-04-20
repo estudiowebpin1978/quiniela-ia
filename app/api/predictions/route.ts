@@ -355,8 +355,12 @@ if (!SB || !SK) {
       })
     }
 
-    // Validar que tenemos números válidos
-    const rowsValidos = rows.filter(r => Array.isArray(r.numbers) && r.numbers.length > 0)
+    // Validar que tenemos números válidos (soporta ambos formatos: draws.numbers y quiniela_nacional.resultados)
+    const rowsValidos = rows.filter(r => {
+      if (Array.isArray(r.numbers) && r.numbers.length > 0) return true
+      if (Array.isArray(r.resultados) && r.resultados.length > 0) return true
+      return false
+    })
     if (!rowsValidos.length) {
       return NextResponse.json({
         numeros: [],
