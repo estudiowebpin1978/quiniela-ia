@@ -44,7 +44,6 @@ type RankingItem = {
 type PredData = {
   numeros_2: string[];
   numeros_3: string[];
-  numeros_4: string[];
   redoblona: string;
   ranking: RankingItem[];
   heatmap: { n: number; f: number; s: string; pct: number }[];
@@ -340,7 +339,7 @@ export default function Page() {
   // Preparar datos para mostrar según dígito seleccionado
   const nums2 = dt?.numeros_2 || [];
   const nums3 = dt?.numeros_3 || [];
-  const nums4 = dt?.numeros_4 || [];
+  const nums4 = nums2.slice(0, 5).map((n, i) => n + (nums2[(i + 1) % 10] || "00"));
   const rdbl = dt?.redoblona || "";
   const ranking = dt?.ranking || [];
 
@@ -350,7 +349,7 @@ export default function Page() {
       ? nums2.map((n, idx) => ({ numero: n, significado: `Score ${(ranking.find((r) => r.numero === n)?.score || 0).toFixed(2)}` }))
       : dg === 3
       ? nums3.map((n, idx) => ({ numero: n, significado: `Score ${(ranking.find((r) => r.numero === n)?.score || 0).toFixed(2)}` }))
-      : nums4.map((n, idx) => ({ numero: n, significado: `Score ${(ranking.find((r) => r.numero === n)?.score || 0).toFixed(2)}` }));
+      : nums4.map((n, idx) => ({ numero: n, significado: "Combinado" }));
 
   return (
     <>
