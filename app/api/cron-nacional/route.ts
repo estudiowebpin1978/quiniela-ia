@@ -34,19 +34,13 @@ export async function GET(req: NextRequest) {
     const ahora = new Date();
     const hora = ahora.getHours();
     
-    // SIMPLE: si hay dateParam, ejecutar; si no, solo en horarios válidos
-    const debeEjecutar = dateParam ? true : HORAS_VALIDAS.includes(hora);
+    console.log("=== FORZANDO EJECUCION ===");
+    console.log("dateParam:", dateParam);
+    console.log("hora:", hora);
+    console.log("HORAS_VALIDAS:", HORAS_VALIDAS);
     
-    console.log("dateParam es truthy?", Boolean(dateParam));
-    console.log("hora es válida?", HORAS_VALIDAS.includes(hora));
-    console.log("debeEjecutar:", debeEjecutar);
-    
-    if (!debeEjecutar) {
-      console.log("NO EJECUTA - retornar skip");
-      return NextResponse.json({ skip: true, hora, debug: { dateParam: dateParam || "empty" } });
-    }
-
-    console.log("EJECUTANDO - procede con scraping");
+    // SIEMPRE ejecutar (para testing)
+    console.log("EJECUTANDO SIN CONDICIONES");
 
     // Determinar fecha a guardar
     const fecha = dateParam || ahora.toISOString().split("T")[0];
