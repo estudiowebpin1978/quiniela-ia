@@ -71,6 +71,7 @@ export default function Page() {
   const [aiInsight, setAiInsight] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const [stats, setStats] = useState<any>(null);
+  const [userRole, setUserRole] = useState<"free" | "premium" | "admin">("free");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const misSummary = useMemo(() => {
@@ -131,6 +132,7 @@ export default function Page() {
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (d?.isPremium) setPr(true);
+          if (d?.role) setUserRole(d.role as "free" | "premium" | "admin");
         })
         .catch(() => {});
       cargarMisPreds(s.access_token);
@@ -508,12 +510,12 @@ export default function Page() {
             <span className="nm">Quiniela IA</span>
           </div>
           <div className="nr">
-            {pr && <span className="pp">PREMIUM</span>}
+            {(pr || userRole === "admin") && <span className="pp">{userRole === "admin" ? "👑 ADMIN" : "⭐ PREMIUM"}</span>}
             {em && <span className="ne">{em.split("@")[0]}</span>}
             <button className="nav-theme" onClick={toggleTheme} title="Cambiar modo de color">
               {theme === "light" ? "🌞 Claro" : "🌙 Oscuro"}
             </button>
-            {pr && <a href="/admin" className="nav-admin">Admin</a>}
+            {(pr || userRole === "admin") && <a href="/admin" className="nav-admin">⚙️ Admin</a>}
             <button
               onClick={pedirNotificaciones}
               style={{
