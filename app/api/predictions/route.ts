@@ -320,9 +320,9 @@ export async function GET(req: NextRequest) {
     
     for (const row of rows) {
       if (Array.isArray(row.resultados) && row.resultados.length > 0) {
-        const nums = row.resultados.map((r: any) => Number(r.numero) % 100).filter((n: number) => !isNaN(n))
-        if (nums.length >= 20) {
-          sequences.push(nums)
+        const nums4 = row.resultados.map((r: any) => Number(r.numero)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999)
+        if (nums4.length >= 20) {
+          sequences.push(nums4)
           dates.push(row.fecha)
         }
       }
@@ -331,28 +331,28 @@ export async function GET(req: NextRequest) {
     if (!sequences.length) return NextResponse.json({ error: "Sin secuencias válidas" }, { status: 500 })
 
     const hist: number[] = []
+    const hist3: number[] = []
+    const hist4: number[] = []
     const fp: number[] = []
     const freq = new Array(100).fill(0)
     const ff = new Array(100).fill(0)
     const freq3 = new Array(1000).fill(0)
-    const hist3: number[] = []
     const freq4 = new Array(10000).fill(0)
-    const hist4: number[] = []
 
     for (const seq of sequences) {
       seq.forEach((n, i) => {
-        hist.push(n)
-        freq[n]++
+        const n2 = n % 100
+        const n3 = n % 1000
+        hist.push(n2)
+        hist3.push(n3)
+        hist4.push(n)
+        freq[n2]++
+        freq3[n3]++
+        freq4[n]++
         if (i === 0) {
-          fp.push(n)
-          ff[n]++
+          fp.push(n2)
+          ff[n2]++
         }
-        const v3 = n % 1000
-        hist3.push(v3)
-        freq3[v3]++
-        const v4 = n % 10000
-        hist4.push(v4)
-        freq4[v4]++
       })
     }
 
@@ -380,17 +380,18 @@ export async function GET(req: NextRequest) {
     const scores = scoreDigits(freq, hist, recentWindow, ff, dayOfWeekBias, patternBias, sesgoSet)
     scores.sort((a, b) => b.score - a.score)
 
-    const co = buildCooccurrence(sequences)
-    const pairPremium = bestRedoblonaPair(scores, co, 20)
-
-    const transiciones = getTransiciones(sequences)
-    const paresFrecuentes = getParesFrecuentes(sequences)
-
     const s3 = scoreDigits(freq3, hist3, Math.min(800, hist3.length))
     s3.sort((a, b) => b.score - a.score)
 
     const s4 = scoreDigits(freq4, hist4, Math.min(500, hist4.length))
     s4.sort((a, b) => b.score - a.score)
+
+    const seqs2 = sequences.map(seq => seq.map(n => n % 100))
+    const co = buildCooccurrence(seqs2)
+    const pairPremium = bestRedoblonaPair(scores, co, 20)
+
+    const transiciones = getTransiciones(seqs2)
+    const paresFrecuentes = getParesFrecuentes(seqs2)
 
     const top10 = scores.slice(0, 10).map((x, i) => ({
       n: x.n,
