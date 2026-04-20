@@ -22,10 +22,8 @@ export async function GET(req: NextRequest) {
   // Debug
   console.log("=== API called ===");
   console.log("dateParam received (raw):", req.nextUrl.searchParams.get("date"));
-  console.log("dateParam received:", JSON.stringify(dateParam));
-  console.log("dateParam length:", dateParam.length);
-  console.log("dateParam is truthy:", !!dateParam);
-  console.log("dateParam === 'undefined':", dateParam === "undefined");
+  console.log("dateParam in code:", dateParam);
+  console.log("Boolean check:", Boolean(dateParam));
 
   if (secret !== process.env.CRON_SECRET) {
     console.log("SECRET CHECK FAILED! secret=", secret, "env=", process.env.CRON_SECRET);
@@ -34,29 +32,24 @@ export async function GET(req: NextRequest) {
 
   try {
     const ahora = new Date();
-    
-    // Determinar la fecha a usar
-    let fecha: string;
-    if (dateParam && dateParam.length > 0) {
-      fecha = dateParam;
-      console.log("Using provided date:", fecha);
-    } else {
-      fecha = ahora.toISOString().split("T")[0];
-      console.log("Using current date:", fecha);
-    }
-
-    // Siempre ejecutar si hay dateParam, sino solo en horarios válidos
     const hora = ahora.getHours();
-    const tieneFecha = !!(dateParam && dateParam.length > 0);
-    const horarioValido = HORAS_VALIDAS.includes(hora);
     
-    console.log("tieneFecha:", tieneFecha, "horarioValido:", horarioValido);
+    // SIMPLE: si hay dateParam, ejecutar; si no, solo en horarios válidos
+    const debeEjecutar = dateParam ? true : HORAS_VALIDAS.includes(hora);
     
-    if (!tieneFecha && !horarioValido) {
-      return NextResponse.json({ skip: true, hora, reason: "fuera de horario" });
+    console.log("dateParam es truthy?", Boolean(dateParam));
+    console.log("hora es válida?", HORAS_VALIDAS.includes(hora));
+    console.log("debeEjecutar:", debeEjecutar);
+    
+    if (!debeEjecutar) {
+      console.log("NO EJECUTA - retornar skip");
+      return NextResponse.json({ skip: true, hora, debug: { dateParam: dateParam || "empty" } });
     }
 
-    console.log("Ejecutando scraping...");
+    console.log("EJECUTANDO - procede con scraping");
+
+    // Determinar fecha a guardar
+    const fecha = dateParam || ahora.toISOString().split("T")[0];
 
     // Determinar la URL a scrapear
     // Si se proporciona fecha, usar el formato con fecha (para backfill)
