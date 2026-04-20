@@ -19,7 +19,16 @@ export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
   const dateParam = req.nextUrl.searchParams.get("date");
 
+  // Debug: ver todos los valores que llegan
+  console.log("=================");
+  console.log("SECRET received:", secret);
+  console.log("DATE received:", dateParam);
+  console.log("CRON_SECRET env:", process.env.CRON_SECRET ? "SET" : "NOT SET");
+  console.log("dateParam truthy:", !!dateParam);
+  console.log("=================");
+
   if (secret !== process.env.CRON_SECRET) {
+    console.log("AUTH FAILED!");
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -27,10 +36,16 @@ export async function GET(req: NextRequest) {
     const ahora = new Date();
     const hora = ahora.getHours();
 
+    console.log("hora:", hora, "in HORAS_VALIDAS:", HORAS_VALIDAS.includes(hora));
+    console.log("dateParam:", dateParam, "type:", typeof dateParam);
+
     // Si NO hay dateParam y está fuera de horario, salir
     if (!dateParam && !HORAS_VALIDAS.includes(hora)) {
+      console.log("EXIT: no dateParam y fuera de horario");
       return NextResponse.json({ skip: true, hora, reason: "fuera de horario" });
     }
+
+    console.log("PROCEEDING with scraping...");
 
     // Determinar fecha
     const fecha = dateParam || ahora.toISOString().split("T")[0];
