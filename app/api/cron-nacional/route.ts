@@ -17,12 +17,13 @@ const HORAS_VALIDAS = [10, 12, 15, 18, 21];
 
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
-  const dateParam = req.nextUrl.searchParams.get("date");
+  const dateParam = req.nextUrl.searchParams.get("date") || "";
 
-  // Debug: registrar qué llega
-  console.log("secret:", secret ? "presente" : "ausente");
-  console.log("dateParam:", dateParam);
-  console.log("CRON_SECRET env:", process.env.CRON_SECRET ? "configurado" : "NO CONFIGURADO");
+  // Debug
+  console.log("=== API called ===");
+  console.log("dateParam received:", JSON.stringify(dateParam));
+  console.log("dateParam length:", dateParam.length);
+  console.log("dateParam is truthy:", !!dateParam);
 
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -33,31 +34,25 @@ export async function GET(req: NextRequest) {
     
     // Determinar la fecha a usar
     let fecha: string;
-    if (dateParam) {
-      fecha = dateParam;  // Fecha proporcionada (para backfill)
+    if (dateParam && dateParam.length > 0) {
+      fecha = dateParam;
+      console.log("Using provided date:", fecha);
     } else {
-      fecha = ahora.toISOString().split("T")[0];  // Fecha actual
+      fecha = ahora.toISOString().split("T")[0];
+      console.log("Using current date:", fecha);
     }
 
-    // Si se proporciona fecha, ejecutar SIEMPRE (para backfill)
-    // Si NO se proporciona fecha, solo ejecutar en horarios de sorteo
+    // Siempre ejecutar si hay dateParam, sino solo en horarios válidos
     const hora = ahora.getHours();
-    console.log("hora actual:", hora, "dateParam:", dateParam);
+    const tieneFecha = !!(dateParam && dateParam.length > 0);
+    const horarioValido = HORAS_VALIDAS.includes(hora);
     
-    if (!dateParam && !HORAS_VALIDAS.includes(hora)) {
-      console.log("Saliendo por horario");
-      return NextResponse.json({ 
-        skip: true, 
-        hora,
-        debug: { 
-          dateParam: dateParam || "null/empty", 
-          hora: hora,
-          HORAS_VALIDAS: HORAS_VALIDAS,
-          condicion: "!dateParam=" + (!dateParam) + " && !HORAS_VALIDAS.includes(hora)=" + (!HORAS_VALIDAS.includes(hora))
-        }
-      });
+    console.log("tieneFecha:", tieneFecha, "horarioValido:", horarioValido);
+    
+    if (!tieneFecha && !horarioValido) {
+      return NextResponse.json({ skip: true, hora, reason: "fuera de horario" });
     }
-    
+
     console.log("Ejecutando scraping...");
 
     // Determinar la URL a scrapear
