@@ -10,46 +10,32 @@ const supabase = supabaseUrl && supabaseKey
   ? createClient(supabaseUrl, supabaseKey)
   : null;
 
-const URL =
-  "https://quinielanacional1.com.ar";
-
+const URL = "https://quinielanacional1.com.ar";
 const HORAS_VALIDAS = [10, 12, 15, 18, 21];
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
-  const dateParam = req.nextUrl.searchParams.get("date") || "";
-
-// Debug
-  console.log("=== API called ===");
-  console.log("dateParam received (raw):", req.nextUrl.searchParams.get("date"));
-  console.log("dateParam in code:", dateParam);
-  console.log("Boolean check:", Boolean(dateParam));
+  const dateParam = req.nextUrl.searchParams.get("date");
 
   if (secret !== process.env.CRON_SECRET) {
-    console.log("SECRET CHECK FAILED! secret=", secret, "env=", process.env.CRON_SECRET);
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   try {
     const ahora = new Date();
     const hora = ahora.getHours();
-    
-    console.log("=== FORZANDO EJECUCION ===");
-    console.log("dateParam:", dateParam);
-    console.log("hora:", hora);
-    console.log("HORAS_VALIDAS:", HORAS_VALIDAS);
-    
-    // SIEMPRE ejecutar (para testing)
-    console.log("EJECUTANDO SIN CONDICIONES");
 
-    // Determinar fecha a guardar
+    // Si NO hay dateParam y está fuera de horario, salir
+    if (!dateParam && !HORAS_VALIDAS.includes(hora)) {
+      return NextResponse.json({ skip: true, hora, reason: "fuera de horario" });
+    }
+
+    // Determinar fecha
     const fecha = dateParam || ahora.toISOString().split("T")[0];
 
-    // Determinar la URL a scrapear
-    // Si se proporciona fecha, usar el formato con fecha (para backfill)
-    // Si no, usar la URL base (para scrapeo automático del día actual)
+    // Determinar URL a scrapear
     let scrapeUrl = URL;
     if (dateParam) {
       const parts = dateParam.split('-');
@@ -60,6 +46,8 @@ export async function GET(req: NextRequest) {
         scrapeUrl = `${URL}/${day}-${month}-${yearShort}`;
       }
     }
+
+    console.log("Scraping URL:", scrapeUrl);
 
     const { data } = await axios.get(scrapeUrl, {
       headers: { "User-Agent": "Mozilla/5.0" },
@@ -72,20 +60,15 @@ export async function GET(req: NextRequest) {
     $("h2, h3").each((_: number, el: cheerio.Element) => {
       const nombre = $(el).text().toLowerCase();
 
-      if (
-        nombre.includes("previa") ||
-        nombre.includes("primera") ||
-        nombre.includes("matutina") ||
-        nombre.includes("vespertina") ||
-        nombre.includes("nocturna")
-      ) {
+      if (nombre.includes("previa") || nombre.includes("primera") || 
+          nombre.includes("matutina") || nombre.includes("vespertina") || 
+          nombre.includes("nocturna")) {
         const tabla = $(el).next("table");
         const resultados: any[] = [];
 
         tabla.find("tbody tr").each((_: number, row: cheerio.Element) => {
           const puesto = $(row).find("td").eq(0).text().trim();
           const numero = $(row).find("td").eq(1).text().trim();
-
           if (puesto && numero) {
             resultados.push({ puesto, numero });
           }
@@ -98,7 +81,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (Object.keys(sorteos).length === 0) {
-      return NextResponse.json({ ok: false, msg: "sin datos" });
+      return NextResponse.json({ ok: false, msg: "sin datos", fecha });
     }
 
     let guardados = 0;
@@ -109,7 +92,6 @@ export async function GET(req: NextRequest) {
 
     for (const [sorteo, resultadosRaw] of Object.entries(sorteos)) {
       const resultados = resultadosRaw as any[];
-      // 🛑 FILTRO CLAVE
       if (resultados.length < 20) {
         console.log(`⚠️ ${sorteo} incompleto (${resultados.length})`);
         continue;
@@ -117,17 +99,14 @@ export async function GET(req: NextRequest) {
 
       const { error } = await supabase
         .from("quiniela_nacional")
-        .upsert(
-          {
-            fecha,
-            sorteo,
-            resultados,
-            updated_at: new Date(),
-          },
-          {
-            onConflict: "fecha,sorteo",
-          }
-        );
+        .upsert({
+          fecha,
+          sorteo,
+          resultados,
+          updated_at: new Date(),
+        }, {
+          onConflict: "fecha,sorteo",
+        });
 
       if (!error) guardados++;
     }
@@ -136,15 +115,12 @@ export async function GET(req: NextRequest) {
       ok: true,
       guardados,
       sorteos: Object.keys(sorteos),
-      hora,
+      fecha,
     });
   } catch (error: any) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: error.message,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      ok: false,
+      error: error.message,
+    }, { status: 500 });
   }
 }
