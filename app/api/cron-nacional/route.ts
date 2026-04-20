@@ -15,11 +15,13 @@ const URL =
 
 const HORAS_VALIDAS = [10, 12, 15, 18, 21];
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
   const dateParam = req.nextUrl.searchParams.get("date") || "";
 
-  // Debug
+// Debug
   console.log("=== API called ===");
   console.log("dateParam received (raw):", req.nextUrl.searchParams.get("date"));
   console.log("dateParam in code:", dateParam);
