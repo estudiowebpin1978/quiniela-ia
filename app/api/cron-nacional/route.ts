@@ -46,7 +46,16 @@ export async function GET(req: NextRequest) {
     
     if (!dateParam && !HORAS_VALIDAS.includes(hora)) {
       console.log("Saliendo por horario");
-      return NextResponse.json({ skip: true, hora });
+      return NextResponse.json({ 
+        skip: true, 
+        hora,
+        debug: { 
+          dateParam: dateParam || "null/empty", 
+          hora: hora,
+          HORAS_VALIDAS: HORAS_VALIDAS,
+          condicion: "!dateParam=" + (!dateParam) + " && !HORAS_VALIDAS.includes(hora)=" + (!HORAS_VALIDAS.includes(hora))
+        }
+      });
     }
     
     console.log("Ejecutando scraping...");
