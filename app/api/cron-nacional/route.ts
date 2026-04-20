@@ -4,19 +4,20 @@ import * as cheerio from "cheerio";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
 const supabase = supabaseUrl && supabaseKey
   ? createClient(supabaseUrl, supabaseKey)
   : null;
 
 const URL =
-  "https://www.loteria-nacional.gov.ar/resultados/quiniela-nacional";
+  "https://quinielanacional1.com.ar";
 
 const HORAS_VALIDAS = [10, 12, 15, 18, 21];
 
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
+  const dateParam = req.nextUrl.searchParams.get("date");
 
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -25,13 +26,36 @@ export async function GET(req: NextRequest) {
   try {
     const ahora = new Date();
     const hora = ahora.getHours();
+    
+    // Determinar la fecha a usar
+    let fecha: string;
+    if (dateParam) {
+      fecha = dateParam;  // Fecha proporcionada (para backfill)
+    } else {
+      fecha = ahora.toISOString().split("T")[0];  // Fecha actual
+    }
 
-    // 🧠 Evita ejecuciones innecesarias
-    if (!HORAS_VALIDAS.includes(hora)) {
+    // Si NO se proporcionó fecha, verificar horario de sorteo (solo para scrapeo automático)
+    // Si se proporcionó fecha, ejecutar siempre (para backfill)
+    if (!dateParam && !HORAS_VALIDAS.includes(hora)) {
       return NextResponse.json({ skip: true, hora });
     }
 
-    const { data } = await axios.get(URL, {
+    // Determinar la URL a scrapear
+    // Si se proporciona fecha, usar el formato con fecha (para backfill)
+    // Si no, usar la URL base (para scrapeo automático del día actual)
+    let scrapeUrl = URL;
+    if (dateParam) {
+      const parts = dateParam.split('-');
+      if (parts.length === 3) {
+        const day = parts[2];
+        const month = parts[1];
+        const yearShort = parts[0].slice(-2);
+        scrapeUrl = `${URL}/${day}-${month}-${yearShort}`;
+      }
+    }
+
+    const { data } = await axios.get(scrapeUrl, {
       headers: { "User-Agent": "Mozilla/5.0" },
       timeout: 15000,
     });
@@ -71,7 +95,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, msg: "sin datos" });
     }
 
-    const fecha = ahora.toISOString().split("T")[0];
     let guardados = 0;
 
     if (!supabase) {
