@@ -25,7 +25,6 @@ export async function GET(req: NextRequest) {
 
   try {
     const ahora = new Date();
-    const hora = ahora.getHours();
     
     // Determinar la fecha a usar
     let fecha: string;
@@ -35,8 +34,9 @@ export async function GET(req: NextRequest) {
       fecha = ahora.toISOString().split("T")[0];  // Fecha actual
     }
 
-    // Si NO se proporcionó fecha, verificar horario de sorteo (solo para scrapeo automático)
-    // Si se proporcionó fecha, ejecutar siempre (para backfill)
+    // Si se proporciona fecha, ejecutar SIEMPRE (para backfill)
+    // Si NO se proporciona fecha, solo ejecutar en horarios de sorteo
+    const hora = ahora.getHours();
     if (!dateParam && !HORAS_VALIDAS.includes(hora)) {
       return NextResponse.json({ skip: true, hora });
     }
