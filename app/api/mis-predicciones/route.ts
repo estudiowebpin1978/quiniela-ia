@@ -13,15 +13,16 @@ export async function GET(req:NextRequest){
     const predictions=await r1.json()
     const results=[]
     for(const pred of predictions){
-      const r2=await fetch(`${SB()}/rest/v1/draws?date=eq.${pred.date}&turno=eq.${pred.turno}&select=numbers&limit=1`,{headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`}})
+      const r2=await fetch(`${SB()}/rest/v1/quiniela_nacional?fecha=eq.${pred.date}&turno=eq.${pred.turno}&select=resultados&limit=1`,{headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`}})
       const draws=await r2.json()
-      const draw=draws?.[0]
+const draw=draws?.[0]
       let aciertos:any[]=[]
-      if(draw?.numbers){
-        const reales=draw.numbers.map((n:any)=>String(Number(n)%100).padStart(2,"0"))
-        aciertos=pred.numeros.filter((n:string)=>reales.includes(n)).map((n:string)=>({numero:n,puesto:reales.indexOf(n)+1}))
+      let numerosReales:string[]=[]
+      if(draw?.resultados&&Array.isArray(draw.resultados)){
+        numerosReales=draw.resultados.map((r:any)=>String(Number(r.numero)%100).padStart(2,"0"))
+        aciertos=pred.numeros.filter((n:string)=>numerosReales.includes(n)).map((n:string)=>({numero:n,puesto:numerosReales.indexOf(n)+1}))
       }
-      results.push({id:pred.id,date:pred.date,turno:pred.turno,numeros:pred.numeros,resultado:draw?.numbers?.map((n:any)=>String(Number(n)%100).padStart(2,"0")).slice(0,20)||null,aciertos,acerto:aciertos.length>0,created_at:pred.created_at})
+      results.push({id:pred.id,date:pred.date,turno:pred.turno,numeros:pred.numeros,resultado:numerosReales.slice(0,20)||null,aciertos,acerto:aciertos.length>0,created_at:pred.created_at})
     }
     return NextResponse.json({predictions:results})
   }catch(e:any){return NextResponse.json({error:e.message},{status:500})}
