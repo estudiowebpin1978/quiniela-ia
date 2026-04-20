@@ -19,6 +19,11 @@ export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
   const dateParam = req.nextUrl.searchParams.get("date");
 
+  // Debug: registrar qué llega
+  console.log("secret:", secret ? "presente" : "ausente");
+  console.log("dateParam:", dateParam);
+  console.log("CRON_SECRET env:", process.env.CRON_SECRET ? "configurado" : "NO CONFIGURADO");
+
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -37,9 +42,14 @@ export async function GET(req: NextRequest) {
     // Si se proporciona fecha, ejecutar SIEMPRE (para backfill)
     // Si NO se proporciona fecha, solo ejecutar en horarios de sorteo
     const hora = ahora.getHours();
+    console.log("hora actual:", hora, "dateParam:", dateParam);
+    
     if (!dateParam && !HORAS_VALIDAS.includes(hora)) {
+      console.log("Saliendo por horario");
       return NextResponse.json({ skip: true, hora });
     }
+    
+    console.log("Ejecutando scraping...");
 
     // Determinar la URL a scrapear
     // Si se proporciona fecha, usar el formato con fecha (para backfill)
