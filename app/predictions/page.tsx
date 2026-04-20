@@ -828,27 +828,7 @@ export default function Page() {
                   Copiar
                 </button>
               </div>
-              {aiInsight && (
-                <div
-                  style={{
-                    background: "linear-gradient(135deg, rgba(32,213,236,.08), rgba(167,139,250,.08))",
-                    border: "1px solid rgba(32,213,236,.25)",
-                    borderRadius: 14,
-                    padding: "14px 16px",
-                    marginBottom: 14,
-                    display: "flex",
-                    gap: 12,
-                    alignItems: "flex-start",
-                    boxShadow: "0 4px 20px rgba(32,213,236,.15)",
-                  }}
-                >
-                  <div style={{ fontSize: 24, flexShrink: 0 }}>🤖</div>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: "#20d5ec", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>🧠 Análisis IA con Groq</div>
-                    <div style={{ fontSize: 12, color: theme === "light" ? "#0a0e27" : "#e2e8f0", lineHeight: 1.7 }}>{aiInsight}</div>
-                  </div>
-                </div>
-              )}
+              
               <div className="tbs">
                 <button className={"tb tb-pred" + (tab === "pred" ? " on" : "")} onClick={() => setTab("pred")}>
                   <span className="tb-ico">🎯</span>
