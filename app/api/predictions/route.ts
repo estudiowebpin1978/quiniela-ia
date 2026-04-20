@@ -245,7 +245,8 @@ function scoreDigits(
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const token = req.headers.get("authorization")?.replace("Bearer ", "")
-  const sorteo = searchParams.get("sorteo") || "Todos"
+  const sorteoparam = searchParams.get("sorteo") || "Todos"
+  const turno = sorteoparam
 
   const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "").replace(/"/g, "").trim()
   const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
@@ -287,25 +288,28 @@ export async function GET(req: NextRequest) {
   console.log("SK value:", SK ? "HAS VALUE" : "EMPTY")
   console.log("=================")
   
-  if (!SB || !SK) {
+if (!SB || !SK) {
     return NextResponse.json({ 
       error: "Configuración incompleta: Variables de entorno no definidas",
       debug: { sb: !!SB, sk: !!SK },
       numeros: [],
       totalSorteos: 0,
-      sorteo,
+      turno: "Todos",
       generado: new Date().toISOString()
     }, { status: 500 })
   }
 
-  // Validar parámetro sorteo
-  const sorteoValidos = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Todos"]
-  if (sorteo !== "Todos" && !sorteoValidos.includes(sorteo)) {
+  // Normalizar turno a minúsculas para la query
+  const turnoQueryLower = turno.toLowerCase()
+  
+  // Validar parámetro sorteo usando nombre correcto
+  const sorteosValidos = ["previa", "primera", "matutina", "vespertina", "nocturna"]
+  if (turno !== "Todos" && !sorteosValidos.includes(turnoQueryLower)) {
     return NextResponse.json({ 
-      error: `Sorteo inválido. Válidos: ${sorteoValidos.join(", ")}`,
+      error: `Sorteo inválido. Válidos: ${sorteosValidos.join(", ")}`,
       numeros: [],
       totalSorteos: 0,
-      sorteo,
+      turno,
       generado: new Date().toISOString()
     }, { status: 400 })
   }
@@ -313,7 +317,7 @@ export async function GET(req: NextRequest) {
   const since = new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0]
   // Cambiar a tabla quiniela_nacional
   let url = `${SB}/rest/v1/quiniela_nacional?select=fecha,turno,resultados&fecha=gte.${since}&order=fecha.desc,turno&limit=5000`
-  if (sorteo !== "Todos") url += `&turno=eq.${encodeURIComponent(sorteo)}`
+  if (turno !== "Todos") url += `&turno=eq.${encodeURIComponent(turnoQueryLower)}`
 
   const ctrl = new AbortController()
   const to = setTimeout(() => ctrl.abort(), 15000)
@@ -334,7 +338,7 @@ export async function GET(req: NextRequest) {
         error: `Base de datos error: ${res.status} - ${errText.substring(0, 100)}`,
         numeros: [],
         totalSorteos: 0,
-        sorteo,
+        turno,
         generado: new Date().toISOString()
       }, { status: 500 })
     }
@@ -345,9 +349,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         numeros: [],
         totalSorteos: 0,
-        sorteo,
+        turno,
         generado: new Date().toISOString(),
-        aviso: `Sin datos disponibles para ${sorteo} en el último año`
+        aviso: `Sin datos disponibles para ${turno} en el último año`
       })
     }
 
@@ -357,7 +361,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         numeros: [],
         totalSorteos: rows.length,
-        sorteo,
+        turno,
         generado: new Date().toISOString(),
         aviso: "Los registros no contienen números válidos"
       })
@@ -411,7 +415,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         numeros: [],
         totalSorteos: rowsValidos.length,
-        sorteo,
+        turno,
         generado: new Date().toISOString(),
         aviso: "Error procesando datos históricos"
       }, { status: 500 })
@@ -446,12 +450,12 @@ export async function GET(req: NextRequest) {
     // Obtener sesgos activos de configuración (si existen)
     const sesgosActivos = await getSesgos(SB, SK)
     const sesgoSet = new Set<number>(
-      (sesgosActivos[sorteo] || [])
+      (sesgosActivos[turno] || [])
         .map((n) => Number(n))
         .filter((n) => !Number.isNaN(n) && n >= 0 && n < 100)
     )
 
-    const targetDay = nextDrawDay(sorteo)
+    const targetDay = nextDrawDay(turno)
     const dayOfWeekBias = buildDayOfWeekBias(rowsValidos, targetDay)
     const patternBias = buildPatternBias(hist, recentWindow)
 
@@ -525,13 +529,13 @@ export async function GET(req: NextRequest) {
     }))
 
     const confidence = Math.round((scores.slice(0, 10).reduce((sum, x) => sum + x.score, 0) / 10) * 100)
-    const aiInsight = `Motor avanzado: combina frecuencia, atraso, tendencia, Monte Carlo, momento del sorteo, patrones par/impar y bajo/alto, y sesgos de sorteo. Confianza estimada ${confidence}% en la lista top.`
+    const aiInsight = `Motor avanzado: combina frecuencia, atraso, tendencia, Monte Carlo, momento del turno, patrones par/impar y bajo/alto, y sesgos de sorteo. Confianza estimada ${confidence}% en la lista top.`
 
     const base = {
       tier: premium ? ("premium" as const) : ("free" as const),
       numeros: top10,
       totalSorteos: rowsValidos.length,
-      sorteo,
+      turno,
       generado: new Date().toISOString(),
       analisisDesde: since,
       diasAnalisis: Math.floor((new Date().getTime() - new Date(since).getTime()) / 86400000),
@@ -589,7 +593,7 @@ export async function GET(req: NextRequest) {
       error: errorMsg,
       numeros: [],
       totalSorteos: 0,
-      sorteo,
+      turno,
       generado: new Date().toISOString()
     }, { status: statusCode })
   }
