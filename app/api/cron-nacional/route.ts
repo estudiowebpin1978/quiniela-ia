@@ -21,11 +21,14 @@ export async function GET(req: NextRequest) {
 
   // Debug
   console.log("=== API called ===");
+  console.log("dateParam received (raw):", req.nextUrl.searchParams.get("date"));
   console.log("dateParam received:", JSON.stringify(dateParam));
   console.log("dateParam length:", dateParam.length);
   console.log("dateParam is truthy:", !!dateParam);
+  console.log("dateParam === 'undefined':", dateParam === "undefined");
 
   if (secret !== process.env.CRON_SECRET) {
+    console.log("SECRET CHECK FAILED! secret=", secret, "env=", process.env.CRON_SECRET);
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
