@@ -63,7 +63,7 @@ function monteCarlo(freq: number[]): number[] {
   return mc
 }
 
-type Row = { numbers?: unknown[]; date?: string; turno?: string }
+type Row = { numbers?: unknown[]; date?: string; turno?: string; resultados?: unknown[]; fecha?: string }
 
 function buildCooccurrence(rows: Row[]): number[][] {
   const co = Array.from({ length: 100 }, () => new Array(100).fill(0))
@@ -144,10 +144,20 @@ function buildDayOfWeekBias(rows: Row[], targetDay: string) {
   const bias = new Array(100).fill(0)
   let total = 0
   for (const row of rows) {
-    if (!row?.date) continue
-    const date = new Date(row.date + "T00:00:00")
+    // Support both date formats: draws.date and quiniela_nacional.fecha
+    const fecha = row.date || row.fecha
+    if (!fecha) continue
+    const date = new Date(fecha + "T00:00:00")
     if (date.toLocaleDateString("es-AR", { weekday: "long" }) !== targetDay) continue
-    const nums = Array.isArray(row.numbers) ? row.numbers : []
+    
+    // Get numbers: row.numbers or row.resultados[]
+    let nums: unknown[] = []
+    if (Array.isArray(row.numbers)) {
+      nums = row.numbers
+    } else if (Array.isArray(row.resultados)) {
+      nums = row.resultados.map((r: any) => r.numero)
+    }
+    
     for (const n of nums) {
       const num = Number(n)
       if (Number.isNaN(num)) continue
@@ -301,7 +311,8 @@ export async function GET(req: NextRequest) {
   }
 
   const since = new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0]
-  let url = `${SB}/rest/v1/draws?select=date,turno,numbers&date=gte.${since}&order=date.desc&limit=2000`
+  // Cambiar a tabla quiniela_nacional
+  let url = `${SB}/rest/v1/quiniela_nacional?select=fecha,turno,resultados&fecha=gte.${since}&order=fecha.desc,turno&limit=5000`
   if (sorteo !== "Todos") url += `&turno=eq.${encodeURIComponent(sorteo)}`
 
   const ctrl = new AbortController()
@@ -362,7 +373,15 @@ export async function GET(req: NextRequest) {
     const freq4 = new Array(10000).fill(0)
 
     for (const row of rowsValidos) {
-      const nums = Array.isArray(row.numbers) ? row.numbers : []
+      // Support both table formats: draws.numbers and quiniela_nacional.resultados
+      let nums: unknown[] = []
+      if (Array.isArray(row.numbers)) {
+        nums = row.numbers
+      } else if (Array.isArray(row.resultados)) {
+        // Format from quiniela_nacional: [{numero: "XXXX", posicion: N}, ...]
+        nums = row.resultados.map((r: any) => r.numero)
+      }
+      
       nums.forEach((n: unknown, i: number) => {
         const num = Number(n)
         if (Number.isNaN(num)) return
