@@ -426,7 +426,7 @@ export async function GET(req: NextRequest) {
       : top10.slice(0, 5).map((a, i) => ({
           numero: a.numero + (top10[(i + 1) % 10]?.numero || "00"),
           score: a.score * 0.9,
-        })))
+        }))
 
     const heatmap = freq.map((f, n) => ({ 
       n, f, 

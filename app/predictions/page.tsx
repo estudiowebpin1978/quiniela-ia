@@ -942,9 +942,9 @@ export default function Page() {
               {tab === "freq" && (
                 <>
                   <div className="sec">Mapa de calor - Frecuencia</div>
-                  {dt?.heatmap?.length > 0 ? (
+                  {dt?.heatmap && dt.heatmap.length > 0 ? (
                     <div className="heatmap-grid">
-                      {dt.heatmap.map((h: any, i: number) => {
+                      {dt?.heatmap?.map((h: any, i: number) => {
                         const intensity = Math.min(1, h.f / 10);
                         return (
                           <div
