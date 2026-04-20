@@ -29,10 +29,9 @@ export async function GET(req: NextRequest) {
     
     const fecha = dateParam || ahora.toISOString().split("T")[0];
     
-    if (!dateParam && !HORAS_VALIDAS.includes(hora)) {
-      if (req.nextUrl.searchParams.get("force") !== "1") {
-        return NextResponse.json({ skip: true, hora, reason: "fuera de horario" });
-      }
+    const force = req.nextUrl.searchParams.get("force") === "1";
+    if (!dateParam && !force && !HORAS_VALIDAS.includes(hora)) {
+      return NextResponse.json({ skip: true, hora, reason: "fuera de horario" });
     }
 
     console.log("Scraping:", URL);
