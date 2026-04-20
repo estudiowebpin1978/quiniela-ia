@@ -47,6 +47,7 @@ type PredData = {
   numeros_4: string[];
   redoblona: string;
   ranking: RankingItem[];
+  heatmap: { n: number; f: number; s: string; pct: number }[];
 };
 
 export default function Page() {
@@ -195,7 +196,8 @@ export default function Page() {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Error");
-      setDt(d.pred);
+      const predData = d.pred || d;
+      setDt({ ...predData, heatmap: d.heatmap });
       setDn(true);
       if (d.aiInsight) setAiInsight(d.aiInsight);
       // Guardar automáticamente en el historial
@@ -430,6 +432,10 @@ export default function Page() {
         .ibox{background:rgba(255,45,85,.05);border:1px solid rgba(255,45,85,.15);border-radius:10px;padding:12px 14px;font-size:12px;color:#94a3b8;line-height:1.8;margin-top:10px}
         .ibox strong{color:#ff9999}
         .rdbl{background:rgba(37,244,238,.04);border:1px solid rgba(37,244,238,.2);border-radius:14px;padding:16px;margin-bottom:12px}
+        .heatmap-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:3px}
+        .heatmap-cell{aspect-ratio:1;border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s}
+        .heatmap-cell:hover{transform:scale(1.15);z-index:10}
+        .hm-num{font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.8)}
         .rpair{font-size:36px;font-weight:900;background:linear-gradient(135deg,#25F4EE,#69C9D0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;letter-spacing:8px;margin:10px 0}
         .rg{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px}
         .rc{background:rgba(32,213,236,.06);border:1px solid rgba(32,213,236,.18);border-radius:10px;padding:10px 4px;text-align:center;transition:.15s}
@@ -955,23 +961,48 @@ export default function Page() {
               )}
               {tab === "freq" && (
                 <>
-                  <div className="sec">Ranking de probabilidad</div>
+                  <div className="sec">Mapa de calor - Frecuencia</div>
+                  {dt?.heatmap?.length > 0 ? (
+                    <div className="heatmap-grid">
+                      {dt.heatmap.map((h: any, i: number) => {
+                        const intensity = Math.min(1, h.f / 10);
+                        return (
+                          <div
+                            key={i}
+                            className="heatmap-cell"
+                            style={{
+                              backgroundColor: `rgba(254, 44, 85, ${intensity})`,
+                              opacity: h.f > 0 ? 1 : 0.3,
+                            }}
+                            title={`${h.n.toString().padStart(2, '0')} - ${h.s} (Frecuencia: ${h.f})`}
+                          >
+                            <span className="hm-num">{h.n}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ padding: 20, textAlign: "center", color: "#64748b" }}>
+                      Cargando mapa de calor...
+                    </div>
+                  )}
+                  <div className="sec" style={{ marginTop: 20 }}>Ranking de probabilidad</div>
                   <table className="ranking-table">
                     <thead>
                       <tr>
                         <th>#</th>
                         <th>Número</th>
-                        <th>Score</th>
-                        <th>Probabilidad</th>
+                        <th>Significado</th>
+                        <th>Frec.</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {ranking.slice(0, 10).map((r, i) => (
+                      {dt?.heatmap?.slice(0, 20).map((h: any, i: number) => (
                         <tr key={i}>
                           <td>{i + 1}</td>
-                          <td>{r.numero}</td>
-                          <td>{r.score.toFixed(2)}</td>
-                          <td>{r.prob.toFixed(2)}%</td>
+                          <td>{h.n.toString().padStart(2, '0')}</td>
+                          <td>{h.s}</td>
+                          <td>{h.f}</td>
                         </tr>
                       ))}
                     </tbody>

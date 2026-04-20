@@ -336,6 +336,8 @@ export async function GET(req: NextRequest) {
     const ff = new Array(100).fill(0)
     const freq3 = new Array(1000).fill(0)
     const hist3: number[] = []
+    const freq4 = new Array(10000).fill(0)
+    const hist4: number[] = []
 
     for (const seq of sequences) {
       seq.forEach((n, i) => {
@@ -348,6 +350,9 @@ export async function GET(req: NextRequest) {
         const v3 = n % 1000
         hist3.push(v3)
         freq3[v3]++
+        const v4 = n % 10000
+        hist4.push(v4)
+        freq4[v4]++
       })
     }
 
@@ -384,6 +389,9 @@ export async function GET(req: NextRequest) {
     const s3 = scoreDigits(freq3, hist3, Math.min(800, hist3.length))
     s3.sort((a, b) => b.score - a.score)
 
+    const s4 = scoreDigits(freq4, hist4, Math.min(500, hist4.length))
+    s4.sort((a, b) => b.score - a.score)
+
     const top10 = scores.slice(0, 10).map((x, i) => ({
       n: x.n,
       numero: pad(x.n),
@@ -407,6 +415,11 @@ export async function GET(req: NextRequest) {
 
     const pred3d = s3.slice(0, 5).map((x) => ({
       numero: pad(x.n, 3),
+      score: Math.round(x.score * 10000) / 10000,
+    }))
+
+    const pred4d = s4.slice(0, 5).map((x) => ({
+      numero: pad(x.n, 4),
       score: Math.round(x.score * 10000) / 10000,
     }))
 
@@ -435,6 +448,7 @@ export async function GET(req: NextRequest) {
       pred: {
         numeros_2: top10.map(n => n.numero),
         numeros_3: pred3d.map(p => p.numero),
+        numeros_4: pred4d.map(p => p.numero),
         redoblona: pairPremium.label,
       },
       redoblona: pairPremium.label,
@@ -445,6 +459,7 @@ export async function GET(req: NextRequest) {
         count: v
       })),
       pred3dDetail: pred3d,
+      pred4dDetail: pred4d,
       heatmap,
       stats: {
         totalNumeros: sequences.length,
