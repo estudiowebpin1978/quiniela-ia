@@ -418,10 +418,15 @@ export async function GET(req: NextRequest) {
       score: Math.round(x.score * 10000) / 10000,
     }))
 
-    const pred4d = s4.slice(0, 5).map((x) => ({
-      numero: pad(x.n, 4),
-      score: Math.round(x.score * 10000) / 10000,
-    }))
+    const pred4d = s4.length >= 5
+      ? s4.slice(0, 5).map((x) => ({
+          numero: pad(x.n, 4),
+          score: Math.round(x.score * 10000) / 10000,
+        }))
+      : top10.slice(0, 5).map((a, i) => ({
+          numero: a.numero + (top10[(i + 1) % 10]?.numero || "00"),
+          score: a.score * 0.9,
+        })))
 
     const heatmap = freq.map((f, n) => ({ 
       n, f, 
