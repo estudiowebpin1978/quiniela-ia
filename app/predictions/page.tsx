@@ -823,19 +823,20 @@ export default function Page() {
               {aiInsight && (
                 <div
                   style={{
-                    background: "rgba(32,213,236,.05)",
-                    border: "1px solid rgba(32,213,236,.18)",
-                    borderRadius: 12,
-                    padding: "12px 14px",
+                    background: "linear-gradient(135deg, rgba(32,213,236,.08), rgba(167,139,250,.08))",
+                    border: "1px solid rgba(32,213,236,.25)",
+                    borderRadius: 14,
+                    padding: "14px 16px",
                     marginBottom: 14,
                     display: "flex",
-                    gap: 10,
+                    gap: 12,
                     alignItems: "flex-start",
+                    boxShadow: "0 4px 20px rgba(32,213,236,.15)",
                   }}
                 >
-                  <div style={{ fontSize: 20, flexShrink: 0 }}>🤖</div>
+                  <div style={{ fontSize: 24, flexShrink: 0 }}>🤖</div>
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: "#20d5ec", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Analisis IA</div>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: "#20d5ec", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>🧠 Análisis IA con Groq</div>
                     <div style={{ fontSize: 12, color: theme === "light" ? "#0a0e27" : "#e2e8f0", lineHeight: 1.7 }}>{aiInsight}</div>
                   </div>
                 </div>
