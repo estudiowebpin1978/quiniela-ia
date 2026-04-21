@@ -196,7 +196,7 @@ export default function Page() {
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Error");
       const predData = d.pred || d;
-      setDt({ ...predData, heatmap: d.heatmap });
+      setDt({ ...predData, heatmap: d.heatmap, ranking: d.numeros });
       setDn(true);
       if (d.aiInsight) setAiInsight(d.aiInsight);
       // Guardar automáticamente en el historial
@@ -341,14 +341,14 @@ export default function Page() {
   const nums3 = dt?.numeros_3 || [];
   const nums4 = nums2.slice(0, 5).map((n, i) => n + (nums2[(i + 1) % 10] || "00"));
   const rdbl = dt?.redoblona || "";
-  const ranking = dt?.ranking || [];
+  const rankingData = dt?.ranking || dt?.numeros || [];
 
-  // Para mostrar en la cuadrícula con significado (simulamos significado con el score)
+  // Para mostrar en la cuadrícula con significado (usa datos del API)
   const cur =
     dg === 2
-      ? nums2.map((n, idx) => ({ numero: n, significado: `Score ${(ranking.find((r) => r.numero === n)?.score || 0).toFixed(2)}` }))
+      ? nums2.map((n, idx) => ({ numero: n, significado: `Score ${(rankingData.find((r: any) => r.numero === n)?.score || 0).toFixed(2)}` }))
       : dg === 3
-      ? nums3.map((n, idx) => ({ numero: n, significado: `Score ${(ranking.find((r) => r.numero === n)?.score || 0).toFixed(2)}` }))
+      ? nums3.map((n, idx) => ({ numero: n, significado: `Score ${(rankingData.find((r: any) => r.numero === n)?.score || 0).toFixed(2)}` }))
       : nums4.map((n, idx) => ({ numero: n, significado: "Combinado" }));
 
   return (
