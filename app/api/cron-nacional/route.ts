@@ -114,14 +114,14 @@ export async function GET(req: NextRequest) {
     if (dateParam) {
       for (const [, s] of Object.entries(fechaObj)) {
         const { error } = await supabase
-          .from("quiniela_nacional")
+          .from("draws")
           .upsert({
-            fecha: s.fecha,
+            date: s.fecha,
             turno: s.turno,
-            resultados: s.numeros.map((n, i) => ({ posicion: i + 1, numero: n })),
-            updated_at: new Date(),
+            numbers: s.numeros.map((n: string) => parseInt(n)),
+            source: "scraper",
           }, {
-            onConflict: "fecha,turno",
+            onConflict: "date,turno",
           });
 
         if (!error) guardados++;
@@ -129,14 +129,14 @@ export async function GET(req: NextRequest) {
     } else {
       for (const [turno, s] of Object.entries(fechaObj)) {
         const { error } = await supabase
-          .from("quiniela_nacional")
+          .from("draws")
           .upsert({
-            fecha: s.fecha,
+            date: s.fecha,
             turno,
-            resultados: s.numeros.map((n, i) => ({ posicion: i + 1, numero: n })),
-            updated_at: new Date(),
+            numbers: s.numeros.map((n: string) => parseInt(n)),
+            source: "scraper",
           }, {
-            onConflict: "fecha,turno",
+            onConflict: "date,turno",
           });
 
         if (!error) guardados++;

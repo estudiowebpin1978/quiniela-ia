@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     const results = []
     for (const pred of predictions) {
       const drawRes = await fetch(
-        `${SB}/rest/v1/quiniela_nacional?fecha=eq.${pred.fecha}&turno=eq.${pred.turno?.toLowerCase()}&select=resultados&limit=1`,
+        `${SB}/rest/v1/draws?date=eq.${pred.fecha}&turno=eq.${pred.turno?.toLowerCase()}&select=numbers&limit=1`,
         { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
       )
       const draws = await drawRes.json()

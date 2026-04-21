@@ -298,7 +298,7 @@ export async function GET(req: NextRequest) {
   }
 
   const since = new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0]
-  let url = `${SB}/rest/v1/quiniela_nacional?select=fecha,turno,resultados&fecha=gte.${since}&order=fecha.desc,turno&limit=5000`
+  let url = `${SB}/rest/v1/draws?select=date,turno,numbers&date=gte.${since}&order=date.desc,turno&limit=5000`
   if (turno !== "Todos") url += `&turno=eq.${turnoQuery}`
 
   const ctrl = new AbortController()
@@ -319,11 +319,11 @@ export async function GET(req: NextRequest) {
     const dates: string[] = []
     
     for (const row of rows) {
-      if (Array.isArray(row.resultados) && row.resultados.length > 0) {
-        const nums4 = row.resultados.map((r: any) => Number(r.numero)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999)
+      if (Array.isArray(row.numbers) && row.numbers.length >= 20) {
+        const nums4 = row.numbers.map((n: number) => Number(n)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999)
         if (nums4.length >= 20) {
           sequences.push(nums4)
-          dates.push(row.fecha)
+          dates.push(row.date)
         }
       }
     }
