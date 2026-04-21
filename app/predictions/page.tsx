@@ -46,6 +46,12 @@ type PredData = {
   numeros_3: string[];
   redoblona: string;
   ranking: RankingItem[];
+  numeros?: any[];
+  diasAnalisis?: number;
+  stats?: {
+    numeroMasFrecuente?: { numero: string; frecuencia: number; significado: string };
+    numeroMayorRetraso?: { numero: string; retraso: number; significado: string };
+  };
   heatmap: { n: number; f: number; s: string; pct: number }[];
 };
 
@@ -342,6 +348,7 @@ export default function Page() {
   const nums4 = nums2.slice(0, 5).map((n, i) => n + (nums2[(i + 1) % 10] || "00"));
   const rdbl = dt?.redoblona || "";
   const rankingData = dt?.ranking || dt?.numeros || [];
+  const ranking = rankingData;
 
   // Para mostrar en la cuadrícula con significado (usa datos del API)
   const cur =

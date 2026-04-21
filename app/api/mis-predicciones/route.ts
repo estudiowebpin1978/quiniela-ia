@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
     const predRes = await fetch(
       `${SB}/rest/v1/predicciones?select=id,fecha,turno,numeros_2,created_at,estado&order=created_at.desc&limit=30`,
-      { headers: { "apikey": SK, "Authorization": `Bearer ${SK}`, "Authorization": `Bearer ${SK}` } }
+      { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
     )
     const predictions = await predRes.json()
     if (!Array.isArray(predictions)) return NextResponse.json({ predictions: [] })
