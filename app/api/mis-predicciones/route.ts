@@ -25,9 +25,10 @@ export async function GET(req: NextRequest) {
     if (!userRes.ok) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     const user = await userRes.json()
     if (!user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    const userId = user.id;
 
     const predRes = await fetch(
-      `${SB}/rest/v1/predicciones?select=id,fecha,turno,numeros_2,created_at,estado&order=created_at.desc&limit=30`,
+      `${SB}/rest/v1/predicciones?user_id=eq.${userId}&select=id,fecha,turno,numeros_2,created_at,estado&order=created_at.desc&limit=30`,
       { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
     )
     const predictions = await predRes.json()
@@ -80,6 +81,14 @@ export async function POST(req: NextRequest) {
   const SK = process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || ""
 
   try {
+    const userRes = await fetch(`${SB}/auth/v1/user`, {
+      headers: { "apikey": SK, "Authorization": `Bearer ${token}` }
+    })
+    if (!userRes.ok) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    const user = await userRes.json()
+    if (!user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    const userId = user.id;
+
     const { date, turno, numeros } = await req.json()
     if (!date || !turno || !numeros?.length) {
       return NextResponse.json({ error: "Faltan campos" }, { status: 400 })
@@ -97,7 +106,8 @@ export async function POST(req: NextRequest) {
         fecha: date,
         turno: turno,
         numeros_2: numeros,
-        estado: "pendiente"
+        estado: "pendiente",
+        user_id: userId
       })
     })
 
