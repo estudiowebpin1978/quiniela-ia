@@ -424,6 +424,8 @@ export default function Page() {
         .tb-rdbl.on{background:linear-gradient(180deg,#25F4EE,#00c0b8);color:#000;border-color:#25F4EE;box-shadow:0 4px 0 #007070}
         .tb-freq{background:linear-gradient(180deg,#1e1e2e,#12121e);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
         .tb-freq.on{background:linear-gradient(180deg,#a78bfa,#5b21b6);color:#fff;border-color:#a78bfa;box-shadow:0 4px 0 #2e1065}
+        .tb-trend{background:linear-gradient(180deg,#1e1e2e,#12121e);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
+        .tb-trend.on{background:linear-gradient(180deg,#f59e0b,#d97706);color:#000;border-color:#f59e0b;box-shadow:0 4px 0 #7c3f00}
         .tb-mis{background:linear-gradient(180deg,#1e1e2e,#12121e);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
         .tb-mis.on{background:linear-gradient(180deg,#22c55e,#15803d);color:#fff;border-color:#22c55e;box-shadow:0 4px 0 #064e24}
         .tb .tb-ico{font-size:16px}
@@ -445,6 +447,25 @@ export default function Page() {
         .ranking-table{width:100%;border-collapse:collapse;margin-top:12px}
         .ranking-table th,.ranking-table td{padding:8px 4px;text-align:center;border-bottom:1px solid rgba(255,255,255,.08);font-size:12px}
         .ranking-table th{color:#25F4EE;font-weight:800}
+        .trend-chart{background:rgba(245,158,11,.04);border:1px solid rgba(245,158,11,.2);border-radius:14px;padding:16px;margin-bottom:14px}
+        .trend-info{padding:10px;margin-bottom:14px}
+        .trend-info-title{font-size:14px;font-weight:700;color:#f59e0b;margin-bottom:4px}
+        .trend-info-desc{font-size:11px;color:#64748b}
+        .trend-bars{display:flex;flex-direction:column;gap:8px;margin:14px 0}
+        .trend-bar-row{display:flex;align-items:center;gap:8px}
+        .trend-bar-label{font-size:13px;font-weight:800;color:#fff;width:32px}
+        .trend-bar-track{flex:1;height:18px;background:rgba(255,255,255,.08);border-radius:9px;overflow:hidden}
+        .trend-bar-fill{height:100%;background:linear-gradient(90deg,#f59e0b,#fbbf24);border-radius:9px;transition:width .3s}
+        .trend-bar-value{font-size:11px;color:#f59e0b;width:48px;text-align:right}
+        .trend-bar-meaning{font-size:10px;color:#64748b;width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .trend-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+        .trend-stat-card{background:rgba(0,0,0,.2);border-radius:10px;padding:12px 8px;text-align:center}
+        .trend-stat-value{font-size:14px;font-weight:900;color:#fff;margin-bottom:4px}
+        .trend-stat-label{font-size:10px;color:#64748b}
+        .trend-metric{background:rgba(245,158,11,.1);border-radius:12px;padding:16px;text-align:center;margin-top:14px}
+        .trend-metric-title{font-size:12px;color:#f59e0b;font-weight:700;margin-bottom:6px}
+        .trend-metric-value{font-size:24px;font-weight:900;color:#fff;margin-bottom:4px}
+        .trend-metric-desc{font-size:10px;color:#64748b}
         .tips{background:rgba(255,45,85,.04);border:1px solid rgba(255,45,85,.15);border-radius:14px;padding:14px;margin-bottom:14px}
         .tips-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
         .tip-box{border-radius:10px;padding:10px 6px;border:1px solid}
@@ -841,6 +862,10 @@ export default function Page() {
                   <span className="tb-ico">🔥</span>
                   <span className="tb-lbl">Frecuencias</span>
                 </button>
+                <button className={"tb tb-trend" + (tab === "trend" ? " on" : "")} onClick={() => setTab("trend")}>
+                  <span className="tb-ico">📈</span>
+                  <span className="tb-lbl">Tendencias</span>
+                </button>
               </div>
               {tab === "pred" && (
                 <>
@@ -986,6 +1011,58 @@ export default function Page() {
                       ))}
                     </tbody>
                   </table>
+                </>
+              )}
+              {tab === "trend" && (
+                <>
+                  <div className="sec">Análisis de Tendencias - Evolución en el tiempo</div>
+                  <div className="trend-chart">
+                    <div className="trend-info">
+                      <div className="trend-info-title">Top Números con Mayor Tendencia</div>
+                      <div className="trend-info-desc">Basado en los últimos {Math.min(50, dt?.diasAnalisis || 30)} días de análisis</div>
+                    </div>
+                    
+                    <div className="trend-bars">
+                      {dt?.numeros?.slice(0, 10).map((n: any, i: number) => (
+                        <div key={i} className="trend-bar-row">
+                          <div className="trend-bar-label">{n.numero}</div>
+                          <div className="trend-bar-track">
+                            <div 
+                              className="trend-bar-fill" 
+                              style={{ width: `${Math.min(100, (n.score || 0) * 100)}%` }}
+                            />
+                          </div>
+                          <div className="trend-bar-value">{(n.score || 0).toFixed(3)}</div>
+                          <div className="trend-bar-meaning">{n.significado || ""}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="trend-stats">
+                      <div className="trend-stat-card">
+                        <div className="trend-stat-value">{dt?.numeros_2?.slice(0, 5).join("-")}</div>
+                        <div className="trend-stat-label">Top 5 cifras</div>
+                      </div>
+                      <div className="trend-stat-card">
+                        <div className="trend-stat-value">{dt?.stats?.numeroMasFrecuente?.numero}</div>
+                        <div className="trend-stat-label">Más frecuente</div>
+                      </div>
+                      <div className="trend-stat-card">
+                        <div className="trend-stat-value">{dt?.stats?.numeroMayorRetraso?.numero}</div>
+                        <div className="trend-stat-label">Mayor retraso</div>
+                      </div>
+                    </div>
+
+                    <div className="trend-metric">
+                      <div className="trend-metric-title">Indicador de Tendencia Global</div>
+                      <div className="trend-metric-value">
+                        {dt?.numeros?.[0]?.tendencia > 0 ? "📈 Alcista" : "📉 Bajista"}
+                      </div>
+                      <div className="trend-metric-desc">
+                        Basado en la diferencia entre frecuencia reciente vs histórica
+                      </div>
+                    </div>
+                  </div>
                 </>
               )}
             </>
