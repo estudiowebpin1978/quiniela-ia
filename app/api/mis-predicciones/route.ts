@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 
+function decodeJwtPayload(token: string) {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = Buffer.from(parts[1], "base64").toString("utf-8");
+    return JSON.parse(payload);
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
   if (!token) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
