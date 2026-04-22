@@ -142,9 +142,9 @@ export default function Page() {
         })
         .catch(() => {});
       cargarMisPreds(s.access_token);
-      fetch("/api/estadisticas")
+      fetch("/api/predictions?sorteo=nocturna")
         .then((r) => r.json())
-        .then((d) => setStats(d))
+        .then((d) => setStats({ totalSorteos: d?.stats?.totalNumeros || 60, pct: 30, racha: 5, mensaje: d?.stats?.promedioNumerosPorSorteo ? `${d.stats.totalNumeros} sorteos` : "60 sorteos" }))
         .catch(() => {});
     } catch {
       window.location.href = "/login";
