@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     const userId = user.id;
 
     const predRes = await fetch(
-      `${SB}/rest/v1/predicciones?select=id,fecha,turno,numeros_2,created_at,estado&order=created_at.desc&limit=30`,
+      `${SB}/rest/v1/user_predictions?select=id,date,turno,numbers,created_at&order=created_at.desc&limit=30`,
       { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
     )
     const predictions = await predRes.json()
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     const results = []
     for (const pred of predictions) {
       const drawRes = await fetch(
-        `${SB}/rest/v1/draws?date=eq.${pred.fecha}&turno=eq.${pred.turno?.toLowerCase()}&select=numbers&limit=1`,
+        `${SB}/rest/v1/draws?date=eq.${pred.date}&turno=eq.${pred.turno?.toLowerCase()}&select=numbers&limit=1`,
         { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
       )
       const draws = await drawRes.json()
@@ -45,11 +45,9 @@ export async function GET(req: NextRequest) {
       let aciertos: any[] = []
       let numerosReales: string[] = []
 
-      if (draw?.resultados && Array.isArray(draw.resultados)) {
-        numerosReales = draw.resultados.map((r: any) =>
-          String(Number(r.numero) % 100).padStart(2, "0")
-        )
-        aciertos = pred.numeros_2?.filter((n: string) => numerosReales.includes(n)).map((n: string) => ({
+      if (draw?.numbers && Array.isArray(draw.numbers)) {
+        numerosReales = draw.numbers.map((n: number) => String(n % 100).padStart(2, "0"))
+        aciertos = pred.numbers?.filter((n: string) => numerosReales.includes(n)).map((n: string) => ({
           numero: n,
           puesto: numerosReales.indexOf(n) + 1
         })) || []
@@ -57,9 +55,9 @@ export async function GET(req: NextRequest) {
 
       results.push({
         id: pred.id,
-        fecha: pred.fecha,
+        fecha: pred.date,
         turno: pred.turno,
-        numeros: pred.numeros_2,
+        numeros: pred.numbers,
         resultado: numerosReales.slice(0, 20) || null,
         aciertos,
         acerto: aciertos.length > 0,
@@ -94,7 +92,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Faltan campos" }, { status: 400 })
     }
 
-    const r = await fetch(`${SB}/rest/v1/predicciones`, {
+    const r = await fetch(`${SB}/rest/v1/user_predictions`, {
       method: "POST",
       headers: {
         "apikey": SK,
@@ -103,10 +101,10 @@ export async function POST(req: NextRequest) {
         "Prefer": "return=minimal"
       },
       body: JSON.stringify({
-        fecha: date,
+        user_id: userId,
+        date: date,
         turno: turno,
-        numeros_2: numeros,
-        estado: "pendiente"
+        numbers: numeros
       })
     })
 
