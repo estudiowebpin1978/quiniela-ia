@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     const userId = user.id;
 
     const predRes = await fetch(
-      `${SB}/rest/v1/user_predictions?user_id=eq.${userId}&select=id,date,turno,numbers,created_at&order=created_at.desc&limit=30`,
+      `${SB}/rest/v1/user_predictions?user_id=eq.${userId}&select=id,date,turno,numeros,created_at&order=created_at.desc&limit=30`,
       { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
     )
     const predictions = await predRes.json()
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
       if (draw?.numbers && Array.isArray(draw.numbers)) {
         numerosReales = draw.numbers.map((n: number) => String(n % 100).padStart(2, "0"))
-        aciertos = pred.numbers?.filter((n: string) => numerosReales.includes(n)).map((n: string) => ({
+        aciertos = pred.numeros?.filter((n: string) => numerosReales.includes(n)).map((n: string) => ({
           numero: n,
           puesto: numerosReales.indexOf(n) + 1
         })) || []
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
         id: pred.id,
         fecha: pred.date,
         turno: pred.turno,
-        numeros: pred.numbers,
+        numeros: pred.numeros,
         resultado: numerosReales.slice(0, 20) || null,
         aciertos,
         acerto: aciertos.length > 0,
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
       user_id: userId,
       date: date,
       turno: turno,
-      numbers: numeros
+      numeros: numeros
     }
 
     const r = await fetch(`${SB}/rest/v1/user_predictions`, {
