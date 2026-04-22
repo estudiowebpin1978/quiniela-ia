@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     const userId = user.id;
 
     const predRes = await fetch(
-      `${SB}/rest/v1/user_predictions?select=id,date,turno,numbers,created_at&order=created_at.desc&limit=30`,
+      `${SB}/rest/v1/user_predictions?user_id=eq.${userId}&select=id,date,turno,numbers,created_at&order=created_at.desc&limit=30`,
       { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
     )
     const predictions = await predRes.json()

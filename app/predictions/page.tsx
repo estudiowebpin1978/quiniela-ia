@@ -353,10 +353,10 @@ export default function Page() {
   // Para mostrar en la cuadrícula con significado (usa datos del API)
   const cur =
     dg === 2
-      ? nums2.map((n, idx) => ({ numero: n, significado: `Score ${(rankingData.find((r: any) => r.numero === n)?.score || 0).toFixed(2)}` }))
+      ? nums2.map((n, idx) => ({ numero: n, significado: rankingData.find((r: any) => r.numero === n)?.significado || "" }))
       : dg === 3
-      ? nums3.map((n, idx) => ({ numero: n, significado: `Score ${(rankingData.find((r: any) => r.numero === n)?.score || 0).toFixed(2)}` }))
-      : nums4.map((n, idx) => ({ numero: n, significado: "Combinado" }));
+      ? nums3.map((n, idx) => ({ numero: n, significado: rankingData.find((r: any) => r.numero === n)?.significado || "" }))
+      : nums4.map((n, idx) => ({ numero: n, significado: "" }));
 
   return (
     <>
@@ -938,7 +938,7 @@ export default function Page() {
                         {ranking.slice(0, 5).map((r: RankingItem, i: number) => (
                           <div className="rc" key={i}>
                             <div className="rn">{r.numero}</div>
-                            <div className="rk">Score {r.score.toFixed(2)}</div>
+                            <div className="rk">{dt?.numeros?.find((n: any) => n.numero === r.numero)?.significado || ""}</div>
                             <div className="rv">Prob {r.prob.toFixed(2)}%</div>
                           </div>
                         ))}
