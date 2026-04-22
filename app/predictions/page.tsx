@@ -947,15 +947,16 @@ export default function Page() {
                         <div style={{ fontSize: 32 }}>🔐</div>
                         <h3>Predicciones {dg} digitos</h3>
                         <p>Suscribite al Premium para acceder.</p>
+                        <div style={{fontSize:10,color:"#4ade80",marginTop:6}}>✓ Sin datos de tarjeta</div>
+                        <div style={{fontSize:10,color:"#4ade80"}}>✓ Paga desde tu billetera virtual</div>
+                        <div style={{fontSize:10,color:"#4ade80"}}>✓ Activación inmediata!</div>
                         <a href={WA} target="_blank" rel="noopener noreferrer" className="uc">
-                          Activar por WhatsApp
+                          Activar Premium
                         </a>
                       </div>
                     )}
                   </div>
-                  <div className="ibox">
-                    <strong>Motor 6 factores:</strong> Frecuencia + Atraso + Ciclos + Monte Carlo + Dia semana + Tendencia. Datos reales actualizados automaticamente.
-                  </div>
+                  
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     <button className="btn3d btn-save" style={{ marginBottom: 0 }} onClick={() => guardarPrediccion()} disabled={guardando}>
                       {guardando ? "Guardando..." : guardadoOk ? "Guardado!" : "Guardar para comparar"}
@@ -1005,10 +1006,13 @@ export default function Page() {
                         <div style={{ fontSize: 36 }}>🔐</div>
                         <div style={{ fontWeight: 800, color: "#fff", fontSize: 16 }}>Redoblona Premium</div>
                         <div style={{ fontSize: 12, color: "#94a3b8", maxWidth: 200, lineHeight: 1.6 }}>El par optimo de numeros para redoblona es exclusivo para usuarios Premium.</div>
+                        <div style={{fontSize:10,color:"#4ade80",marginTop:6}}>✓ Sin datos de tarjeta</div>
+                        <div style={{fontSize:10,color:"#4ade80"}}>✓ Paga desde tu billetera virtual</div>
+                        <div style={{fontSize:10,color:"#4ade80"}}>✓ Activación inmediata!</div>
                         <a href={WA} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "#94a3b8", textDecoration: "none" }}>
-                          Transferir a quiniela.ia o enviar comprobante por WhatsApp
+                          Activar Premium
                         </a>
-                        <div style={{ fontSize: 10, color: "#475569" }}>Alias de transferencia: quiniela.ia — $10.000</div>
+                        <div style={{ fontSize: 10, color: "#475569" }}>Alias: quiniela.ia — $10.000</div>
                       </div>
                     )}
                   </div>
@@ -1245,18 +1249,20 @@ export default function Page() {
             <div className="pay-box">
               <div style={{ fontSize: 28, marginBottom: 8 }}>🚀</div>
               <h3>Desbloqueá el motor completo</h3>
-              <p style={{ fontSize: 11, color: "#64748b", maxWidth: 280, margin: "0 auto 14px", lineHeight: 1.5 }}>Predicciones de 3 y 4 cifras mas Redoblona completa con datos reales.</p>
+              <p style={{ fontSize: 11, color: "#64748b", maxWidth: 280, margin: "0 auto 14px", lineHeight: 1.5 }}>Predicciones 3 y 4 cifras + Redoblona completa con datos reales.</p>
+              <div style={{fontSize:11,color:"#4ade80",marginBottom:4}}>✓ Sin datos de tarjeta</div>
+              <div style={{fontSize:11,color:"#4ade80",marginBottom:4}}>✓ Paga desde tu billetera virtual</div>
+              <div style={{fontSize:11,color:"#4ade80",marginBottom:12}}>✓ Activación inmediata!</div>
               <div className="pay-alias">quiniela.ia</div>
-              <div style={{ fontSize: 10, color: "#475569", marginBottom: 12 }}>Transferi $10.000 al alias Quiniela IA: quiniela.ia</div>
+              <div style={{ fontSize: 10, color: "#475569", marginBottom: 10 }}>Transferi $10.000 al alias</div>
               <a
                 href={WA}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 20px", background: "#25D366", color: "#fff", borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: "none", marginBottom: 4 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 20px", background: "#25D366", color: "#fff", borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: "none" }}
               >
-                WhatsApp — Enviar comprobante
+                Enviar comprobante por WhatsApp
               </a>
-              <div style={{ fontSize: 10, color: "#475569", marginTop: 6, lineHeight: 1.6 }}>Sin datos de tarjeta · Paga desde tu banco · Activacion en 24hs</div>
             </div>
           )}
           <div className="ft">
