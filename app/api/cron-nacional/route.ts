@@ -26,7 +26,6 @@ export async function GET(req: NextRequest) {
   try {
     const ahora = new Date();
     const hora = ahora.getHours();
-    
     const fecha = dateParam || ahora.toISOString().split("T")[0];
     
     const force = req.nextUrl.searchParams.get("force") === "1";
@@ -92,10 +91,7 @@ export async function GET(req: NextRequest) {
 
     const keys = Object.keys(sorteos);
     if (keys.length === 0) {
-      return NextResponse.json({ 
-        ok: false, 
-        msg: "No se encontraron sorteos",
-      });
+      return NextResponse.json({ ok: false, msg: "No se encontraron sorteos" });
     }
 
     let guardados = 0;
@@ -151,11 +147,12 @@ export async function GET(req: NextRequest) {
       totalSorteos: keys.length,
     });
 
-  } catch (error: any) {
-    console.error("Error:", error.message);
+  } catch (error: unknown) {
+    const err = error as { name?: string; message?: string };
+    console.error("Error:", err.message);
     return NextResponse.json({
       ok: false,
-      error: error.message,
+      error: err.message,
     }, { status: 500 });
   }
 }
