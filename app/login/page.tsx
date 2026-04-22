@@ -66,8 +66,10 @@ return(<>
         <input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••" onKeyDown={e=>e.key==="Enter"&&!busy&&submit()}/>
 
         <button className={"btn "+(tab==="up"?"btn-up":"")} onClick={submit} disabled={busy}>
-          {busy?"...":tab==="in"?"Entrar":"Crear cuenta"}
+          {busy?"...":tab==="in"?"Entrar":"Crear gratis"}
         </button>
+
+        {tab==="up"&&<div style={{textAlign:"center",marginTop:12,fontSize:11,color:"#4ade80"}}>✓ Sin costo · Sin tarjeta · Instantáneo</div>}
 
         {err&&<div className="err">{err}</div>}
         {ok&&<div className="suc">{ok}</div>}
