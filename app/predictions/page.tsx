@@ -1253,7 +1253,7 @@ export default function Page() {
               <div style={{fontSize:12,color:"var(--green)",fontWeight:700,marginBottom:6}}>✓ Sin datos de tarjeta</div>
               <div style={{fontSize:12,color:"var(--green)",fontWeight:700,marginBottom:6}}>✓ Paga desde tu billetera virtual</div>
               <div style={{fontSize:12,color:"var(--green)",fontWeight:700,marginBottom:14}}>✓ Activación inmediata!</div>
-              <div className="pay-alias">quiniela.ia</div>
+              <div className="pay-alias" onClick={()=>navigator.clipboard.writeText("quiniela.ia").then(()=>alert("Alias copiado: quiniela.ia"))} style={{cursor:"pointer"}}>📋 Alias: quiniela.ia</div>
               <div style={{ fontSize: 14, fontWeight: 800, color: "var(--red)", marginBottom: 10 }}>TRANSFERÍ $10.000</div>
               <a
                 href={WA}
