@@ -407,8 +407,8 @@ export default function Page() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        :root[data-theme="dark"]{--red:#FE2C55;--cyan:#25F4EE;--bg:#010101;--bg2:#0d0d0d;--bg3:#141b2f;--card:#0d0d0d;--surface:rgba(13,13,13,.9);--text:#FFFFFF;--dim:#94a3b8;--border:rgba(255,255,255,.08);--nav-bg:rgba(6,8,15,.98);--panel-bg:rgba(255,255,255,.04);--panel-border:rgba(255,255,255,.08);--shadow:rgba(0,0,0,.32)}
-        :root[data-theme="light"]{--red:#c91e5f;--cyan:#0369a1;--bg:#f8fafc;--bg2:#e2e8f0;--bg3:#ffffff;--card:#ffffff;--surface:rgba(255,255,255,.98);--text:#0a0e27;--dim:#334155;--border:rgba(30,41,59,.16);--nav-bg:rgba(255,255,255,.96);--panel-bg:rgba(255,255,255,.92);--panel-border:rgba(51,65,85,.18);--shadow:rgba(15,23,42,.12)}
+        :root[data-theme="dark"]{--red:#FE2C55;--cyan:#25F4EE;--green:#22c55e;--bg:#010101;--bg2:#0d0d0d;--bg3:#141b2f;--card:#0d0d0d;--surface:rgba(13,13,13,.9);--text:#FFFFFF;--dim:#94a3b8;--border:rgba(255,255,255,.08);--nav-bg:rgba(6,8,15,.98);--panel-bg:rgba(255,255,255,.04);--panel-border:rgba(255,255,255,.08);--shadow:rgba(0,0,0,.32)}
+        :root[data-theme="light"]{--red:#c91e5f;--cyan:#0369a1;--green:#16a34a;--bg:#f8fafc;--bg2:#e2e8f0;--bg3:#ffffff;--card:#ffffff;--surface:rgba(255,255,255,.98);--text:#0a0e27;--dim:#475569;--border:rgba(30,41,59,.16);--nav-bg:rgba(255,255,255,.96);--panel-bg:rgba(255,255,255,.92);--panel-border:rgba(51,65,85,.18);--shadow:rgba(15,23,42,.12)}
         body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
         .app{min-height:100vh;background:radial-gradient(ellipse 80% 40% at 50% -5%,rgba(254,44,85,.08),transparent 50%),var(--bg)}
         .nav{position:sticky;top:0;z-index:100;background:var(--nav-bg);backdrop-filter:blur(24px);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;}
@@ -539,8 +539,8 @@ export default function Page() {
         .rev-a{font-size:10px;color:var(--dim)}
         .rev-a strong{color:var(--t)}
         .pay-box{margin-top:24px;background:linear-gradient(135deg,rgba(37,244,238,.05),rgba(0,192,184,.03));border:1.5px solid rgba(37,244,238,.2);border-radius:18px;padding:24px 18px;text-align:center;box-shadow:0 8px 32px rgba(32,213,236,.08)}
-        .pay-box h3{font-size:16px;font-weight:800;color:#fff;margin-bottom:4px}
-        .pay-alias{padding:10px 14px;background:rgba(37,244,238,.08);border:1px solid rgba(37,244,238,.2);border-radius:10px;font-size:14px;font-weight:900;color:#25F4EE;letter-spacing:2px;margin-bottom:8px}
+        .pay-box h3{font-size:18px;font-weight:900;color:var(--text);margin-bottom:4px}
+        .pay-alias{background:var(--red);border-radius:12px;font-size:18px;font-weight:900;color:#fff;letter-spacing:1px;padding:14px 24px;margin-bottom:8px;box-shadow:0 4px 16px rgba(254,44,85,.4)}
         .ft{margin-top:28px;padding-top:16px;border-top:1px solid rgba(255,255,255,.05);text-align:center}
         .ft p{font-size:11px;color:var(--dim);line-height:1.9}
         .ft a{color:#ff6b81;text-decoration:none}
@@ -1249,12 +1249,12 @@ export default function Page() {
             <div className="pay-box">
               <div style={{ fontSize: 28, marginBottom: 8 }}>🚀</div>
               <h3>Desbloqueá el motor completo</h3>
-              <p style={{ fontSize: 11, color: "#64748b", maxWidth: 280, margin: "0 auto 14px", lineHeight: 1.5 }}>Predicciones 3 y 4 cifras + Redoblona completa con datos reales.</p>
-              <div style={{fontSize:11,color:"#4ade80",marginBottom:4}}>✓ Sin datos de tarjeta</div>
-              <div style={{fontSize:11,color:"#4ade80",marginBottom:4}}>✓ Paga desde tu billetera virtual</div>
-              <div style={{fontSize:11,color:"#4ade80",marginBottom:12}}>✓ Activación inmediata!</div>
+              <p style={{ fontSize: 13, fontWeight: 700, maxWidth: 280, margin: "0 auto 14px", lineHeight: 1.5, color: "var(--text)" }}>Predicciones 3 y 4 cifras + Redoblona completa.</p>
+              <div style={{fontSize:12,color:"var(--green)",fontWeight:700,marginBottom:6}}>✓ Sin datos de tarjeta</div>
+              <div style={{fontSize:12,color:"var(--green)",fontWeight:700,marginBottom:6}}>✓ Paga desde tu billetera virtual</div>
+              <div style={{fontSize:12,color:"var(--green)",fontWeight:700,marginBottom:14}}>✓ Activación inmediata!</div>
               <div className="pay-alias">quiniela.ia</div>
-              <div style={{ fontSize: 10, color: "#475569", marginBottom: 10 }}>Transferi $10.000 al alias</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "var(--red)", marginBottom: 10 }}>TRANSFERÍ $10.000</div>
               <a
                 href={WA}
                 target="_blank"
