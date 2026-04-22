@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
       { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
     )
     const predictions = await predRes.json()
+    console.log("GET predictions for user", userId, "count:", Array.isArray(predictions) ? predictions.length : "error", predictions)
     if (!Array.isArray(predictions)) return NextResponse.json({ predictions: [] })
 
     const results = []
@@ -92,24 +93,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Faltan campos" }, { status: 400 })
     }
 
+    const insertData = {
+      user_id: userId,
+      date: date,
+      turno: turno,
+      numbers: numeros
+    }
+
     const r = await fetch(`${SB}/rest/v1/user_predictions`, {
       method: "POST",
       headers: {
         "apikey": SK,
         "Authorization": `Bearer ${SK}`,
         "Content-Type": "application/json",
-        "Prefer": "return=minimal"
+        "Prefer": "return=representation"
       },
-      body: JSON.stringify({
-        user_id: userId,
-        date: date,
-        turno: turno,
-        numbers: numeros
-      })
+      body: JSON.stringify(insertData)
     })
 
-    if (!r.ok) return NextResponse.json({ error: "Error guardando" }, { status: 500 })
-    return NextResponse.json({ ok: true })
+    const responseText = await r.text()
+    console.log("Insert result:", r.status, responseText)
+
+    if (!r.ok) {
+      return NextResponse.json({ error: "Error guardando. Status: " + r.status + ". Response: " + responseText }, { status: 500 })
+    }
+
+    let inserted = null
+    try { inserted = JSON.parse(responseText) } catch {}
+
+    console.log("Inserted record:", inserted)
+    return NextResponse.json({ ok: true, inserted })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

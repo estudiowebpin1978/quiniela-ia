@@ -244,14 +244,27 @@ export default function Page() {
   }
 
   async function cargarMisPreds(token: string) {
-    if (!token) return;
     setMisLoading(true);
     try {
-      const r = await fetch("/api/mis-predicciones", { headers: { Authorization: "Bearer " + token } });
-      const d = await r.json();
-      if (d.predictions) setMisPreds(d.predictions);
-      else setMisPreds([]);
-    } catch {
+      if (token) {
+        const r = await fetch("/api/mis-predicciones", { headers: { Authorization: "Bearer " + token } });
+        const d = await r.json();
+        if (d.predictions?.length) {
+          setMisPreds(d.predictions);
+          localStorage.setItem("misPreds", JSON.stringify(d.predictions));
+          setMisLoading(false);
+          return;
+        }
+      }
+    } catch {}
+    const stored = localStorage.getItem("misPreds");
+    if (stored) {
+      try {
+        setMisPreds(JSON.parse(stored));
+      } catch {
+        setMisPreds([]);
+      }
+    } else {
       setMisPreds([]);
     }
     setMisLoading(false);
@@ -285,22 +298,53 @@ export default function Page() {
   }
 
   async function guardarPrediccion(silent = false) {
-    if (!tkRef.current) return;
+    if (!cur?.length) {
+      alert("Primero generá una predicción");
+      return;
+    }
     setGuardando(true);
-    try {
-      const fechaSorteoStr = fechaSorteo(so);
-      const nums = cur.slice(0, dg === 2 ? 10 : 5).map((p: any) => p.numero);
-      await fetch("/api/mis-predicciones", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
-        body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: nums }),
-      });
-      if (!silent) {
-        setGuardadoOk(true);
-        setTimeout(() => setGuardadoOk(false), 3000);
+    const fechaSorteoStr = fechaSorteo(so);
+    const nums = cur.slice(0, dg === 2 ? 10 : 5).map((p: any) => p.numero);
+    const nuevaPred = {
+      id: "local_" + Date.now(),
+      fecha: fechaSorteoStr,
+      turno: so,
+      numeros: nums,
+      created_at: new Date().toISOString(),
+      resultado: null,
+      aciertos: [],
+      acerto: false,
+    };
+
+    // Intentar guardar en Supabase
+    if (tkRef.current) {
+      try {
+        const res = await fetch("/api/mis-predicciones", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
+          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: nums }),
+        });
+        if (res.ok) {
+          console.log("Guardado en Supabase");
+        } else {
+          console.log("Error en Supabase, guardando local");
+        }
+      } catch (e) {
+        console.log("Supabase no disponible, usando local");
       }
-      cargarMisPreds(tkRef.current);
-    } catch {}
+    }
+
+    // Guardar siempre en localStorage
+    const stored = localStorage.getItem("misPreds");
+    let todas = stored ? JSON.parse(stored) : [];
+    todas = [nuevaPred, ...todas].slice(0, 30);
+    localStorage.setItem("misPreds", JSON.stringify(todas));
+    setMisPreds(todas);
+
+    if (!silent) {
+      setGuardadoOk(true);
+      setTimeout(() => setGuardadoOk(false), 3000);
+    }
     setGuardando(false);
   }
 
