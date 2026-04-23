@@ -1548,8 +1548,20 @@ export default function Page() {
               <div style={{ fontSize: 26, fontWeight: 900, color: "#f59e0b", marginBottom: 16 }}>
                 TOTAL: $10.000 pesos
               </div>
-              <a href={WA} target="_blank" rel="noopener noreferrer" className="pay-cta">
-                📱 Enviar comprobante por WhatsApp
+              <a 
+                href={WA} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="pay-cta"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigator.clipboard.writeText("quiniela.ia").then(() => {
+                    window.open(WA, "_blank");
+                  });
+                }}
+                style={{cursor:"pointer"}}
+              >
+                📱 COPIAR ALIAS Y ENVIAR A WHATSAPP
               </a>
             </div>
           )}
