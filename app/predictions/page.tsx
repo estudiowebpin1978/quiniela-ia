@@ -1552,16 +1552,28 @@ export default function Page() {
                 href={WA} 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="pay-cta"
                 onClick={(e) => {
                   e.preventDefault();
                   navigator.clipboard.writeText("quiniela.ia").then(() => {
                     window.open(WA, "_blank");
                   });
                 }}
-                style={{cursor:"pointer"}}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "12px 20px",
+                  background: "#25D366",
+                  color: "#fff",
+                  borderRadius: 12,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  textDecoration: "none",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(37, 211, 102, 0.3)"
+                }}
               >
-                📱 COPIAR ALIAS Y ENVIAR A WHATSAPP
+                📱 Enviar comprobante por WhatsApp
               </a>
             </div>
           )}
