@@ -1567,64 +1567,6 @@ export default function Page() {
               </div>
             </div>
           </div>
-          {!pr && (
-            <div className="pay-box">
-              <div style={{ fontSize: 36, marginBottom: 8 }}>🚀</div>
-              <h3 className="pay-title">MEMBRESÍA PREMIUM</h3>
-              <p style={{ fontSize: 13, fontWeight: 700, maxWidth: 280, margin: "0 auto 14px", lineHeight: 1.5, color: "var(--text)" }}>Predicciones 3 y 4 cifras + Redoblona completa + Análisis por turno.</p>
-              <div className="pay-price-outer">
-                <div className="pay-price">$10.000</div>
-              </div>
-              <div className="pay-features">
-                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Predicciones 3 cifras (PRO)</div>
-                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Predicciones 4 cifras</div>
-                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Redoblona completa</div>
-                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Análisis por turno</div>
-                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Sin datos de tarjeta</div>
-                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Activación inmediata!</div>
-              </div>
-              <div 
-                className="pay-alias" 
-                onClick={() => navigator.clipboard.writeText("quiniela.ia").then(() => alert("Alias copiado: quiniela.ia"))}
-                style={{cursor: "pointer"}}
-              >
-                📋 TOCAR PARA COPIAR ALIAS
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)", marginBottom: 14 }}>
-                Alias: <strong style={{color: "#6366f1"}}>quiniela.ia</strong>
-              </div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: "#f59e0b", marginBottom: 16 }}>
-                TOTAL: $10.000 pesos
-              </div>
-              <a 
-                href={WA} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigator.clipboard.writeText("quiniela.ia").then(() => {
-                    window.open(WA, "_blank");
-                  });
-                }}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "12px 20px",
-                  background: "#25D366",
-                  color: "#fff",
-                  borderRadius: 12,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  textDecoration: "none",
-                  cursor: "pointer",
-                  boxShadow: "0 4px 12px rgba(37, 211, 102, 0.3)"
-                }}
-              >
-                📱 Enviar comprobante por WhatsApp
-              </a>
-            </div>
-          )}
           <div className="ft">
             <p>
               Soporte: <a href={"mailto:" + CONTACT}>{CONTACT}</a>
