@@ -37,12 +37,31 @@ export async function GET(req: NextRequest) {
 
     const results = []
     for (const pred of predictions) {
+      const turnoLower = pred.turno?.toLowerCase() || ""
+      const predDate = pred.date || ""
+      
+      // Try to find matching draw
+      let draw: any = null
       const drawRes = await fetch(
-        `${SB}/rest/v1/draws?date=eq.${pred.date}&turno=eq.${pred.turno?.toLowerCase()}&select=numbers&limit=1`,
+        `${SB}/rest/v1/draws?date=eq.${predDate}&turno=eq.${turnoLower}&select=numbers&limit=1`,
         { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
       )
       const draws = await drawRes.json()
-      const draw = draws?.[0]
+      
+      // If not found, try searching by date only (any turno)
+      if (!draws?.[0]) {
+        const drawRes2 = await fetch(
+          `${SB}/rest/v1/draws?date=eq.${predDate}&select=numbers,turno&limit=5`,
+          { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
+        )
+        const draws2 = await drawRes2.json()
+        if (draws2?.[0]) {
+          draw = draws2.find((d: any) => d.turno?.toLowerCase() === turnoLower) || draws2[0]
+        }
+      } else {
+        draw = draws[0]
+      }
+      
       let aciertos: any[] = []
       let numerosReales: string[] = []
 
@@ -91,6 +110,15 @@ export async function POST(req: NextRequest) {
     const { date, turno, numeros } = await req.json()
     if (!date || !turno || !numeros?.length) {
       return NextResponse.json({ error: "Faltan campos" }, { status: 400 })
+    }
+
+    const checkRes = await fetch(
+      `${SB}/rest/v1/user_predictions?user_id=eq.${userId}&date=eq.${date}&turno=eq.${turno}&select=id&limit=1`,
+      { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
+    )
+    const existing = await checkRes.json()
+    if (Array.isArray(existing) && existing.length > 0) {
+      return NextResponse.json({ error: "Ya guardaste una predicción para este turno", duplicate: true }, { status: 409 })
     }
 
     const insertData = {

@@ -1,40 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-
-const supabase = supabaseUrl && supabaseKey
-  ? createClient(supabaseUrl, supabaseKey)
-  : null;
-
+const CRON_SECRET = process.env.CRON_SECRET || "quiniela_ia_cron_2024_seguro";
+const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || "";
+const SK = process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || "";
 const URL = "https://www.ruta1000.com.ar/index2008.php?Resultado=Quiniela_Nacional_Sorteos_Anteriores";
 const HORAS_VALIDAS = [10, 12, 15, 18, 21];
+
+async function insertLog(source: string, status: "success" | "failed" | "skipped", recordsInserted: number, errorMessage?: string | null, metadata?: any) {
+  if (!SB || !SK) return;
+  try {
+    await fetch(`${SB}/rest/v1/sync_logs`, {
+      method: "POST",
+      headers: {
+        "apikey": SK,
+        "Authorization": `Bearer ${SK}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        source,
+        status,
+        records_inserted: recordsInserted,
+        error_message: errorMessage || null,
+        metadata
+      })
+    });
+  } catch (e) { console.log("Log error:", e); }
+}
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  const startTime = Date.now();
   const secret = req.nextUrl.searchParams.get("secret");
   const dateParam = req.nextUrl.searchParams.get("date");
+  const force = req.nextUrl.searchParams.get("force") === "1";
   
-  if (secret !== process.env.CRON_SECRET) {
+  const ahora = new Date();
+  const hora = ahora.getHours();
+  const fecha = dateParam || ahora.toISOString().split("T")[0];
+  
+  if (!dateParam && !force && !HORAS_VALIDAS.includes(hora)) {
+    return NextResponse.json({ skip: true, hora, reason: "fuera de horario" });
+  }
+
+  if (!secret || secret !== CRON_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   try {
-    const ahora = new Date();
-    const hora = ahora.getHours();
-    const fecha = dateParam || ahora.toISOString().split("T")[0];
-    
-    const force = req.nextUrl.searchParams.get("force") === "1";
-    if (!dateParam && !force && !HORAS_VALIDAS.includes(hora)) {
-      return NextResponse.json({ skip: true, hora, reason: "fuera de horario" });
-    }
-
-    console.log("Scraping:", URL);
-    
     const { data } = await axios.get(URL, {
       headers: { 
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -91,11 +106,12 @@ export async function GET(req: NextRequest) {
 
     const keys = Object.keys(sorteos);
     if (keys.length === 0) {
+      await insertLog("cron-nacional", "skipped", 0, "No se encontraron sorteos");
       return NextResponse.json({ ok: false, msg: "No se encontraron sorteos" });
     }
 
-    let guardados = 0;
-    if (!supabase) {
+    if (!SB || !SK) {
+      await insertLog("cron-nacional", "failed", 0, "Supabase no configurado");
       return NextResponse.json({ error: "Supabase no configurado" }, { status: 500 });
     }
 
@@ -107,37 +123,28 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    if (dateParam) {
-      for (const [, s] of Object.entries(fechaObj)) {
-        const { error } = await supabase
-          .from("draws")
-          .upsert({
-            date: s.fecha,
-            turno: s.turno,
-            numbers: s.numeros.map((n: string) => parseInt(n)),
-            source: "scraper",
-          }, {
-            onConflict: "date,turno",
-          });
-
-        if (!error) guardados++;
-      }
-    } else {
-      for (const [turno, s] of Object.entries(fechaObj)) {
-        const { error } = await supabase
-          .from("draws")
-          .upsert({
-            date: s.fecha,
-            turno,
-            numbers: s.numeros.map((n: string) => parseInt(n)),
-            source: "scraper",
-          }, {
-            onConflict: "date,turno",
-          });
-
-        if (!error) guardados++;
-      }
+    let guardados = 0;
+    for (const [, s] of Object.entries(fechaObj)) {
+      const res = await fetch(`${SB}/rest/v1/draws`, {
+        method: "POST",
+        headers: {
+          "apikey": SK,
+          "Authorization": `Bearer ${SK}`,
+          "Content-Type": "application/json",
+          "Prefer": "resolution=merge-duplicates"
+        },
+        body: JSON.stringify({
+          date: s.fecha,
+          turno: s.turno,
+          numbers: s.numeros.map((n: string) => parseInt(n)),
+          source: "scraper"
+        })
+      });
+      if (res.status === 201 || res.status === 200) guardados++;
     }
+
+    const execTime = Date.now() - startTime;
+    await insertLog("cron-nacional", "success", guardados, null, { fecha, turnos: Object.keys(fechaObj), execution_time_ms: execTime });
 
     return NextResponse.json({
       ok: true,
@@ -149,10 +156,7 @@ export async function GET(req: NextRequest) {
 
   } catch (error: unknown) {
     const err = error as { name?: string; message?: string };
-    console.error("Error:", err.message);
-    return NextResponse.json({
-      ok: false,
-      error: err.message,
-    }, { status: 500 });
+    await insertLog("cron-nacional", "failed", 0, err.message);
+    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }
 }

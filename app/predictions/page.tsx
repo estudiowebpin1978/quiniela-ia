@@ -73,6 +73,9 @@ export default function Page() {
   const [showCalc, setShowCalc] = useState(false);
   const [apCalc, setApCalc] = useState(250);
   const [rdblCalc, setRdblCalc] = useState(1000);
+  const [totalBet, setTotalBet] = useState(5000);
+  const [analisisData, setAnalisisData] = useState<any>(null);
+  const [analisisLoading, setAnalisisLoading] = useState(false);
   const [resultadoControl, setResultadoControl] = useState<any>(null);
   const [aiInsight, setAiInsight] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">("light");
@@ -305,6 +308,17 @@ export default function Page() {
     setGuardando(true);
     const fechaSorteoStr = fechaSorteo(so);
     const nums = cur.slice(0, dg === 2 ? 10 : 5).map((p: any) => p.numero);
+
+    // Check if already saved locally for this turno
+    const storedRaw = localStorage.getItem("misPreds");
+    let todas = storedRaw ? JSON.parse(storedRaw) : [];
+    const yaExiste = todas.some((p: any) => p.fecha === fechaSorteoStr && p.turno === so);
+    if (yaExiste) {
+      setGuardando(false);
+      alert("Ya guardaste una predicción para este turno");
+      return;
+    }
+
     const nuevaPred = {
       id: "local_" + Date.now(),
       fecha: fechaSorteoStr,
@@ -324,19 +338,23 @@ export default function Page() {
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
           body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: nums }),
         });
+        const data = await res.json();
+        if (res.status === 409) {
+          setGuardando(false);
+          alert("Ya guardaste una predicción para este turno");
+          return;
+        }
         if (res.ok) {
           console.log("Guardado en Supabase");
         } else {
-          console.log("Error en Supabase, guardando local");
+          console.log("Error en Supabase:", data.error);
         }
       } catch (e) {
         console.log("Supabase no disponible, usando local");
       }
     }
 
-    // Guardar siempre en localStorage
-    const stored = localStorage.getItem("misPreds");
-    let todas = stored ? JSON.parse(stored) : [];
+    // Guardar siempre en localStorage si no existe
     todas = [nuevaPred, ...todas].slice(0, 30);
     localStorage.setItem("misPreds", JSON.stringify(todas));
     setMisPreds(todas);
@@ -539,8 +557,16 @@ export default function Page() {
         .rev-a{font-size:10px;color:var(--dim)}
         .rev-a strong{color:var(--t)}
         .pay-box{margin-top:24px;background:linear-gradient(135deg,rgba(37,244,238,.05),rgba(0,192,184,.03));border:1.5px solid rgba(37,244,238,.2);border-radius:18px;padding:24px 18px;text-align:center;box-shadow:0 8px 32px rgba(32,213,236,.08)}
-        .pay-box h3{font-size:18px;font-weight:900;color:var(--text);margin-bottom:4px}
-        .pay-alias{background:var(--red);border-radius:12px;font-size:18px;font-weight:900;color:#fff;letter-spacing:1px;padding:14px 24px;margin-bottom:8px;box-shadow:0 4px 16px rgba(254,44,85,.4)}
+        .pay-title{font-size:22px;font-weight:900;background:linear-gradient(135deg,#f59e0b,#ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px}
+        .pay-price{font-size:42px;font-weight:900;color:#f59e0b;text-shadow:0 4px 0 #b45309,0 6px 12px rgba(245,158,11,.4);margin-bottom:16px;transform:rotate(-2deg);display:inline-block}
+        .pay-price-outer{position:relative;display:inline-block}
+        .pay-price-outer::before{content:'';position:absolute;inset:-4px;border:3px solid #f59e0b;border-radius:16px;transform:rotate(2deg)}
+        .pay-alias{background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:14px;font-size:20px;font-weight:800;color:#fff;letter-spacing:1px;padding:16px 28px;margin-bottom:12px;box-shadow:0 6px 20px rgba(99,102,241,.4),inset 0 1px 0 rgba(255,255,255,.2);cursor:pointer;transition:transform .1s}
+        .pay-alias:active{transform:scale(.98)}
+        .pay-features{display:flex,flexDirection:"column",gap:8px;marginBottom:16px}
+        .pay-feature{fontSize:13px,color:var(--text)}
+        .pay-feature span{marginRight:8px}
+        .pay-cta{display:inline-flex,alignItems:"center",gap:8,padding:"12px 24px",background:"#25D366",color:"#fff",borderRadius:12,fontSize:14px,fontWeight:700}
         .ft{margin-top:28px;padding-top:16px;border-top:1px solid rgba(255,255,255,.05);text-align:center}
         .ft p{font-size:11px;color:var(--dim);line-height:1.9}
         .ft a{color:#ff6b81;text-decoration:none}
@@ -794,6 +820,145 @@ export default function Page() {
               <div style={{ fontSize: 9, color: "#475569", marginTop: 10, textAlign: "center", lineHeight: 1.6 }}>
                 * Premios 3 y 4 cifras con descuento AFIP ~27.9%. Valores estimados, sujetos a prorrateo.
               </div>
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(201,168,76,.15)" }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#c9a84c", marginBottom: 10, textAlign: "center" }}>Sugerencia de apuesta por turno</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, color: "#94a3b8", minWidth: 100 }}>
+                    Total a gastar: <strong style={{ color: "#f0cc6e" }}>${totalBet.toLocaleString("es-AR")}</strong>
+                  </div>
+                  <input
+                    type="range"
+                    min={1000}
+                    max={20000}
+                    step={500}
+                    value={totalBet}
+                    onChange={(e: any) => setTotalBet(Number(e.target.value))}
+                    style={{ flex: 1, accentColor: "#c9a84c" }}
+                  />
+                </div>
+                <div style={{ fontSize: 10, color: "#64748b", textAlign: "center", marginBottom: 12 }}>
+                  Turno: <strong style={{color:"#f0cc6e"}}>{so}</strong> ({dg} cifras)
+                </div>
+                {dg === 2 && (
+                  <div style={{ background: "rgba(255,45,85,.06)", border: "1px solid rgba(255,45,85,.15)", borderRadius: 10, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: "#ff6b81", fontWeight: 700, marginBottom: 8 }}>2 CIFRAS - 10 NÚMEROS</div>
+                    {(() => {
+                      const porNumero = Math.floor(totalBet / 10);
+                      const premioPrimero = porNumero * 70;
+                      const premioSegundoAlDécimo = porNumero * 7;
+                      return (
+                        <div style={{ fontSize: 10, color: "#94a3b8" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span>Por número:</span>
+                            <span style={{ color: "#f0cc6e" }}>${porNumero.toLocaleString("es-AR")}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span>1.er puesto (sale 1):</span>
+                            <span style={{ color: "#22c55e" }}>${premioPrimero.toLocaleString("es-AR")}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span>2do-10mo puesto:</span>
+                            <span style={{ color: "#22c55e" }}>${premioSegundoAlDécimo.toLocaleString("es-AR")}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed rgba(255,255,255,.1)", paddingTop: 4, marginTop: 4 }}>
+                            <span>Premio máximo:</span>
+                            <span style={{ color: "#22c55e", fontWeight: 700 }}>${(premioPrimero + premioSegundoAlDécimo * 9).toLocaleString("es-AR")}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+                {dg === 3 && (
+                  <div style={{ background: "rgba(32,213,236,.06)", border: "1px solid rgba(32,213,236,.15)", borderRadius: 10, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: "#20d5ec", fontWeight: 700, marginBottom: 8 }}>3 CIFRAS - 5 NÚMEROS</div>
+                    {(() => {
+                      const porNumero = Math.floor(totalBet / 5);
+                      const premioPrimero = Math.floor(porNumero * 600 * 0.721);
+                      const premioSegundoAlQuinto = Math.floor(porNumero * 60 * 0.721);
+                      return (
+                        <div style={{ fontSize: 10, color: "#94a3b8" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span>Por número:</span>
+                            <span style={{ color: "#f0cc6e" }}>${porNumero.toLocaleString("es-AR")}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span>1.er puesto:</span>
+                            <span style={{ color: "#22c55e" }}>${premioPrimero.toLocaleString("es-AR")}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span>2do-5to puesto:</span>
+                            <span style={{ color: "#22c55e" }}>${premioSegundoAlQuinto.toLocaleString("es-AR")}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed rgba(255,255,255,.1)", paddingTop: 4, marginTop: 4 }}>
+                            <span>Premio máximo:</span>
+                            <span style={{ color: "#22c55e", fontWeight: 700 }}>${(premioPrimero + premioSegundoAlQuinto * 4).toLocaleString("es-AR")}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+                {dg === 4 && (
+                  <div style={{ background: "rgba(168,85,247,.06)", border: "1px solid rgba(168,85,247,.15)", borderRadius: 10, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: "#a855f7", fontWeight: 700, marginBottom: 8 }}>4 CIFRAS - 5 NÚMEROS</div>
+                    {(() => {
+                      const porNumero = Math.floor(totalBet / 5);
+                      const premioPrimero = Math.floor(porNumero * 3500 * 0.721);
+                      const premioSegundoAlQuinto = Math.floor(porNumero * 350 * 0.721);
+                      return (
+                        <div style={{ fontSize: 10, color: "#94a3b8" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span>Por número:</span>
+                            <span style={{ color: "#f0cc6e" }}>${porNumero.toLocaleString("es-AR")}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span>1.er puesto:</span>
+                            <span style={{ color: "#22c55e" }}>${premioPrimero.toLocaleString("es-AR")}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span>2do-5to puesto:</span>
+                            <span style={{ color: "#22c55e" }}>${premioSegundoAlQuinto.toLocaleString("es-AR")}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed rgba(255,255,255,.1)", paddingTop: 4, marginTop: 4 }}>
+                            <span>Premio máximo:</span>
+                            <span style={{ color: "#22c55e", fontWeight: 700 }}>${(premioPrimero + premioSegundoAlQuinto * 4).toLocaleString("es-AR")}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+                {dg === 5 && (
+                  <div style={{ background: "rgba(168,85,247,.06)", border: "1px solid rgba(168,85,247,.15)", borderRadius: 10, padding: 12 }}>
+                    <div style={{ fontSize: 11, color: "#a855f7", fontWeight: 700, marginBottom: 8 }}>REDOBLONA - 5 PARES</div>
+                    {(() => {
+                      const porPareja = Math.floor(totalBet / 5);
+                      const premio = porPareja * 70 * 7;
+                      return (
+                        <div style={{ fontSize: 10, color: "#94a3b8" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span>Por par (a + b):</span>
+                            <span style={{ color: "#f0cc6e" }}>${porPareja.toLocaleString("es-AR")}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span>Par exacto:</span>
+                            <span style={{ color: "#22c55e" }}>${premio.toLocaleString("es-AR")}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <span>Un número coincide:</span>
+                            <span style={{ color: "#fbbf24" }}>${Math.floor(porPareja * 7).toLocaleString("es-AR")}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed rgba(255,255,255,.1)", paddingTop: 4, marginTop: 4 }}>
+                            <span>Premio máximo:</span>
+                            <span style={{ color: "#22c55e", fontWeight: 700 }}>${(premio * 5).toLocaleString("es-AR")}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
             </div>
           )}
           {resultadoControl && (
@@ -916,6 +1081,21 @@ export default function Page() {
                 <button className={"tb tb-trend" + (tab === "trend" ? " on" : "")} onClick={() => setTab("trend")}>
                   <span className="tb-ico">📈</span>
                   <span className="tb-lbl">Tendencias</span>
+                </button>
+                <button className={"tb tb-analisis" + (tab === "analisis" ? " on" : "")} onClick={async () => {
+                  setTab("analisis");
+                  if (!analisisData && !analisisLoading) {
+                    setAnalisisLoading(true);
+                    try {
+                      const r = await fetch("/api/analisis");
+                      const d = await r.json();
+                      setAnalisisData(d);
+                    } catch (e) { console.log(e); }
+                    setAnalisisLoading(false);
+                  }
+                }}>
+                  <span className="tb-ico">🧠</span>
+                  <span className="tb-lbl">Análisis</span>
                 </button>
               </div>
               {tab === "pred" && (
@@ -1120,6 +1300,71 @@ export default function Page() {
                   </div>
                 </>
               )}
+              {tab === "analisis" && (
+                <>
+                  <div className="sec">Análisis por Turno</div>
+                  {analisisLoading ? (
+                    <div style={{ textAlign: "center", padding: 30, color: "#64748b" }}>Cargando análisis...</div>
+                  ) : analisisData ? (
+                    <>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 16 }}>
+                        {["previa", "primera", "matutina", "vespertina", "nocturna"].map(t => (
+                          <div key={t} style={{ 
+                            background: so === t ? "rgba(59,130,246,.15)" : "rgba(255,255,255,.03)", 
+                            border: so === t ? "1px solid rgba(59,130,246,.4)" : "1px solid rgba(255,255,255,.08)", 
+                            borderRadius: 10, padding: 12, cursor: "pointer", textAlign: "center"
+                          }} onClick={() => setSo(t.charAt(0).toUpperCase() + t.slice(1))}>
+                            <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>{t}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {(() => {
+                        const d = analisisData.porTurno?.[so.toLowerCase()];
+                        if (!d) return <div style={{ color: "#64748b", textAlign: "center" }}>Selecciona un turno</div>;
+                        return (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                            <div style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.2)", borderRadius: 12, padding: 14 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: "#60a5fa", marginBottom: 8 }}>🔥 Números más frecuentes ({so})</div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                {d.frecuencia?.slice(0, 15).map((f: any, i: number) => (
+                                  <span key={i} style={{ 
+                                    background: "rgba(59,130,246,.15)", borderRadius: 6, padding: "4px 10px", fontSize: 13, fontWeight: 600, color: "#93c5fd" }}>
+                                    {String(f.numero).padStart(2, "0")} <span style={{ color: "#64748b", fontSize: 10 }}>({f.conteo})</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <div style={{ background: "rgba(34,197,94,.08)", border: "1px solid rgba(34,197,94,.2)", borderRadius: 12, padding: 14 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: "#4ade80", marginBottom: 8 }}>👥 Parejas frecuentes ({so})</div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                {d.pares?.slice(0, 10).map((p: any, i: number) => (
+                                  <span key={i} style={{ 
+                                    background: "rgba(34,197,94,.15)", borderRadius: 6, padding: "4px 10px", fontSize: 12, color: "#86efac" }}>
+                                    {String(p.numeros[0]).padStart(2, "0")}-{String(p.numeros[1]).padStart(2, "0")} <span style={{ color: "#64748b", fontSize: 10 }}>({p.conteo})</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <div style={{ background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.2)", borderRadius: 12, padding: 14 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: "#fcd34d", marginBottom: 8 }}>❄️ Números fríos (ausentes por {so})</div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                {d.numerosCalientes?.filter((n: any) => n.diasAusente > 5).slice(0, 10).map((n: any, i: number) => (
+                                  <span key={i} style={{ 
+                                    background: "rgba(251,191,36,.15)", borderRadius: 6, padding: "4px 10px", fontSize: 12, color: "#fde68a" }}>
+                                    {String(n.numero).padStart(2, "0")} <span style={{ color: "#64748b", fontSize: 10 }}>{n.diasAusente}d</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  ) : (
+                    <div style={{ color: "#64748b", textAlign: "center" }}>Sin datos disponibles</div>
+                  )}
+                </>
+              )}
             </>
           )}
           {tab === "mis" && (
@@ -1166,13 +1411,14 @@ export default function Page() {
                     const titulo = `${p.turno} — ${new Date(p.date + "T00:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`;
                     return (
                       <div key={i} className={`saved-card ${tieneAciertos ? "saved-card-success" : ""}`}>
-                        {tieneAciertos && <div className="saved-success-icon">✅</div>}
                         <div className="saved-card-header">
                           <div className="saved-card-title">{titulo}</div>
-                          {p.resultado ? (
-                            <div className={`saved-card-status ${p.acerto ? "hit" : "miss"}`}>{p.acerto ? `🎉 ${p.aciertos.length} acierto(s)` : "Sin aciertos"}</div>
+                          {p.resultado && p.resultado.length > 0 ? (
+                            <div className={`saved-card-status ${p.acerto ? "hit" : "miss"}`}>
+                              {p.acerto ? `🎉 ${p.aciertos.length} acierto(s)` : "Sin aciertos"}
+                            </div>
                           ) : (
-                            <div className="saved-card-status miss">Pendiente</div>
+                            <div className="saved-card-status miss">⏳ Esperando resultado</div>
                           )}
                         </div>
                         <div className="saved-numbers">
@@ -1185,11 +1431,31 @@ export default function Page() {
                             );
                           })}
                         </div>
+                        {p.resultado && p.resultado.length > 0 && (
+                          <div className="saved-results" style={{marginTop:8}}>
+                            <div style={{fontSize:10,color:"#64748b",marginBottom:4}}>RESULTADOS OFICIALES:</div>
+                            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                              {p.resultado.slice(0,10).map((n:string,idx:number) => {
+                                const acertado = p.aciertos?.some((a:any) => a.numero === n);
+                                return (
+                                  <span key={idx} style={{
+                                    padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:700,
+                                    background: acertado ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.05)",
+                                    color: acertado ? "#22c55e" : "#94a3b8",
+                                    border: acertado ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(255,255,255,0.1)"
+                                  }}>
+                                    {n}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                         {p.aciertos?.length > 0 && (
                           <div className="saved-results">
                             {p.aciertos.map((a: any) => (
-                              <div key={a.numero}>
-                                • {a.numero} en puesto {a.puesto}
+                              <div key={a.numero} style={{color:"#22c55e",fontSize:11}}>
+                                🎉 {a.numero} → Puesto {a.puesto}
                               </div>
                             ))}
                           </div>
@@ -1247,21 +1513,35 @@ export default function Page() {
           </div>
           {!pr && (
             <div className="pay-box">
-              <div style={{ fontSize: 28, marginBottom: 8 }}>🚀</div>
-              <h3>Desbloqueá el motor completo</h3>
-              <p style={{ fontSize: 13, fontWeight: 700, maxWidth: 280, margin: "0 auto 14px", lineHeight: 1.5, color: "var(--text)" }}>Predicciones 3 y 4 cifras + Redoblona completa.</p>
-              <div style={{fontSize:12,color:"var(--green)",fontWeight:700,marginBottom:6}}>✓ Sin datos de tarjeta</div>
-              <div style={{fontSize:12,color:"var(--green)",fontWeight:700,marginBottom:6}}>✓ Paga desde tu billetera virtual</div>
-              <div style={{fontSize:12,color:"var(--green)",fontWeight:700,marginBottom:14}}>✓ Activación inmediata!</div>
-              <div className="pay-alias" onClick={()=>navigator.clipboard.writeText("quiniela.ia").then(()=>alert("Alias copiado: quiniela.ia"))} style={{cursor:"pointer"}}>📋 Alias: quiniela.ia</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "var(--red)", marginBottom: 10 }}>TRANSFERÍ $10.000</div>
-              <a
-                href={WA}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 20px", background: "#25D366", color: "#fff", borderRadius: 10, fontSize: 13, fontWeight: 700, textDecoration: "none" }}
+              <div style={{ fontSize: 36, marginBottom: 8 }}>🚀</div>
+              <h3 className="pay-title">MEMBRESÍA PREMIUM</h3>
+              <p style={{ fontSize: 13, fontWeight: 700, maxWidth: 280, margin: "0 auto 14px", lineHeight: 1.5, color: "var(--text)" }}>Predicciones 3 y 4 cifras + Redoblona completa + Análisis por turno.</p>
+              <div className="pay-price-outer">
+                <div className="pay-price">$10.000</div>
+              </div>
+              <div className="pay-features">
+                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Predicciones 3 cifras (PRO)</div>
+                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Predicciones 4 cifras</div>
+                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Redoblona completa</div>
+                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Análisis por turno</div>
+                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Sin datos de tarjeta</div>
+                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Activación inmediata!</div>
+              </div>
+              <div 
+                className="pay-alias" 
+                onClick={() => navigator.clipboard.writeText("quiniela.ia").then(() => alert("Alias copiado: quiniela.ia"))}
+                style={{cursor: "pointer"}}
               >
-                Enviar comprobante por WhatsApp
+                📋 TOCAR PARA COPIAR ALIAS
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)", marginBottom: 14 }}>
+                Alias: <strong style={{color: "#6366f1"}}>quiniela.ia</strong>
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: "#f59e0b", marginBottom: 16 }}>
+                TOTAL: $10.000 pesos
+              </div>
+              <a href={WA} target="_blank" rel="noopener noreferrer" className="pay-cta">
+                📱 Enviar comprobante por WhatsApp
               </a>
             </div>
           )}
