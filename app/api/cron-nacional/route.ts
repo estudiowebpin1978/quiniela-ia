@@ -115,42 +115,56 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Supabase no configurado" }, { status: 500 });
     }
 
-    const fechaObj: Record<string, { fecha: string; turno: string; numeros: string[] }> = {};
-    for (const key of keys) {
-      const s = sorteos[key];
-      if (s.fecha === fecha) {
-        fechaObj[s.turno] = s;
-      }
-    }
-
+    // Get unique dates from scraped data
+    const uniqueDates = [...new Set(Object.values(sorteos).map(s => s.fecha))];
+    
+    // For each date, insert all its turnos
     let guardados = 0;
-    for (const [, s] of Object.entries(fechaObj)) {
-      const res = await fetch(`${SB}/rest/v1/draws`, {
-        method: "POST",
-        headers: {
-          "apikey": SK,
-          "Authorization": `Bearer ${SK}`,
-          "Content-Type": "application/json",
-          "Prefer": "resolution=merge-duplicates"
-        },
-        body: JSON.stringify({
-          date: s.fecha,
-          turno: s.turno,
-          numbers: s.numeros.map((n: string) => parseInt(n)),
-          source: "scraper"
-        })
-      });
-      if (res.status === 201 || res.status === 200) guardados++;
+    let totalTurnos = 0;
+    const resultsByDate: Record<string, number> = {};
+    
+    for (const fechaActual of uniqueDates) {
+      const fechaObj: Record<string, { fecha: string; turno: string; numeros: string[] }> = {};
+      
+      // Collect all turnos for this date
+      for (const key of keys) {
+        const s = sorteos[key];
+        if (s.fecha === fechaActual) {
+          fechaObj[s.turno] = s;
+        }
+      }
+      
+      // Insert each turno for this date
+      for (const [, s] of Object.entries(fechaObj)) {
+        const res = await fetch(`${SB}/rest/v1/draws`, {
+          method: "POST",
+          headers: {
+            "apikey": SK,
+            "Authorization": `Bearer ${SK}`,
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates"
+          },
+          body: JSON.stringify({
+            date: s.fecha,
+            turno: s.turno,
+            numbers: s.numeros.map((n: string) => parseInt(n)),
+            source: "scraper"
+          })
+        });
+        if (res.status === 201 || res.status === 200) guardados++;
+        totalTurnos++;
+      }
+      resultsByDate[fechaActual] = Object.keys(fechaObj).length;
     }
 
     const execTime = Date.now() - startTime;
-    await insertLog("cron-nacional", "success", guardados, null, { fecha, turnos: Object.keys(fechaObj), execution_time_ms: execTime });
+    await insertLog("cron-nacional", "success", guardados, null, { uniqueDates, resultsByDate, execution_time_ms: execTime });
 
     return NextResponse.json({
       ok: true,
       guardados,
-      turnos: Object.keys(fechaObj),
-      fecha,
+      fechasProcesadas: uniqueDates,
+      resultadosPorFecha: resultsByDate,
       totalSorteos: keys.length,
     });
 
