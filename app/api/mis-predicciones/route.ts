@@ -37,40 +37,51 @@ export async function GET(req: NextRequest) {
 
     const results = []
     for (const pred of predictions) {
-      const turnoLower = pred.turno?.toLowerCase() || ""
-      const predDate = pred.date || ""
+      const turnoLower = (pred.turno || "").toLowerCase().trim()
+      const predDate = (pred.date || "").trim()
       
-      // Try to find matching draw
       let draw: any = null
+      
+      // Try exact match first
       const drawRes = await fetch(
         `${SB}/rest/v1/draws?date=eq.${predDate}&turno=eq.${turnoLower}&select=numbers&limit=1`,
         { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
       )
-      const draws = await drawRes.json()
+      let draws = await drawRes.json()
       
-      // If not found, try searching by date only (any turno)
-      if (!draws?.[0]) {
+      if (draws?.[0]) {
+        draw = draws[0]
+      } else {
+        // Try searching by date only
         const drawRes2 = await fetch(
-          `${SB}/rest/v1/draws?date=eq.${predDate}&select=numbers,turno&limit=5`,
+          `${SB}/rest/v1/draws?date=eq.${predDate}&select=numbers,turno&limit=10`,
           { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
         )
         const draws2 = await drawRes2.json()
-        if (draws2?.[0]) {
-          draw = draws2.find((d: any) => d.turno?.toLowerCase() === turnoLower) || draws2[0]
+        
+        if (draws2?.length > 0) {
+          draw = draws2.find((d: any) => (d.turno || "").toLowerCase().trim() === turnoLower) || draws2[0]
         }
-      } else {
-        draw = draws[0]
       }
       
       let aciertos: any[] = []
       let numerosReales: string[] = []
 
       if (draw?.numbers && Array.isArray(draw.numbers)) {
-        numerosReales = draw.numbers.map((n: number) => String(n % 100).padStart(2, "0"))
-        aciertos = pred.numeros?.filter((n: string) => numerosReales.includes(n)).map((n: string) => ({
+        // Extract last 2 digits from each number (draws have 4 digits)
+        numerosReales = draw.numbers.map((n: number) => {
+          const num = Number(n)
+          return String(num % 100).padStart(2, "0")
+        })
+        
+        // Normalize prediction numbers to 2 digits
+        const predNumeros = (pred.numeros || []).map((n: string) => String(n).padStart(2, "0"))
+        
+        // Compare with prediction numbers
+        aciertos = predNumeros.filter((n: string) => numerosReales.includes(n)).map((n: string) => ({
           numero: n,
           puesto: numerosReales.indexOf(n) + 1
-        })) || []
+        }))
       }
 
       results.push({
@@ -78,7 +89,7 @@ export async function GET(req: NextRequest) {
         fecha: pred.date,
         turno: pred.turno,
         numeros: pred.numeros,
-        resultado: numerosReales.slice(0, 20) || null,
+        resultado: numerosReales.length > 0 ? numerosReales.slice(0, 20) : null,
         aciertos,
         acerto: aciertos.length > 0,
         created_at: pred.created_at
