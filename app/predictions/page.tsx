@@ -202,16 +202,24 @@ export default function Page() {
       const r = await fetch("/api/predictions?sorteo=" + encodeURIComponent(so), {
         headers: { Authorization: "Bearer " + tkRef.current },
       });
+      if (!r.ok) {
+        throw new Error("Error del servidor: " + r.status);
+      }
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Error");
+      if (!d) {
+        throw new Error("No hay datos");
+      }
+      if (d.error) {
+        throw new Error(d.error);
+      }
       const predData = d.pred || d;
       setDt({ ...predData, heatmap: d.heatmap, ranking: d.numeros });
       setDn(true);
       if (d.aiInsight) setAiInsight(d.aiInsight);
-      // Guardar automáticamente en el historial
       guardarPrediccion(true);
     } catch (e: any) {
       setEr(e?.message || String(e));
+      console.log("Error gen:", e);
     } finally {
       setLd(false);
     }
