@@ -254,21 +254,62 @@ export default function Page() {
     return hora < (h[sorteo] || 2100) ? hoy : manana;
   }
 
-  async function cargarMisPreds(token: string) {
+async function cargarMisPreds(token: string) {
     setMisLoading(true);
     try {
       if (token) {
         const r = await fetch("/api/mis-predicciones", { headers: { Authorization: "Bearer " + token } });
         const d = await r.json();
         if (d.predictions?.length) {
-          const r2 = await fetch("/api/verificar-resultados?predictions=" + encodeURIComponent(JSON.stringify(d.predictions)));
-          const v = await r2.json();
-          const actualizadas = v.predictions || d.predictions;
+          const actualizadas = await Promise.all(d.predictions.map(async (p: any) => {
+            if (p.resultado && p.resultado.length) return p;
+            try {
+              const res = await fetch("/api/draw?fecha=" + p.fecha + "&turno=" + p.turno);
+              const drawData = await res.json();
+              if (drawData?.found && drawData.numeros) {
+                const aciertos = p.numeros.filter((n: string) => drawData.numeros.includes(n)).map((n: string) => ({ numero: n, puesto: drawData.numeros.indexOf(n) + 1 }));
+                return { ...p, resultado: drawData.numeros, aciertos, acerto: aciertos.length > 0 };
+              }
+            } catch (e) { console.log("Error verificando:", e); }
+            return p;
+          }));
           setMisPreds(actualizadas);
           localStorage.setItem("misPreds", JSON.stringify(actualizadas));
           setMisLoading(false);
           return;
         }
+      }
+    } catch {}
+    const stored = localStorage.getItem("misPreds");
+    if (stored) {
+      try {
+        let todas = JSON.parse(stored);
+        if (todas.length > 0) {
+          todas = await Promise.all(todas.map(async (p: any) => {
+            if (p.resultado && p.resultado.length) return p;
+            try {
+              const res = await fetch("/api/draw?fecha=" + p.fecha + "&turno=" + p.turno);
+              const drawData = await res.json();
+              if (drawData?.found && drawData.numeros) {
+                const aciertos = p.numeros.filter((n: string) => drawData.numeros.includes(n)).map((n: string) => ({ numero: n, puesto: drawData.numeros.indexOf(n) + 1 }));
+                return { ...p, resultado: drawData.numeros, aciertos, acerto: aciertos.length > 0 };
+              }
+            } catch { }
+            return p;
+          }));
+          localStorage.setItem("misPreds", JSON.stringify(todas));
+          setMisPreds(todas);
+        } else {
+          setMisPreds(todas);
+        }
+      } catch {
+        setMisPreds([]);
+      }
+    } else {
+      setMisPreds([]);
+    }
+    setMisLoading(false);
+  }
       }
     } catch {}
     const stored = localStorage.getItem("misPreds");
