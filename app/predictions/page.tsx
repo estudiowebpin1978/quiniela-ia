@@ -264,7 +264,7 @@ export default function Page() {
           const actualizadas = await Promise.all(d.predictions.map(async (p: any) => {
             if (p.resultado && p.resultado.length) return p;
             try {
-              const res = await fetch("/api/draw?fecha=" + p.fecha + "&turno=" + p.turno);
+              const res = await fetch("/api/resultado?date=" + p.fecha + "&turno=" + p.turno);
               const drawData = await res.json();
               if (drawData?.found && drawData.numeros) {
                 const aciertos = p.numeros.filter((n: string) => drawData.numeros.includes(n)).map((n: string) => ({ numero: n, puesto: drawData.numeros.indexOf(n) + 1 }));
@@ -288,7 +288,7 @@ export default function Page() {
           todas = await Promise.all(todas.map(async (p: any) => {
             if (p.resultado && p.resultado.length) return p;
             try {
-              const res = await fetch("/api/draw?fecha=" + p.fecha + "&turno=" + p.turno);
+              const res = await fetch("/api/resultado?date=" + p.fecha + "&turno=" + p.turno);
               const drawData = await res.json();
               if (drawData?.found && drawData.numeros) {
                 const aciertos = p.numeros.filter((n: string) => drawData.numeros.includes(n)).map((n: string) => ({ numero: n, puesto: drawData.numeros.indexOf(n) + 1 }));
