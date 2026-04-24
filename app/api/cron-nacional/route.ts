@@ -6,6 +6,7 @@ const CRON_SECRET = process.env.CRON_SECRET || "quiniela_ia_cron_2024_seguro";
 const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || "";
 const SK = process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || "";
 const URL = "https://www.ruta1000.com.ar/index2008.php?Resultado=Quiniela_Nacional_Sorteos_Anteriores";
+const URL2 = "https://quiniela-nacional.com/quinielanacional/";
 const HORAS_VALIDAS = [10, 12, 15, 18, 21];
 
 async function insertLog(source: string, status: "success" | "failed" | "skipped", recordsInserted: number, errorMessage?: string | null, metadata?: any) {
@@ -63,12 +64,12 @@ export async function GET(req: NextRequest) {
 
     $("tr").each((_: number, tr: cheerio.Element) => {
       const cells = $(tr).find("td");
-      if (cells.length < 22) return;
+      if (cells.length < 21) return;
       
-      const text = $(cells.eq(0)).text();
-      if (!text.includes("/") || text.includes("Fecha")) return;
+      const cell0 = cells.eq(0).text();
+      if (!cell0.includes("/") || cell0.includes("Fecha") || cell0.includes("VIERNES")) return;
       
-      const fechaMatch = text.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      const fechaMatch = cell0.match(/(\d{2})\/(\d{2})\/(\d{4})/);
       if (!fechaMatch || cells.length < 21) return;
       
       const day = fechaMatch[1];
@@ -76,7 +77,7 @@ export async function GET(req: NextRequest) {
       const year = fechaMatch[3];
       const fechaStr = `${year}-${month}-${day}`;
       
-      const horaMatch = text.match(/(\d{2}):(\d{2})/);
+      const horaMatch = cell0.match(/(\d{2}):(\d{2})/);
       if (!horaMatch) return;
       
       const hora = parseInt(horaMatch[1]);
