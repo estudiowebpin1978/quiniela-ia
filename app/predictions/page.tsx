@@ -261,8 +261,11 @@ export default function Page() {
         const r = await fetch("/api/mis-predicciones", { headers: { Authorization: "Bearer " + token } });
         const d = await r.json();
         if (d.predictions?.length) {
-          setMisPreds(d.predictions);
-          localStorage.setItem("misPreds", JSON.stringify(d.predictions));
+          const r2 = await fetch("/api/verificar-resultados?predictions=" + encodeURIComponent(JSON.stringify(d.predictions)));
+          const v = await r2.json();
+          const actualizadas = v.predictions || d.predictions;
+          setMisPreds(actualizadas);
+          localStorage.setItem("misPreds", JSON.stringify(actualizadas));
           setMisLoading(false);
           return;
         }
@@ -271,7 +274,16 @@ export default function Page() {
     const stored = localStorage.getItem("misPreds");
     if (stored) {
       try {
-        setMisPreds(JSON.parse(stored));
+        let todas = JSON.parse(stored);
+        if (todas.length > 0) {
+          const r2 = await fetch("/api/verificar-resultados?predictions=" + encodeURIComponent(JSON.stringify(todas)));
+          const v = await r2.json();
+          todas = v.predictions || todas;
+          localStorage.setItem("misPreds", JSON.stringify(todas));
+          setMisPreds(todas);
+        } else {
+          setMisPreds(todas);
+        }
       } catch {
         setMisPreds([]);
       }
