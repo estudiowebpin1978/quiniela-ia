@@ -67,7 +67,6 @@ export async function GET(req: NextRequest) {
       if (cells.length < 21) return;
       
       const cell0 = cells.eq(0).text();
-      console.log("Cell0:", cell0);
       if (!cell0.includes("/") || cell0.includes("Fecha") || cell0.includes("VIERNES")) return;
       
       const fechaMatch = cell0.match(/(\d{2})\/(\d{2})\/(\d{4})/);
