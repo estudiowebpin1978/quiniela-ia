@@ -254,7 +254,7 @@ export default function Page() {
     return hora < (h[sorteo] || 2100) ? hoy : manana;
   }
 
-async function cargarMisPreds(token: string) {
+  async function cargarMisPreds(token: string) {
     setMisLoading(true);
     try {
       if (token) {
@@ -297,29 +297,6 @@ async function cargarMisPreds(token: string) {
             } catch { }
             return p;
           }));
-          localStorage.setItem("misPreds", JSON.stringify(todas));
-          setMisPreds(todas);
-        } else {
-          setMisPreds(todas);
-        }
-      } catch {
-        setMisPreds([]);
-      }
-    } else {
-      setMisPreds([]);
-    }
-    setMisLoading(false);
-  }
-      }
-    } catch {}
-    const stored = localStorage.getItem("misPreds");
-    if (stored) {
-      try {
-        let todas = JSON.parse(stored);
-        if (todas.length > 0) {
-          const r2 = await fetch("/api/verificar-resultados?predictions=" + encodeURIComponent(JSON.stringify(todas)));
-          const v = await r2.json();
-          todas = v.predictions || todas;
           localStorage.setItem("misPreds", JSON.stringify(todas));
           setMisPreds(todas);
         } else {
