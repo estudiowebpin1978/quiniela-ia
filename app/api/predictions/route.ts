@@ -298,7 +298,7 @@ export async function GET(req: NextRequest) {
   }
 
   const since = new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0]
-  let url = `${SB}/rest/v1/draws?select=date,turno,numbers&order=date.desc,turno&limit=10000`
+  let url = `${SB}/rest/v1/draws?select=date,turno,numbers&order=date.desc,turno&limit=20000`
   if (turno !== "Todos") url += `&turno=eq.${turnoQuery}`
 
   const ctrl = new AbortController()
