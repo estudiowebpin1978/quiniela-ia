@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 const CONTACT = "estudiowebpin@gmail.com";
 const WA = "https://wa.me/5493412500029?text=Hola!%20Quiero%20activar%20Premium%20de%20Quiniela%20IA.";
 const APP_URL = "https://quiniela-ia-two.vercel.app";
+const SB_URL = "https://wazkylxgqckjfkcmfotl.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indhemt5bHhncWNramZrY21mb3RsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjI0Nzc1NSwiZXhwIjoyMDg3ODIzNzU1fQ.IiksS0WwZZVlx9XJCzLhswJzSeeWnNS0dp3Z5uZiCSs";
 const SORTEOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"];
 const HORAS: Record<string, string> = {
   Previa: "10:15",
@@ -264,11 +266,14 @@ export default function Page() {
           const actualizadas = await Promise.all(d.predictions.map(async (p: any) => {
             if (p.resultado && p.resultado.length) return p;
             try {
-              const res = await fetch("/api/resultado?date=" + p.fecha + "&turno=" + p.turno);
-              const drawData = await res.json();
-              if (drawData?.found && drawData.numeros) {
-                const aciertos = p.numeros.filter((n: string) => drawData.numeros.includes(n)).map((n: string) => ({ numero: n, puesto: drawData.numeros.indexOf(n) + 1 }));
-                return { ...p, resultado: drawData.numeros, aciertos, acerto: aciertos.length > 0 };
+              const res = await fetch(`${SB_URL}/rest/v1/draws?date=eq.${p.fecha}&turno=eq.${p.turno}&select=numbers&limit=1`, {
+                headers: { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY }
+              });
+              const rows = await res.json();
+              if (rows?.[0]?.numbers) {
+                const nums = rows[0].numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"));
+                const aciertos = p.numeros.filter((n: string) => nums.includes(n)).map((n: string) => ({ numero: n, puesto: nums.indexOf(n) + 1 }));
+                return { ...p, resultado: nums, aciertos, acerto: aciertos.length > 0 };
               }
             } catch (e) { console.log("Error verificando:", e); }
             return p;
@@ -288,11 +293,14 @@ export default function Page() {
           todas = await Promise.all(todas.map(async (p: any) => {
             if (p.resultado && p.resultado.length) return p;
             try {
-              const res = await fetch("/api/resultado?date=" + p.fecha + "&turno=" + p.turno);
-              const drawData = await res.json();
-              if (drawData?.found && drawData.numeros) {
-                const aciertos = p.numeros.filter((n: string) => drawData.numeros.includes(n)).map((n: string) => ({ numero: n, puesto: drawData.numeros.indexOf(n) + 1 }));
-                return { ...p, resultado: drawData.numeros, aciertos, acerto: aciertos.length > 0 };
+              const res = await fetch(`${SB_URL}/rest/v1/draws?date=eq.${p.fecha}&turno=eq.${p.turno}&select=numbers&limit=1`, {
+                headers: { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY }
+              });
+              const rows = await res.json();
+              if (rows?.[0]?.numbers) {
+                const nums = rows[0].numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"));
+                const aciertos = p.numeros.filter((n: string) => nums.includes(n)).map((n: string) => ({ numero: n, puesto: nums.indexOf(n) + 1 }));
+                return { ...p, resultado: nums, aciertos, acerto: aciertos.length > 0 };
               }
             } catch { }
             return p;
