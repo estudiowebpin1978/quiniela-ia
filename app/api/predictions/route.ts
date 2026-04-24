@@ -298,7 +298,7 @@ export async function GET(req: NextRequest) {
   }
 
   const since = new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0]
-  let url = `${SB}/rest/v1/draws?select=date,turno,numbers&date=gte.${since}&order=date.desc,turno&limit=5000`
+  let url = `${SB}/rest/v1/draws?select=date,turno,numbers&order=date.desc,turno&limit=10000`
   if (turno !== "Todos") url += `&turno=eq.${turnoQuery}`
 
   const ctrl = new AbortController()
@@ -446,8 +446,8 @@ export async function GET(req: NextRequest) {
       totalSorteos: sequences.length,
       turno,
       generado: new Date().toISOString(),
-      analisisDesde: since,
-      diasAnalisis: Math.floor((new Date().getTime() - new Date(since).getTime()) / 86400000),
+      analisisDesde:since,
+      diasAnalisis:Math.floor((new Date().getTime() - new Date(since).getTime()) / 86400000),
       confidence,
       aiInsight: groqInsight || `Motor avanzado v2: Frecuencia + Retraso + Tendencia + Monte Carlo + Patrones día + Pares frecuentes + Transiciones + Sesgos "${turnoQuery}"`,
       groqAvailable: !!groqInsight,
