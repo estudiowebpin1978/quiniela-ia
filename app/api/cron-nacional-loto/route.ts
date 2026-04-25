@@ -63,6 +63,8 @@ function getDayName(date: Date): string {
 }
 
 export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
@@ -207,6 +209,11 @@ export async function GET(req: NextRequest) {
       saltados,
       errores,
       resultsByDate,
+      debug: {
+        days: days,
+        source: BASE_URL,
+        testMode: TEST_MODE,
+      }
     });
   } catch (e: unknown) {
     const error = e as Error;
