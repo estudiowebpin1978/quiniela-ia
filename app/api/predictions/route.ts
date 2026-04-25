@@ -193,12 +193,12 @@ function buildNeuralNetwork(sequences: number[][]): { nnScores: number[]; topNN:
   const outputs = nn.forward(lastFreq.slice(0, 20))
   
   const nnScores = new Array(100).fill(0)
-  const indexed = outputs.map((score, idx) => ({ idx, score }))
+  const indexed = outputs.map((score, idx) => ({ idx, score })).filter(item => item.idx < 100)
   indexed.forEach(({ idx, score }) => {
     if (idx < 100) nnScores[idx] = score * 10
   })
   
-  const topNN = indexed.slice(0, 15).map(item => ({
+  const topNN = indexed.sort((a, b) => b.score - a.score).slice(0, 15).map(item => ({
     n: item.idx,
     score: Math.round(item.score * 10000) / 10000
   }))
