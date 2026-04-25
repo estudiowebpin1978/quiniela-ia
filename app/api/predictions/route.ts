@@ -91,15 +91,15 @@ class NeuralNetwork {
   private hiddenSize: number
   private outputSize: number
 
-  constructor(inputSize: number = 20, hiddenSize: number = 32, outputSize: number = 10) {
+  constructor(inputSize: number = 100, hiddenSize: number = 48, outputSize: number = 100) {
     this.inputSize = inputSize
     this.hiddenSize = hiddenSize
     this.outputSize = outputSize
     this.weights1 = Array.from({ length: inputSize }, () => 
-      Array.from({ length: hiddenSize }, () => (Math.random() - 0.5) * 0.4)
+      Array.from({ length: hiddenSize }, () => (Math.random() - 0.5) * 0.2)
     )
     this.weights2 = Array.from({ length: hiddenSize }, () => 
-      Array.from({ length: outputSize }, () => (Math.random() - 0.5) * 0.4)
+      Array.from({ length: outputSize }, () => (Math.random() - 0.5) * 0.2)
     )
     this.bias1 = new Array(hiddenSize).fill(0)
     this.bias2 = new Array(outputSize).fill(0)
@@ -163,7 +163,7 @@ class NeuralNetwork {
 }
 
 function buildNeuralNetwork(sequences: number[][]): { nnScores: number[]; topNN: { n: number; score: number }[] } {
-  const nn = new NeuralNetwork(20, 48, 20)
+  const nn = new NeuralNetwork(100, 48, 100)
   const seqs2 = sequences.map(s => s.map(n => n % 100))
   
   const trainingData: number[][] = []
@@ -189,16 +189,15 @@ function buildNeuralNetwork(sequences: number[][]): { nnScores: number[]; topNN:
   
   const outputs = nn.forward(lastFreq)
   
-  const nnScores = new Array(100).fill(0)
-  outputs.forEach((score, idx) => {
-    if (idx < 100) nnScores[idx] = score
-  })
-  
-  const topNN = outputs.map((score, idx) => ({ n: idx, score: Math.round(score * 10000) / 10000 }))
+  const topNN = outputs.map((score, idx) => ({ 
+    n: idx, 
+    score: (typeof score === 'number' && !isNaN(score)) ? Math.round(score * 10000) / 10000 : 0
+  }))
     .filter(item => item.n < 100)
     .sort((a, b) => b.score - a.score)
     .slice(0, 15)
   
+  const nnScores = outputs
   return { nnScores, topNN }
 }
 
@@ -590,7 +589,7 @@ export async function GET(req: NextRequest) {
     const rachas = getRachas(sequences)
     const parImparStats = getParImparDistribution(sequences)
     const paresConsecutivos = getParesConsecutivos(sequences)
-    const { nnScores, topNN } = buildNeuralNetwork(sequences)
+    const { topNN } = buildNeuralNetwork(sequences)
 
     const top10 = scores.slice(0, 10).map((x, i) => ({
       n: x.n,
