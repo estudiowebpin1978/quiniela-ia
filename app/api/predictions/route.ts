@@ -164,33 +164,30 @@ class NeuralNetwork {
 
 function buildNeuralNetwork(sequences: number[][]): { nnScores: number[]; topNN: { n: number; score: number }[] } {
   const nn = new NeuralNetwork(20, 48, 20)
+  const seqs2 = sequences.map(s => s.map(n => n % 100))
   
   const trainingData: number[][] = []
   const targets: number[][] = []
   
-  for (let i = 0; i < sequences.length - 1; i++) {
-    const seq = sequences[i].map(n => n % 100).slice(0, 20)
+  for (let i = 0; i < seqs2.length - 1; i++) {
     const freq = new Array(100).fill(0)
-    for (const n of seq) freq[n]++
-    const nextSeq = sequences[i + 1].map(n => n % 100)
+    for (const n of seqs2[i]) if (n < 100) freq[n]++
     const nextFreq = new Array(100).fill(0)
-    for (const n of nextSeq) nextFreq[n]++
+    for (const n of seqs2[i + 1]) if (n < 100) nextFreq[n]++
     const maxF = Math.max(...nextFreq, 1)
     const targetVec = nextFreq.map(f => f / maxF)
-    
-    trainingData.push(freq.slice(0, 20))
-    targets.push(targetVec.slice(0, 20))
+    trainingData.push(freq)
+    targets.push(targetVec)
   }
   
-  if (trainingData.length > 50) {
-    nn.train(trainingData, targets, 150, 0.02)
+  if (trainingData.length >= 5) {
+    nn.train(trainingData, targets, Math.max(50, trainingData.length * 2), 0.02)
   }
   
-  const lastSeq = sequences[sequences.length - 1].map(n => n % 100).slice(0, 20)
   const lastFreq = new Array(100).fill(0)
-  for (const n of lastSeq) lastFreq[n]++
+  for (const n of seqs2[seqs2.length - 1]) if (n < 100) lastFreq[n]++
   
-  const outputs = nn.forward(lastFreq.slice(0, 20))
+  const outputs = nn.forward(lastFreq)
   
   const nnScores = new Array(100).fill(0)
   outputs.forEach((score, idx) => {
