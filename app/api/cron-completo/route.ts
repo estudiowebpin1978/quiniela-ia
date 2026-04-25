@@ -7,6 +7,7 @@ const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || "";
 const SK = process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || "";
 
 const BASE_URL = "https://quinielanacional1.com.ar";
+const SOURCE_NAME = "quinielanacional1";
 
 async function insertLog(source: string, status: "success" | "failed" | "skipped", recordsInserted: number, errorMessage?: string | null) {
   if (!SB || !SK) return;
@@ -117,7 +118,7 @@ export async function GET(req: NextRequest) {
 
     const keys = Object.keys(sorteos);
     if (keys.length === 0) {
-      await insertLog("quinielanacional1", "skipped", 0, "No se encontraron sorteos");
+      await insertLog(SOURCE_NAME, "skipped", 0, "No se encontraron sorteos");
       return NextResponse.json({ ok: false, msg: "No se encontraron sorteos" });
     }
 
@@ -148,7 +149,7 @@ export async function GET(req: NextRequest) {
             date: s.fecha,
             turno: s.turno,
             numbers: s.numeros,
-            source: "quinielanacional1"
+            source: SOURCE_NAME
           })
         });
 
@@ -161,17 +162,17 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    await insertLog("quinielanacional1", guardados > 0 ? "success" : "skipped", guardados);
+    await insertLog(SOURCE_NAME, guardados > 0 ? "success" : "skipped", guardados);
     return NextResponse.json({
       ok: true,
-      source: "quinielanacional1.com.ar",
+      source: SOURCE_NAME + ".com.ar",
       guardados,
       totalProcesados: keys.length,
       resultsByDate
     });
 
   } catch (e: any) {
-    await insertLog("quinielanacional1", "failed", 0, e.message);
+    await insertLog(SOURCE_NAME, "failed", 0, e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
