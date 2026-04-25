@@ -865,7 +865,7 @@ export default function Page() {
                 * Premios 3 y 4 cifras con descuento AFIP ~27.9%. Valores estimados, sujetos a prorrateo.
               </div>
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(201,168,76,.15)" }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: "#c9a84c", marginBottom: 10, textAlign: "center" }}>Sugerencia de apuesta por turno</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#c9a84c", marginBottom: 10, textAlign: "center" }}>Sugerencia de apuesta por cifras</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                   <div style={{ fontSize: 11, color: "#94a3b8", minWidth: 100 }}>
                     Total a gastar: <strong style={{ color: "#f0cc6e" }}>${totalBet.toLocaleString("es-AR")}</strong>
@@ -1126,20 +1126,9 @@ export default function Page() {
                   <span className="tb-ico">📈</span>
                   <span className="tb-lbl">Tendencias</span>
                 </button>
-                <button className={"tb tb-analisis" + (tab === "analisis" ? " on" : "")} onClick={async () => {
-                  setTab("analisis");
-                  if (!analisisData && !analisisLoading) {
-                    setAnalisisLoading(true);
-                    try {
-                      const r = await fetch("/api/analisis");
-                      const d = await r.json();
-                      setAnalisisData(d);
-                    } catch (e) { console.log(e); }
-                    setAnalisisLoading(false);
-                  }
-                }}>
-                  <span className="tb-ico">🧠</span>
-                  <span className="tb-lbl">Análisis</span>
+                <button className={"tb tb-mis" + (tab === "mis" ? " on" : "")} onClick={() => setTab("mis")}>
+                  <span className="tb-ico">📋</span>
+                  <span className="tb-lbl">Mis Preds</span>
                 </button>
               </div>
               {tab === "pred" && (
@@ -1212,11 +1201,11 @@ export default function Page() {
                             <div style={{ fontSize: 11, color: "#64748b" }}>Apostale a que ambos aparecen en el mismo sorteo.</div>
                           </div>
                         )}
-                        {ranking.slice(0, 5).map((r: RankingItem, i: number) => (
+                        {dt?.numeros?.slice(0, 5).map((r: any, i: number) => (
                           <div className="rc" key={i}>
                             <div className="rn">{r.numero}</div>
-                            <div className="rk">{dt?.numeros?.find((n: any) => n.numero === r.numero)?.significado || ""}</div>
-                            <div className="rv">Prob {r.prob.toFixed(2)}%</div>
+                            <div className="rk">{r.significado || ""}</div>
+                            <div className="rv">Prob {r.score?.toFixed(2) || "0"}%</div>
                           </div>
                         ))}
                       </>
