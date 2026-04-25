@@ -63,13 +63,15 @@ export async function GET(req: NextRequest) {
     });
 
     const $ = cheerio.load(html);
+    
     const sorteos: Record<string, { fecha: string; turno: string; numeros: string[] }> = {};
     
     const links: string[] = [];
     $("a").each((_: number, el: cheerio.Element) => {
       const href = $(el).attr("href") || "";
       if (href.includes("/quiniela-nacional/") && href.match(/\d{2}-\d{2}-\d{2}/)) {
-        links.push(href);
+        let cleanPath = href.startsWith("http") ? new URL(href).pathname : href;
+        links.push(cleanPath);
       }
     });
 
@@ -93,17 +95,15 @@ export async function GET(req: NextRequest) {
           const headingText = $$(heading).text();
           const turno = parseTurno(headingText);
           if (!turno) return;
-          
-          const parent = $$(heading).parent();
-          const numbers: string[] = [];
-          
-          parent.find("td").each((i: number, td: cheerio.Element) => {
-            const text = $$(td).text().trim();
-            if (/^\d{4}$/.test(text)) {
-              numbers.push(text);
-            }
+
+          const afterSiblings = $$(heading).nextAll();
+          let numbers: string[] = [];
+          afterSiblings.slice(0, 2).each((__: number, el: cheerio.Element) => {
+            const divText = $$(el).text();
+            const found = divText.match(/\d{4}/g) || [];
+            numbers = numbers.concat(found);
           });
-          
+
           if (numbers.length >= 20) {
             const key = `${fechaUrl}-${turno}`;
             if (!sorteos[key]) {
@@ -112,7 +112,6 @@ export async function GET(req: NextRequest) {
           }
         });
       } catch (e) {
-        console.log("Error scraping:", link);
       }
     }
 
