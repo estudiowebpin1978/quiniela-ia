@@ -7,7 +7,9 @@ const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || "";
 const SK = process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || "";
 
 const BASE_URL = "https://www.ruta1000.com.ar";
-const SOURCE_NAME = "ruta1000-test";
+const SOURCE_NAME = "ruta1000-v2";
+
+console.log("Starting ruta1000 scraper v2");
 const TURNOS = ["LA PREVIA", "PRIMERA", "MATUTINA", "VESPERTINA", "NOCTURNA"];
 
 async function insertLog(source: string, status: "success" | "failed" | "skipped", recordsInserted: number, errorMessage?: string | null) {
@@ -121,42 +123,84 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Supabase no configurado" }, { status: 500 });
   }
 
+  const targetDate = addDays(new Date(), -1);
+  
   try {
-    let guardados = 0;
-    let saltados = 0;
-    let errores = 0;
-    const resultsByDate: Record<string, number> = {};
-    const startDate = addDays(new Date(), -days);
-    const targetDate = addDays(new Date(), -1);
-
     console.log("Fetching from:", BASE_URL + "/timberos_top/wap.php");
     
     const response = await axios.get(
       `${BASE_URL}/timberos_top/wap.php`,
       {
         headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Accept": "text/html",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "es-ES,es;q=0.9",
         },
-        timeout: 30000,
+        timeout: 45000,
       }
     );
 
-    const html = response.data;
-    console.log("HTML length:", html.length);
+    const html = response.data as string;
+    console.log("HTML received, length:", html.length);
     
     const extractedNumbers = await extractNumbersFromHtml(html, targetDate);
-    console.log("Extracted:", extractedNumbers);
+    console.log("Numbers extracted:", JSON.stringify(extractedNumbers));
     
-    const allNums = html.match(/\b\d{4}\b/g) || [];
-    const validNums = allNums.filter((n: string) => n !== "0000" && n !== "2026");
-    console.log("All nums:", allNums.length, "Valid:", validNums.length);
+    let guardados = 0;
+    let saltados = 0;
+    
+    for (const [key, numbers] of Object.entries(extractedNumbers)) {
+      if (numbers.length < 20) continue;
+      
+      const [quiniela, turno] = key.split("_");
+      if (quiniela !== "nacional") continue;
+      
+      const fechaDb = formatDate(targetDate);
+      
+      const existing = await fetch(
+        `${SB}/rest/v1/draws?date=eq.${fechaDb}&turno=eq.${turno}&select=id&limit=1`,
+        { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
+      );
+      const existingData = await existing.json();
+      
+      if (existingData.length > 0) {
+        console.log(`Skipping ${fechaDb} ${turno} - already exists`);
+        saltados++;
+        continue;
+      }
+      
+      console.log(`Inserting ${fechaDb} ${turno}:`, numbers.slice(0, 5));
+      
+      const insertRes = await fetch(`${SB}/rest/v1/draws`, {
+        method: "POST",
+        headers: {
+          "apikey": SK,
+          "Authorization": `Bearer ${SK}`,
+          "Content-Type": "application/json",
+          "Prefer": "return=representation",
+        },
+        body: JSON.stringify({
+          date: fechaDb,
+          turno,
+          numbers: JSON.stringify(numbers),
+          source: SOURCE_NAME,
+        }),
+      });
+      
+      if (insertRes.ok) {
+        guardados++;
+      }
+    }
+
+    await insertLog(SOURCE_NAME, guardados > 0 ? "success" : "skipped", guardados);
+    
+    console.log("Done - guardados:", guardados, "saltados:", saltados);
     
     return NextResponse.json({
-      htmlLength: html.length,
-      total4Digits: allNums.length,
-      valid4Digits: validNums.length,
-      first20: validNums.slice(0, 20),
+      ok: true,
+      source: SOURCE_NAME,
+      guardados,
+      saltados,
       extracted: extractedNumbers,
     });
   } catch (e: unknown) {

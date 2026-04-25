@@ -9,6 +9,8 @@ const SK = process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || process
 const BASE_URL = "https://www.nacionalloteria.com";
 const SOURCE_NAME = "nacionalloteria";
 
+const TURNOS = ["primera", "matutina", "vespertina", "nocturna"];
+
 async function insertLog(source: string, status: "success" | "failed" | "skipped", recordsInserted: number, errorMessage?: string | null) {
   if (!SB || !SK) return;
   try {
@@ -57,11 +59,25 @@ async function scrapeDetailPage(url: string): Promise<string[]> {
   }
 }
 
+function formatDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
-  const limit = parseInt(req.nextUrl.searchParams.get("limit") || "30");
+  const days = parseInt(req.nextUrl.searchParams.get("days") || "0");
+  const skipExisting = req.nextUrl.searchParams.get("skip") !== "false";
 
   if (!secret || secret !== CRON_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -72,82 +88,68 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { data: html } = await axios.get(`${BASE_URL}/argentina/index.php`, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "text/html",
-        "Accept-Language": "es-ES,es;q=0.9",
-      },
-      timeout: 30000,
-    });
-
-    const $ = cheerio.load(html);
-    const detailLinks: { url: string; fecha: string; turno: string }[] = [];
-    const seenKeys = new Set<string>();
-
-    $("a").each((_: number, el: cheerio.Element) => {
-      const href = $(el).attr("href") || "";
-      const text = $(el).text();
-
-      if (href.includes("quiniela-nacional.php") && href.includes("periodo=")) {
-        const turnoMatch = href.match(/periodo=(\w+)/);
-        const fechaMatch = href.match(/del-dia=([\d-]+)/);
-
-        if (turnoMatch && fechaMatch) {
-          const turno = turnoMatch[1];
-          const fecha = fechaMatch[1];
-          const key = `${fecha}-${turno}`;
-
-          if (!seenKeys.has(key)) {
-            seenKeys.add(key);
-            detailLinks.push({
-              url: BASE_URL + href,
-              fecha,
-              turno,
-            });
-          }
-        }
-      }
-    });
-
-    const toProcess = detailLinks.slice(0, limit);
     let guardados = 0;
+    let saltados = 0;
+    let errores = 0;
     const resultsByDate: Record<string, number> = {};
+    const startDate = addDays(new Date(), -days);
 
-    for (const link of toProcess) {
-      const numbers = await scrapeDetailPage(link.url);
+    let processed = 0;
+    let currentDate = new Date();
 
-      if (numbers.length < 20) continue;
+    while (currentDate >= startDate) {
+      const fechaStr = formatDate(currentDate);
 
-      try {
-        const existing = await fetch(
-          `${SB}/rest/v1/draws?date=eq.${link.fecha}&turno=eq.${link.turno}&select=id&limit=1`,
-          { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
-        );
-        const existingData = await existing.json();
-        if (existingData.length > 0) continue;
+      for (const turno of TURNOS) {
+        const url = `${BASE_URL}/argentina/quiniela-nacional.php?del-dia=${fechaStr}&periodo=${turno}`;
 
-        const insertRes = await fetch(`${SB}/rest/v1/draws`, {
-          method: "POST",
-          headers: {
-            "apikey": SK,
-            "Authorization": `Bearer ${SK}`,
-            "Content-Type": "application/json",
-            "Prefer": "return=representation",
-          },
-          body: JSON.stringify({
-            date: link.fecha,
-            turno: link.turno,
-            numbers: JSON.stringify(numbers),
-            source: SOURCE_NAME,
-          }),
-        });
+        try {
+          if (skipExisting) {
+            const existing = await fetch(
+              `${SB}/rest/v1/draws?date=eq.${fechaStr}&turno=eq.${turno}&select=id&limit=1`,
+              { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
+            );
+            const existingData = await existing.json();
+            if (existingData.length > 0) {
+              saltados++;
+              continue;
+            }
+          }
 
-        if (insertRes.ok) {
-          guardados++;
-          resultsByDate[link.fecha] = (resultsByDate[link.fecha] || 0) + 1;
-        }
-      } catch { /* skip */ }
+          const numbers = await scrapeDetailPage(url);
+
+          if (numbers.length < 20) {
+            continue;
+          }
+
+          const insertRes = await fetch(`${SB}/rest/v1/draws`, {
+            method: "POST",
+            headers: {
+              "apikey": SK,
+              "Authorization": `Bearer ${SK}`,
+              "Content-Type": "application/json",
+              "Prefer": "return=representation",
+            },
+            body: JSON.stringify({
+              date: fechaStr,
+              turno,
+              numbers: JSON.stringify(numbers),
+              source: SOURCE_NAME,
+            }),
+          });
+
+          if (insertRes.ok) {
+            guardados++;
+            resultsByDate[fechaStr] = (resultsByDate[fechaStr] || 0) + 1;
+          }
+
+          processed++;
+        } catch { errores++; }
+      }
+
+      currentDate = addDays(currentDate, -1);
+
+      if (processed >= 500 && days > 0) break;
     }
 
     await insertLog(SOURCE_NAME, guardados > 0 ? "success" : "skipped", guardados);
@@ -156,7 +158,8 @@ export async function GET(req: NextRequest) {
       ok: true,
       source: SOURCE_NAME,
       guardados,
-      totalProcesados: toProcess.length,
+      saltados,
+      errores,
       resultsByDate,
     });
   } catch (e: unknown) {
