@@ -188,6 +188,12 @@ export async function GET(request: NextRequest) {
         saltados,
         errores,
         resultsByDate,
+        debug: {
+          urlDay,
+          htmlLength: html?.length || 0,
+          h2Count: $("h2").length,
+          strongCount: $("strong").length,
+        }
       },
       {
         status: 200,
@@ -202,7 +208,11 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error("Scraping failed:", error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { 
+        success: false, 
+        error: error.message,
+        stack: error.stack,
+      },
       {
         status: 500,
         headers: {
