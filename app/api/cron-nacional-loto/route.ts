@@ -7,7 +7,9 @@ const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || "";
 const SK = process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || "";
 
 const BASE_URL = "https://www.ruta1000.com.ar";
-const SOURCE_NAME = "ruta1000";
+const SOURCE_NAME = "ruta1000-v4";
+
+const TEST_MODE = true;
 
 const TURNOS = ["previa", "primera", "matutina", "vespertina", "nocturna"];
 
@@ -88,7 +90,7 @@ export async function GET(req: NextRequest) {
       if (dayName === "Sunday") continue;
 
       const urlDay = DAYS_MAP[dayName] || "Sabado";
-      const url = `${BASE_URL}/index2008.php?Resultado=Quiniela_Nacional_${urlDay}#Sorteos`;
+      const url = `${BASE_URL}/index2008.php?Resultado=Quiniela_Nacional_${urlDay}#Sorteos&t=${Date.now()}`;
 
       let html = "";
       try {
