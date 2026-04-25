@@ -169,21 +169,27 @@ function buildNeuralNetwork(sequences: number[][]): { nnScores: number[]; topNN:
   const recentFreq = new Array(100).fill(0)
   
   for (let i = 0; i < seqs2.length; i++) {
-    for (const n of seqs2[i]) if (n < 100) freqCount[n]++
+    for (const n of seqs2[i]) {
+      if (n >= 0 && n < 100) freqCount[n]++
+    }
     if (i >= seqs2.length - 5) {
-      for (const n of seqs2[i]) if (n < 100) recentFreq[n]++
+      for (const n of seqs2[i]) {
+        if (n >= 0 && n < 100) recentFreq[n]++
+      }
     }
   }
   
   const maxF = Math.max(...freqCount, 1)
-  const scores = freqCount.map((f, i) => ({
-    n: i,
-    score: (f / maxF) * 0.6 + (recentFreq[i] / Math.max(...recentFreq, 1)) * 0.4
-  }))
+  const maxR = Math.max(...recentFreq, 1)
   
-  const topNN = scores
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 15)
+  const scores: { n: number; score: number }[] = []
+  for (let i = 0; i < 100; i++) {
+    const s = (freqCount[i] / maxF) * 0.6 + (recentFreq[i] / maxR) * 0.4
+    scores.push({ n: i, score: s })
+  }
+  
+  scores.sort((a, b) => b.score - a.score)
+  const topNN = scores.slice(0, 15)
   
   const nnScores = scores.map(s => s.score)
   return { nnScores, topNN }
