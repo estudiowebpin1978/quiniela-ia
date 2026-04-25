@@ -165,9 +165,25 @@ class NeuralNetwork {
 function buildNeuralNetwork(sequences: number[][]): { nnScores: number[]; topNN: { n: number; score: number }[] } {
   const seqs2 = sequences.map(s => s.map(n => n % 100))
   
+  // Obtener el último sorteo para calcular delay actual
+  const lastSeq = seqs2.length > 0 ? seqs2[seqs2.length - 1] : []
+  
   const freqCount = new Array(100).fill(0)
   const recentFreq = new Array(100).fill(0)
+  const delay = new Array(100).fill(1000)
+  const appeared = new Array(100).fill(false)
   
+  // Calcular delay (sorteos desde última aparición)
+  for (let si = seqs2.length - 1; si >= 0; si--) {
+    for (const n of seqs2[si]) {
+      if (n >= 0 && n < 100 && !appeared[n]) {
+        appeared[n] = true
+        delay[n] = seqs2.length - si
+      }
+    }
+  }
+  
+  // Calcular frecuencias
   for (let i = 0; i < seqs2.length; i++) {
     for (const n of seqs2[i]) {
       if (n >= 0 && n < 100) freqCount[n]++
@@ -181,10 +197,16 @@ function buildNeuralNetwork(sequences: number[][]): { nnScores: number[]; topNN:
   
   const maxF = Math.max(...freqCount, 1)
   const maxR = Math.max(...recentFreq, 1)
+  const maxD = Math.max(...delay, 1)
   
+  // Score: frecuencia + tendencia reciente + bonificación overdue
   const scores: { n: number; score: number }[] = []
   for (let i = 0; i < 100; i++) {
-    const s = (freqCount[i] / maxF) * 0.6 + (recentFreq[i] / maxR) * 0.4
+    const freqScore = (freqCount[i] / maxF) * 0.5
+    const trendScore = (recentFreq[i] / maxR) * 0.35
+    // Bonificar números que no salen hace mucho
+    const overdueBonus = delay[i] > maxD * 0.7 ? 0.15 : 0
+    const s = freqScore + trendScore + overdueBonus
     scores.push({ n: i, score: s })
   }
   
@@ -297,7 +319,8 @@ function scoreDigits(
   firstPos?: number[],
   dayOfWeekBias?: number[],
   patternBias?: number[],
-  sesgoSet?: Set<number>
+  sesgoSet?: Set<number>,
+  delay?: number[]
 ) {
   const len = freq.length
   firstPos = firstPos && firstPos.length === len ? firstPos : new Array(len).fill(0)
@@ -305,18 +328,29 @@ function scoreDigits(
   patternBias = patternBias && patternBias.length === len ? patternBias : new Array(len).fill(0)
   sesgoSet = sesgoSet || new Set<number>()
   
-  const delay = new Array(len).fill(histOrder.length)
-  for (let i = histOrder.length - 1; i >= 0; i--) {
-    const v = histOrder[i]
-    if (v >= 0 && v < len && delay[v] === histOrder.length) delay[v] = histOrder.length - 1 - i
+  // Calcular delay si no se provee
+  if (!delay) {
+    delay = new Array(len).fill(histOrder.length)
+    for (let i = histOrder.length - 1; i >= 0; i--) {
+      const v = histOrder[i]
+      if (v >= 0 && v < len && delay[v] === histOrder.length) delay[v] = histOrder.length - 1 - i
+    }
   }
   
+  // Calcular overdue (números que no salen hace mucho)
+  const avgDelay = histOrder.length / len
+  const overdue = delay.map(d => d > avgDelay * 1.5 ? 1 : 0)  // Bonificar números muy atrasados
+  
+  // Calcular tendencia reciente
   const trend = new Array(len).fill(0)
   for (const v of histOrder.slice(-recentWindow)) {
     if (v >= 0 && v < len) trend[v]++
   }
   
+  // Simulación Monte Carlo
   const mc = monteCarloSim(freq)
+  
+  // Normalizar todos los factores
   const freqNorm = normalize(freq)
   const delayNorm = normalize(delay)
   const trendNorm = normalize(trend)
@@ -324,18 +358,21 @@ function scoreDigits(
   const firstNorm = normalize(firstPos)
   const dayNorm = normalize(dayOfWeekBias)
   const patternNorm = normalize(patternBias)
-
+  const overdueNorm = normalize(overdue)
+  
+  // Pesos optimizados: mayor peso a frecuencia reciente y overdue
   return Array.from({ length: len }, (_, i) => ({
     n: i,
     score:
-      0.2 * freqNorm[i] +
-      0.18 * delayNorm[i] +
-      0.16 * trendNorm[i] +
-      0.12 * mcNorm[i] +
-      0.08 * firstNorm[i] +
-      0.14 * dayNorm[i] +
-      0.1 * patternNorm[i] +
-      (sesgoSet.has(i) ? 0.02 : 0),
+      0.22 * freqNorm[i] +       // Frecuencia histórica (22%)
+      0.15 * delayNorm[i] +     // Retraso medio (15%)
+      0.18 * trendNorm[i] +     // Tendencia reciente (18%)
+      0.10 * mcNorm[i] +        // Monte Carlo (10%)
+      0.05 * firstNorm[i] +   // Primera posición (5%)
+      0.08 * dayNorm[i] +      // Día de semana (8%)
+      0.07 * patternNorm[i] +  // Patrón (7%)
+      0.10 * overdueNorm[i] +  // Overdue (números pendientes) (10%)
+      0.05 * (sesgoSet.has(i) ? 1 : 0),  // Sesgos predefinidos (5%)
   }))
 }
 
@@ -354,15 +391,18 @@ function buildCooccurrence(sequences: number[][]) {
   return co
 }
 
-function bestRedoblonaPair(scores: { n: number; score: number }[], co: number[][], take = 18) {
+function bestRedoblonaPair(scores: { n: number; score: number }[], co: number[][], take = 18, delay?: number[]) {
   const top = scores.slice(0, take).map((s) => s.n)
   if (top.length < 2) {
     const a = top[0] ?? 0
     const b = top[1] ?? (a === 0 ? 1 : 0)
     return { a, b, label: `${pad(a)}-${pad(b)}` }
   }
+  
+  const avgDelay = delay ? delay.reduce((a, b) => a + b, 0) / delay.length : 50
   let best = { a: top[0], b: top[1], w: -1 }
   const scMap = new Map(scores.map((s) => [s.n, s.score]))
+  
   for (let i = 0; i < top.length; i++) {
     for (let j = i + 1; j < top.length; j++) {
       const a = Math.min(top[i], top[j])
@@ -370,7 +410,12 @@ function bestRedoblonaPair(scores: { n: number; score: number }[], co: number[][
       const si = scMap.get(a) ?? 0
       const sj = scMap.get(b) ?? 0
       const c = co[a]?.[b] ?? 0
-      const w = si * sj * (1 + Math.log1p(c))
+      
+      // Bonificar si uno o ambos números están overdue
+      const aOverdue = delay && delay[a] > avgDelay * 1.3 ? 1.3 : 1
+      const bOverdue = delay && delay[b] > avgDelay * 1.3 ? 1.3 : 1
+      
+      const w = si * sj * (1 + Math.log1p(c)) * aOverdue * bOverdue
       if (w > best.w) best = { a, b, w }
     }
   }
@@ -413,30 +458,30 @@ function buildPatternBias(hist: number[], recentWindow: number) {
   })
 }
 
-async function getGroqInsight(topNumbers: any[], freqData: any[], turno: string) {
+async function getGroqInsight(topNumbers: any[], freqData: any[], turno: string, stats?: any) {
   const apiKey = process.env.GROQ_API_KEY?.replace(/"/g, "").trim()
-  console.log("Groq API key present:", !!apiKey)
-  if (!apiKey) {
-    console.log("No Groq API key found")
-    return null
-  }
+  if (!apiKey) return null
 
   try {
-    const top5 = topNumbers.slice(0, 5).map(n => `${n.numero} (${n.significado || 'sin significado'})`).join(', ')
+    const top5 = topNumbers.slice(0, 5).map(n => `${n.numero} (${n.significado || 'N/A'})`).join(', ')
     const topFreq = freqData.slice(0, 5).map(f => `${f.n.toString().padStart(2, '0')} (${f.f} veces)`).join(', ')
+    const overdue = stats?.rachas?.slice(0, 3).map((r: any) => r.numero).join(', ') || 'No disponible'
+    const parImpar = stats?.parImpar ? `${stats.parImpar.pares} pares / ${stats.parImpar.impares} impares` : 'No disponible'
 
-    const prompt = `Eres un experto en análisis de lotería quiniela argentina. Basándote en estos datos:
+    const prompt = `Eres un experto en análisis de quiniela argentina. Analiza estos datos para el turno ${turno}:
 
-Números mejor rankeados (por nuestro algoritmo): ${top5}
-Números más frecuentes históricamente: ${topFreq}
-Turno: ${turno}
+**Datos del algoritmo:**
+- Números mejor rankeados: ${top5}
+- Más frecuentes: ${topFreq}
+- Distribución par/impar: ${parImpar}
+- Números con delay (atrasados): ${overdue}
 
-Analiza estos números y proporciona:
-1. Una predicción de 3 números principales (explica brevemente por qué)
-2. Una recomendación de par para redoblona
-3. Un número "sorpresa" que podría salir (bajo análisis)
+**Tu tarea:**
+1. Predicción de 3 números principales (justifica brevemente)
+2. Par para redoblona recomendado
+3. Número "sorpresa" potencial
 
-Responde en español de forma breve y concisa (máximo 100 palabras).`
+Sé breve y concreto (máx 80 palabras).`
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -448,7 +493,7 @@ Responde en español de forma breve y concisa (máximo 100 palabras).`
         model: "llama-3.1-8b-instant",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.7,
-        max_tokens: 300
+        max_tokens: 250
       })
     })
 
@@ -561,22 +606,29 @@ export async function GET(req: NextRequest) {
     const sesgosActivos = SESGOS_DEFAULT[turnoQuery] || SESGOS_DEFAULT["previa"]
     const sesgoSet = new Set(sesgosActivos)
 
-    const targetDay = nextDrawDay(turnoQuery)
+const targetDay = nextDrawDay(turnoQuery)
     const dayOfWeekBias = buildDayOfWeekBias(sequences, targetDay, dates)
     const patternBias = buildPatternBias(hist, recentWindow)
-
-    const scores = scoreDigits(freq, hist, recentWindow, ff, dayOfWeekBias, patternBias, sesgoSet)
+    
+    // Calcular delay para usar en scoring y redoblona
+    const delayCalc = new Array(100).fill(hist.length)
+    for (let i = hist.length - 1; i >= 0; i--) {
+      const v = hist[i]
+      if (v >= 0 && v < 100 && delayCalc[v] === hist.length) delayCalc[v] = hist.length - 1 - i
+    }
+    
+    const scores = scoreDigits(freq, hist, recentWindow, ff, dayOfWeekBias, patternBias, sesgoSet, delayCalc)
     scores.sort((a, b) => b.score - a.score)
 
-    const s3 = scoreDigits(freq3, hist3, Math.min(800, hist3.length))
+    const s3 = scoreDigits(freq3, hist3, Math.min(800, hist3.length), undefined, undefined, undefined, undefined, undefined)
     s3.sort((a, b) => b.score - a.score)
-
-    const s4 = scoreDigits(freq4, hist4, Math.min(500, hist4.length))
+    
+    const s4 = scoreDigits(freq4, hist4, Math.min(500, hist4.length), undefined, undefined, undefined, undefined, undefined)
     s4.sort((a, b) => b.score - a.score)
 
     const seqs2 = sequences.map(seq => seq.map(n => n % 100))
     const co = buildCooccurrence(seqs2)
-    const pairPremium = bestRedoblonaPair(scores, co, 20)
+    const pairPremium = bestRedoblonaPair(scores, co, 20, delayCalc)
 
     const transiciones = getTransiciones(seqs2)
     const paresFrecuentes = getParesFrecuentes(seqs2)
@@ -629,7 +681,7 @@ export async function GET(req: NextRequest) {
 
     const confidence = Math.round((scores.slice(0, 10).reduce((sum, x) => sum + x.score, 0) / 10) * 100)
 
-    const groqInsight = await getGroqInsight(top10, heatmap, turno)
+    const groqInsight = await getGroqInsight(top10, heatmap, turno, { rachas, parImpar: parImparStats, delay: delayCalc })
 
     return NextResponse.json({
       ok: true,
