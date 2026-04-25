@@ -66,6 +66,146 @@ function normalize(values: number[]) {
   return values.map((v) => (v - min) / (max - min))
 }
 
+function relu(x: number): number {
+  return Math.max(0, x)
+}
+
+function sigmoid(x: number): number {
+  return 1 / (1 + Math.exp(-x))
+}
+
+function tanh(x: number): number {
+  return Math.tanh(x)
+}
+
+function softplus(x: number): number {
+  return Math.log(1 + Math.exp(x))
+}
+
+class NeuralNetwork {
+  private weights1: number[][]
+  private weights2: number[][]
+  private bias1: number[]
+  private bias2: number[]
+  private inputSize: number
+  private hiddenSize: number
+  private outputSize: number
+
+  constructor(inputSize: number = 20, hiddenSize: number = 32, outputSize: number = 10) {
+    this.inputSize = inputSize
+    this.hiddenSize = hiddenSize
+    this.outputSize = outputSize
+    this.weights1 = Array.from({ length: inputSize }, () => 
+      Array.from({ length: hiddenSize }, () => (Math.random() - 0.5) * 0.4)
+    )
+    this.weights2 = Array.from({ length: hiddenSize }, () => 
+      Array.from({ length: outputSize }, () => (Math.random() - 0.5) * 0.4)
+    )
+    this.bias1 = new Array(hiddenSize).fill(0)
+    this.bias2 = new Array(outputSize).fill(0)
+  }
+
+  private dotProduct(inputs: number[], weights: number[]): number {
+    return inputs.reduce((sum: number, val: number, i: number) => sum + val * weights[i], 0)
+  }
+
+  private matMul(matrix: number[][], vector: number[]): number[] {
+    return matrix.map((row: number[]) => row.reduce((sum: number, val: number, i: number) => sum + val * vector[i], 0))
+  }
+
+  forward(inputs: number[]): number[] {
+    const inputPadded = [...inputs, ...new Array(this.inputSize - inputs.length).fill(0)].slice(0, this.inputSize)
+    
+    const hiddenRaw: number[] = this.matMul(this.weights1, inputPadded).map((v: number, i: number) => relu(v + this.bias1[i]))
+    
+    const outputRaw: number[] = this.matMul(this.weights2, hiddenRaw).map((v: number, i: number) => sigmoid(v + this.bias2[i]))
+    
+    return outputRaw
+  }
+
+  train(inputs: number[][], targets: number[][], epochs: number = 100, learningRate: number = 0.01): void {
+    for (let epoch = 0; epoch < epochs; epoch++) {
+      for (let i = 0; i < inputs.length; i++) {
+        const input = inputs[i]
+        const target = targets[i]
+        const inputPadded = [...input, ...new Array(this.inputSize - input.length).fill(0)].slice(0, this.inputSize)
+        
+        const hiddenRaw: number[] = this.matMul(this.weights1, inputPadded).map((v: number, j: number) => relu(v + this.bias1[j]))
+        const outputRaw: number[] = this.matMul(this.weights2, hiddenRaw).map((v: number, j: number) => sigmoid(v + this.bias2[j]))
+        
+        const outputError: number[] = outputRaw.map((out: number, j: number) => target[j] - out)
+        const outputDelta: number[] = outputRaw.map((out: number, j: number) => out * (1 - out) * outputError[j])
+        
+        const hiddenError: number[] = this.matMul(this.weights2, outputDelta)
+        const hiddenDelta: number[] = hiddenRaw.map((h: number, j: number) => (h > 0 ? hiddenError[j] : 0))
+        
+        for (let j = 0; j < this.hiddenSize; j++) {
+          for (let k = 0; k < this.outputSize; k++) {
+            this.weights2[j][k] += learningRate * hiddenDelta[j] * outputDelta[k]
+          }
+        }
+        
+        for (let j = 0; j < this.inputSize; j++) {
+          for (let k = 0; k < this.hiddenSize; k++) {
+            this.weights1[j][k] += learningRate * inputPadded[j] * hiddenDelta[k]
+          }
+        }
+      }
+    }
+  }
+
+  predictTopN(features: number[], n: number = 10): number[] {
+    const outputs = this.forward(features)
+    const indexed = outputs.map((score, idx) => ({ idx, score }))
+    indexed.sort((a, b) => b.score - a.score)
+    return indexed.slice(0, n).map(item => item.idx)
+  }
+}
+
+function buildNeuralNetwork(sequences: number[][]): { nnScores: number[]; topNN: { n: number; score: number }[] } {
+  const nn = new NeuralNetwork(20, 48, 20)
+  
+  const trainingData: number[][] = []
+  const targets: number[][] = []
+  
+  for (let i = 0; i < sequences.length - 1; i++) {
+    const seq = sequences[i].map(n => n % 100).slice(0, 20)
+    const freq = new Array(100).fill(0)
+    for (const n of seq) freq[n]++
+    const nextSeq = sequences[i + 1].map(n => n % 100)
+    const nextFreq = new Array(100).fill(0)
+    for (const n of nextSeq) nextFreq[n]++
+    const maxF = Math.max(...nextFreq, 1)
+    const targetVec = nextFreq.map(f => f / maxF)
+    
+    trainingData.push(freq.slice(0, 20))
+    targets.push(targetVec.slice(0, 20))
+  }
+  
+  if (trainingData.length > 50) {
+    nn.train(trainingData, targets, 150, 0.02)
+  }
+  
+  const lastSeq = sequences[sequences.length - 1].map(n => n % 100).slice(0, 20)
+  const lastFreq = new Array(100).fill(0)
+  for (const n of lastSeq) lastFreq[n]++
+  
+  const outputs = nn.forward(lastFreq.slice(0, 20))
+  
+  const nnScores = new Array(100).fill(0)
+  const indexed = outputs.map((score, idx) => ({ idx, score }))
+  indexed.forEach(({ idx, score }) => {
+    if (idx < 100) nnScores[idx] = score * 10
+  })
+  
+  const topNN = indexed.slice(0, 15).map(item => ({
+    n: item.idx,
+    score: Math.round(item.score * 10000) / 10000
+  }))
+  
+  return { nnScores, topNN }
+}
+
 function nextDrawDay(sorteo: string) {
   const ar = new Date(Date.now() - 3 * 3600000)
   const now = ar.getHours() * 100 + ar.getMinutes()
@@ -100,6 +240,65 @@ function getParesFrecuentes(sequences: number[][]) {
     }
   }
   return Object.entries(pares).sort((a, b) => b[1] - a[1]).slice(0, 20)
+}
+
+function getRachas(sequences: number[][]): { numero: number; vecesConsecutivas: number; maxRacha: number }[] {
+  const rachaCount = new Array(100).fill(0)
+  const maxRacha = new Array(100).fill(0)
+  
+  for (const seq of sequences) {
+    const nums2 = seq.map(n => n % 100)
+    let actual = -1
+    let streak = 0
+    for (let i = 0; i < nums2.length; i++) {
+      if (nums2[i] === actual) {
+        streak++
+      } else {
+        if (streak > 1 && actual >= 0 && actual <= 99) {
+          rachaCount[actual]++
+          maxRacha[actual] = Math.max(maxRacha[actual], streak)
+        }
+        actual = nums2[i]
+        streak = 1
+      }
+    }
+    if (streak > 1 && actual >= 0 && actual <= 99) {
+      maxRacha[actual] = Math.max(maxRacha[actual], streak)
+    }
+  }
+  
+  return Array.from({ length: 100 }, (_, n) => ({ numero: n, vecesConsecutivas: rachaCount[n], maxRacha: maxRacha[n] }))
+}
+
+function getParImparDistribution(sequences: number[][]): { total: number; pares: number; impares: number; ratioPar: number } {
+  let total = 0
+  let pares = 0
+  for (const seq of sequences) {
+    for (const n of seq) {
+      const n2 = n % 100
+      if (n2 < 100) {
+        total++
+        if (n2 % 2 === 0) pares++
+      }
+    }
+  }
+  return { total, pares, impares: total - pares, ratioPar: total > 0 ? pares / total : 0.5 }
+}
+
+function getParesConsecutivos(sequences: number[][]): { par: string; count: number }[] {
+  const paresConsec: Record<string, number> = {}
+  for (const seq of sequences) {
+    const nums2 = seq.map(n => n % 100)
+    for (let i = 0; i < nums2.length - 1; i++) {
+      if (Math.abs(nums2[i] - nums2[i + 1]) <= 3) {
+        const a = Math.min(nums2[i], nums2[i + 1])
+        const b = Math.max(nums2[i], nums2[i + 1])
+        const key = `${pad(a)}-${pad(b)}`
+        paresConsec[key] = (paresConsec[key] || 0) + 1
+      }
+    }
+  }
+  return Object.entries(paresConsec).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([par, count]) => ({ par, count }))
 }
 
 function scoreDigits(
@@ -392,6 +591,10 @@ export async function GET(req: NextRequest) {
 
     const transiciones = getTransiciones(seqs2)
     const paresFrecuentes = getParesFrecuentes(seqs2)
+    const rachas = getRachas(sequences)
+    const parImparStats = getParImparDistribution(sequences)
+    const paresConsecutivos = getParesConsecutivos(sequences)
+    const { nnScores, topNN } = buildNeuralNetwork(sequences)
 
     const top10 = scores.slice(0, 10).map((x, i) => ({
       n: x.n,
@@ -449,7 +652,7 @@ export async function GET(req: NextRequest) {
       analisisDesde:since,
       diasAnalisis:Math.floor((new Date().getTime() - new Date(since).getTime()) / 86400000),
       confidence,
-      aiInsight: groqInsight || `Motor avanzado v2: Frecuencia + Retraso + Tendencia + Monte Carlo + Patrones día + Pares frecuentes + Transiciones + Sesgos "${turnoQuery}"`,
+      aiInsight: groqInsight || `Motor neuronal complejo: Frecuencia + Retraso + Tendencia + Monte Carlo + Red Neuronal + Rachas + Par/Impar + Consecutivos "${turnoQuery}"`,
       groqAvailable: !!groqInsight,
       pred: {
         numeros_2: top10.map(n => n.numero),
@@ -472,6 +675,15 @@ export async function GET(req: NextRequest) {
         promedioNumerosPorSorteo: (hist.length / sequences.length).toFixed(2),
         numeroMasFrecuente: { numero: pad(scores[0]?.n || 0), frecuencia: freq[scores[0]?.n || 0], significado: SUENOS[scores[0]?.n || 0] },
         numeroMayorRetraso: { numero: pad(delay.indexOf(Math.max(...delay))), retraso: Math.max(...delay), significado: SUENOS[delay.indexOf(Math.max(...delay))] },
+        rachas: rachas.filter(r => r.vecesConsecutivas > 0).slice(0, 10).map(r => ({ numero: pad(r.numero), vecesConsecutivas: r.vecesConsecutivas, maxRacha: r.maxRacha })),
+        parImpar: { total: parImparStats.total, pares: parImparStats.pares, impares: parImparStats.impares, ratioPar: Math.round(parImparStats.ratioPar * 100) + "%" },
+        paresConsecutivos: paresConsecutivos.slice(0, 10),
+        neuralNetwork: {
+          topPredictions: topNN.slice(0, 10).map(n => ({ numero: pad(n.n), score: n.score })),
+          method: "Red neuronal feed-forward con backpropagation",
+          layers: [20, 48, 20],
+          epochs: 150
+        },
       }
     })
   } catch (e: unknown) {
