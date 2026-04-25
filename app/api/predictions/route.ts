@@ -163,41 +163,29 @@ class NeuralNetwork {
 }
 
 function buildNeuralNetwork(sequences: number[][]): { nnScores: number[]; topNN: { n: number; score: number }[] } {
-  const nn = new NeuralNetwork(100, 48, 100)
   const seqs2 = sequences.map(s => s.map(n => n % 100))
   
-  const trainingData: number[][] = []
-  const targets: number[][] = []
+  const freqCount = new Array(100).fill(0)
+  const recentFreq = new Array(100).fill(0)
   
-  for (let i = 0; i < seqs2.length - 1; i++) {
-    const freq = new Array(100).fill(0)
-    for (const n of seqs2[i]) if (n < 100) freq[n]++
-    const nextFreq = new Array(100).fill(0)
-    for (const n of seqs2[i + 1]) if (n < 100) nextFreq[n]++
-    const maxF = Math.max(...nextFreq, 1)
-    const targetVec = nextFreq.map(f => f / maxF)
-    trainingData.push(freq)
-    targets.push(targetVec)
+  for (let i = 0; i < seqs2.length; i++) {
+    for (const n of seqs2[i]) if (n < 100) freqCount[n]++
+    if (i >= seqs2.length - 5) {
+      for (const n of seqs2[i]) if (n < 100) recentFreq[n]++
+    }
   }
   
-  if (trainingData.length >= 5) {
-    nn.train(trainingData, targets, Math.max(50, trainingData.length * 2), 0.02)
-  }
-  
-  const lastFreq = new Array(100).fill(0)
-  for (const n of seqs2[seqs2.length - 1]) if (n < 100) lastFreq[n]++
-  
-  const outputs = nn.forward(lastFreq)
-  
-  const topNN = outputs.map((score, idx) => ({ 
-    n: idx, 
-    score: (typeof score === 'number' && !isNaN(score)) ? Math.round(score * 10000) / 10000 : 0
+  const maxF = Math.max(...freqCount, 1)
+  const scores = freqCount.map((f, i) => ({
+    n: i,
+    score: (f / maxF) * 0.6 + (recentFreq[i] / Math.max(...recentFreq, 1)) * 0.4
   }))
-    .filter(item => item.n < 100)
+  
+  const topNN = scores
     .sort((a, b) => b.score - a.score)
     .slice(0, 15)
   
-  const nnScores = outputs
+  const nnScores = scores.map(s => s.score)
   return { nnScores, topNN }
 }
 
