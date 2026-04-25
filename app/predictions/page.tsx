@@ -913,7 +913,9 @@ export default function Page() {
                     })()}
                   </div>
                 )}
-                {dg === 3 && (
+                {(dg === 3 || dg === 4) && (
+                  ((pr || userRole === "admin") ? (
+                    dg === 3 ? (
                   <div style={{ background: "rgba(32,213,236,.06)", border: "1px solid rgba(32,213,236,.15)", borderRadius: 10, padding: 12 }}>
                     <div style={{ fontSize: 11, color: "#20d5ec", fontWeight: 700, marginBottom: 8 }}>3 CIFRAS - 5 NÚMEROS</div>
                     {(() => {
@@ -942,8 +944,7 @@ export default function Page() {
                       );
                     })()}
                   </div>
-                )}
-                {dg === 4 && (
+                    ) : (
                   <div style={{ background: "rgba(168,85,247,.06)", border: "1px solid rgba(168,85,247,.15)", borderRadius: 10, padding: 12 }}>
                     <div style={{ fontSize: 11, color: "#a855f7", fontWeight: 700, marginBottom: 8 }}>4 CIFRAS - 5 NÚMEROS</div>
                     {(() => {
@@ -972,6 +973,16 @@ export default function Page() {
                       );
                     })()}
                   </div>
+                    )
+                  ) : (
+                    <div style={{ padding: 20, background: "rgba(168,85,247,.04)", borderRadius: 12, border: "1px solid rgba(168,85,247,.15)", textAlign: "center" }}>
+                      <div style={{ fontSize: 24, marginBottom: 8 }}>🔐</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#a855f7", marginBottom: 6 }}>3 y 4 Cifras PRO</div>
+                      <div style={{ fontSize: 10, color: "#64748b", marginBottom: 10 }}>Activá Premium para ver opciones de apuesta</div>
+                      <a href={WA} style={{ fontSize: 10, color: "#a855f7", textDecoration: "none" }}>Activar Premium →</a>
+                    </div>
+                  )
+                  )
                 )}
                 {dg === 5 && (
                   <div style={{ background: "rgba(168,85,247,.06)", border: "1px solid rgba(168,85,247,.15)", borderRadius: 10, padding: 12 }}>
