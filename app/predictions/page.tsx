@@ -321,7 +321,6 @@ export default function Page() {
 
   async function controlarJugada() {
     if (!dt?.numeros_2?.length) {
-      alert("Primero genera una prediccion");
       return;
     }
     setControlando(true);
@@ -340,6 +339,7 @@ export default function Page() {
       const predichos = cur.slice(0, dg === 2 ? 10 : 5).map((p: any) => p.numero);
       const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }));
       setResultadoControl({ aciertos, predichos, reales, fecha: hoy, turno: so });
+      mostrarNotifResultado(so, reales, aciertos.map((a: any) => a.numero));
     } catch (e: any) {
       setResultadoControl({ error: "Error: " + e.message });
     }
@@ -348,7 +348,6 @@ export default function Page() {
 
   async function guardarPrediccion(silent = false) {
     if (!cur?.length) {
-      alert("Primero generá una predicción");
       return;
     }
     setGuardando(true);
@@ -414,7 +413,6 @@ export default function Page() {
 
   function copiar() {
     if (!dt?.numeros_2?.length) {
-      alert("Primero genera una prediccion");
       return;
     }
     const lineas = cur.slice(0, dg === 2 ? 10 : 5).map((p: any, i: number) => "#" + (i + 1) + " " + p.numero + " - " + p.significado).join("\n");
@@ -1181,8 +1179,16 @@ export default function Page() {
                         </a>
                       </div>
                     )}
-                  </div>
-                  
+</div>
+
+                  {rdbl && tab === "pred" && (pr || userRole === "admin") && (
+                    <div className="rdbl" style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 12, color: "#25F4EE", marginBottom: 4, fontWeight: 700 }}>🎯 Par óptimo (Redoblona)</div>
+                      <div className="rpair">{rdbl}</div>
+                      <div style={{ fontSize: 11, color: "#64748b" }}>Apostale a que ambos aparecen en el mismo sorteo.</div>
+                    </div>
+                  )}
+
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     <button className="btn3d btn-save" style={{ marginBottom: 0 }} onClick={() => guardarPrediccion()} disabled={guardando}>
                       {guardando ? "Guardando..." : guardadoOk ? "Guardado!" : "Guardar para comparar"}
