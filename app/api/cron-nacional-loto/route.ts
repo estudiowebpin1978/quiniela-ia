@@ -6,10 +6,20 @@ const CRON_SECRET = process.env.CRON_SECRET || "quiniela_ia_cron_2024_seguro";
 const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || "";
 const SK = process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || "";
 
-const BASE_URL = "https://www.nacionalloteria.com";
-const SOURCE_NAME = "nacionalloteria";
+const BASE_URL = "https://www.ruta1000.com.ar";
+const SOURCE_NAME = "ruta1000";
 
-const TURNOS = ["primera", "matutina", "vespertina", "nocturna"];
+const TURNOS = ["previa", "primera", "matutina", "vespertina", "nocturna"];
+
+const DAYS_MAP: Record<string, string> = {
+  "Monday": "Lunes",
+  "Tuesday": "Martes",
+  "Wednesday": "Miercoles",
+  "Thursday": "Jueves",
+  "Friday": "Viernes",
+  "Saturday": "Sabado",
+  "Sunday": "Domingo",
+};
 
 async function insertLog(source: string, status: "success" | "failed" | "skipped", recordsInserted: number, errorMessage?: string | null) {
   if (!SB || !SK) return;
@@ -32,33 +42,6 @@ async function insertLog(source: string, status: "success" | "failed" | "skipped
   } catch { /* ignore */ }
 }
 
-async function scrapeDetailPage(url: string): Promise<string[]> {
-  try {
-    const { data } = await axios.get(url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      timeout: 15000,
-    });
-
-    const $ = cheerio.load(data);
-    const numbers: string[] = [];
-
-    $("table tr").each((_: number, row: cheerio.Element) => {
-      const cells = $(row).find("td");
-      if (cells.length >= 2) {
-        const posText = $(cells[0]).text().trim();
-        const numText = $(cells[1]).text().trim();
-        if (/^\d{1,2}$/.test(posText) && /^\d{4}$/.test(numText)) {
-          numbers.push(numText);
-        }
-      }
-    });
-
-    return numbers.slice(0, 20);
-  } catch {
-    return [];
-  }
-}
-
 function formatDate(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -72,12 +55,16 @@ function addDays(date: Date, days: number): Date {
   return result;
 }
 
+function getDayName(date: Date): string {
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  return days[date.getDay()];
+}
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
-  const days = parseInt(req.nextUrl.searchParams.get("days") || "0");
-  const skipExisting = req.nextUrl.searchParams.get("skip") !== "false";
+  const days = parseInt(req.nextUrl.searchParams.get("days") || "3");
 
   if (!secret || secret !== CRON_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -92,64 +79,121 @@ export async function GET(req: NextRequest) {
     let saltados = 0;
     let errores = 0;
     const resultsByDate: Record<string, number> = {};
-    const startDate = addDays(new Date(), -days);
 
-    let processed = 0;
-    let currentDate = new Date();
+    for (let i = 0; i < days; i++) {
+      const targetDate = addDays(new Date(), -i);
+      const fechaDb = formatDate(targetDate);
+      const dayName = getDayName(targetDate);
+      
+      if (dayName === "Sunday") continue;
 
-    while (currentDate >= startDate) {
-      const fechaStr = formatDate(currentDate);
+      const urlDay = DAYS_MAP[dayName] || "Sabado";
+      const url = `${BASE_URL}/index2008.php?Resultado=Quiniela_Nacional_${urlDay}#Sorteos`;
 
-      for (const turno of TURNOS) {
-        const url = `${BASE_URL}/argentina/quiniela-nacional.php?del-dia=${fechaStr}&periodo=${turno}`;
-
-        try {
-          if (skipExisting) {
-            const existing = await fetch(
-              `${SB}/rest/v1/draws?date=eq.${fechaStr}&turno=eq.${turno}&select=id&limit=1`,
-              { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
-            );
-            const existingData = await existing.json();
-            if (existingData.length > 0) {
-              saltados++;
-              continue;
-            }
-          }
-
-          const numbers = await scrapeDetailPage(url);
-
-          if (numbers.length < 20) {
-            continue;
-          }
-
-          const insertRes = await fetch(`${SB}/rest/v1/draws`, {
-            method: "POST",
-            headers: {
-              "apikey": SK,
-              "Authorization": `Bearer ${SK}`,
-              "Content-Type": "application/json",
-              "Prefer": "return=representation",
-            },
-            body: JSON.stringify({
-              date: fechaStr,
-              turno,
-              numbers: JSON.stringify(numbers),
-              source: SOURCE_NAME,
-            }),
-          });
-
-          if (insertRes.ok) {
-            guardados++;
-            resultsByDate[fechaStr] = (resultsByDate[fechaStr] || 0) + 1;
-          }
-
-          processed++;
-        } catch { errores++; }
+      let html = "";
+      try {
+        const response = await axios.get(url, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "text/html,application/xhtml+xml",
+          },
+          timeout: 25000,
+        });
+        html = response.data;
+      } catch {
+        errores++;
+        continue;
       }
 
-      currentDate = addDays(currentDate, -1);
+      const $ = cheerio.load(html);
+      const bodyText = $("body").text();
 
-      if (processed >= 500 && days > 0) break;
+      const results: Record<string, string[]> = {};
+      
+      const h2Elements = $("h2");
+      
+      h2Elements.each((_: number, el: cheerio.Element) => {
+        const text = $(el).text().toLowerCase();
+        
+        let turno = "";
+        if (text.includes("previa")) turno = "previa";
+        else if (text.includes("primera")) turno = "primera";
+        else if (text.includes("matutina")) turno = "matutina";
+        else if (text.includes("vespertina")) turno = "vespertina";
+        else if (text.includes("nocturna")) turno = "nocturna";
+        
+        if (!turno || results[turno]) return;
+        
+        let numbers: string[] = [];
+        let sibling = $(el).next();
+        
+        for (let j = 0; j < 150 && sibling.length; sibling = sibling.next(), j++) {
+          const numText = sibling.text().trim();
+          const match = numText.match(/^(\d{4})$/);
+          if (match) {
+            numbers.push(match[1]);
+          }
+          if (numbers.length >= 20) break;
+        }
+        
+        if (numbers.length >= 20) {
+          results[turno] = numbers.slice(0, 20);
+        }
+      });
+
+      const allStrong = $("strong").map((_: number, el: cheerio.Element) => $(el).text().trim()).get();
+      const allNums = allStrong.filter(n => /^\d{4}$/.test(n) && n !== "0000");
+      
+      if (Object.keys(results).length === 0 && allNums.length >= 20) {
+        const numsPerTurno = Math.floor(allNums.length / 5);
+        const turnoKeys = ["previa", "primera", "matutina", "vespertina", "nocturna"];
+        
+        turnoKeys.forEach((turno, idx) => {
+          const start = idx * numsPerTurno;
+          const end = start + numsPerTurno;
+          const turnonums = allNums.slice(start, end);
+          if (turnonums.length >= 4) {
+            results[turno] = turnonums.slice(0, 20);
+          }
+        });
+      }
+
+      for (const turno of TURNOS) {
+        const numbers = results[turno];
+        if (!numbers || numbers.length < 20) continue;
+
+        const existing = await fetch(
+          `${SB}/rest/v1/draws?date=eq.${fechaDb}&turno=eq.${turno}&select=id&limit=1`,
+          { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
+        );
+        const existingData = await existing.json();
+        
+        if (existingData.length > 0) {
+          saltados++;
+          continue;
+        }
+
+        const insertRes = await fetch(`${SB}/rest/v1/draws`, {
+          method: "POST",
+          headers: {
+            "apikey": SK,
+            "Authorization": `Bearer ${SK}`,
+            "Content-Type": "application/json",
+            "Prefer": "return=representation",
+          },
+          body: JSON.stringify({
+            date: fechaDb,
+            turno,
+            numbers: JSON.stringify(numbers),
+            source: SOURCE_NAME,
+          }),
+        });
+
+        if (insertRes.ok) {
+          guardados++;
+          resultsByDate[fechaDb] = (resultsByDate[fechaDb] || 0) + 1;
+        }
+      }
     }
 
     await insertLog(SOURCE_NAME, guardados > 0 ? "success" : "skipped", guardados);
