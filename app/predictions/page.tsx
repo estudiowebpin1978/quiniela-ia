@@ -715,7 +715,7 @@ export default function Page() {
             >
               🔔
             </button>
-            showInstall && (
+            {showInstall && (
               <button onClick={installApp} style={{ padding: "6px 12px", borderRadius: 8, background: "linear-gradient(135deg,#ff3366,#ff6b81)", color: "#fff", border: "none", fontWeight: 700, fontSize: 11, cursor: "pointer", boxShadow: "0 4px 12px rgba(255,51,102,.4)" }}>
                 📲 Instalar App
               </button>
