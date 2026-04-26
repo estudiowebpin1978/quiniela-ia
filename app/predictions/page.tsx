@@ -573,9 +573,6 @@ export default function Page() {
         .rn{font-size:22px;font-weight:900;color:#20d5ec}
         .rk{font-size:8px;color:#20d5ec;opacity:.75;margin-top:2px}
         .rv{font-size:8px;color:var(--dim);margin-top:2px}
-        .ranking-table{width:100%;border-collapse:collapse;margin-top:12px}
-        .ranking-table th,.ranking-table td{padding:8px 4px;text-align:center;border-bottom:1px solid rgba(255,255,255,.08);font-size:12px}
-        .ranking-table th{color:#25F4EE;font-weight:800}
         .trend-chart{background:rgba(245,158,11,.04);border:1px solid rgba(245,158,11,.2);border-radius:14px;padding:16px;margin-bottom:14px}
         .trend-info{padding:10px;margin-bottom:14px}
         .trend-info-title{font-size:14px;font-weight:700;color:#f59e0b;margin-bottom:4px}
@@ -1311,27 +1308,7 @@ export default function Page() {
                       Cargando mapa de calor...
                     </div>
                   )}
-                  <div className="sec" style={{ marginTop: 20 }}>Ranking de probabilidad</div>
-                  <table className="ranking-table">
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Número</th>
-                        <th>Significado</th>
-                        <th>Frec.</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dt?.heatmap?.slice(0, 20).map((h: any, i: number) => (
-                        <tr key={i}>
-                          <td>{i + 1}</td>
-                          <td>{h.n.toString().padStart(2, '0')}</td>
-                          <td>{h.s}</td>
-                          <td>{h.f}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  
                 </>
               )}
               {tab === "trend" && (
