@@ -1,19 +1,24 @@
 {
-  "name": "Quiniela IA",
+  "name": "Quiniela IA - Predicciones Inteligentes",
   "short_name": "Quiniela IA",
-  "description": "Predicciones estadisticas reales para la Quiniela Nacional de Buenos Aires",
-  "start_url": "/predictions",
+  "description": "Sistema de predicción estadística para la Quiniela Nacional de Buenos Aires",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#06080f",
-  "theme_color": "#c9a84c",
+  "background_color": "#0a0a0f",
+  "theme_color": "#ff3366",
   "orientation": "portrait",
-  "lang": "es",
   "icons": [
-    {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
-    {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ],
-  "categories": ["entertainment", "games"],
-  "screenshots": [
-    {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"}
-  ]
+  "categories": ["entertainment", "games", "lifestyle"],
+  "lang": "es-AR"
 }

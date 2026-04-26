@@ -3,7 +3,7 @@ import { useState } from "react"
 const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL||""
 
 export default function LoginPage(){
-  const [tab,setTab]=useState("up")
+  const [tab,setTab]=useState("in")
   const [email,setEmail]=useState("")
   const [pass,setPass]=useState("")
   const [busy,setBusy]=useState(false)
