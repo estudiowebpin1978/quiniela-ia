@@ -4,8 +4,8 @@ export async function GET(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ","");
   if (!token) return NextResponse.json({ isPremium: false, role: "free" });
 
-  const SB_URL = $env:Next_Public_Supabase_Url;
-  const SB_KEY = $env:Supabase_Service_Key;
+  const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const SB_KEY = process.env.SUPABASE_SERVICE_KEY;
   if (!SB_URL || !SB_KEY) return NextResponse.json({ isPremium: false, role: "free" });
 
   const controller = new AbortController();
