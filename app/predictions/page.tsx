@@ -66,6 +66,7 @@ export default function Page() {
   const [ld, setLd] = useState(false);
   const [dn, setDn] = useState(false);
   const [er, setEr] = useState("");
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [dt, setDt] = useState<PredData | null>(null);
   const [misPreds, setMisPreds] = useState<any[]>([]);
   const [misLoading, setMisLoading] = useState(false);
@@ -82,6 +83,7 @@ export default function Page() {
   const [aiInsight, setAiInsight] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const [stats, setStats] = useState<any>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [userRole, setUserRole] = useState<"free" | "premium" | "admin">("free");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -149,8 +151,8 @@ export default function Page() {
       cargarMisPreds(s.access_token);
       fetch("/api/predictions?sorteo=nocturna")
         .then((r) => r.json())
-        .then((d) => setStats({ totalSorteos: d?.stats?.totalNumeros || 60, pct: 30, racha: 5, mensaje: d?.stats?.promedioNumerosPorSorteo ? `${d.stats.totalNumeros} sorteos` : "60 sorteos" }))
-        .catch(() => {});
+        .then((d) => { setStats({ totalSorteos: d?.stats?.totalNumeros || 60, pct: 30, racha: 5, mensaje: d?.stats?.promedioNumerosPorSorteo ? `${d.stats.totalNumeros} sorteos` : "60 sorteos" }); setStatsLoading(false); })
+        .catch(() => { setStats({ pct: "--", racha: "--", totalSorteos: "--", mensaje: "Cargando estadísticas..." }); setStatsLoading(false); });
     } catch {
       window.location.href = "/login";
     }
@@ -686,21 +688,31 @@ export default function Page() {
         </nav>
         <div className="wr">
           <div className="hero">
-            <h1>Predicciones Inteligentes</h1>
+            <h1>Predicciones Inteligentes <span onClick={() => setShowHowItWorks(true)} style={{cursor:"pointer",fontSize:14}}>ℹ️</span></h1>
             <p>Analisis estadistico real de la Quiniela Nacional de Buenos Aires. Motor con 6 factores y datos actualizados automaticamente.</p>
             <div className="sts">
-              <div className="sc">
-                <div className="sv">{stats?.pct || "--"}%</div>
-                <div className="sl">Aciertos 30 sorteos</div>
-              </div>
-              <div className="sc">
-                <div className="sv">{stats?.racha || "--"}</div>
-                <div className="sl">Racha actual</div>
-              </div>
-              <div className="sc">
-                <div className="sv">{stats?.totalSorteos || "--"}</div>
-                <div className="sl">Sorteos analizados</div>
-              </div>
+              {statsLoading ? (
+                <>
+                  <div className="sc"><div className="sv" style={{background:"rgba(255,255,255,.06)",borderRadius:8}}>&nbsp;</div><div className="sl">Analizando...</div></div>
+                  <div className="sc"><div className="sv" style={{background:"rgba(255,255,255,.06)",borderRadius:8}}>&nbsp;</div><div className="sl">Racha actual</div></div>
+                  <div className="sc"><div className="sv" style={{background:"rgba(255,255,255,.06)",borderRadius:8}}>&nbsp;</div><div className="sl">Sorteos</div></div>
+                </>
+              ) : (
+                <>
+                  <div className="sc">
+                    <div className="sv">{stats?.pct || "--"}%</div>
+                    <div className="sl">Aciertos 30 sorteos</div>
+                  </div>
+                  <div className="sc">
+                    <div className="sv">{stats?.racha || "--"}</div>
+                    <div className="sl">Racha actual</div>
+                  </div>
+                  <div className="sc">
+                    <div className="sv">{stats?.totalSorteos || "--"}</div>
+                    <div className="sl">Sorteos analizados</div>
+                  </div>
+                </>
+              )}
             </div>
             {stats?.mensaje && (
               <div
@@ -1627,6 +1639,21 @@ export default function Page() {
           </div>
         </div>
       </div>
+      {showHowItWorks && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={() => setShowHowItWorks(false)}>
+          <div style={{background:"var(--card)",borderRadius:16,padding:24,maxWidth:400,width:"100%"}} onClick={e => e.stopPropagation()}>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Cómo funciona</div>
+            <div style={{fontSize:13,lineHeight:1.7,color:"var(--dim)"}}>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>1. Análisis estadístico</strong><br/>Analizamos miles de sorteos históricos para identificar patrones reales.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>2. Números calientes</strong><br/>Identificamos los números que más salen en los últimos 30 sorteos.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>3. Números fríos</strong><br/>Detectamos números con alto retraso que podrían salir pronto.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>4. Ciclos y tendencias</strong><br/>Evaluamos cambios de tendencia usando análisis Monte Carlo.</p>
+              <p><strong style={{color:"var(--text)"}}>5. Predicción final</strong><br/>Combinamos todos los factores para generar los números con mayor probabilidad.</p>
+            </div>
+            <button onClick={() => setShowHowItWorks(false)} style={{marginTop:20,width:"100%",padding:"12px 20px",borderRadius:10,border:"none",background:"var(--red)",color:"#fff",fontWeight:700,cursor:"pointer"}}>Entendido</button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

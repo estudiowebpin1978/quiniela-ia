@@ -2,16 +2,25 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Quiniela IA — Predicciones Inteligentes",
-  description: "Sistema de predicción estadística para la Quiniela Nacional de Buenos Aires. Análisis con IA, estadísticas y predicciones gratis.",
-  keywords: "quiniela, predictor, lotería, números, argentina, buenos aires, quiniela nacional",
+  title: "Quiniela IA — Predicciones Inteligentes con IA",
+  description: "Sistema de predicción estadística para la Quiniela Nacional de Buenos Aires. Análisis de números calientes, fríos y ciclos. Predicciones gratis.",
+  keywords: "quiniela, predictor, lotería, números, argentina, buenos aires, quiniela nacional, prefiero",
   authors: [{ name: "Quiniela IA" }],
   openGraph: {
     title: "Quiniela IA - Predicciones Inteligentes",
-    description: "Sistema de predicción estadística para la Quiniela Nacional",
+    description: "Gana con estadísticas reales. Análisis de números calientes, fríos y ciclos.",
     type: "website",
     locale: "es_AR",
     siteName: "Quiniela IA",
+    url: "https://quiniela-ia-two.vercel.app",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Quiniela IA - Predicciones Inteligentes",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
