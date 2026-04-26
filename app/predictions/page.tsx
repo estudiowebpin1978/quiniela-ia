@@ -885,9 +885,7 @@ export default function Page() {
                   </div>
                 </div>
               </div>
-              <div style={{ fontSize: 9, color: "#475569", marginTop: 10, textAlign: "center", lineHeight: 1.6 }}>
-                * Premios 3 y 4 cifras con descuento AFIP ~27.9%. Valores estimados, sujetos a prorrateo.
-              </div>
+
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(201,168,76,.15)" }}>
                 <div style={{ fontSize: 12, fontWeight: 800, color: "#c9a84c", marginBottom: 10, textAlign: "center" }}>Sugerencia de apuesta por cifras</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -1337,17 +1335,13 @@ export default function Page() {
                     </div>
 
                     <div className="trend-stats">
-                      <div className="trend-stat-card">
-                        <div className="trend-stat-value">{dt?.numeros_2?.slice(0, 5).join("-")}</div>
-                        <div className="trend-stat-label">Top 5 cifras</div>
+                      <div className="trend-stat-card" style={{ background: "linear-gradient(135deg,rgba(255,45,85,.15),rgba(255,45,85,.05))", border: "1px solid rgba(255,45,85,.4)" }}>
+                        <div className="trend-stat-value" style={{ color: "#ff3366" }}>{dt?.numeros_2?.slice(0, 2).join(" - ")} + {dt?.numeros_2?.slice(2, 10).join(", ")}</div>
+                        <div className="trend-stat-label">💡 TOP 10: Apostá cabeza + 9</div>
                       </div>
-                      <div className="trend-stat-card">
-                        <div className="trend-stat-value">{dt?.stats?.numeroMasFrecuente?.numero}</div>
-                        <div className="trend-stat-label">Más frecuente</div>
-                      </div>
-                      <div className="trend-stat-card">
-                        <div className="trend-stat-value">{dt?.stats?.numeroMayorRetraso?.numero}</div>
-                        <div className="trend-stat-label">Mayor retraso</div>
+                      <div className="trend-stat-card" style={{ background: "linear-gradient(135deg,rgba(32,213,236,.15),rgba(32,213,236,.05))", border: "1px solid rgba(32,213,236,.4)" }}>
+                        <div className="trend-stat-value" style={{ color: "#20d5ec" }}>🎯 {dt?.numeros_2?.[0]}</div>
+                        <div className="trend-stat-label">Mejor rankeado</div>
                       </div>
                     </div>
 
