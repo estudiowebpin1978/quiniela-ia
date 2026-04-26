@@ -110,13 +110,12 @@ export async function GET(req: NextRequest) {
       }
 
       const $ = cheerio.load(html);
-      const bodyText = $("body").text();
 
       const results: Record<string, string[]> = {};
       
-      const h2Elements = $("h2");
+      const fontElements = $("font.titulo3, font[style*='font-size:18']");
       
-      h2Elements.each((_: number, el: cheerio.Element) => {
+      fontElements.each((_: number, el: cheerio.Element) => {
         const text = $(el).text().toLowerCase();
         
         let turno = "";
@@ -129,9 +128,9 @@ export async function GET(req: NextRequest) {
         if (!turno || results[turno]) return;
         
         let numbers: string[] = [];
-        let sibling = $(el).next();
+        let sibling = $(el).parent()?.parent()?.next();
         
-        for (let j = 0; j < 150 && sibling.length; sibling = sibling.next(), j++) {
+        for (let j = 0; j < 50 && sibling && sibling.length; sibling = sibling.next(), j++) {
           const numText = sibling.text().trim();
           const match = numText.match(/^(\d{4})$/);
           if (match) {
@@ -145,8 +144,8 @@ export async function GET(req: NextRequest) {
         }
       });
 
-      const allStrong = $("strong").map((_: number, el: cheerio.Element) => $(el).text().trim()).get();
-      const allNums = allStrong.filter(n => /^\d{4}$/.test(n) && n !== "0000");
+      const allB = $("b").map((_: number, el: cheerio.Element) => $(el).text().trim()).get();
+      const allNums = allB.filter(n => /^\d{4}$/.test(n) && n !== "0000" && parseInt(n) > 0);
       
       if (Object.keys(results).length === 0 && allNums.length >= 20) {
         const numsPerTurno = Math.floor(allNums.length / 5);
