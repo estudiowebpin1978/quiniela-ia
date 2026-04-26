@@ -1195,7 +1195,7 @@ export default function Page() {
                         </div>
                       ))}
                     </div>
-                    {dg > 2 && !pr && (
+{dg > 2 && !pr && (
                       <div className="lo">
                         <div style={{ fontSize: 32 }}>🔐</div>
                         <h3>Predicciones {dg} digitos</h3>
@@ -1208,7 +1208,12 @@ export default function Page() {
                         </a>
                       </div>
                     )}
-</div>
+                    <div style={{ marginTop: 16, padding: 14, background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(34,197,94,.05))", borderRadius: 12, border: "1px solid rgba(34,197,94,.4)", textAlign: "center" }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", marginBottom: 6 }}>💡 TIP ESTRATÉGICO</div>
+                      <div style={{ fontSize: 11, color: "#fff" }}>Apostá las predicciones a <strong style={{ color: "#ff3366" }}>1° (cabeza)</strong> + <strong style={{ color: "#ff3366" }}>los 10</strong></div>
+                      <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>Máximo 10 números por apuesta</div>
+                    </div>
+                  </div>
 
                   {rdbl && tab === "pred" && (pr || userRole === "admin") && (
                     <div className="rdbl" style={{ marginTop: 12 }}>
@@ -1225,6 +1230,11 @@ export default function Page() {
                     <button className="btn3d btn-copy" style={{ marginBottom: 0 }} onClick={copiar}>
                       Copiar
                     </button>
+                  </div>
+                  <div style={{ marginTop: 12, padding: 12, background: "linear-gradient(135deg,rgba(34,197,94,.12),rgba(34,197,94,.04))", borderRadius: 10, border: "1px solid rgba(34,197,94,.3)", textAlign: "center" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#4ade80" }}>💡 ESTRATEGIA RECOMENDADA</div>
+                    <div style={{ fontSize: 10, color: "#fff", marginTop: 4 }}>Apostá a <span style={{ color: "#ff3366", fontWeight: 700 }}>1° (cabeza)</span> + <span style={{ color: "#ff3366", fontWeight: 700 }}>los 10</span></div>
+                    <div style={{ fontSize: 9, color: "#94a3b8", marginTop: 2 }}>Máximo 10 números por apuesta</div>
                   </div>
                 </>
               )}
@@ -1351,7 +1361,10 @@ export default function Page() {
                         {dt?.numeros?.[0]?.tendencia > 0 ? "📈 Alcista" : "📉 Bajista"}
                       </div>
                       <div className="trend-metric-desc">
-                        Basado en la diferencia entre frecuencia reciente vs histórica
+                        Basado en frecuencia reciente vs histórica
+                      </div>
+                      <div style={{ marginTop: 10, padding: 8, background: "rgba(34,197,94,.1)", borderRadius: 8, fontSize: 10, color: "#4ade80", fontWeight: 600 }}>
+                        💡 Apostá a cabeza (1°) + los 10 para mayor chance
                       </div>
                     </div>
                   </div>
