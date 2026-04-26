@@ -1461,7 +1461,8 @@ export default function Page() {
                   {misPreds.map((p: any, i: number) => {
                     const tieneAciertos = p.aciertos && p.aciertos.length > 0;
                     const fecha = p.date || p.fecha;
-                    const titulo = `${p.turno} — ${fecha ? new Date(fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "Sin fecha"}`;
+                    const fechaValida = fecha && !isNaN(Date.parse(fecha));
+                    const titulo = fechaValida ? `${p.turno} — ${new Date(fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}` : `${p.turno} — ${fecha || "Sin fecha"}`;
                     return (
                       <div key={i} className={`saved-card ${tieneAciertos ? "saved-card-success" : ""}`}>
                         <div className="saved-card-header">
