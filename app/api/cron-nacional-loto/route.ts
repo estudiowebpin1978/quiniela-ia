@@ -9,7 +9,7 @@ const SK = process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || process
 const BASE_URL = "https://www.ruta1000.com.ar";
 const SOURCE_NAME = "ruta1000-v4";
 
-const TEST_MODE = true;
+const TEST_MODE = false;
 
 const TURNOS = ["previa", "primera", "matutina", "vespertina", "nocturna"];
 
@@ -68,7 +68,7 @@ export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
-  const days = parseInt(req.nextUrl.searchParams.get("days") || "3");
+  const days = parseInt(req.nextUrl.searchParams.get("days") || "30");
 
   if (!secret || secret !== CRON_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
