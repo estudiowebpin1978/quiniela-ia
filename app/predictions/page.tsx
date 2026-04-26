@@ -67,6 +67,8 @@ export default function Page() {
   const [dn, setDn] = useState(false);
   const [er, setEr] = useState("");
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
   const [dt, setDt] = useState<PredData | null>(null);
   const [misPreds, setMisPreds] = useState<any[]>([]);
   const [misLoading, setMisLoading] = useState(false);
@@ -115,6 +117,18 @@ export default function Page() {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("quiniela-ia-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    setIsOnline(typeof navigator !== "undefined" ? navigator.onLine : true);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   function toggleTheme() {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
@@ -659,6 +673,7 @@ export default function Page() {
             <span className="nm">Quiniela IA</span>
           </div>
           <div className="nr">
+            {!isOnline && <span style={{ background: "#ef4444", color: "#fff", padding: "4px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700 }}>📴 Offline</span>}
             {(pr || userRole === "admin") && <span className="pp">{userRole === "admin" ? "👑 ADMIN" : "⭐ PREMIUM"}</span>}
             {em && <span className="ne">{em.split("@")[0]}</span>}
             <button className="nav-theme" onClick={toggleTheme} title="Cambiar modo de color">
@@ -1077,7 +1092,14 @@ export default function Page() {
               )}
             </div>
           )}
-          {er && <div className="eb">Error: {er}</div>}
+          {er && (
+            <div className="eb" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+              <span>Error: {er}</span>
+              <button onClick={() => { setRetryCount(c => c + 1); gen(); }} style={{ padding: "8px 16px", borderRadius: 8, background: "#ff3366", color: "#fff", border: "none", fontWeight: 700, cursor: "pointer" }}>
+                Reintentar
+              </button>
+            </div>
+          )}
           {!dn && !ld && (
             <div className="ht">
               👆 Seleccioná el sorteo de arriba y apretá
@@ -1479,13 +1501,16 @@ export default function Page() {
                       <div key={i} className={`saved-card ${tieneAciertos ? "saved-card-success" : ""}`}>
                         <div className="saved-card-header">
                           <div className="saved-card-title">{titulo}</div>
-                          {p.resultado && p.resultado.length > 0 ? (
-                            <div className={`saved-card-status ${p.acerto ? "hit" : "miss"}`}>
-                              {p.acerto ? `🎉 ${p.aciertos.length} acierto(s)` : "Sin aciertos"}
-                            </div>
-                          ) : (
-                            <div className="saved-card-status miss">⏳ Esperando resultado</div>
-                          )}
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>{p.numeros?.length || 0} nums</span>
+                            {p.resultado && p.resultado.length > 0 ? (
+                              <div className={`saved-card-status ${p.acerto ? "hit" : "miss"}`}>
+                                {p.acerto ? `🎉 ${p.aciertos.length} acierto(s)` : "Sin aciertos"}
+                              </div>
+                            ) : (
+                              <div className="saved-card-status miss">⏳ Esperando resultado</div>
+                            )}
+                          </div>
                         </div>
                         <div className="saved-numbers">
                           {p.numeros.map((n: string, j: number) => {
