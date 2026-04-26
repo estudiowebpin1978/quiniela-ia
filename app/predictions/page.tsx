@@ -1460,7 +1460,8 @@ export default function Page() {
                   </div>
                   {misPreds.map((p: any, i: number) => {
                     const tieneAciertos = p.aciertos && p.aciertos.length > 0;
-                    const titulo = `${p.turno} — ${new Date(p.date + "T00:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`;
+                    const fecha = p.date || p.fecha;
+                    const titulo = `${p.turno} — ${fecha ? new Date(fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "Sin fecha"}`;
                     return (
                       <div key={i} className={`saved-card ${tieneAciertos ? "saved-card-success" : ""}`}>
                         <div className="saved-card-header">
