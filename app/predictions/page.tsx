@@ -822,86 +822,17 @@ export default function Page() {
                 transition: ".12s",
               }}
             >
-              {showCalc ? "▲ Cerrar sugerencias" : "💰 Sugerencias de apuesta"}
+              {showCalc ? "▲ Cerrar" : "💡 Estrategia"}
             </button>
             <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y aciertos.</div>
           </div>
           {showCalc && (
-            <div style={{ background: "rgba(201,168,76,.04)", border: "1.5px solid rgba(201,168,76,.2)", borderRadius: 16, padding: "16px", marginBottom: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "#c9a84c", marginBottom: 12, textAlign: "center" }}>Calculadora de premios estimados</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <div style={{ fontSize: 11, color: "#94a3b8", minWidth: 130 }}>
-                  Apuesta por cifra: <strong style={{ color: "#f0cc6e" }}>${apCalc.toLocaleString("es-AR")}</strong>
-                </div>
-                <input
-                  type="range"
-                  min={100}
-                  max={2000}
-                  step={100}
-                  value={apCalc}
-                  onChange={(e: any) => setApCalc(Number(e.target.value))}
-                  style={{ flex: 1, accentColor: "#c9a84c" }}
-                />
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                <div style={{ fontSize: 11, color: "#94a3b8", minWidth: 130 }}>
-                  Apuesta redoblona: <strong style={{ color: "#f0cc6e" }}>${rdblCalc.toLocaleString("es-AR")}</strong>
-                </div>
-                <input
-                  type="range"
-                  min={200}
-                  max={5000}
-                  step={100}
-                  value={rdblCalc}
-                  onChange={(e: any) => setRdblCalc(Number(e.target.value))}
-                  style={{ flex: 1, accentColor: "#c9a84c" }}
-                />
-              </div>
-              <div className="calc-grid">
-                <div className="calc-card" style={{ background: "rgba(255,45,85,.08)", border: "1px solid rgba(255,45,85,.2)" }}>
-                  <div className="calc-card-t" style={{ color: "#ff6b81" }}>
-                    2 cifras
-                  </div>
-                  <div className="calc-card-v" style={{ color: "#ff6b81" }}>
-                    ${(apCalc * 70 + apCalc * 7).toLocaleString("es-AR")}
-                  </div>
-                  <div className="calc-card-s" style={{ color: "#ff9999" }}>
-                    si sale al 1ro<br />Apuesta: ${(apCalc * 2).toLocaleString("es-AR")}
-                  </div>
-                  <div className="calc-card-s" style={{ color: "#ff9999", marginTop: 4 }}>
-                    ${(apCalc * 7).toLocaleString("es-AR")} del 2 al 10
-                  </div>
-                </div>
-                <div className="calc-card" style={{ background: "rgba(32,213,236,.06)", border: "1px solid rgba(32,213,236,.18)" }}>
-                  <div className="calc-card-t" style={{ color: "#20d5ec" }}>
-                    3 cifras PRO
-                  </div>
-                  <div className="calc-card-v" style={{ color: "#20d5ec" }}>
-                    ${Math.round((apCalc * 600 + apCalc * 60) * 0.721).toLocaleString("es-AR")}
-                  </div>
-                  <div className="calc-card-s" style={{ color: "#7dd9d7" }}>
-                    si sale al 1ro*<br />Apuesta: ${(apCalc * 2).toLocaleString("es-AR")}
-                  </div>
-                  <div className="calc-card-s" style={{ color: "#7dd9d7", marginTop: 4 }}>
-                    ${(apCalc * 60).toLocaleString("es-AR")} del 2 al 10
-                  </div>
-                </div>
-                <div className="calc-card" style={{ background: "rgba(245,158,11,.06)", border: "1px solid rgba(245,158,11,.2)" }}>
-                  <div className="calc-card-t" style={{ color: "#f59e0b" }}>
-                    4 cifras PRO
-                  </div>
-                  <div className="calc-card-v" style={{ color: "#f59e0b" }}>
-                    ${Math.round((apCalc * 3500 + apCalc * 350) * 0.721).toLocaleString("es-AR")}
-                  </div>
-                  <div className="calc-card-s" style={{ color: "#fbbf24" }}>
-                    si sale al 1ro*<br />Apuesta: ${(apCalc * 2).toLocaleString("es-AR")}
-                  </div>
-                  <div className="calc-card-s" style={{ color: "#fbbf24", marginTop: 4 }}>
-                    ${(apCalc * 350).toLocaleString("es-AR")} del 2 al 10
-                  </div>
-                </div>
-                <div className="calc-card" style={{ background: "rgba(134,239,172,.06)", border: "1px solid rgba(134,239,172,.2)" }}>
-                  <div className="calc-card-t" style={{ color: "#86efac" }}>
+            <div style={{ background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(34,197,94,.05))", border: "1.5px solid rgba(34,197,94,.4)", borderRadius: 16, padding: "20px", marginBottom: 12, textAlign: "center" }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#4ade80", marginBottom: 8 }}>💡 ESTRATEGIA RECOMENDADA</div>
+              <div style={{ fontSize: 12, color: "#fff", marginBottom: 4 }}>Apostá a 1° (cabeza) y a los 10</div>
+              <div style={{ fontSize: 11, color: "#94a3b8" }}>para 2 cifras, lo mismo para 3 y 4 cifras!</div>
+            </div>
+          )}
                     Redoblona
                   </div>
                   <div className="calc-card-v" style={{ color: "#86efac" }}>
@@ -913,12 +844,7 @@ export default function Page() {
                 </div>
               </div>
 
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(201,168,76,.15)" }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: "#c9a84c", marginBottom: 10, textAlign: "center" }}>💰 Calculadora de Premios Estimados</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, color: "#94a3b8", minWidth: 100 }}>
-                    Total a gastar: <strong style={{ color: "#f0cc6e" }}>${totalBet.toLocaleString("es-AR")}</strong>
-                  </div>
+
                   <input
                     type="range"
                     min={1000}
