@@ -914,7 +914,7 @@ export default function Page() {
               </div>
 
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(201,168,76,.15)" }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: "#c9a84c", marginBottom: 10, textAlign: "center" }}>Sugerencia de apuesta por cifras</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#c9a84c", marginBottom: 10, textAlign: "center" }}>💰 Calculadora de Premios Estimados</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                   <div style={{ fontSize: 11, color: "#94a3b8", minWidth: 100 }}>
                     Total a gastar: <strong style={{ color: "#f0cc6e" }}>${totalBet.toLocaleString("es-AR")}</strong>
@@ -1260,7 +1260,7 @@ export default function Page() {
                   </div>
                   <div style={{ marginTop: 12, padding: 12, background: "linear-gradient(135deg,rgba(34,197,94,.12),rgba(34,197,94,.04))", borderRadius: 10, border: "1px solid rgba(34,197,94,.3)", textAlign: "center" }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#4ade80" }}>💡 ESTRATEGIA RECOMENDADA</div>
-                    <div style={{ fontSize: 10, color: "#fff", marginTop: 4 }}>Apostá a <span style={{ color: "#ff3366", fontWeight: 700 }}>1° (cabeza)</span> + <span style={{ color: "#ff3366", fontWeight: 700 }}>los 10</span></div>
+                    <div style={{ fontSize: 10, color: "#fff", marginTop: 4 }}>💡 Apostá a <span style={{ color: "#ff3366", fontWeight: 700 }}>1° (cabeza)</span> + <span style={{ color: "#ff3366", fontWeight: 700 }}>los 10</span> para 2, 3 y 4 cifras</div>
                     <div style={{ fontSize: 9, color: "#94a3b8", marginTop: 2 }}>Máximo 10 números por apuesta</div>
                   </div>
                 </>
