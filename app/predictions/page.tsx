@@ -87,8 +87,6 @@ export default function Page() {
   const [stats, setStats] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [userRole, setUserRole] = useState<"free" | "premium" | "admin">("free");
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showInstall, setShowInstall] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const misSummary = useMemo(() => {
@@ -131,26 +129,6 @@ export default function Page() {
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
-
-  useEffect(() => {
-    const handleBeforeInstall = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowInstall(true);
-    };
-    window.addEventListener("beforeinstallprompt", handleBeforeInstall as any);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", handleBeforeInstall as any);
-    };
-  }, []);
-
-  async function installApp() {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") setDeferredPrompt(null);
-    setShowInstall(false);
-  }
 
   function toggleTheme() {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
@@ -715,11 +693,6 @@ export default function Page() {
             >
               🔔
             </button>
-            {showInstall && (
-              <button onClick={installApp} style={{ padding: "6px 12px", borderRadius: 8, background: "linear-gradient(135deg,#ff3366,#ff6b81)", color: "#fff", border: "none", fontWeight: 700, fontSize: 11, cursor: "pointer", boxShadow: "0 4px 12px rgba(255,51,102,.4)" }}>
-                📲 Instalar App
-              </button>
-            )}
             <button className="nav-out" onClick={logout}>
               Salir
             </button>
@@ -822,173 +795,15 @@ export default function Page() {
                 transition: ".12s",
               }}
             >
-              {showCalc ? "▲ Cerrar" : "💡 Estrategia"}
+              {showCalc ? "▲ Cerrar sugerencias" : "💰 Sugerencias de apuesta"}
             </button>
             <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y aciertos.</div>
           </div>
-          {showCalc && (
-            <div style={{ background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(34,197,94,.05))", border: "1.5px solid rgba(34,197,94,.4)", borderRadius: 16, padding: "20px", marginBottom: 12, textAlign: "center" }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#4ade80", marginBottom: 8 }}>💡 ESTRATEGIA RECOMENDADA</div>
-              <div style={{ fontSize: 12, color: "#fff", marginBottom: 4 }}>Apostá a 1° (cabeza) y a los 10</div>
-              <div style={{ fontSize: 11, color: "#94a3b8" }}>para 2 cifras, lo mismo para 3 y 4 cifras!</div>
-            </div>
-          )}
-                    Redoblona
-                  </div>
-                  <div className="calc-card-v" style={{ color: "#86efac" }}>
-                    ${(rdblCalc * 70 * 7).toLocaleString("es-AR")}
-                  </div>
-                  <div className="calc-card-s" style={{ color: "#bbf7d0" }}>
-                    par exacto<br />Apuesta: ${rdblCalc.toLocaleString("es-AR")}
-                  </div>
-                </div>
-              </div>
-
-
-                  <input
-                    type="range"
-                    min={1000}
-                    max={20000}
-                    step={500}
-                    value={totalBet}
-                    onChange={(e: any) => setTotalBet(Number(e.target.value))}
-                    style={{ flex: 1, accentColor: "#c9a84c" }}
-                  />
-                </div>
-                <div style={{ fontSize: 10, color: "#64748b", textAlign: "center", marginBottom: 12 }}>
-                  Turno: <strong style={{color:"#f0cc6e"}}>{so}</strong> ({dg} cifras)
-                </div>
-                {dg === 2 && (
-                  <div style={{ background: "rgba(255,45,85,.06)", border: "1px solid rgba(255,45,85,.15)", borderRadius: 10, padding: 12 }}>
-                    <div style={{ fontSize: 11, color: "#ff6b81", fontWeight: 700, marginBottom: 8 }}>2 CIFRAS - 10 NÚMEROS</div>
-                    {(() => {
-                      const porNumero = Math.floor(totalBet / 10);
-                      const premioPrimero = porNumero * 70;
-                      const premioSegundoAlDécimo = porNumero * 7;
-                      return (
-                        <div style={{ fontSize: 10, color: "#94a3b8" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                            <span>Por número:</span>
-                            <span style={{ color: "#f0cc6e" }}>${porNumero.toLocaleString("es-AR")}</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                            <span>1.er puesto (sale 1):</span>
-                            <span style={{ color: "#22c55e" }}>${premioPrimero.toLocaleString("es-AR")}</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                            <span>2do-10mo puesto:</span>
-                            <span style={{ color: "#22c55e" }}>${premioSegundoAlDécimo.toLocaleString("es-AR")}</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed rgba(255,255,255,.1)", paddingTop: 4, marginTop: 4 }}>
-                            <span>Premio máximo:</span>
-                            <span style={{ color: "#22c55e", fontWeight: 700 }}>${(premioPrimero + premioSegundoAlDécimo * 9).toLocaleString("es-AR")}</span>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-                {(dg === 3 || dg === 4) && (
-                  ((pr || userRole === "admin") ? (
-                    dg === 3 ? (
-                  <div style={{ background: "rgba(32,213,236,.06)", border: "1px solid rgba(32,213,236,.15)", borderRadius: 10, padding: 12 }}>
-                    <div style={{ fontSize: 11, color: "#20d5ec", fontWeight: 700, marginBottom: 8 }}>3 CIFRAS - 5 NÚMEROS</div>
-                    {(() => {
-                      const porNumero = Math.floor(totalBet / 5);
-                      const premioPrimero = Math.floor(porNumero * 600 * 0.721);
-                      const premioSegundoAlQuinto = Math.floor(porNumero * 60 * 0.721);
-                      return (
-                        <div style={{ fontSize: 10, color: "#94a3b8" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                            <span>Por número:</span>
-                            <span style={{ color: "#f0cc6e" }}>${porNumero.toLocaleString("es-AR")}</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                            <span>1.er puesto:</span>
-                            <span style={{ color: "#22c55e" }}>${premioPrimero.toLocaleString("es-AR")}</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                            <span>2do-5to puesto:</span>
-                            <span style={{ color: "#22c55e" }}>${premioSegundoAlQuinto.toLocaleString("es-AR")}</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed rgba(255,255,255,.1)", paddingTop: 4, marginTop: 4 }}>
-                            <span>Premio máximo:</span>
-                            <span style={{ color: "#22c55e", fontWeight: 700 }}>${(premioPrimero + premioSegundoAlQuinto * 4).toLocaleString("es-AR")}</span>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                    ) : (
-                  <div style={{ background: "rgba(168,85,247,.06)", border: "1px solid rgba(168,85,247,.15)", borderRadius: 10, padding: 12 }}>
-                    <div style={{ fontSize: 11, color: "#a855f7", fontWeight: 700, marginBottom: 8 }}>4 CIFRAS - 5 NÚMEROS</div>
-                    {(() => {
-                      const porNumero = Math.floor(totalBet / 5);
-                      const premioPrimero = Math.floor(porNumero * 3500 * 0.721);
-                      const premioSegundoAlQuinto = Math.floor(porNumero * 350 * 0.721);
-                      return (
-                        <div style={{ fontSize: 10, color: "#94a3b8" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                            <span>Por número:</span>
-                            <span style={{ color: "#f0cc6e" }}>${porNumero.toLocaleString("es-AR")}</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                            <span>1.er puesto:</span>
-                            <span style={{ color: "#22c55e" }}>${premioPrimero.toLocaleString("es-AR")}</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                            <span>2do-5to puesto:</span>
-                            <span style={{ color: "#22c55e" }}>${premioSegundoAlQuinto.toLocaleString("es-AR")}</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed rgba(255,255,255,.1)", paddingTop: 4, marginTop: 4 }}>
-                            <span>Premio máximo:</span>
-                            <span style={{ color: "#22c55e", fontWeight: 700 }}>${(premioPrimero + premioSegundoAlQuinto * 4).toLocaleString("es-AR")}</span>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                    )
-                  ) : (
-                    <div style={{ padding: 20, background: "rgba(168,85,247,.04)", borderRadius: 12, border: "1px solid rgba(168,85,247,.15)", textAlign: "center" }}>
-                      <div style={{ fontSize: 24, marginBottom: 8 }}>🔐</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#a855f7", marginBottom: 6 }}>3 y 4 Cifras PRO</div>
-                      <div style={{ fontSize: 10, color: "#64748b", marginBottom: 10 }}>Activá Premium para ver opciones de apuesta</div>
-                      <a href={WA} style={{ fontSize: 10, color: "#a855f7", textDecoration: "none" }}>Activar Premium →</a>
-                    </div>
-                  )
-                  )
-                )}
-                {dg === 5 && (
-                  <div style={{ background: "rgba(168,85,247,.06)", border: "1px solid rgba(168,85,247,.15)", borderRadius: 10, padding: 12 }}>
-                    <div style={{ fontSize: 11, color: "#a855f7", fontWeight: 700, marginBottom: 8 }}>REDOBLONA - 5 PARES</div>
-                    {(() => {
-                      const porPareja = Math.floor(totalBet / 5);
-                      const premio = porPareja * 70 * 7;
-                      return (
-                        <div style={{ fontSize: 10, color: "#94a3b8" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                            <span>Por par (a + b):</span>
-                            <span style={{ color: "#f0cc6e" }}>${porPareja.toLocaleString("es-AR")}</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                            <span>Par exacto:</span>
-                            <span style={{ color: "#22c55e" }}>${premio.toLocaleString("es-AR")}</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                            <span>Un número coincide:</span>
-                            <span style={{ color: "#fbbf24" }}>${Math.floor(porPareja * 7).toLocaleString("es-AR")}</span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed rgba(255,255,255,.1)", paddingTop: 4, marginTop: 4 }}>
-                            <span>Premio máximo:</span>
-                            <span style={{ color: "#22c55e", fontWeight: 700 }}>${(premio * 5).toLocaleString("es-AR")}</span>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
+{showCalc && (
+            <div style={{ marginTop: 12, padding: 14, background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(34,197,94,.05))", borderRadius: 12, border: "1px solid rgba(34,197,94,.4)", textAlign: "center" }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", marginBottom: 6 }}>💡 ESTRATEGIA RECOMENDADA</div>
+              <div style={{ fontSize: 11, color: "#fff" }}>Apostá a 1° (cabeza) y a los 10</div>
+              <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>para 2 cifras, lo mismo para 3 y 4 cifras!</div>
             </div>
           )}
           {resultadoControl && (
@@ -1148,7 +963,7 @@ export default function Page() {
                         </div>
                       ))}
                     </div>
-{dg > 2 && !pr && (
+                    {dg > 2 && !pr && (
                       <div className="lo">
                         <div style={{ fontSize: 32 }}>🔐</div>
                         <h3>Predicciones {dg} digitos</h3>
@@ -1161,12 +976,7 @@ export default function Page() {
                         </a>
                       </div>
                     )}
-                    <div style={{ marginTop: 16, padding: 14, background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(34,197,94,.05))", borderRadius: 12, border: "1px solid rgba(34,197,94,.4)", textAlign: "center" }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", marginBottom: 6 }}>💡 TIP ESTRATÉGICO</div>
-                      <div style={{ fontSize: 11, color: "#fff" }}>Apostá las predicciones a <strong style={{ color: "#ff3366" }}>1° (cabeza)</strong> + <strong style={{ color: "#ff3366" }}>los 10</strong></div>
-                      <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>Máximo 10 números por apuesta</div>
-                    </div>
-                  </div>
+</div>
 
                   {rdbl && tab === "pred" && (pr || userRole === "admin") && (
                     <div className="rdbl" style={{ marginTop: 12 }}>
@@ -1183,11 +993,6 @@ export default function Page() {
                     <button className="btn3d btn-copy" style={{ marginBottom: 0 }} onClick={copiar}>
                       Copiar
                     </button>
-                  </div>
-                  <div style={{ marginTop: 12, padding: 12, background: "linear-gradient(135deg,rgba(34,197,94,.12),rgba(34,197,94,.04))", borderRadius: 10, border: "1px solid rgba(34,197,94,.3)", textAlign: "center" }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#4ade80" }}>💡 ESTRATEGIA RECOMENDADA</div>
-                    <div style={{ fontSize: 10, color: "#fff", marginTop: 4 }}>Apostá a 1° (cabeza) y a los 10 para 2 cifras</div>
-                    <div style={{ fontSize: 10, color: "#fff", marginTop: 2 }}>lo mismo para 3 y 4 cifras!</div>
                   </div>
                 </>
               )}
@@ -1298,13 +1103,17 @@ export default function Page() {
                     </div>
 
                     <div className="trend-stats">
-                      <div className="trend-stat-card" style={{ background: "linear-gradient(135deg,rgba(255,45,85,.15),rgba(255,45,85,.05))", border: "1px solid rgba(255,45,85,.4)" }}>
-                        <div className="trend-stat-value" style={{ color: "#ff3366" }}>{dt?.numeros_2?.slice(0, 2).join(" - ")} + {dt?.numeros_2?.slice(2, 10).join(", ")}</div>
-                        <div className="trend-stat-label">💡 TOP 10: Apostá cabeza + 9</div>
+                      <div className="trend-stat-card">
+                        <div className="trend-stat-value">{dt?.numeros_2?.slice(0, 5).join("-")}</div>
+                        <div className="trend-stat-label">Top 5 cifras</div>
                       </div>
-                      <div className="trend-stat-card" style={{ background: "linear-gradient(135deg,rgba(32,213,236,.15),rgba(32,213,236,.05))", border: "1px solid rgba(32,213,236,.4)" }}>
-                        <div className="trend-stat-value" style={{ color: "#20d5ec" }}>🎯 {dt?.numeros_2?.[0]}</div>
-                        <div className="trend-stat-label">Mejor rankeado</div>
+                      <div className="trend-stat-card">
+                        <div className="trend-stat-value">{dt?.stats?.numeroMasFrecuente?.numero}</div>
+                        <div className="trend-stat-label">Más frecuente</div>
+                      </div>
+                      <div className="trend-stat-card">
+                        <div className="trend-stat-value">{dt?.stats?.numeroMayorRetraso?.numero}</div>
+                        <div className="trend-stat-label">Mayor retraso</div>
                       </div>
                     </div>
 
@@ -1314,10 +1123,7 @@ export default function Page() {
                         {dt?.numeros?.[0]?.tendencia > 0 ? "📈 Alcista" : "📉 Bajista"}
                       </div>
                       <div className="trend-metric-desc">
-                        Basado en frecuencia reciente vs histórica
-                      </div>
-                      <div style={{ marginTop: 10, padding: 8, background: "rgba(34,197,94,.1)", borderRadius: 8, fontSize: 10, color: "#4ade80", fontWeight: 600 }}>
-                        💡 Apostá a cabeza (1°) + los 10 para mayor chance
+                        Basado en la diferencia entre frecuencia reciente vs histórica
                       </div>
                     </div>
                   </div>
@@ -1564,16 +1370,6 @@ export default function Page() {
             </div>
           </div>
           <div className="ft">
-            {showInstall && (
-              <div style={{ background: "linear-gradient(135deg,rgba(255,51,102,.15),rgba(255,51,102,.05))", border: "1px solid rgba(255,51,102,.4)", borderRadius: 12, padding: 16, marginBottom: 16, textAlign: "center" }}>
-                <div style={{ fontSize: 20, marginBottom: 8 }}>📲</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#ff6b81", marginBottom: 4 }}>Instalá Quiniela IA como App</div>
-                <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10 }}>Accedé desde tu pantalla de inicio, sin Play Store</div>
-                <button onClick={installApp} style={{ padding: "10px 24px", borderRadius: 10, background: "linear-gradient(135deg,#ff3366,#ff6b81)", color: "#fff", border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                  Instalar Ahora
-                </button>
-              </div>
-            )}
             <div style={{ textAlign: "center", marginBottom: 14 }}>
               <h2 style={{ fontSize: 18, fontWeight: 800, background: "linear-gradient(135deg,#ff6b81,#ff2d55)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
                 Lo que dicen los usuarios
