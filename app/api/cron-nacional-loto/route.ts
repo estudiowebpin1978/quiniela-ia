@@ -69,6 +69,7 @@ export const revalidate = 0;
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
   const days = parseInt(req.nextUrl.searchParams.get("days") || "30");
+  const force = req.nextUrl.searchParams.get("force") === "true";
 
   if (!secret || secret !== CRON_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -168,9 +169,16 @@ export async function GET(req: NextRequest) {
         );
         const existingData = await existing.json();
         
-        if (existingData.length > 0) {
+        if (!force && existingData.length > 0) {
           saltados++;
           continue;
+        }
+        
+        if (force && existingData.length > 0) {
+          await fetch(`${SB}/rest/v1/draws?date=eq.${fechaDb}&turno=eq.${turno}`, {
+            method: "DELETE",
+            headers: { "apikey": SK, "Authorization": `Bearer ${SK}`, "Prefer": "return=minimal" }
+          });
         }
 
         const insertRes = await fetch(`${SB}/rest/v1/draws`, {
