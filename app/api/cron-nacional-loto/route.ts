@@ -6,8 +6,8 @@ const CRON_SECRET = process.env.CRON_SECRET || "quiniela_ia_cron_2024_seguro";
 const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || "";
 const SK = process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || "";
 
-const BASE_URL = "https://www.ruta1000.com.ar";
-const SOURCE_NAME = "ruta1000-v4";
+const BASE_URL = "https://quinieladelaciudad.ruta1000.com.ar";
+const SOURCE_NAME = "quiniela-ciudad-v1";
 
 const TEST_MODE = false;
 
@@ -91,8 +91,7 @@ export async function GET(req: NextRequest) {
       
       if (dayName === "Sunday") continue;
 
-      const urlDay = DAYS_MAP[dayName] || "Sabado";
-      const url = `${BASE_URL}/index2008.php?Resultado=Quiniela_Nacional_${urlDay}#Sorteos&t=${Date.now()}`;
+      const url = `${BASE_URL}/?t=${Date.now()}`;
 
       let html = "";
       try {
@@ -113,34 +112,30 @@ export async function GET(req: NextRequest) {
 
       const results: Record<string, string[]> = {};
       
-      const fontElements = $("font.titulo3, font[style*='font-size:18']");
-      
-      fontElements.each((_: number, el: cheerio.Element) => {
-        const text = $(el).text().toLowerCase();
+      const turnoMap: Record<string, string> = {
+        "LA PREVIA": "previa",
+        "PRIMERA": "primera", 
+        "MATUTINA": "matutina",
+        "VESPERTINA": "vespertina",
+        "NOCTURNA": "nocturna"
+      };
+
+      $("table").each((_: number, table: cheerio.Element) => {
+        const tableHtml = $(table).html() || "";
         
-        let turno = "";
-        if (text.includes("previa")) turno = "previa";
-        else if (text.includes("primera")) turno = "primera";
-        else if (text.includes("matutina")) turno = "matutina";
-        else if (text.includes("vespertina")) turno = "vespertina";
-        else if (text.includes("nocturna")) turno = "nocturna";
-        
-        if (!turno || results[turno]) return;
-        
-        let numbers: string[] = [];
-        let sibling = $(el).parent()?.parent()?.next();
-        
-        for (let j = 0; j < 50 && sibling && sibling.length; sibling = sibling.next(), j++) {
-          const numText = sibling.text().trim();
-          const match = numText.match(/^(\d{4})$/);
-          if (match) {
-            numbers.push(match[1]);
+        for (const [header, turno] of Object.entries(turnoMap)) {
+          if (tableHtml.toUpperCase().includes(header) && !results[turno]) {
+            const nums: string[] = [];
+            $(table).find("td").each((i: number, td: cheerio.Element) => {
+              const text = $(td).text().trim();
+              if (/^\d{4}$/.test(text) && text !== "0000") {
+                nums.push(text);
+              }
+            });
+            if (nums.length >= 20) {
+              results[turno] = nums.slice(0, 20);
+            }
           }
-          if (numbers.length >= 20) break;
-        }
-        
-        if (numbers.length >= 20) {
-          results[turno] = numbers.slice(0, 20);
         }
       });
 
@@ -160,6 +155,8 @@ export async function GET(req: NextRequest) {
           }
         });
       }
+
+      console.log(`[${fechaDb}] Found turns:`, Object.keys(results));
 
       for (const turno of TURNOS) {
         const numbers = results[turno];
