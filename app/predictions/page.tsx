@@ -50,6 +50,7 @@ type PredData = {
   ranking: RankingItem[];
   numeros?: any[];
   diasAnalisis?: number;
+  totalSorteos?: number;
   stats?: {
     numeroMasFrecuente?: { numero: string; frecuencia: number; significado: string };
     numeroMayorRetraso?: { numero: string; retraso: number; significado: string };
@@ -187,8 +188,13 @@ export default function Page() {
       cargarMisPreds(s.access_token);
       fetch("/api/predictions?sorteo=nocturna")
         .then((r) => r.json())
-        .then((d) => { setStats({ totalSorteos: d?.stats?.totalNumeros || 60, pct: 30, racha: 5, mensaje: d?.stats?.promedioNumerosPorSorteo ? `${d.stats.totalNumeros} sorteos` : "60 sorteos" }); setStatsLoading(false); })
-        .catch(() => { setStats({ pct: "--", racha: "--", totalSorteos: "--", mensaje: "Cargando estadísticas..." }); setStatsLoading(false); });
+        .then((d) => { 
+          const total = d?.totalSorteos || d?.stats?.totalNumeros || 60;
+          const mensaje = `${total} sorteos analizados`;
+          setStats({ totalSorteos: total, pct: "--", racha: "--", mensaje }); 
+          setStatsLoading(false); 
+        })
+        .catch(() => { setStats({ pct: "--", racha: "--", totalSorteos: "--", mensaje: "Cargando..." }); setStatsLoading(false); });
     } catch {
       window.location.href = "/login";
     }
@@ -732,23 +738,23 @@ export default function Page() {
             <div className="sts">
               {statsLoading ? (
                 <>
-                  <div className="sc"><div className="sv" style={{background:"rgba(255,255,255,.06)",borderRadius:8}}>&nbsp;</div><div className="sl">Analizando...</div></div>
+                  <div className="sc"><div className="sv" style={{background:"rgba(255,255,255,.06)",borderRadius:8}}>&nbsp;</div><div className="sl">Cargando datos...</div></div>
                   <div className="sc"><div className="sv" style={{background:"rgba(255,255,255,.06)",borderRadius:8}}>&nbsp;</div><div className="sl">Racha actual</div></div>
                   <div className="sc"><div className="sv" style={{background:"rgba(255,255,255,.06)",borderRadius:8}}>&nbsp;</div><div className="sl">Sorteos</div></div>
                 </>
               ) : (
                 <>
                   <div className="sc">
-                    <div className="sv">{stats?.pct || "--"}%</div>
-                    <div className="sl">Aciertos 30 sorteos</div>
+                    <div className="sv">{stats?.totalSorteos || 121}</div>
+                    <div className="sl">Sorteos históricos</div>
                   </div>
                   <div className="sc">
-                    <div className="sv">{stats?.racha || "--"}</div>
+                    <div className="sv">--</div>
                     <div className="sl">Racha actual</div>
                   </div>
                   <div className="sc">
-                    <div className="sv">{stats?.totalSorteos || "--"}</div>
-                    <div className="sl">Sorteos analizados</div>
+                    <div className="sv">121</div>
+                    <div className="sl">Días de datos</div>
                   </div>
                 </>
               )}
@@ -1110,7 +1116,7 @@ export default function Page() {
                   <div className="trend-chart">
                     <div className="trend-info">
                       <div className="trend-info-title">Top Números con Mayor Tendencia</div>
-                      <div className="trend-info-desc">Basado en los últimos {Math.min(50, dt?.diasAnalisis || 30)} días de análisis</div>
+                      <div className="trend-info-desc">Basado en {dt?.totalSorteos || 121} sorteos reales</div>
                     </div>
                     
                     <div className="trend-bars">

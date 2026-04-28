@@ -3,27 +3,23 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 
 const CRON_SECRET = process.env.CRON_SECRET || "quiniela_ia_cron_2024_seguro";
-const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || "";
-const SK = process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || "";
 
 const BASE_URL = "https://quinieladelaciudad.ruta1000.com.ar";
 const SOURCE_NAME = "quiniela-ciudad-v1";
 
-const TEST_MODE = false;
-
 const TURNOS = ["previa", "primera", "matutina", "vespertina", "nocturna"];
 
-const DAYS_MAP: Record<string, string> = {
-  "Monday": "Lunes",
-  "Tuesday": "Martes",
-  "Wednesday": "Miercoles",
-  "Thursday": "Jueves",
-  "Friday": "Viernes",
-  "Saturday": "Sabado",
-  "Sunday": "Domingo",
-};
+function getSK(): string {
+  return (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim();
+}
+
+function getSB(): string {
+  return (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim();
+}
 
 async function insertLog(source: string, status: "success" | "failed" | "skipped", recordsInserted: number, errorMessage?: string | null) {
+  const SB = getSB();
+  const SK = getSK();
   if (!SB || !SK) return;
   try {
     await fetch(`${SB}/rest/v1/sync_logs`, {
@@ -51,44 +47,130 @@ function formatDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-}
-
-function getDayName(date: Date): string {
-  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  return days[date.getDay()];
-}
-
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
-  const days = parseInt(req.nextUrl.searchParams.get("days") || "30");
   const force = req.nextUrl.searchParams.get("force") === "true";
+  const history = req.nextUrl.searchParams.get("history") === "true";
+  const daysParam = parseInt(req.nextUrl.searchParams.get("days") || "1");
 
   if (!secret || secret !== CRON_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const SB = getSB();
+  const SK = getSK();
+
   if (!SB || !SK) {
     return NextResponse.json({ error: "Supabase no configurado" }, { status: 500 });
   }
 
+  const days = Math.min(Math.max(daysParam, 1), 30)
+  const results: any[] = []
+  let guardados = 0
+  let errores = 0
+  let saltados = 0
+
+  if (history) {
+    for (let d = 0; d < days; d++) {
+      const now = new Date()
+      now.setDate(now.getDate() - d)
+      
+      let html = ""
+      try {
+        const response = await axios.get(BASE_URL, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "text/html,application/xhtml+xml",
+          },
+          timeout: 25000,
+        })
+        html = response.data
+      } catch {
+        continue
+      }
+
+      const $ = cheerio.load(html)
+      const fechaDb = formatDate(now)
+      const drawResults: Record<string, string[]> = {}
+
+      const allTds = $("td").map((_, el) => $(el).text().trim()).get()
+      const allNums = allTds.filter(n => /^\d{4}$/.test(n) && n !== "0000" && parseInt(n) > 0 && n !== "0001")
+
+      const numsPerTurno = Math.floor(allNums.length / 5)
+
+      if (allNums.length >= 100) {
+        const turnoKeys = ["previa", "primera", "matutina", "vespertina", "nocturna"]
+        turnoKeys.forEach((turno, idx) => {
+          const start = idx * numsPerTurno
+          const end = start + numsPerTurno
+          const turnonums = allNums.slice(start, end)
+          if (turnonums.length >= 20) {
+            drawResults[turno] = turnonums.slice(0, 20)
+          }
+        })
+      }
+
+      const dayResult: any = { fecha: fechaDb, turnos: [] }
+
+      for (const turno of TURNOS) {
+        const numbers = drawResults[turno]
+        if (!numbers || numbers.length < 20) {
+          saltados++
+          dayResult.turnos.push({ turno, ok: false, total: 0 })
+          continue
+        }
+
+        const numArray = numbers.map(n => parseInt(n))
+
+        await fetch(`${SB}/rest/v1/draws?date=eq.${fechaDb}&turno=eq.${turno}`, {
+          method: "DELETE",
+          headers: { "apikey": SK, "Authorization": `Bearer ${SK}`, "Prefer": "return=minimal" }
+        })
+
+        const r = await fetch(`${SB}/rest/v1/draws`, {
+          method: "POST",
+          headers: { "apikey": SK, "Authorization": `Bearer ${SK}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
+          body: JSON.stringify({ date: fechaDb, turno, numbers: numArray })
+        })
+
+        if (r.ok) {
+          guardados++
+          dayResult.turnos.push({ turno, ok: true, total: numbers.length })
+        } else {
+          errores++
+          dayResult.turnos.push({ turno, ok: false, total: 0 })
+        }
+      }
+      results.push(dayResult)
+    }
+
+    await insertLog(SOURCE_NAME, guardados > 0 ? "success" : "skipped", guardados, `history: ${days} days`)
+
+    return NextResponse.json({
+      ok: guardados > 0,
+      source: SOURCE_NAME,
+      totalDays: days,
+      guardados,
+      errores,
+      saltados,
+      results
+    })
+  }
+
+  // Original single day logic
   try {
     let guardados = 0;
     let saltados = 0;
     let errores = 0;
-    const resultsByDate: Record<string, number> = {};
+    const drawResultsByDate: Record<string, number> = {};
 
-    const url = BASE_URL;
     let html = "";
     try {
-      const response = await axios.get(url, {
+      const response = await axios.get(BASE_URL, {
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
           "Accept": "text/html,application/xhtml+xml",
@@ -96,118 +178,86 @@ export async function GET(req: NextRequest) {
         timeout: 25000,
       });
       html = response.data;
-    } catch {
+    } catch (e: unknown) {
+      console.error("Error fetching:", e);
       return NextResponse.json({ error: "No se pudo obtener datos" }, { status: 500 });
     }
 
     const $ = cheerio.load(html);
     const fechaDb = formatDate(new Date());
 
-      const results: Record<string, string[]> = {};
-      
-      const turnoMap: Record<string, string> = {
-        "LA PREVIA": "previa",
-        "PRIMERA": "primera", 
-        "MATUTINA": "matutina",
-        "VESPERTINA": "vespertina",
-        "NOCTURNA": "nocturna"
-      };
+    const drawResults: Record<string, string[]> = {};
 
-      $("table").each((_: number, table: cheerio.Element) => {
-        const tableHtml = $(table).html() || "";
-        
-        for (const [header, turno] of Object.entries(turnoMap)) {
-          if (tableHtml.toUpperCase().includes(header) && !results[turno]) {
-            const nums: string[] = [];
-            $(table).find("td").each((i: number, td: cheerio.Element) => {
-              const text = $(td).text().trim();
-              if (/^\d{4}$/.test(text) && text !== "0000") {
-                nums.push(text);
-              }
-            });
-            if (nums.length >= 20) {
-              results[turno] = nums.slice(0, 20);
-            }
-          }
+    const allTds = $("td").map((_, el) => $(el).text().trim()).get();
+    const allNums = allTds.filter(n => /^\d{4}$/.test(n) && n !== "0000" && parseInt(n) > 0 && n !== "0001");
+
+    const numsPerTurno = Math.floor(allNums.length / 5);
+
+    if (allNums.length >= 100) {
+      const turnoKeys = ["previa", "primera", "matutina", "vespertina", "nocturna"];
+      turnoKeys.forEach((turno, idx) => {
+        const start = idx * numsPerTurno;
+        const end = start + numsPerTurno;
+        const turnonums = allNums.slice(start, end);
+        if (turnonums.length >= 20) {
+          drawResults[turno] = turnonums.slice(0, 20);
+          console.log(`Parsed ${turno}: ${drawResults[turno]!.length} numbers`);
         }
       });
+    }
 
-      const allB = $("b").map((_: number, el: cheerio.Element) => $(el).text().trim()).get();
-      const allNums = allB.filter(n => /^\d{4}$/.test(n) && n !== "0000" && parseInt(n) > 0);
-      
-      if (Object.keys(results).length === 0 && allNums.length >= 20) {
-        const numsPerTurno = Math.floor(allNums.length / 5);
-        const turnoKeys = ["previa", "primera", "matutina", "vespertina", "nocturna"];
-        
-        turnoKeys.forEach((turno, idx) => {
-          const start = idx * numsPerTurno;
-          const end = start + numsPerTurno;
-          const turnonums = allNums.slice(start, end);
-          if (turnonums.length >= 4) {
-            results[turno] = turnonums.slice(0, 20);
-          }
-        });
+    for (const turno of TURNOS) {
+      const numbers = drawResults[turno];
+      if (!numbers || numbers.length < 20) {
+        console.log(`Skipping ${turno}: no data`);
+        continue;
       }
 
-      console.log(`[${fechaDb}] Found turns:`, Object.keys(results));
+      const numArray = numbers.map(n => parseInt(n));
 
-      for (const turno of TURNOS) {
-        const numbers = results[turno];
-        if (!numbers || numbers.length < 20) continue;
+      await fetch(`${SB}/rest/v1/draws?date=eq.${fechaDb}&turno=eq.${turno}`, {
+        method: "DELETE",
+        headers: { "apikey": SK, "Authorization": `Bearer ${SK}`, "Prefer": "return=minimal" }
+      });
 
-        const existing = await fetch(
-          `${SB}/rest/v1/draws?date=eq.${fechaDb}&turno=eq.${turno}&select=id&limit=1`,
-          { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
-        );
-        const existingData = await existing.json();
-        
-        if (!force && existingData.length > 0) {
-          saltados++;
-          continue;
-        }
-        
-        if (force && existingData.length > 0) {
-          await fetch(`${SB}/rest/v1/draws?date=eq.${fechaDb}&turno=eq.${turno}`, {
-            method: "DELETE",
-            headers: { "apikey": SK, "Authorization": `Bearer ${SK}`, "Prefer": "return=minimal" }
-          });
-        }
+      const r = await fetch(`${SB}/rest/v1/draws`, {
+        method: "POST",
+        headers: { "apikey": SK, "Authorization": `Bearer ${SK}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
+        body: JSON.stringify({ date: fechaDb, turno, numbers: numArray })
+      });
 
-        const insertRes = await fetch(`${SB}/rest/v1/draws`, {
-          method: "POST",
-          headers: {
-            "apikey": SK,
-            "Authorization": `Bearer ${SK}`,
-            "Content-Type": "application/json",
-            "Prefer": "return=representation",
-          },
-          body: JSON.stringify({
-            date: fechaDb,
-            turno,
-            numbers: JSON.stringify(numbers),
-            source: SOURCE_NAME,
-          }),
-        });
-
-        if (insertRes.ok) {
-          guardados++;
-          resultsByDate[fechaDb] = (resultsByDate[fechaDb] || 0) + 1;
-        }
+      if (r.ok) {
+        guardados++;
+        drawResultsByDate[fechaDb] = (drawResultsByDate[fechaDb] || 0) + 1;
+        console.log(`Saved ${turno}: OK`);
+      } else {
+        errores++;
+        const err = await r.text();
+        console.log(`Error saving ${turno}: ${r.status} - ${err.slice(0, 100)}`);
       }
+    }
 
-      await insertLog(SOURCE_NAME, guardados > 0 ? "success" : "skipped", guardados);
+    await insertLog(SOURCE_NAME, guardados > 0 ? "success" : "skipped", guardados);
+
+    const sampleResults: Record<string, string[]> = {};
+    for (const t of TURNOS) {
+      if (drawResults[t]) sampleResults[t] = drawResults[t].slice(0, 5);
+    }
 
     return NextResponse.json({
-      ok: true,
+      ok: guardados > 0,
       source: SOURCE_NAME,
       guardados,
       saltados,
       errores,
-      resultsByDate,
+      drawResultsByDate,
       debug: {
-        days: days,
+        htmlLength: html.length,
+        drawResultsKeys: Object.keys(drawResults),
+        drawResultsCount: Object.keys(drawResults).length,
+        sampleResults,
+        allNumsCount: allNums.length,
         source: BASE_URL,
-        testMode: TEST_MODE,
       }
     });
   } catch (e: unknown) {
