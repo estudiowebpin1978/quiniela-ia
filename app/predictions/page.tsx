@@ -87,6 +87,8 @@ export default function Page() {
   const [stats, setStats] = useState<any>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [userRole, setUserRole] = useState<"free" | "premium" | "admin">("free");
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstall, setShowInstall] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const misSummary = useMemo(() => {
@@ -129,6 +131,26 @@ export default function Page() {
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
+
+  useEffect(() => {
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstall(true);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall as any);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall as any);
+    };
+  }, []);
+
+  async function installApp() {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") setDeferredPrompt(null);
+    setShowInstall(false);
+  }
 
   function toggleTheme() {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
@@ -693,6 +715,11 @@ export default function Page() {
             >
               🔔
             </button>
+            {showInstall && (
+              <button onClick={installApp} style={{ padding: "6px 12px", borderRadius: 8, background: "linear-gradient(135deg,#ff3366,#ff6b81)", color: "#fff", border: "none", fontWeight: 700, fontSize: 11, cursor: "pointer", boxShadow: "0 4px 12px rgba(255,51,102,.4)" }}>
+                📲 Instalar App
+              </button>
+            )}
             <button className="nav-out" onClick={logout}>
               Salir
             </button>
@@ -1369,6 +1396,16 @@ export default function Page() {
               <button className="sbt cp" onClick={() => share("copy")}>Copiar link</button>
             </div>
           </div>
+          {showInstall && (
+            <div style={{ background: "linear-gradient(135deg,rgba(255,51,102,.15),rgba(255,51,102,.05))", border: "1px solid rgba(255,51,102,.4)", borderRadius: 12, padding: 16, marginBottom: 16, textAlign: "center" }}>
+              <div style={{ fontSize: 20, marginBottom: 8 }}>📲</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#ff6b81", marginBottom: 4 }}>Instalá Quiniela IA como App</div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10 }}>Accedé desde tu pantalla de inicio, sin Play Store</div>
+              <button onClick={installApp} style={{ padding: "10px 24px", borderRadius: 10, background: "linear-gradient(135deg,#ff3366,#ff6b81)", color: "#fff", border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                Instalar Ahora
+              </button>
+            </div>
+          )}
           <div className="ft">
             <div style={{ textAlign: "center", marginBottom: 14 }}>
               <h2 style={{ fontSize: 18, fontWeight: 800, background: "linear-gradient(135deg,#ff6b81,#ff2d55)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
