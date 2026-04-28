@@ -85,31 +85,23 @@ export async function GET(req: NextRequest) {
     let errores = 0;
     const resultsByDate: Record<string, number> = {};
 
-    for (let i = 0; i < days; i++) {
-      const targetDate = addDays(new Date(), -i);
-      const fechaDb = formatDate(targetDate);
-      const dayName = getDayName(targetDate);
-      
-      if (dayName === "Sunday") continue;
+    const url = BASE_URL;
+    let html = "";
+    try {
+      const response = await axios.get(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Accept": "text/html,application/xhtml+xml",
+        },
+        timeout: 25000,
+      });
+      html = response.data;
+    } catch {
+      return NextResponse.json({ error: "No se pudo obtener datos" }, { status: 500 });
+    }
 
-      const url = `${BASE_URL}/?t=${Date.now()}`;
-
-      let html = "";
-      try {
-        const response = await axios.get(url, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "text/html,application/xhtml+xml",
-          },
-          timeout: 25000,
-        });
-        html = response.data;
-      } catch {
-        errores++;
-        continue;
-      }
-
-      const $ = cheerio.load(html);
+    const $ = cheerio.load(html);
+    const fechaDb = formatDate(new Date());
 
       const results: Record<string, string[]> = {};
       
@@ -202,9 +194,8 @@ export async function GET(req: NextRequest) {
           resultsByDate[fechaDb] = (resultsByDate[fechaDb] || 0) + 1;
         }
       }
-    }
 
-    await insertLog(SOURCE_NAME, guardados > 0 ? "success" : "skipped", guardados);
+      await insertLog(SOURCE_NAME, guardados > 0 ? "success" : "skipped", guardados);
 
     return NextResponse.json({
       ok: true,
