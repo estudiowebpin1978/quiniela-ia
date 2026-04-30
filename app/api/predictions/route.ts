@@ -563,6 +563,21 @@ export async function GET(req: NextRequest) {
 
     if (!sequences.length) return NextResponse.json({ error: "Sin secuencias válidas" }, { status: 500 })
 
+    const uniqueDates = [...new Set(dates)].sort().reverse()
+    let rachaDias = 0
+    let currentDate = new Date()
+    currentDate.setHours(0, 0, 0, 0)
+    for (let i = 0; i < uniqueDates.length; i++) {
+      const checkDate = new Date(currentDate)
+      checkDate.setDate(checkDate.getDate() - i)
+      const checkStr = checkDate.toISOString().split("T")[0]
+      if (uniqueDates.includes(checkStr)) {
+        rachaDias++
+      } else {
+        break
+      }
+    }
+
     const hist: number[] = []
     const hist3: number[] = []
     const hist4: number[] = []
@@ -688,6 +703,8 @@ const targetDay = nextDrawDay(turnoQuery)
       tier: "free",
       numeros: top10,
       totalSorteos: sequences.length,
+      totalAllTurnos: rows.length > 0 ? rows.length : sequences.length,
+      rachaDias: rachaDias,
       turno,
       generado: new Date().toISOString(),
       analisisDesde:since,

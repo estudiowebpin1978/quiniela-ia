@@ -46,6 +46,7 @@ type RankingItem = {
 type PredData = {
   numeros_2: string[];
   numeros_3: string[];
+  numeros_4: string[];
   redoblona: string;
   ranking: RankingItem[];
   numeros?: any[];
@@ -186,12 +187,13 @@ export default function Page() {
         })
         .catch(() => {});
       cargarMisPreds(s.access_token);
-      fetch("/api/predictions?sorteo=nocturna")
+      fetch("/api/predictions?sorteo=Todos")
         .then((r) => r.json())
         .then((d) => { 
-          const total = d?.totalSorteos || d?.stats?.totalNumeros || 60;
+          const total = d?.totalSorteos || d?.totalAllTurnos || 60;
           const mensaje = `${total} sorteos analizados`;
-          setStats({ totalSorteos: total, pct: "--", racha: "--", mensaje }); 
+          const racha = d?.rachaDias || "--";
+          setStats({ totalSorteos: total, pct: "--", racha: racha, mensaje }); 
           setStatsLoading(false); 
         })
         .catch(() => { setStats({ pct: "--", racha: "--", totalSorteos: "--", mensaje: "Cargando..." }); setStatsLoading(false); });
@@ -411,7 +413,7 @@ export default function Page() {
     const nuevaPred = {
       id: "local_" + Date.now(),
       fecha: fechaSorteoStr,
-      turno: so,
+      turno: dg === 2 ? so : `${so}-${dg}cifras`,
       numeros: nums,
       created_at: new Date().toISOString(),
       resultado: null,
@@ -495,7 +497,7 @@ export default function Page() {
   // Preparar datos para mostrar según dígito seleccionado
   const nums2 = dt?.numeros_2 || [];
   const nums3 = dt?.numeros_3 || [];
-  const nums4 = nums2.slice(0, 5).map((n, i) => n + (nums2[(i + 1) % 10] || "00"));
+  const nums4 = dt?.numeros_4 || [];
   const rdbl = dt?.redoblona || "";
   const rankingData = dt?.ranking || dt?.numeros || [];
   const ranking = rankingData;
@@ -515,7 +517,7 @@ export default function Page() {
         *{box-sizing:border-box;margin:0;padding:0}
         :root[data-theme="dark"]{--red:#FE2C55;--cyan:#25F4EE;--green:#22c55e;--bg:#010101;--bg2:#0d0d0d;--bg3:#141b2f;--card:#0d0d0d;--surface:rgba(13,13,13,.9);--text:#FFFFFF;--dim:#94a3b8;--border:rgba(255,255,255,.08);--nav-bg:rgba(6,8,15,.98);--panel-bg:rgba(255,255,255,.04);--panel-border:rgba(255,255,255,.08);--shadow:rgba(0,0,0,.32)}
         :root[data-theme="light"]{--red:#c91e5f;--cyan:#0369a1;--green:#16a34a;--bg:#f8fafc;--bg2:#e2e8f0;--bg3:#ffffff;--card:#ffffff;--surface:rgba(255,255,255,.98);--text:#0a0e27;--dim:#475569;--border:rgba(30,41,59,.16);--nav-bg:rgba(255,255,255,.96);--panel-bg:rgba(255,255,255,.92);--panel-border:rgba(51,65,85,.18);--shadow:rgba(15,23,42,.12)}
-        body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+        body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
         .app{min-height:100vh;background:radial-gradient(ellipse 80% 40% at 50% -5%,rgba(254,44,85,.08),transparent 50%),var(--bg)}
         .nav{position:sticky;top:0;z-index:100;background:var(--nav-bg);backdrop-filter:blur(24px);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;}
         .card-bg{background:var(--panel-bg);border:1px solid var(--panel-border);}
@@ -689,7 +691,7 @@ export default function Page() {
         .saved-results{font-size:11px;color:#15803d;font-weight:700;padding:12px 14px;background:rgba(34,197,94,.08);border-radius:12px;border:1px solid rgba(34,197,94,.16);line-height:1.6}
         .saved-success-icon{position:absolute;top:14px;right:14px;font-size:18px}
         @media(max-width:600px){.saved-summary{grid-template-columns:repeat(2,minmax(120px,1fr))}}
-        @media(max-width:400px){.g5{gap:3px}.cd{padding:10px 2px 7px}.tips-grid{grid-template-columns:1fr}}
+        @media(max-width:400px){.g5{gap:2px}.cd{padding:8px 1px 5px}.tips-grid{grid-template-columns:1fr}.cd .cn{font-size:14px}.cd .cs{font-size:8px}.cd .cr2{font-size:8px}.sts{grid-template-columns:repeat(2,1fr);gap:8px}.sv{font-size:22px!important;padding:8px!important}.sl{font-size:9px}}
       `}</style>
       <div className="app">
         <nav className="nav">
@@ -744,17 +746,13 @@ export default function Page() {
                 </>
               ) : (
                 <>
-                  <div className="sc">
-                    <div className="sv">{stats?.totalSorteos || 121}</div>
-                    <div className="sl">Sorteos históricos</div>
+<div className="sc">
+                    <div className="sv">{stats?.totalSorteos || "--"}</div>
+                    <div className="sl">Sorteos analizados</div>
                   </div>
                   <div className="sc">
-                    <div className="sv">--</div>
-                    <div className="sl">Racha actual</div>
-                  </div>
-                  <div className="sc">
-                    <div className="sv">121</div>
-                    <div className="sl">Días de datos</div>
+                    <div className="sv">{stats?.totalSorteos ? Math.ceil(stats.totalSorteos / 5) : "--"}</div>
+                    <div className="sl">Días con datos</div>
                   </div>
                 </>
               )}

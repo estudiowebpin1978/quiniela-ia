@@ -125,10 +125,25 @@ export async function GET(req: NextRequest) {
     const resultsTodos = []
     const fechaUrl2 = `${d}-${mo}-${String(y).slice(-2)}`
     for (const t of TURNOS_VALIDOS) {
-      const nums = await scrape(fechaUrl2, t)
+      let nums = await scrape(fechaUrl2, t)
+      if (nums.length < 5) {
+        const yesterday = new Date(now)
+        yesterday.setDate(yesterday.getDate() - 1)
+        const yd = yesterday.getFullYear()
+        const md = String(yesterday.getMonth() + 1).padStart(2, "0")
+        const dd = String(yesterday.getDate()).padStart(2, "0")
+        const fechaUrlYesterday = `${dd}-${md}-${String(yd).slice(-2)}`
+        nums = await scrape(fechaUrlYesterday, t)
+        if (nums.length >= 5) {
+          const fechaYesterday = `${yd}-${md}-${dd}`
+          const ok = await save(fechaYesterday, t, nums)
+          resultsTodos.push({ turno: t, ok, total: nums.length, fecha: fechaYesterday })
+          continue
+        }
+      }
       if (nums.length >= 5) {
         const ok = await save(fechaStr, t, nums)
-        resultsTodos.push({ turno: t, ok, total: nums.length })
+        resultsTodos.push({ turno: t, ok, total: nums.length, fecha: fechaStr })
       }
       else resultsTodos.push({ turno: t, ok: false, total: 0 })
     }

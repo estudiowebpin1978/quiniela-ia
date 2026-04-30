@@ -37,8 +37,10 @@ export async function GET(req: NextRequest) {
 
     const results = []
     for (const pred of predictions) {
-      const turnoLower = (pred.turno || "").toLowerCase().trim()
+      const rawTurno = pred.turno || ""
+      const turnoLower = rawTurno.replace(/-[0-9]cifras$/i, "").toLowerCase().trim()
       const predDate = (pred.date || "").trim()
+      const digits = rawTurno.match(/-([0-9])cifras$/i)?.[1] || "2"
       
       let draw: any = null
       
@@ -68,14 +70,22 @@ export async function GET(req: NextRequest) {
       let numerosReales: string[] = []
 
       if (draw?.numbers && Array.isArray(draw.numbers)) {
-        // Extract last 2 digits from each number (draws have 4 digits)
+        const digitCount = parseInt(digits)
+        // Extract last X digits based on digit count (draws have 4 digits, extract last 2, 3, or 4)
         numerosReales = draw.numbers.map((n: number) => {
           const num = Number(n)
-          return String(num % 100).padStart(2, "0")
+          if (digitCount === 2) return String(num % 100).padStart(2, "0")
+          if (digitCount === 3) return String(num % 1000).padStart(3, "0")
+          return String(num % 10000).padStart(4, "0")
         })
         
-        // Normalize prediction numbers to 2 digits
-        const predNumeros = (pred.numeros || []).map((n: string) => String(n).padStart(2, "0"))
+        // Normalize prediction numbers based on digit count
+        const predNumeros = (pred.numeros || []).map((n: string) => {
+          const s = String(n)
+          if (digitCount === 2) return s.padStart(2, "0")
+          if (digitCount === 3) return s.padStart(3, "0")
+          return s.padStart(4, "0")
+        })
         
         // Compare with prediction numbers
         aciertos = predNumeros.filter((n: string) => numerosReales.includes(n)).map((n: string) => ({
