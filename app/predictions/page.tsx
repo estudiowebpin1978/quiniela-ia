@@ -250,13 +250,25 @@ export default function Page() {
     }
   }
 
-  function mostrarNotifResultado(turno: string, numeros: string[], acertos: string[]) {
+function mostrarNotifResultado(turno: string, numeros: string[], aciertos: string[]) {
+    if (aciertos && aciertos.length > 0) {
+      try {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = 880;
+        gain.gain.value = 0.3;
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+      } catch {}
+    }
     if (!("Notification" in window) || Notification.permission !== "granted") return;
-    const msg =
-      acertos.length > 0
-        ? "Acertaste " + acertos.length + " numero(s)! " + acertos.join(", ") + " en el " + turno
-        : "Resultados del " + turno + " disponibles. Genera nueva prediccion.";
-    new Notification("Quiniela IA - " + turno, { body: msg, icon: "/icon-192.png" });
+    const body = aciertos && aciertos.length > 0
+      ? "Acertaste " + aciertos.length + " numero(s)! " + aciertos.join(", ") + " en " + turno
+      : "Resultados del " + turno + " disponibles.";
+    new Notification("Quiniela IA", { body, icon: "/icon-192.png" });
   }
 
   async function gen() {
