@@ -6,7 +6,7 @@ const TURNOS_VALIDOS=["Previa","Primera","Matutina","Vespertina","Nocturna"]
 
 async function scrape(fechaUrl:string,turno:string):Promise<number[]>{
   try{
-    const res=await fetch(`https://quinielanacional1.com.ar/${fechaUrl}/${turno}`,{headers:{"User-Agent":"Mozilla/5.0"},signal:AbortSignal.timeout(15000)})
+    const res=await fetch(`https://quinielanacional1.com.ar/${fechaUrl}/${turno}`,{headers:{"User-Agent":"Mozilla/5.0"},signal:AbortSignal.timeout(8000)})
     if(!res.ok)return[]
     const html=await res.text()
     const idx=html.indexOf('class="veintena"')
@@ -45,34 +45,43 @@ export async function GET(req: NextRequest) {
   const results: any[] = []
   let totalSorteos = 0
   
-  for (let d = 1; d <= maxDays; d++) {
-    const date = new Date()
-    date.setDate(date.getDate() - d)
-    
-    const y = date.getFullYear()
-    const m = String(date.getMonth() + 1).padStart(2, "0")
-    const dd = String(date.getDate()).padStart(2, "0")
-    const fechaStr = `${y}-${m}-${dd}`
-    const fechaUrl = `${dd}-${m}-${String(y).slice(-2)}`
-    
-    const dayResults: any = { fecha: fechaStr, turnos: [] }
-    
-    for (const turno of TURNOS_VALIDOS) {
-      const nums = await scrape(fechaUrl, turno)
-      
-      if (nums.length >= 5) {
-        const ok = await save(fechaStr, turno, nums)
-        if (ok) totalSorteos++
-        dayResults.turnos.push({ turno, ok, total: nums.length })
-      } else {
-        dayResults.turnos.push({ turno, ok: false, total: 0 })
-      }
+  // Procesar en batches de 3 días en paralelo
+  for (let batchStart = 1; batchStart <= maxDays; batchStart += 3) {
+    const batchDays = []
+    for (let i = 0; i < 3 && batchStart + i <= maxDays; i++) {
+      batchDays.push(batchStart + i)
     }
     
-    results.push(dayResults)
+    const batchPromises = batchDays.map(async (d) => {
+      const date = new Date()
+      date.setDate(date.getDate() - d)
+      
+      const y = date.getFullYear()
+      const m = String(date.getMonth() + 1).padStart(2, "0")
+      const dd = String(date.getDate()).padStart(2, "0")
+      const fechaStr = `${y}-${m}-${dd}`
+      const fechaUrl = `${dd}-${m}-${String(y).slice(-2)}`
+      
+      // Scrape all turnos in parallel
+      const turnoPromises = TURNOS_VALIDOS.map(async (turno) => {
+        const nums = await scrape(fechaUrl, turno)
+        if (nums.length >= 5) {
+          const ok = await save(fechaStr, turno, nums)
+          return { turno, ok, total: nums.length }
+        }
+        return { turno, ok: false, total: 0 }
+      })
+      
+      const turnos = await Promise.all(turnoPromises)
+      const savedCount = turnos.filter(t => t.ok).length
+      
+      return { fecha: fechaStr, turnos, savedCount }
+    })
     
-    if (d % 5 === 0) {
-      console.log(`Procesado: ${d}/${maxDays} días`)
+    const batchResults = await Promise.all(batchPromises)
+    for (const br of batchResults) {
+      totalSorteos += br.savedCount || 0
+      results.push(br)
     }
   }
   
@@ -80,6 +89,6 @@ export async function GET(req: NextRequest) {
     ok: true, 
     diasProcesados: maxDays,
     totalSorteosGuardados: totalSorteos,
-    results: results.slice(0, 5) // primeros 5 días para no saturar respuesta
+    results: results.slice(0, 5)
   })
 }

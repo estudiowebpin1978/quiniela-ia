@@ -464,8 +464,10 @@ export default function Page() {
     const nuevaPred = {
       id: "local_" + Date.now(),
       fecha: fechaSorteoStr,
-      turno: dg === 2 ? so : `${so}-${dg}cifras`,
+      turno: so,
       numeros: nums,
+      numeros_3: nums3,
+      numeros_4: nums4,
       created_at: new Date().toISOString(),
       resultado: null,
       aciertos: [],
@@ -478,7 +480,7 @@ export default function Page() {
         const res = await fetch("/api/mis-predicciones", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
-          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: nums }),
+          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: nums, numeros_3: nums3, numeros_4: nums4 }),
         });
         const data = await res.json();
         if (res.status === 409) {
