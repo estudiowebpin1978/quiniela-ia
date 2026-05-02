@@ -106,16 +106,30 @@ export async function GET(req: NextRequest) {
   const fechaStr = `${y}-${mo}-${d}`
   const fechaUrl = `${d}-${mo}-${String(y).slice(-2)}`
   const hora = now.getHours()
+  const diaSemana = now.getDay() // 0=domingo, 6=sábado
+  
+  // Feriados 2026 sin sorteos
+  const feriados = ["2026-01-01","2026-02-16","2026-02-17","2026-03-24","2026-04-02","2026-04-03","2026-05-01","2026-05-25","2026-06-20","2026-07-09","2026-12-08","2026-12-25"]
+  const esFeriado = feriados.includes(fechaStr)
   
   const turnoParam = req.nextUrl.searchParams.get("turno")
   let turnoScrape = "Nocturna"
   let turnoNombre = "Nocturna"
   
+  // Si es feriado o domingo, no hay sorteos
+  if (esFeriado || diaSemana === 0) {
+    return NextResponse.json({ ok: false, msg: "No hay sorteos en feriados o domingos", fechaStr })
+  }
+  
   if (turnoParam && TURNOS_VALIDOS.includes(turnoParam)) {
     turnoScrape = turnoParam
     turnoNombre = turnoParam
   } else {
-    if (hora >= 10 && hora < 12) { turnoScrape = "Previa"; turnoNombre = "Previa" }
+    // Sábados no hay Previa
+    if (diaSemana === 6 && hora >= 10 && hora < 12) {
+      turnoScrape = "Primera"; turnoNombre = "Primera"
+    }
+    else if (hora >= 10 && hora < 12) { turnoScrape = "Previa"; turnoNombre = "Previa" }
     else if (hora >= 12 && hora < 15) { turnoScrape = "Primera"; turnoNombre = "Primera" }
     else if (hora >= 15 && hora < 18) { turnoScrape = "Matutina"; turnoNombre = "Matutina" }
     else if (hora >= 18 && hora < 21) { turnoScrape = "Vespertina"; turnoNombre = "Vespertina" }

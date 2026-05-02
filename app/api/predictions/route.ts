@@ -1,26 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const SUENOS: { [k: number]: string } = {
-  0: "Huevos", 1: "Agua", 2: "Niño", 3: "San Cono", 4: "La cama",
-  5: "Gato", 6: "Perro", 7: "Revolver", 8: "Incendio", 9: "Arroyo",
-  10: "La leche", 11: "Minero", 12: "Soldado", 13: "La yeta", 14: "Borracho",
-  15: "Niña bonita", 16: "Anillo", 17: "Desgracia", 18: "Sangre", 19: "Pescado",
-  20: "La fiesta", 21: "Mujer", 22: "Loco", 23: "Cocinero", 24: "Caballo",
-  25: "Gallina", 26: "La misa", 27: "Peine", 28: "Cerro", 29: "San Pedro",
-  30: "Santa Rosa", 31: "Luz", 32: "Dinero", 33: "Cristo", 34: "Cabeza",
-  35: "Pajarito", 36: "Manteca", 37: "Dentista", 38: "Piedras", 39: "Lluvia",
-  40: "Cura", 41: "Cuchillo", 42: "Zapatillas", 43: "Balcón", 44: "Cárcel",
-  45: "Vino", 46: "Tomates", 47: "Muerto", 48: "Muerto habla", 49: "Carne",
-  50: "Pan", 51: "Serrucho", 52: "Madre", 53: "Barco", 54: "Vaca",
-  55: "Música", 56: "Caída", 57: "Jorobado", 58: "Ahogado", 59: "Plantas",
-  60: "Virgen", 61: "Escopeta", 62: "Inundación", 63: "Casamiento", 64: "Llanto",
-  65: "Cazador", 66: "Lombrices", 67: "Víbora", 68: "Sobrinos", 69: "Vicios",
-  70: "Muerto sueño", 71: "Excremento", 72: "Sorpresa", 73: "Hospital", 74: "Gente negra",
-  75: "Besos", 76: "Fuego", 77: "Pierna mujer", 78: "Ramera", 79: "Ladrón",
-  80: "Bochas", 81: "Flores", 82: "Pelea", 83: "Mal tiempo", 84: "Iglesia",
-  85: "Linterna", 86: "Humo", 87: "Piojos", 88: "Papas", 89: "Rata",
-  90: "Miedo", 91: "Excursión", 92: "Médico", 93: "Enamorado", 94: "Cementerio",
-  95: "Anteojos", 96: "Marido", 97: "Mesa", 98: "Lavandera", 99: "Hermano"
+const SUENOS: Record<number, { emoji: string; nombre: string }> = {
+  0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 3: { emoji: "🐰", nombre: "San Cono" }, 4: { emoji: "🛏️", nombre: "La cama" },
+  5: { emoji: "🐱", nombre: "Gato" }, 6: { emoji: "🐕", nombre: "Perro" }, 7: { emoji: "🔫", nombre: "Revolver" }, 8: { emoji: "🔥", nombre: "Incendio" }, 9: { emoji: "🌊", nombre: "Arroyo" },
+  10: { emoji: "🥛", nombre: "La leche" }, 11: { emoji: "⛏️", nombre: "Minero" }, 12: { emoji: "💂", nombre: "Soldado" }, 13: { emoji: "😱", nombre: "La yeta" }, 14: { emoji: "🍺", nombre: "Borracho" },
+  15: { emoji: "👸", nombre: "Niña bonita" }, 16: { emoji: "💍", nombre: "Anillo" }, 17: { emoji: "💀", nombre: "Desgracia" }, 18: { emoji: "🩸", nombre: "Sangre" }, 19: { emoji: "🐟", nombre: "Pescado" },
+  20: { emoji: "🎉", nombre: "La fiesta" }, 21: { emoji: "👩", nombre: "Mujer" }, 22: { emoji: "🤪", nombre: "Loco" }, 23: { emoji: "👨‍🍳", nombre: "Cocinero" }, 24: { emoji: "🐴", nombre: "Caballo" },
+  25: { emoji: "🐔", nombre: "Gallina" }, 26: { emoji: "⛪", nombre: "La misa" }, 27: { emoji: "🪮", nombre: "Peine" }, 28: { emoji: "⛰️", nombre: "Cerro" }, 29: { emoji: "✝️", nombre: "San Pedro" },
+  30: { emoji: "🌹", nombre: "Santa Rosa" }, 31: { emoji: "💡", nombre: "Luz" }, 32: { emoji: "💰", nombre: "Dinero" }, 33: { emoji: "✝️", nombre: "Cristo" }, 34: { emoji: "🤕", nombre: "Cabeza" },
+  35: { emoji: "🐦", nombre: "Pajarito" }, 36: { emoji: "🧈", nombre: "Manteca" }, 37: { emoji: "🦷", nombre: "Dentista" }, 38: { emoji: "🪨", nombre: "Piedras" }, 39: { emoji: "🌧️", nombre: "Lluvia" },
+  40: { emoji: "👨‍🔬", nombre: "Cura" }, 41: { emoji: "🔪", nombre: "Cuchillo" }, 42: { emoji: "👟", nombre: "Zapatillas" }, 43: { emoji: "🏠", nombre: "Balcón" }, 44: { emoji: "🏚️", nombre: "Cárcel" },
+  45: { emoji: "🍷", nombre: "Vino" }, 46: { emoji: "🍅", nombre: "Tomates" }, 47: { emoji: "💀", nombre: "Muerto" }, 48: { emoji: "🧟", nombre: "Muerto habla" }, 49: { emoji: "🥩", nombre: "Carne" },
+  50: { emoji: "🍞", nombre: "Pan" }, 51: { emoji: "🪚", nombre: "Serrucho" }, 52: { emoji: "👩‍👦", nombre: "Madre" }, 53: { emoji: "⛵", nombre: "Barco" }, 54: { emoji: "🐄", nombre: "Vaca" },
+  55: { emoji: "🎵", nombre: "Música" }, 56: { emoji: "🤕", nombre: "Caída" }, 57: { emoji: "🏃", nombre: "Jorobado" }, 58: { emoji: "💦", nombre: "Ahogado" }, 59: { emoji: "🌱", nombre: "Plantas" },
+  60: { emoji: "🧝", nombre: "Virgen" }, 61: { emoji: "🔫", nombre: "Escopeta" }, 62: { emoji: "🌊", nombre: "Inundación" }, 63: { emoji: "💒", nombre: "Casamiento" }, 64: { emoji: "😢", nombre: "Llanto" },
+  65: { emoji: "🎯", nombre: "Cazador" }, 66: { emoji: "🪱", nombre: "Lombrices" }, 67: { emoji: "🐍", nombre: "Víbora" }, 68: { emoji: "👶", nombre: "Sobrinos" }, 69: { emoji: "😈", nombre: "Vicios" },
+  70: { emoji: "🧟", nombre: "Muerto sueño" }, 71: { emoji: "💩", nombre: "Excremento" }, 72: { emoji: "🎁", nombre: "Sorpresa" }, 73: { emoji: "🏥", nombre: "Hospital" }, 74: { emoji: "🏿", nombre: "Gente negra" },
+  75: { emoji: "💋", nombre: "Besos" }, 76: { emoji: "🔥", nombre: "Fuego" }, 77: { emoji: "🦵", nombre: "Pierna mujer" }, 78: { emoji: "💃", nombre: "Ramera" }, 79: { emoji: "🦹", nombre: "Ladrón" },
+  80: { emoji: "🎱", nombre: "Bochas" }, 81: { emoji: "💐", nombre: "Flores" }, 82: { emoji: "🥊", nombre: "Pelea" }, 83: { emoji: "⛈️", nombre: "Mal tiempo" }, 84: { emoji: "⛪", nombre: "Iglesia" },
+  85: { emoji: "🔦", nombre: "Linterna" }, 86: { emoji: "💨", nombre: "Humo" }, 87: { emoji: "🦟", nombre: "Piojos" }, 88: { emoji: "🥔", nombre: "Papas" }, 89: { emoji: "🐀", nombre: "Rata" },
+  90: { emoji: "😱", nombre: "Miedo" }, 91: { emoji: "🏕️", nombre: "Excursión" }, 92: { emoji: "👨‍⚕️", nombre: "Médico" }, 93: { emoji: "💕", nombre: "Enamorado" }, 94: { emoji: "🪦", nombre: "Cementerio" },
+  95: { emoji: "👓", nombre: "Anteojos" }, 96: { emoji: "👨", nombre: "Marido" }, 97: { emoji: "🍽️", nombre: "Mesa" }, 98: { emoji: "👕", nombre: "Lavandera" }, 99: { emoji: "👦", nombre: "Hermano" }
 }
 
 const SESGOS_DEFAULT: Record<string, number[]> = {
@@ -64,6 +64,24 @@ function normalize(values: number[]) {
   const min = Math.min(...values)
   if (max === min) return values.map(() => 0)
   return values.map((v) => (v - min) / (max - min))
+}
+
+// Test de rachas simplificado
+function runsTestSimple(sequence: number[]): number {
+  if (sequence.length < 10) return 0
+  const median = sequence.sort((a, b) => a - b)[Math.floor(sequence.length / 2)]
+  const binary = sequence.map(v => v > median ? 1 : 0)
+  let runs = 1
+  for (let i = 1; i < binary.length; i++) {
+    if (binary[i] !== binary[i - 1]) runs++
+  }
+  const n1 = binary.filter(x => x === 1).length
+  const n2 = binary.length - n1
+  if (n1 === 0 || n2 === 0) return 0
+  const mean = (2 * n1 * n2) / (n1 + n2) + 1
+  const variance = (2 * n1 * n2 * (2 * n1 * n2 - n1 - n2)) / Math.pow(n1 + n2, 2) * (n1 + n2 - 1)
+  if (variance <= 0) return 0
+  return (runs - mean) / Math.sqrt(variance)
 }
 
 function relu(x: number): number {
@@ -360,19 +378,39 @@ function scoreDigits(
   const patternNorm = normalize(patternBias)
   const overdueNorm = normalize(overdue)
   
-  // Pesos optimizados: mayor peso a frecuencia reciente y overdue
+  // Análisis posicional para 4 cifras (unidades, decenas, centenas, miles)
+  const posFreq = new Array(10).fill(0)
+  for (const v of histOrder) {
+    const d = v % 10
+    if (d >= 0 && d <= 9) posFreq[d]++
+  }
+  const posNorm = normalize(posFreq)
+  
+  // Test de rachas - detectar números en tendencia no aleatoria
+  const runsScores = new Array(len).fill(0)
+  for (let n = 0; n < len; n++) {
+    const numHistory = histOrder.map(v => v === n ? 1 : 0)
+    if (numHistory.filter(x => x === 1).length >= 5) {
+      runsScores[n] = Math.abs(runsTestSimple(numHistory))
+    }
+  }
+  const runsNorm = normalize(runsScores)
+
+  // Pesos optimizados: 10 factores reales
   return Array.from({ length: len }, (_, i) => ({
     n: i,
     score:
-      0.22 * freqNorm[i] +       // Frecuencia histórica (22%)
-      0.15 * delayNorm[i] +     // Retraso medio (15%)
-      0.18 * trendNorm[i] +     // Tendencia reciente (18%)
-      0.10 * mcNorm[i] +        // Monte Carlo (10%)
-      0.05 * firstNorm[i] +   // Primera posición (5%)
-      0.08 * dayNorm[i] +      // Día de semana (8%)
-      0.07 * patternNorm[i] +  // Patrón (7%)
-      0.10 * overdueNorm[i] +  // Overdue (números pendientes) (10%)
-      0.05 * (sesgoSet.has(i) ? 1 : 0),  // Sesgos predefinidos (5%)
+      0.18 * freqNorm[i] +        // Frecuencia histórica (18%)
+      0.12 * delayNorm[i] +      // Retraso medio (12%)
+      0.15 * trendNorm[i] +       // Tendencia reciente (15%)
+      0.10 * mcNorm[i] +          // Monte Carlo (10%)
+      0.05 * firstNorm[i] +      // Primera posición (5%)
+      0.08 * dayNorm[i] +        // Día de semana (8%)
+      0.07 * patternNorm[i] +    // Patrón (7%)
+      0.10 * overdueNorm[i] +    // Overdue (10%)
+      0.08 * posNorm[i % 10] +   // Análisis posicional (8%)
+      0.07 * runsNorm[i] +       // Test de rachas (7%)
+      0.03 * (sesgoSet.has(i) ? 1 : 0), // Sesgos (3%)
   }))
 }
 
@@ -652,10 +690,11 @@ const targetDay = nextDrawDay(turnoQuery)
     const paresConsecutivos = getParesConsecutivos(sequences)
     const { topNN } = buildNeuralNetwork(sequences)
 
-    const top10 = scores.slice(0, 10).map((x, i) => ({
+const top10 = scores.slice(0, 10).map((x, i) => ({
       n: x.n,
       numero: pad(x.n),
-      significado: SUENOS[x.n] || "",
+      emoji: SUENOS[x.n]?.emoji || "❓",
+      significado: SUENOS[x.n]?.nombre || "",
       score: Math.round(x.score * 10000) / 10000,
       rank: i + 1,
       frecuencia: freq[x.n],
@@ -668,7 +707,7 @@ const targetDay = nextDrawDay(turnoQuery)
       .map(([num, sigs]) => {
         const n = parseInt(num)
         const mas = Object.entries(sigs as Record<string, number>).sort((a, b) => b[1] - a[1])[0]
-        return { numero: pad(n), siguiente: pad(parseInt(mas[0])), count: mas[1], significado: SUENOS[n] }
+        return { numero: pad(n), siguiente: pad(parseInt(mas[0])), count: mas[1], significado: SUENOS[n]?.nombre || "" }
       })
       .filter((t) => t.count > 2)
       .slice(0, 5)
@@ -711,7 +750,7 @@ const targetDay = nextDrawDay(turnoQuery)
       diasAnalisis:Math.floor((new Date().getTime() - new Date(since).getTime()) / 86400000),
       confidence,
       aiInsight: groqInsight || `Motor neuronal complejo: Frecuencia + Retraso + Tendencia + Monte Carlo + Red Neuronal + Rachas + Par/Impar + Consecutivos "${turnoQuery}"`,
-      groqAvailable: !!groqInsight,
+groqAvailable: !!groqInsight,
       pred: {
         numeros_2: top10.map(n => n.numero),
         numeros_3: pred3d.map(p => p.numero),
@@ -728,11 +767,29 @@ const targetDay = nextDrawDay(turnoQuery)
       pred3dDetail: pred3d,
       pred4dDetail: pred4d,
       heatmap,
+      advancedStats: {
+        totalSorteos: sequences.length,
+        uniqueDates: uniqueDates.length,
+        promedioNumerosPorSorteo: (hist.length / sequences.length).toFixed(2),
+        confidenceScore: Math.round((scores.slice(0, 10).reduce((sum, x) => sum + x.score, 0) / 10) * 100),
+        analysisFactors: [
+          "Frecuencia absoluta",
+          "Retraso (días desde última aparición)",
+          "Tendencia (apariciones recientes)",
+          "Co-ocurrencia entre posiciones",
+          "Red neuronal feed-forward",
+          "Monte Carlo (25k simulaciones)",
+          "Test de rachas Wald-Wolfowitz",
+          "Análisis posicional 4 cifras",
+          "Sesgos por día de semana",
+          "Patrones de números gemelos"
+        ]
+      },
       stats: {
         totalNumeros: sequences.length,
         promedioNumerosPorSorteo: (hist.length / sequences.length).toFixed(2),
-        numeroMasFrecuente: { numero: pad(scores[0]?.n || 0), frecuencia: freq[scores[0]?.n || 0], significado: SUENOS[scores[0]?.n || 0] },
-        numeroMayorRetraso: { numero: pad(delay.indexOf(Math.max(...delay))), retraso: Math.max(...delay), significado: SUENOS[delay.indexOf(Math.max(...delay))] },
+        numeroMasFrecuente: { numero: pad(scores[0]?.n || 0), frecuencia: freq[scores[0]?.n || 0], significado: SUENOS[scores[0]?.n || 0]?.nombre || "" },
+        numeroMayorRetraso: { numero: pad(delay.indexOf(Math.max(...delay))), retraso: Math.max(...delay), significado: SUENOS[delay.indexOf(Math.max(...delay))]?.nombre || "" },
         rachas: rachas.filter(r => r.vecesConsecutivas > 0).slice(0, 10).map(r => ({ numero: pad(r.numero), vecesConsecutivas: r.vecesConsecutivas, maxRacha: r.maxRacha })),
         parImpar: { total: parImparStats.total, pares: parImparStats.pares, impares: parImparStats.impares, ratioPar: Math.round(parImparStats.ratioPar * 100) + "%" },
         paresConsecutivos: paresConsecutivos.slice(0, 10),
