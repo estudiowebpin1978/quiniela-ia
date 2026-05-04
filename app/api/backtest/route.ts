@@ -1,221 +1,140 @@
 import { NextRequest, NextResponse } from "next/server"
+import { scoreDigits, buildNeuralNetwork, monteCarloSim, getTransiciones, markovPrediction } from "../predictions/route"
 
-type Row = { numbers?: unknown[]; date?: string; turno?: string }
+const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wazkylxgqckjfkomfotl.supabase.co").replace(/"/g, "").trim()
+const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
 
-function pad(n: number, l = 2) {
-  return String(n).padStart(l, "0")
-}
-
-// Función simplificada para generar predicciones (basada en el motor principal)
-async function generatePredictionForDate(sb: string, sk: string, turno: string, targetDate: string) {
-  try {
-    // Obtener datos históricos hasta la fecha objetivo
-    const r = await fetch(`${sb}/rest/v1/sorteos?turno=eq.${turno}&date=lte.${targetDate}&order=date.desc&limit=500`, {
-      headers: { "apikey": sk, "Authorization": `Bearer ${sk}` },
-      signal: AbortSignal.timeout(5000)
-    })
-    if (!r.ok) return null
-    const rows: Row[] = await r.json()
-
-    if (rows.length < 50) return null // Necesitamos datos suficientes
-
-    // Calcular frecuencias
-    const freq = new Array(100).fill(0)
-    for (const row of rows) {
-      const nums = Array.isArray(row.numbers) ? row.numbers : []
-      for (const n of nums) {
-        const num = Number(n) % 100
-        if (num >= 0 && num <= 99) freq[num]++
-      }
-    }
-
-    // Calcular atrasos
-    const lastSeen = new Array(100).fill(0)
-    for (let i = 0; i < rows.length; i++) {
-      const nums = Array.isArray(rows[i]?.numbers) ? rows[i].numbers! : []
-      for (const n of nums) {
-        const num = Number(n) % 100
-        if (num >= 0 && num <= 99) lastSeen[num] = i
-      }
-    }
-    const atraso = lastSeen.map((ls) => rows.length - ls)
-
-    // Calcular tendencias (últimos 200 sorteos)
-    const trend = new Array(100).fill(0)
-    const recent = rows.slice(0, 200)
-    for (const row of recent) {
-      const nums = Array.isArray(row.numbers) ? row.numbers : []
-      for (const n of nums) {
-        const num = Number(n) % 100
-        if (num >= 0 && num <= 99) trend[num]++
-      }
-    }
-
-    // Monte Carlo simplificado
-    const mc = new Array(100).fill(0)
-    const samples = 10000
-    const w = freq.map((f) => f + 1)
-    const tot = w.reduce((a, b) => a + b, 0)
-    for (let s = 0; s < samples; s++) {
-      const r = Math.random() * tot
-      let acc = 0
-      for (let i = 0; i < w.length; i++) {
-        acc += w[i]
-        if (acc >= r) {
-          mc[i]++
-          break
-        }
-      }
-    }
-
-    // Día de la semana
-    const targetDay = new Date(targetDate + "T00:00:00").toLocaleDateString("es-AR", { weekday: "long" })
-    const dayBias = new Array(100).fill(0)
-    let dayTotal = 0
-    for (const row of rows) {
-      if (!row?.date) continue
-      const date = new Date(row.date + "T00:00:00")
-      if (date.toLocaleDateString("es-AR", { weekday: "long" }) !== targetDay) continue
-      const nums = Array.isArray(row.numbers) ? row.numbers : []
-      for (const n of nums) {
-        const num = Number(n) % 100
-        if (num >= 0 && num <= 99) {
-          dayBias[num]++
-          dayTotal++
-        }
-      }
-    }
-    if (dayTotal > 0) {
-      for (let i = 0; i < dayBias.length; i++) {
-        dayBias[i] = dayBias[i] / dayTotal
-      }
-    }
-
-    // Patrones numéricos
-    const patterns = new Array(100).fill(0)
-    for (let i = 0; i < 100; i++) {
-      const par = i % 2 === 0 ? 1 : 0
-      const bajo = i < 50 ? 1 : 0
-      patterns[i] = par * 0.5 + bajo * 0.5
-    }
-
-    // Calcular scores finales con pesos
-    const scores = []
-    for (let i = 0; i < 100; i++) {
-      const score =
-        (freq[i] / Math.max(...freq) * 0.22) +           // Frecuencia: 22%
-        (1 / (1 + atraso[i]) * 0.18) +                   // Atraso: 18%
-        (trend[i] / Math.max(...trend) * 0.16) +         // Tendencia: 16%
-        (mc[i] / Math.max(...mc) * 0.10) +               // Monte Carlo: 10%
-        (i === 0 ? 0.05 : 0) +                           // Primera posición: 8% (simplificado)
-        (dayBias[i] * 0.13) +                            // Día semana: 13%
-        (patterns[i] * 0.13)                             // Patrones: 13%
-
-      scores.push({ numero: i, score })
-    }
-
-    scores.sort((a, b) => b.score - a.score)
-    return scores.slice(0, 10).map(s => s.numero) // Top 10 predicciones
-  } catch (e) {
-    console.error("Error generando predicción para backtest:", e)
-    return null
+export async function GET(req: NextRequest) {
+  const secret = req.nextUrl.searchParams.get("secret") || ""
+  const expected = process.env.CRON_SECRET || "quiniela_ia_cron_2024_seguro"
+  
+  if (secret !== expected) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
-}
-
-export async function GET(request: NextRequest) {
+  
+  const turno = req.nextUrl.searchParams.get("turno") || "nocturna"
+  const diasAtras = parseInt(req.nextUrl.searchParams.get("dias") || "30")
+  
   try {
-    const { searchParams } = new URL(request.url)
-    const days = parseInt(searchParams.get("days") || "30")
-    const turno = searchParams.get("turno") || "Nocturna"
-
-    if (days < 1 || days > 365) {
-      return NextResponse.json({ error: "days debe estar entre 1 y 365" }, { status: 400 })
-    }
-
-    const sb = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const sk = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!sb || !sk) {
-      return NextResponse.json({ error: "Configuración de base de datos incompleta" }, { status: 500 })
-    }
-
-    // Obtener fechas de sorteos reales en el período
-    const endDate = new Date()
-    const startDate = new Date()
-    startDate.setDate(endDate.getDate() - days)
-
-    const startStr = startDate.toISOString().split("T")[0]
-    const endStr = endDate.toISOString().split("T")[0]
-
-    const r = await fetch(`${sb}/rest/v1/sorteos?turno=eq.${turno}&date=gte.${startStr}&date=lte.${endStr}&order=date.asc`, {
-      headers: { "apikey": sk, "Authorization": `Bearer ${sk}` },
-      signal: AbortSignal.timeout(10000)
+    // Cargar datos históricos
+    const since = new Date(Date.now() - (diasAtras + 10) * 86400000).toISOString().split("T")[0]
+    const url = `${SB()}/rest/v1/draws?select=date,turno,numbers&turno=eq.${turno}&date=gte.${since}&order=date.asc&limit=5000`
+    
+    const res = await fetch(url, {
+      headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` }
     })
-
-    if (!r.ok) {
-      return NextResponse.json({ error: "Error obteniendo datos históricos" }, { status: 500 })
+    
+    if (!res.ok) {
+      return NextResponse.json({ error: `Error cargando datos: ${res.status}` }, { status: 500 })
     }
-
-    const sorteos: Row[] = await r.json()
-
-    if (sorteos.length === 0) {
-      return NextResponse.json({ error: "No hay datos suficientes para el período solicitado" }, { status: 404 })
+    
+    const rows = await res.json()
+    
+    if (!Array.isArray(rows) || rows.length < 10) {
+      return NextResponse.json({ error: "Datos insuficientes para backtesting" }, { status: 400 })
     }
-
-    let totalPredicciones = 0
-    let totalAciertos = 0
-    let totalAciertosPosicion1 = 0
+    
+    // Preparar secuencias
+    const sequences: number[][] = []
+    const dates: string[] = []
+    
+    for (const row of rows) {
+      if (Array.isArray(row.numbers) && row.numbers.length >= 20) {
+        const nums = row.numbers.map((n: number) => Number(n)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999)
+        if (nums.length >= 20) {
+          sequences.push(nums)
+          dates.push(row.date)
+        }
+      }
+    }
+    
+    if (sequences.length < 10) {
+      return NextResponse.json({ error: "Secuencias insuficientes" }, { status: 400 })
+    }
+    
+    // Ejecutar backtesting
     const resultados: any[] = []
-
-    for (const sorteo of sorteos) {
-      if (!sorteo.date || !Array.isArray(sorteo.numbers)) continue
-
-      // Generar predicción para la fecha anterior al sorteo
-      const predDate = new Date(sorteo.date)
-      predDate.setDate(predDate.getDate() - 1)
-      const predDateStr = predDate.toISOString().split("T")[0]
-
-      const prediccion = await generatePredictionForDate(sb, sk, turno, predDateStr)
-      if (!prediccion) continue
-
-      // Obtener números reales
-      const reales = sorteo.numbers.map(n => Number(n) % 100).filter(n => n >= 0 && n <= 99)
-
-      // Calcular aciertos
-      const aciertos = prediccion.filter(p => reales.includes(p))
-      const aciertoPos1 = reales.includes(prediccion[0]) ? 1 : 0
-
-      totalPredicciones++
-      totalAciertos += aciertos.length
-      totalAciertosPosicion1 += aciertoPos1
-
+    let aciertosTop10 = 0
+    let aciertosTop20 = 0
+    let aciertosMarkov = 0
+    let aciertosNN = 0
+    let totalPredicciones = 0
+    
+    // Usar una ventana deslizante para hacer predicciones
+    const ventanaEntrenamiento = 50 // Usar 50 sorteos previos para predecir
+    
+    for (let i = ventanaEntrenamiento; i < sequences.length - 1; i++) {
+      const secuenciasTrain = sequences.slice(0, i)
+      const secuenciaReal = sequences[i]
+      const fecha = dates[i]
+      
+      // Obtener predicciones
+      const { topNN } = buildNeuralNetwork(secuenciasTrain)
+      const markovTop = markovPrediction(secuenciasTrain, 10)
+      
+      // Verificar aciertos en el top 10 (cualquier posición de los 20 números)
+      const top10N = topNN.slice(0, 10).map((x: any) => x.n)
+      const aciertos10 = secuenciaReal.filter((n: number) => top10N.includes(n % 100)).length
+      
+      // Verificar aciertos en el top 20
+      const top20N = topNN.slice(0, 20).map((x: any) => x.n)
+      const aciertos20 = secuenciaReal.filter((n: number) => top20N.includes(n % 100)).length
+      
+      // Verificar Markov
+      const markovN = markovTop.map((m: any) => m.n)
+      const aciertosMarkov10 = secuenciaReal.filter((n: number) => markovN.includes(n % 100)).length
+      
+      // Verificar Neural Network top 10
+      const nnN = topNN.slice(0, 10).map((x: any) => x.n)
+      const aciertosNN10 = secuenciaReal.filter((n: number) => nnN.includes(n % 100)).length
+      
       resultados.push({
-        fecha: sorteo.date,
-        turno,
-        prediccion: prediccion.map(pad),
-        reales: reales.map(pad),
-        aciertos: aciertos.map(pad),
-        aciertoPos1,
-        precision: aciertos.length / prediccion.length
+        fecha,
+        aciertosTop10: aciertos10,
+        aciertosTop20: aciertos20,
+        aciertosMarkov: aciertosMarkov10,
+        aciertosNN: aciertosNN10,
+        totalReal: secuenciaReal.length
       })
+      
+      aciertosTop10 += aciertos10
+      aciertosTop20 += aciertos20
+      aciertosMarkov += aciertosMarkov10
+      aciertosNN += aciertosNN10
+      totalPredicciones++
     }
-
-    const precisionGeneral = totalPredicciones > 0 ? totalAciertos / (totalPredicciones * 10) : 0
-    const precisionPos1 = totalPredicciones > 0 ? totalAciertosPosicion1 / totalPredicciones : 0
-
+    
+    const promedioTop10 = totalPredicciones > 0 ? (aciertosTop10 / totalPredicciones).toFixed(2) : "0"
+    const promedioTop20 = totalPredicciones > 0 ? (aciertosTop20 / totalPredicciones).toFixed(2) : "0"
+    const promedioMarkov = totalPredicciones > 0 ? (aciertosMarkov / totalPredicciones).toFixed(2) : "0"
+    const promedioNN = totalPredicciones > 0 ? (aciertosNN / totalPredicciones).toFixed(2) : "0"
+    
     return NextResponse.json({
-      periodo: `${startStr} a ${endStr}`,
-      turno,
-      totalSorteosAnalizados: totalPredicciones,
-      precisionGeneral: Math.round(precisionGeneral * 10000) / 100, // %
-      precisionPosicion1: Math.round(precisionPos1 * 10000) / 100, // %
-      totalAciertos,
-      totalAciertosPos1: totalAciertosPosicion1,
-      resultados: resultados.slice(-10), // Últimos 10 para no sobrecargar
-      mensaje: `Análisis completado. Precisión general: ${(precisionGeneral * 100).toFixed(2)}%`
+      ok: true,
+      configuracion: {
+        turno,
+        diasAtras,
+        ventanaEntrenamiento,
+        totalSorteosAnalizados: totalPredicciones
+      },
+      resultados,
+      resumen: {
+        aciertosTop10,
+        aciertosTop20,
+        aciertosMarkov,
+        aciertosNN,
+        totalPredicciones,
+        promedioAciertosTop10: promedioTop10,
+        promedioAciertosTop20: promedioTop20,
+        promedioAciertosMarkov: promedioMarkov,
+        promedioAciertosNN: promedioNN,
+        eficienciaTop10: totalPredicciones > 0 ? ((aciertosTop10 / (totalPredicciones * 20)) * 100).toFixed(2) + "%" : "0%",
+        eficienciaMarkov: totalPredicciones > 0 ? ((aciertosMarkov / (totalPredicciones * 20)) * 100).toFixed(2) + "%" : "0%",
+      },
+      mensaje: `Backtesting completado: ${totalPredicciones} predicciones evaluadas`
     })
-
+    
   } catch (e: any) {
-    console.error("Error en backtest:", e)
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
+    return NextResponse.json({ error: e.message || "Error en backtesting" }, { status: 500 })
   }
 }

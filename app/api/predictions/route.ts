@@ -183,21 +183,154 @@ class NeuralNetwork {
 function buildNeuralNetwork(sequences: number[][]): { nnScores: number[]; topNN: { n: number; score: number }[] } {
   const seqs2 = sequences.map(s => s.map(n => n % 100))
   
-  // Obtener el último sorteo para calcular delay actual
-  const lastSeq = seqs2.length > 0 ? seqs2[seqs2.length - 1] : []
+  if (seqs2.length < 10) {
+    return { nnScores: new Array(100).fill(0), topNN: [] }
+  }
   
+  // Entrenar red neuronal real con datos históricos
+  const nn = new NeuralNetwork(100, 96, 100)
+  
+  // Preparar datos de entrenamiento: usar ventanas de 5 sorteos previos para predecir el siguiente
+  const inputs: number[][] = []
+  const targets: number[][] = []
+  
+  const windowSize = 5
+  for (let i = windowSize; i < seqs2.length; i++) {
+    // Input: frecuencias de los últimos 5 sorteos (ventana deslizante)
+    const input = new Array(100).fill(0)
+    for (let j = i - windowSize; j < i; j++) {
+      for (const n of seqs2[j]) {
+        if (n >= 0 && n < 100) input[n]++
+      }
+    }
+    // Normalizar
+    const maxIn = Math.max(...input, 1)
+    const inputNorm = input.map(v => v / maxIn)
+    
+    // Target: frecuencias del sorteo i
+    const target = new Array(100).fill(0)
+    for (const n of seqs2[i]) {
+      if (n >= 0 && n < 100) target[n] = 1
+    }
+    
+    inputs.push(inputNorm)
+    targets.push(target)
+  }
+  
+  // Entrenar la red
+  if (inputs.length > 0) {
+    nn.train(inputs, targets, 500, 0.01)
+  }
+  
+  // Hacer predicción basada en los últimos sorteos
+  const lastInput = new Array(100).fill(0)
+  for (let j = Math.max(0, seqs2.length - windowSize); j < seqs2.length; j++) {
+    for (const n of seqs2[j]) {
+      if (n >= 0 && n < 100) lastInput[n]++
+    }
+  }
+  const maxIn = Math.max(...lastInput, 1)
+  const lastInputNorm = lastInput.map(v => v / maxIn)
+  
+  const prediction = nn.forward(lastInputNorm)
+  
+  // Combinar con scoring tradicional para robustez
   const freqCount = new Array(100).fill(0)
   const recentFreq = new Array(100).fill(0)
   const delay = new Array(100).fill(1000)
   const appeared = new Array(100).fill(false)
   
-  // Calcular delay (sorteos desde última aparición)
   for (let si = seqs2.length - 1; si >= 0; si--) {
     for (const n of seqs2[si]) {
       if (n >= 0 && n < 100 && !appeared[n]) {
         appeared[n] = true
         delay[n] = seqs2.length - si
       }
+    }
+  }
+  
+  for (let i = 0; i < seqs2.length; i++) {
+    for (const n of seqs2[i]) {
+      if (n >= 0 && n < 100) freqCount[n]++
+    }
+    if (i >= seqs2.length - 5) {
+      for (const n of seqs2[i]) {
+        if (n >= 0 && n < 100) recentFreq[n]++
+      }
+    }
+  }
+  
+  const sortedFreq = [...freqCount].sort((a, b) => a - b)
+  const n = sortedFreq.length
+  const meanFreq = sortedFreq.reduce((a, b) => a + b,0) / n
+  let giniSum = 0
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      giniSum += Math.abs(sortedFreq[i] - sortedFreq[j])
+    }
+  }
+  const gini = (2 * giniSum) / (n * n * meanFreq)
+  
+  const totalFreq = freqCount.reduce((a, b) => a + b,0)
+  let entropy = 0
+  for (const f of freqCount) {
+    if (f > 0) {
+      const p = f / totalFreq
+      entropy -= p * Math.log(p)
+    }
+  }
+  const maxEntropy = Math.log(100)
+  const normalizedEntropy = entropy / maxEntropy
+  
+  const maxF = Math.max(...freqCount, 1)
+  const maxR = Math.max(...recentFreq, 1)
+  const maxD = Math.max(...delay, 1)
+  
+  const scores: { n: number; score: number }[] = []
+  for (let i = 0; i < 100; i++) {
+    // Combinar red neuronal (40%) + scoring tradicional (60%)
+    const nnScore = prediction[i] * 0.4
+    const freqScore = (freqCount[i] / maxF) * 0.25
+    const trendScore = (recentFreq[i] / maxR) * 0.15
+    const overdueBonus = delay[i] > maxD * 0.7 ? 0.1 : 0
+    const giniBonus = freqCount[i] > meanFreq ? gini * 0.05 : 0
+    const entropyBonus = normalizedEntropy > 0.5 ? 0.05 : 0
+    const s = nnScore + freqScore + trendScore + overdueBonus + giniBonus + entropyBonus
+    scores.push({ n: i, score: s })
+  }
+  
+  scores.sort((a, b) => b.score - a.score)
+  const topNN = scores.slice(0, 15)
+  const nnScores = scores.map(s => s.score)
+  
+  return { nnScores, topNN }
+}
+
+// Predicción con Cadenas de Markov
+function markovPrediction(sequences: number[][], topN: number = 10): { n: number; prob: number }[] {
+  const trans = getTransiciones(sequences)
+  
+  // Obtener el último sorteo
+  const lastSeq = sequences.length > 0 ? sequences[sequences.length - 1] : []
+  if (lastSeq.length === 0) return []
+  
+  // Usar el primer número del último sorteo como estado actual
+  const currentState = lastSeq[0] % 100
+  
+  if (!trans[currentState]) return []
+  
+  // Obtener probabilidades de transición
+  const transitions = trans[currentState]
+  const total = Object.values(transitions).reduce((a, b) => a + b, 0)
+  
+  const probs: { n: number; prob: number }[] = Object.entries(transitions).map(([num, count]) => ({
+    n: parseInt(num),
+    prob: count / total
+  }))
+  
+  probs.sort((a, b) => b.prob - a.prob)
+  return probs.slice(0, topN)
+}
     }
   }
   
@@ -717,8 +850,9 @@ const targetDay = nextDrawDay(turnoQuery)
     const parImparStats = getParImparDistribution(sequences)
     const paresConsecutivos = getParesConsecutivos(sequences)
     const { topNN } = buildNeuralNetwork(sequences)
-
-const top10 = scores.slice(0, 10).map((x, i) => ({
+    const markovTop = markovPrediction(sequences, 10)
+ 
+ const top10 = scores.slice(0, 10).map((x, i) => ({
       n: x.n,
       numero: pad(x.n),
       emoji: SUENOS[x.n]?.emoji || "❓",
@@ -821,11 +955,16 @@ groqAvailable: !!groqInsight,
         rachas: rachas.filter(r => r.vecesConsecutivas > 0).slice(0, 10).map(r => ({ numero: pad(r.numero), vecesConsecutivas: r.vecesConsecutivas, maxRacha: r.maxRacha })),
         parImpar: { total: parImparStats.total, pares: parImparStats.pares, impares: parImparStats.impares, ratioPar: Math.round(parImparStats.ratioPar * 100) + "%" },
         paresConsecutivos: paresConsecutivos.slice(0, 10),
-neuralNetwork: {
+      neuralNetwork: {
           topPredictions: topNN.slice(0, 10).map(n => ({ numero: pad(n.n), score: n.score })),
           method: "Red neuronal feed-forward con backpropagation mejorada",
           layers: [100, 96, 100],
           epochs: 500,
+        },
+        markov: {
+          topPredictions: markovTop.map(m => ({ numero: pad(m.n), probabilidad: Math.round(m.prob * 10000) / 100 + "%" })),
+          estadoActual: sequences.length > 0 ? pad(sequences[sequences.length - 1][0] % 100) : "N/A",
+          metodo: "Cadena de Markov de primer orden"
         },
       }
     })
