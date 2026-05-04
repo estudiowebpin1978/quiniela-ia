@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron-nacional",
-      "schedule": "0 * * * *"
+      "schedule": "0 22 * * *"
     }
   ],
   "env": {
