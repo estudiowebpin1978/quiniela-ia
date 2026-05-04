@@ -432,15 +432,17 @@ function scoreDigits(
   histOrder: number[],
   recentWindow: number,
   firstPos?: number[],
-  dayOfWeekBias?: number[],
-  patternBias?: number[],
+  dayOfWeekBiases?: number[],
+  patternBiases?: number[],
+  monthBiases?: number[],
   sesgoSet?: Set<number>,
   delay?: number[]
 ) {
   const len = freq.length
   firstPos = firstPos && firstPos.length === len ? firstPos : new Array(len).fill(0)
-  dayOfWeekBias = dayOfWeekBias && dayOfWeekBias.length === len ? dayOfWeekBias : new Array(len).fill(0)
-  patternBias = patternBias && patternBias.length === len ? patternBias : new Array(len).fill(0)
+  dayOfWeekBiases = dayOfWeekBiases && dayOfWeekBiases.length === len ? dayOfWeekBiases : new Array(len).fill(0)
+  patternBiases = patternBiases && patternBiases.length === len ? patternBiases : new Array(len).fill(0)
+  monthBiases = monthBiases && monthBiases.length === len ? monthBiases : new Array(len).fill(0)
   sesgoSet = sesgoSet || new Set<number>()
   
   // Calcular delay si no se provee
@@ -493,21 +495,22 @@ function scoreDigits(
   }
   const runsNorm = normalize(runsScores)
 
-  // Pesos optimizados: 10 factores reales
+  // Pesos optimizados: 11 factores reales
   return Array.from({ length: len }, (_, i) => ({
     n: i,
     score:
-      0.18 * freqNorm[i] +        // Frecuencia histórica (18%)
-      0.12 * delayNorm[i] +      // Retraso medio (12%)
-      0.15 * trendNorm[i] +       // Tendencia reciente (15%)
-      0.10 * mcNorm[i] +          // Monte Carlo (10%)
+      0.15 * freqNorm[i] +        // Frecuencia histórica (15%)
+      0.10 * delayNorm[i] +      // Retraso medio (10%)
+      0.12 * trendNorm[i] +       // Tendencia reciente (12%)
+      0.08 * mcNorm[i] +          // Monte Carlo (8%)
       0.05 * firstNorm[i] +      // Primera posición (5%)
-      0.08 * dayNorm[i] +        // Día de semana (8%)
-      0.07 * patternNorm[i] +    // Patrón (7%)
+      0.07 * dayNorm[i] +        // Día de semana (7%)
+      0.06 * patternNorm[i] +    // Patrón (6%)
+      0.08 * monthNorm[i] +      // Mes (8%) - NUEVO
       0.10 * overdueNorm[i] +    // Overdue (10%)
-      0.08 * posNorm[i % 10] +   // Análisis posicional (8%)
-      0.07 * runsNorm[i] +       // Test de rachas (7%)
-      0.03 * (sesgoSet.has(i) ? 1 : 0), // Sesgos (3%)
+      0.08 * posNorm[i] % 10] +   // Análisis posicional (8%)
+      0.06 * runsNorm[i] +       // Test de rachas (6%)
+      0.03 * (sesgoSet.has(i) ? 1 : 0) // Sesgos (3%)
   }))
 }
 
@@ -570,6 +573,29 @@ function buildDayOfWeekBias(sequences: number[][], targetDay: string, dates: str
       }
     }
   }
+  if (!total) return bias
+  return bias.map((count) => count / total)
+}
+
+function buildMonthBiases(sequences: number[][], dates: string[]) {
+  const bias = new Array(100).fill(0)
+  let total = 0
+  
+  for (let i = 0; i < sequences.length; i++) {
+    const date = new Date(dates[i] + "T00:00:00")
+    const month = date.getMonth() + 1 // 1-12
+    // Bias for current month
+    const currentMonth = new Date().getMonth() + 1
+    if (month !== currentMonth) continue
+    
+    for (const n of sequences[i]) {
+      if (n >= 0 && n <= 99) {
+        bias[n]++
+        total++
+      }
+    }
+  }
+  
   if (!total) return bias
   return bias.map((count) => count / total)
 }
