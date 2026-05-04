@@ -22,16 +22,12 @@ async function scrapeQuinielaNacional(): Promise<Record<string, number[]>> {
       signal: AbortSignal.timeout(30000)
     })
     
-    if (!res.ok) {
-      console.error(`HTTP ${res.status}`)
-      return {}
-    }
+    if (!res.ok) return {}
     
     const html = await res.text()
     
-    // Buscar todos los turnos y sus números
-    // El HTML tiene estructura: <div id="nocturna" class="turno"><h2>...</h2></div>
-    // Luego viene <div class="columna"> con los números
+    // Buscar secciones por el patrón: <div id="nocturna" class="turno">...<h2>...
+    // Luego extraer los números que siguen
     
     const turnos = [
       { id: "nocturna", nombre: "Nocturna" },
@@ -41,40 +37,35 @@ async function scrapeQuinielaNacional(): Promise<Record<string, number[]>> {
       { id: "previa", nombre: "Previa" }
     ]
     
-    for (const turno of turnos) {
-      // Buscar el bloque que contiene este turno
-      // El patrón es: div id="turno" seguido de div class="columna" con los números
-      
-      const regex = new RegExp(
-        `<div id="${turno.id}"[^>]*>.*?</div>[\\s\\S]*?<div class="columna">[\\s\\S]*?</div>`,
-        "i"
-      )
-      
-      const match = html.match(regex)
-      if (match) {
-        const bloque = match[0]
-        // Extraer todos los números de 4 dígitos
-        const nums: number[] = []
-        const numRegex = /<div class="numero">(\d{4})<\/div>/g
-        let m
-        
-        while ((m = numRegex.exec(bloque)) !== null) {
-          nums.push(parseInt(m[1]))
-        }
-        
+    // Extraer todos los números de la página
+    const todosNumeros: string[] = []
+    const numRegex = /<div class="numero">(\d{4})<\/div>/g
+    let match
+    
+    while ((match = numRegex.exec(html)) !== null) {
+      todosNumeros.push(match[1])
+    }
+    
+    console.log(`Total números encontrados: ${todosNumeros.length}`)
+    
+    // Si hay 100 números (5 turnos x 20 números), asignar por orden
+    if (todosNumeros.length >= 100) {
+      const porTurno = 20
+      turnos.forEach((t, i) => {
+        const inicio = i * porTurno
+        const nums = todosNumeros.slice(inicio, inicio + porTurno).map(n => parseInt(n))
         if (nums.length === 20) {
-          results[turno.nombre] = nums
-          console.log(`Parsed ${turno.nombre}: ${nums.length} números`)
-        } else {
-          console.log(`Turno ${turno.nombre}: Solo ${nums.length} números encontrados`)
+          results[t.nombre] = nums
+          console.log(`Asignado ${t.nombre}: ${nums.length} números`)
         }
-      } else {
-        console.log(`No se encontró bloque para ${turno.nombre}`)
-      }
+      })
+    } else if (todosNumeros.length > 0) {
+      // Si no hay suficientes, al menos devolver lo que hay
+      console.log(`Solo se encontraron ${todosNumeros.length} números`)
     }
     
   } catch (e) {
-    console.error("Error scraping:", e)
+    console.error("Error:", e)
   }
   
   return results
@@ -128,13 +119,10 @@ export async function GET(req: NextRequest) {
           
           if (insertRes.ok) {
             totalGuardados++
-            console.log(`Guardado: ${fechaISO} ${turno}`)
           }
-        } else {
-          console.log(`Ya existe: ${fechaISO} ${turno}`)
         }
       } catch (e) {
-        console.error(`Error en ${turno}:`, e)
+        console.error(e)
       }
     }
   }
