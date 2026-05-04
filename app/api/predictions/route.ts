@@ -201,32 +201,60 @@ function buildNeuralNetwork(sequences: number[][]): { nnScores: number[]; topNN:
     }
   }
   
-  // Calcular frecuencias
-  for (let i = 0; i < seqs2.length; i++) {
-    for (const n of seqs2[i]) {
-      if (n >= 0 && n < 100) freqCount[n]++
-    }
-    if (i >= seqs2.length - 5) {
+// Calcular frecuencias
+    for (let i = 0; i < seqs2.length; i++) {
       for (const n of seqs2[i]) {
-        if (n >= 0 && n < 100) recentFreq[n]++
+        if (n >= 0 && n < 100) freqCount[n]++
+      }
+      if (i >= seqs2.length - 5) {
+        for (const n of seqs2[i]) {
+          if (n >= 0 && n < 100) recentFreq[n]++
+        }
       }
     }
-  }
-  
-  const maxF = Math.max(...freqCount, 1)
-  const maxR = Math.max(...recentFreq, 1)
-  const maxD = Math.max(...delay, 1)
-  
-  // Score: frecuencia + tendencia reciente + bonificación overdue
-  const scores: { n: number; score: number }[] = []
-  for (let i = 0; i < 100; i++) {
-    const freqScore = (freqCount[i] / maxF) * 0.5
-    const trendScore = (recentFreq[i] / maxR) * 0.35
-    // Bonificar números que no salen hace mucho
-    const overdueBonus = delay[i] > maxD * 0.7 ? 0.15 : 0
-    const s = freqScore + trendScore + overdueBonus
-    scores.push({ n: i, score: s })
-  }
+    
+    // Calcular Coeficiente de Gini (mide desigualdad en distribución)
+    const sortedFreq = [...freqCount].sort((a, b) => a - b)
+    const n = sortedFreq.length
+    const meanFreq = sortedFreq.reduce((a, b) => a + b, 0) / n
+    let giniSum = 0
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        giniSum += Math.abs(sortedFreq[i] - sortedFreq[j])
+      }
+    }
+    const gini = (2 * giniSum) / (n * n * meanFreq)
+    
+    // Calcular Entropía (mide aleatoriedad)
+    const totalFreq = freqCount.reduce((a, b) => a + b, 0)
+    let entropy = 0
+    for (const f of freqCount) {
+      if (f > 0) {
+        const p = f / totalFreq
+        entropy -= p * Math.log(p)
+      }
+    }
+    const maxEntropy = Math.log(100)
+    const normalizedEntropy = entropy / maxEntropy
+    
+    const maxF = Math.max(...freqCount, 1)
+    const maxR = Math.max(...recentFreq, 1)
+    const maxD = Math.max(...delay, 1)
+    
+    // Score: frecuencia + tendencia reciente + bonificación overdue + Gini + Entropía
+    const scores: { n: number; score: number }[] = []
+    for (let i = 0; i < 100; i++) {
+      const freqScore = (freqCount[i] / maxF) * 0.4
+      const trendScore = (recentFreq[i] / maxR) * 0.25
+      // Bonificar números que no salen hace mucho
+      const overdueBonus = delay[i] > maxD * 0.7 ? 0.1 : 0
+      // Gini: números con frecuencia por encima del promedio
+      const giniBonus = freqCount[i] > meanFreq ? gini * 0.15 : 0
+      // Entropía: bonus para números en áreas de alta entropía
+      const entropyBonus = normalizedEntropy > 0.5 ? 0.1 : 0
+      const s = freqScore + trendScore + overdueBonus + giniBonus + entropyBonus
+      scores.push({ n: i, score: s })
+    }
   
   scores.sort((a, b) => b.score - a.score)
   const topNN = scores.slice(0, 15)
@@ -793,11 +821,11 @@ groqAvailable: !!groqInsight,
         rachas: rachas.filter(r => r.vecesConsecutivas > 0).slice(0, 10).map(r => ({ numero: pad(r.numero), vecesConsecutivas: r.vecesConsecutivas, maxRacha: r.maxRacha })),
         parImpar: { total: parImparStats.total, pares: parImparStats.pares, impares: parImparStats.impares, ratioPar: Math.round(parImparStats.ratioPar * 100) + "%" },
         paresConsecutivos: paresConsecutivos.slice(0, 10),
-        neuralNetwork: {
+neuralNetwork: {
           topPredictions: topNN.slice(0, 10).map(n => ({ numero: pad(n.n), score: n.score })),
-          method: "Red neuronal feed-forward con backpropagation",
-          layers: [20, 48, 20],
-          epochs: 150
+          method: "Red neuronal feed-forward con backpropagation mejorada",
+          layers: [100, 96, 100],
+          epochs: 500,
         },
       }
     })
