@@ -2,23 +2,23 @@
   "crons": [
     {
       "path": "/api/cron-nacional",
-      "schedule": "15 10 * * 1,2,3,4,5,6"
+      "schedule": "15 10 * * *"
     },
     {
       "path": "/api/cron-nacional", 
-      "schedule": "0 12 * * 1,2,3,4,5,6"
+      "schedule": "0 12 * * *"
     },
     {
       "path": "/api/cron-nacional",
-      "schedule": "0 15 * * 1,2,3,4,5,6"
+      "schedule": "0 15 * * *"
     },
     {
       "path": "/api/cron-nacional",
-      "schedule": "0 18 * * 1,2,3,4,5,6"
+      "schedule": "0 18 * * *"
     },
     {
       "path": "/api/cron-nacional",
-      "schedule": "0 21 * * 1,2,3,4,5,6"
+      "schedule": "0 21 * * *"
     }
   ],
   "env": {

@@ -81,6 +81,47 @@ export async function GET(req: NextRequest) {
   
   const save = req.nextUrl.searchParams.get("save") === "true"
   
+  // Verificar si hoy es domingo o feriado 2026 (no hay sorteos)
+  const ahora = new Date()
+  // Ajustar a hora Argentina (UTC-3)
+  const ar = new Date(ahora.getTime() - 3 * 3600000)
+  const diaSemana = ar.getDay() // 0=Domingo
+  const mes = ar.getMonth() + 1
+  const dia = ar.getDate()
+  
+  // Feriados Argentina 2026
+  const feriados2026 = [
+    "01-01", // Año Nuevo
+    "02-16", "02-17", // Carnaval
+    "03-24", // Día de la Memoria
+    "04-02", // Malvinas
+    "04-03", // Viernes Santo
+    "05-01", // Día del Trabajador
+    "05-25", // Revolución de Mayo
+    "06-20", // Día de la Bandera
+    "07-09", // Independencia
+    "12-08", // Inmaculada Concepción
+    "12-25"  // Navidad
+  ]
+  
+  const fechaHoy = `${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`
+  
+  if (diaSemana === 0) {
+    return NextResponse.json({
+      ok: false,
+      message: "Domingo - No hay sorteos",
+      guardados: 0
+    })
+  }
+  
+  if (feriados2026.includes(fechaHoy)) {
+    return NextResponse.json({
+      ok: false,
+      message: `Feriado ${fechaHoy} - No hay sorteos`,
+      guardados: 0
+    })
+  }
+  
   const sorteos = await scrapeQuinielaNacional()
   let totalGuardados = 0
   
