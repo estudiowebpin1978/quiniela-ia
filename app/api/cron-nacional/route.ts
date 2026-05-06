@@ -26,9 +26,6 @@ async function scrapeQuinielaNacional(): Promise<Record<string, number[]>> {
     
     const html = await res.text()
     
-    // Buscar secciones por el patrón: <div id="nocturna" class="turno">...<h2>...
-    // Luego extraer los números que siguen
-    
     const turnos = [
       { id: "nocturna", nombre: "Nocturna" },
       { id: "vespertina", nombre: "Vespertina" },
@@ -37,7 +34,6 @@ async function scrapeQuinielaNacional(): Promise<Record<string, number[]>> {
       { id: "previa", nombre: "Previa" }
     ]
     
-    // Extraer todos los números de la página
     const todosNumeros: string[] = []
     const numRegex = /<div class="numero">(\d{4})<\/div>/g
     let match
@@ -46,9 +42,6 @@ async function scrapeQuinielaNacional(): Promise<Record<string, number[]>> {
       todosNumeros.push(match[1])
     }
     
-    console.log(`Total números encontrados: ${todosNumeros.length}`)
-    
-    // Si hay 100 números (5 turnos x 20 números), asignar por orden
     if (todosNumeros.length >= 100) {
       const porTurno = 20
       turnos.forEach((t, i) => {
@@ -56,12 +49,8 @@ async function scrapeQuinielaNacional(): Promise<Record<string, number[]>> {
         const nums = todosNumeros.slice(inicio, inicio + porTurno).map(n => parseInt(n))
         if (nums.length === 20) {
           results[t.nombre] = nums
-          console.log(`Asignado ${t.nombre}: ${nums.length} números`)
         }
       })
-    } else if (todosNumeros.length > 0) {
-      // Si no hay suficientes, al menos devolver lo que hay
-      console.log(`Solo se encontraron ${todosNumeros.length} números`)
     }
     
   } catch (e) {
@@ -80,28 +69,18 @@ export async function GET(req: NextRequest) {
   }
   
   const save = req.nextUrl.searchParams.get("save") === "true"
+  const turnoParam = req.nextUrl.searchParams.get("turno") || "" // NUEVO: parámetro turno
   
-  // Verificar si hoy es domingo o feriado 2026 (no hay sorteos)
+  // Verificar si hoy es domingo o feriado 2026
   const ahora = new Date()
-  // Ajustar a hora Argentina (UTC-3)
   const ar = new Date(ahora.getTime() - 3 * 3600000)
-  const diaSemana = ar.getDay() // 0=Domingo
+  const diaSemana = ar.getDay()
   const mes = ar.getMonth() + 1
   const dia = ar.getDate()
   
-  // Feriados Argentina 2026
   const feriados2026 = [
-    "01-01", // Año Nuevo
-    "02-16", "02-17", // Carnaval
-    "03-24", // Día de la Memoria
-    "04-02", // Malvinas
-    "04-03", // Viernes Santo
-    "05-01", // Día del Trabajador
-    "05-25", // Revolución de Mayo
-    "06-20", // Día de la Bandera
-    "07-09", // Independencia
-    "12-08", // Inmaculada Concepción
-    "12-25"  // Navidad
+    "01-01", "02-16", "02-17", "03-24", "04-02", "04-03",
+    "05-01", "05-25", "06-20", "07-09", "12-08", "12-25"
   ]
   
   const fechaHoy = `${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`
@@ -123,12 +102,36 @@ export async function GET(req: NextRequest) {
   }
   
   const sorteos = await scrapeQuinielaNacional()
+  
+  if (Object.keys(sorteos).length === 0) {
+    return NextResponse.json({
+      ok: false,
+      message: "No se encontraron sorteos en la página",
+      guardados: 0
+    })
+  }
+  
   let totalGuardados = 0
   
-  if (save && Object.keys(sorteos).length > 0) {
+  if (save) {
     const fechaISO = formatISO(new Date())
     
-    for (const [turno, numeros] of Object.entries(sorteos)) {
+    // Si se especifica turno, solo procesar ese turno
+    const turnosProcesar = turnoParam 
+      ? Object.entries(sorteos).filter(([t]) => 
+          t.toLowerCase() === turnoParam.toLowerCase())
+      : Object.entries(sorteos)
+    
+    if (turnoParam && turnosProcesar.length === 0) {
+      return NextResponse.json({
+        ok: false,
+        message: `Turno "${turnoParam}" no encontrado en los datos scrapeados`,
+        guardados: 0,
+        turnosDisponibles: Object.keys(sorteos)
+      })
+    }
+    
+    for (const [turno, numeros] of turnosProcesar) {
       try {
         const checkRes = await fetch(
           `${SB()}/rest/v1/draws?date=eq.${fechaISO}&turno=eq.${turno}&select=id`,
@@ -160,7 +163,10 @@ export async function GET(req: NextRequest) {
           
           if (insertRes.ok) {
             totalGuardados++
+            console.log(`Guardado ${turno}: ${numeros.length} números`)
           }
+        } else {
+          console.log(`Ya existe ${turno} para ${fechaISO}`)
         }
       } catch (e) {
         console.error(e)
@@ -171,7 +177,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     guardados: totalGuardados,
-    sorteos,
-    message: `Encontrados ${Object.keys(sorteos).length} turnos, guardados ${totalGuardados}`
+    sorteos: turnoParam ? { [turnoParam]: sorteos[turnoParam] } : sorteos,
+    message: turnoParam 
+      ? `Turno ${turnoParam}: ${totalGuardados} guardado(s)`
+      : `Encontrados ${Object.keys(sorteos).length} turnos, guardados ${totalGuardados}`
   })
 }
