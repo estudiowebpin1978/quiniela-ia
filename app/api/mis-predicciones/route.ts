@@ -11,6 +11,28 @@ function decodeJwtPayload(token: string) {
   }
 }
 
+// Horarios de sorteo (hora Argentina, UTC-3)
+const TURNO_HOURS: Record<string, number> = {
+  "previa": 10,      // 10:15
+  "primera": 12,    // 12:00
+  "matutina": 15,  // 15:00
+  "vespertina": 18, // 18:00
+  "nocturna": 21,  // 21:00
+}
+
+function hasDrawTimePassed(dateStr: string, turno: string): boolean {
+  const turnoLower = turno.toLowerCase().replace(/-\d+cifras?$/i, "").trim()
+  const hour = TURNO_HOURS[turnoLower]
+  if (!hour) return false
+  
+  // Crear fecha del sorteo en Argentina (UTC-3)
+  const [year, month, day] = dateStr.split("-").map(Number)
+  const drawDate = new Date(Date.UTC(year, month - 1, day, hour + 3, 0, 0)) // +3 para Argentina
+  
+  const now = new Date()
+  return now > drawDate
+}
+
 export async function GET(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
   if (!token) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
@@ -38,56 +60,57 @@ export async function GET(req: NextRequest) {
     const results = []
     for (const pred of predictions) {
       const rawTurno = pred.turno || ""
-      const turnoLower = rawTurno.replace(/-[0-9]cifras$/i, "").toLowerCase().trim()
+      const turnoLower = rawTurno.replace(/-\d+cifras?$/i, "").toLowerCase().trim()
       const predDate = (pred.date || "").trim()
-      const digits = rawTurno.match(/-([0-9])cifras$/i)?.[1] || "2"
-      
+
       let draw: any = null
       
-      // Try exact match first
-      const drawRes = await fetch(
-        `${SB}/rest/v1/draws?date=eq.${predDate}&turno=eq.${turnoLower}&select=numbers&limit=1`,
-        { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
-      )
-      let draws = await drawRes.json()
-      
-      if (draws?.[0]) {
-        draw = draws[0]
-      } else {
-        // Try searching by date only
-        const drawRes2 = await fetch(
-          `${SB}/rest/v1/draws?date=eq.${predDate}&select=numbers,turno&limit=10`,
+      // Verificar si ya pasó la hora del sorteo
+      const drawTimePassed = hasDrawTimePassed(predDate, turnoLower)
+
+      if (drawTimePassed) {
+        // Try exact match first
+        const drawRes = await fetch(
+          `${SB}/rest/v1/draws?date=eq.${predDate}&turno=eq.${turnoLower}&select=numbers&limit=1`,
           { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
         )
-        const draws2 = await drawRes2.json()
+        let draws = await drawRes.json()
         
-        if (draws2?.length > 0) {
-          draw = draws2.find((d: any) => (d.turno || "").toLowerCase().trim() === turnoLower) || draws2[0]
+        if (draws?.[0]) {
+          draw = draws[0]
+        } else {
+          // Try searching by date only
+          const drawRes2 = await fetch(
+            `${SB}/rest/v1/draws?date=eq.${predDate}&select=numbers,turno&limit=10`,
+            { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
+          )
+          const draws2 = await drawRes2.json()
+          
+          if (draws2?.length > 0) {
+            draw = draws2.find((d: any) => (d.turno || "").toLowerCase().trim() === turnoLower) || draws2[0]
+          }
         }
       }
-      
+
       let aciertos: any[] = []
       let numerosReales: string[] = []
 
       if (draw?.numbers && Array.isArray(draw.numbers)) {
-        const digitCount = parseInt(digits)
-        // Extract last X digits based on digit count (draws have 4 digits, extract last 2, 3, or 4)
+        const digitCount = rawTurno.match(/-\d+cifras?$/i)?.[1] || "2"
         numerosReales = draw.numbers.map((n: number) => {
           const num = Number(n)
-          if (digitCount === 2) return String(num % 100).padStart(2, "0")
-          if (digitCount === 3) return String(num % 1000).padStart(3, "0")
+          if (digitCount === "2") return String(num % 100).padStart(2, "0")
+          if (digitCount === "3") return String(num % 1000).padStart(3, "0")
           return String(num % 10000).padStart(4, "0")
         })
         
-        // Normalize prediction numbers based on digit count
         const predNumeros = (pred.numeros || []).map((n: string) => {
           const s = String(n)
-          if (digitCount === 2) return s.padStart(2, "0")
-          if (digitCount === 3) return s.padStart(3, "0")
+          if (digitCount === "2") return s.padStart(2, "0")
+          if (digitCount === "3") return s.padStart(3, "0")
           return s.padStart(4, "0")
         })
         
-        // Compare with prediction numbers
         aciertos = predNumeros.filter((n: string) => numerosReales.includes(n)).map((n: string) => ({
           numero: n,
           puesto: numerosReales.indexOf(n) + 1
@@ -99,10 +122,11 @@ export async function GET(req: NextRequest) {
         fecha: pred.date,
         turno: pred.turno,
         numeros: pred.numeros,
-        resultado: numerosReales.length > 0 ? numerosReales.slice(0, 20) : null,
-        aciertos,
-        acerto: aciertos.length > 0,
-        created_at: pred.created_at
+        resultado: drawTimePassed && numerosReales.length > 0 ? numerosReales.slice(0, 20) : null,
+        aciertos: drawTimePassed ? aciertos : [],
+        acerto: drawTimePassed ? aciertos.length > 0 : false,
+        created_at: pred.created_at,
+        sorteoRealizado: drawTimePassed
       })
     }
 
