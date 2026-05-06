@@ -14,8 +14,8 @@ export async function GET(req:NextRequest){
 
   // Calcular frecuencias por turno
   const turnos=["Previa","Primera","Matutina","Vespertina","Nocturna"]
-  const sesgos:Record<string,number[]|={}
-  const sesgosMensuales:Record<string,Record<number,number[]>>|={}
+  const sesgos: Record<string, number[]> = {}
+  const sesgosMensuales: Record<string, Record<number, number[]>> = {}
 
   for(const turno of turnos){
     const rows_t=rows.filter((r:any)=>r.turno===turno)
@@ -23,7 +23,7 @@ export async function GET(req:NextRequest){
     let total=0
     
     // Mensual: sesgos por mes
-    const freqMensual:Record<number,number[]|={}
+    const freqMensual: Record<number, number[]> = {}
     
     for(const row of rows_t){
       const nums=(row.numbers||[]).map((n:any)=>Number(n)%100)
@@ -49,7 +49,7 @@ export async function GET(req:NextRequest){
     for(const [mes,freq] of Object.entries(freqMensual)){
       const totalMes=freq.reduce((a,b)=>a+b,0)
       const esperadoMes=totalMes/100
-      sesgosMensuales[turno][mes]=freq
+      sesgosMensuales[turno][Number(mes)]=freq
         .map((f,i)=>({n:i,pct:totalMes>0?f/totalMes*100:0}))
         .filter(x=>x.pct>1.25*esperadoMes)
         .sort((a,b)=>b.pct-a.pct)

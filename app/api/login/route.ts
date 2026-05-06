@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req: NextRequest) {
-  const SB_URL  = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/"/g, "").trim();
+  const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/"/g, "").trim();
   const SB_ANON = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").replace(/"/g, "").trim();
 
   if (!SB_URL || !SB_ANON) return NextResponse.json({ error: "Variables no configuradas." }, { status: 500 });
@@ -9,40 +10,41 @@ export async function POST(req: NextRequest) {
   const { email, password, action } = await req.json();
   if (!email || !password) return NextResponse.json({ error: "Faltan campos." }, { status: 400 });
 
-  const endpoint = action === "signup"
-    ? `${SB_URL}/auth/v1/signup`
-    : `${SB_URL}/auth/v1/token?grant_type=password`;
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const supabase = createClient(SB_URL, SB_ANON);
 
   try {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "apikey": SB_ANON },
-      body: JSON.stringify({ email, password }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    const data = await res.json();
-    if (!res.ok) {
-      const raw = data?.error_description ?? data?.msg ?? data?.message ?? "Error";
-      let msg = raw;
-      if (raw.includes("Invalid login")) msg = "Email o contrasena incorrectos.";
-      else if (raw.includes("not confirmed")) msg = "Confirma tu email primero.";
-      else if (raw.includes("already registered")) msg = "Email ya registrado. Inicia sesion.";
+    if (action === "signup") {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+        let msg = error.message;
+        if (msg.includes("already registered")) msg = "Email ya registrado. Iniciá sesión.";
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+      return NextResponse.json({
+        access_token: data.session?.access_token ?? null,
+        refresh_token: data.session?.refresh_token ?? null,
+        expires_in: data.session?.expires_in ?? 3600,
+        user: { id: data.user?.id, email: data.user?.email },
+        needsConfirmation: !data.session?.access_token,
+      });
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      let msg = error.message;
+      if (msg.includes("Invalid login")) msg = "Email o contraseña incorrectos.";
       return NextResponse.json({ error: msg }, { status: 400 });
     }
+
+    const payload = JSON.parse(Buffer.from(data.session.access_token.split(".")[1], "base64").toString());
     return NextResponse.json({
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-      expires_in: data.expires_in ?? 3600,
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+      expires_in: data.session.expires_in ?? 3600,
+      expires_at: payload.exp,
       user: { id: data.user?.id, email: data.user?.email },
-      needsConfirmation: !data.access_token && action === "signup",
     });
   } catch (e: unknown) {
-    clearTimeout(timeout);
-    if ((e as Error)?.name === "AbortError") return NextResponse.json({ error: "Supabase no responde." }, { status: 503 });
     return NextResponse.json({ error: String((e as Error).message) }, { status: 500 });
   }
 }

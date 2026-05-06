@@ -473,9 +473,10 @@ function scoreDigits(
   const trendNorm = normalize(trend)
   const mcNorm = normalize(mc)
   const firstNorm = normalize(firstPos)
-  const dayNorm = normalize(dayOfWeekBias)
-  const patternNorm = normalize(patternBias)
+  const dayNorm = normalize(dayOfWeekBiases)
+  const patternNorm = normalize(patternBiases)
   const overdueNorm = normalize(overdue)
+  const monthNorm = normalize(monthBiases)
   
   // Análisis posicional para 4 cifras (unidades, decenas, centenas, miles)
   const posFreq = new Array(10).fill(0)
@@ -508,7 +509,7 @@ function scoreDigits(
       0.06 * patternNorm[i] +    // Patrón (6%)
       0.08 * monthNorm[i] +      // Mes (8%) - NUEVO
       0.10 * overdueNorm[i] +    // Overdue (10%)
-      0.08 * posNorm[i] % 10] +   // Análisis posicional (8%)
+      0.08 * (posNorm[i] % 10) +   // Análisis posicional (8%)
       0.06 * runsNorm[i] +       // Test de rachas (6%)
       0.03 * (sesgoSet.has(i) ? 1 : 0) // Sesgos (3%)
   }))
@@ -793,7 +794,7 @@ const targetDay = nextDrawDay(turnoQuery)
       if (v >= 0 && v < 100 && delayCalc[v] === hist.length) delayCalc[v] = hist.length - 1 - i
     }
     
-    const scores = scoreDigits(freq, hist, recentWindow, ff, dayOfWeekBias, patternBias, sesgoSet, delayCalc)
+    const scores = scoreDigits(freq, hist, recentWindow, ff, dayOfWeekBias, patternBias, undefined, sesgoSet, delayCalc)
     scores.sort((a, b) => b.score - a.score)
 
     const s3 = scoreDigits(freq3, hist3, Math.min(800, hist3.length), undefined, undefined, undefined, undefined, undefined)
