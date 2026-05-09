@@ -113,11 +113,18 @@ class NeuralNetwork {
     this.inputSize = inputSize
     this.hiddenSize = hiddenSize
     this.outputSize = outputSize
+    // Seed basado en fecha + hora para variabilidad diaria
+    const daySeed = Math.floor(Date.now() / 86400000)
+    const rng = (seedOffset: number) => {
+      const x = Math.sin(daySeed * 9999 + seedOffset) * 10000
+      return x - Math.floor(x)
+    }
+    let seedIdx = 0
     this.weights1 = Array.from({ length: inputSize }, () => 
-      Array.from({ length: hiddenSize }, () => (Math.random() - 0.5) * 0.2)
+      Array.from({ length: hiddenSize }, () => (rng(seedIdx++) - 0.5) * 0.2)
     )
     this.weights2 = Array.from({ length: hiddenSize }, () => 
-      Array.from({ length: outputSize }, () => (Math.random() - 0.5) * 0.2)
+      Array.from({ length: outputSize }, () => (rng(seedIdx++) - 0.5) * 0.2)
     )
     this.bias1 = new Array(hiddenSize).fill(0)
     this.bias2 = new Array(outputSize).fill(0)
@@ -497,6 +504,9 @@ function scoreDigits(
   const runsNorm = normalize(runsScores)
 
   // Pesos optimizados: 11 factores reales
+  // Agregar small random factor basado en fecha para garantizar variabilidad diaria
+  const dateSalt = Math.sin(Date.now() / 86400000) * 0.02
+  
   return Array.from({ length: len }, (_, i) => ({
     n: i,
     score:
@@ -511,7 +521,8 @@ function scoreDigits(
       0.10 * overdueNorm[i] +    // Overdue (10%)
       0.08 * (posNorm[i] % 10) +   // Análisis posicional (8%)
       0.06 * runsNorm[i] +       // Test de rachas (6%)
-      0.03 * (sesgoSet.has(i) ? 1 : 0) // Sesgos (3%)
+      0.03 * (sesgoSet.has(i) ? 1 : 0) + // Sesgos (3%)
+      dateSalt * Math.random() // Sal aleatoria diaria (2%)
   }))
 }
 

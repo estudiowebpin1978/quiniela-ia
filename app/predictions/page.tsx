@@ -803,17 +803,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         <div className="wr">
           <div className="hero">
             <h1>Predicciones Inteligentes <span onClick={() => setShowHowItWorks(true)} style={{cursor:"pointer",fontSize:14}}>ℹ️</span></h1>
-            <p>Analisis estadistico real de la Quiniela Nacional de Buenos Aires. Motor con 6 factores y datos actualizados automaticamente.</p>
-            <div className="sts">
-              {statsLoading ? (
-                <>
-                  <div className="sc"><div className="sv" style={{background:"rgba(255,255,255,.06)",borderRadius:8}}>&nbsp;</div><div className="sl">Cargando...</div></div>
-                </>
-              ) : (
-                <>
-                </>
-              )}
-            </div>
+            <p>Analisis estadistico real de la Quiniela Nacional de Buenos Aires. Motor con 12 factores de analisis y datos actualizados automaticamente.</p>
+           <div className="sts">
+             </div>
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 8, textAlign: "center" }}>🎯 Elegí el sorteo que querés analizar:</div>
           <div className="sorteo-btns">
