@@ -334,7 +334,8 @@ export async function GET(req: NextRequest) {
 
     // Co-ocurrencia para 2 cifras
     const co = getCooccurrence(sequences.map(s => s.map(n => n % 100)))
-    const pair = getBestPair(scores2, co)
+    const scoresForPair = scores2.map(x => ({ n: x.n, score: x.freq }))
+    const pair = getBestPair(scoresForPair, co)
 
     // TOP 10 de ÚLTIMAS 2 CIFRAS (más probable)
     const top10 = scores2.slice(0, 10).map((x, i) => ({
@@ -367,7 +368,7 @@ export async function GET(req: NextRequest) {
         score: Math.round((x.f / numerosCompletos.length) * 10000) / 100,
       }))
 
-    const pred4d = top4Frequent.map(x => ({ numero: x.numero, score: x.score }))
+    const pred4d = top4Frequent.map(x => ({ numero: x.numero, score: x.frecuencia }))
 
     const heatmap = freq2.map((f, n) => ({ 
       n, f, 
@@ -376,7 +377,7 @@ export async function GET(req: NextRequest) {
     }))
 
     const uniqueDates = [...new Set(dates)].sort().reverse()
-    const confidence = Math.round((scores2.slice(0, 10).reduce((sum, x) => sum + x.score, 0) / 10) * 100)
+    const confidence = Math.round((scores2.slice(0, 10).reduce((sum, x) => sum + x.freq, 0) / 10) * 100)
 
     return NextResponse.json({
       ok: true,
@@ -396,13 +397,13 @@ export async function GET(req: NextRequest) {
       heatmap,
       stats: {
         totalNumeros: sequences.length,
-        promedioPorSorteo: (hist.length / sequences.length).toFixed(2),
-        numeroMasFrecuente: { numero: pad(scores[0]?.n || 0), frecuencia: freq[scores[0]?.n || 0], significado: SUENOS[scores[0]?.n || 0]?.nombre || "" },
-        terminacionesMasFrecuentes: terminationFreq.map((f, i) => ({ terminacion: i, frecuencia: f })).sort((a, b) => b.frecuencia - a.frecuencia).slice(0, 5),
+        promedioPorSorteo: (ultimas2cifras.length / sequences.length).toFixed(2),
+        numeroMasFrecuente: { numero: pad(scores2[0]?.n || 0), frecuencia: freq2[scores2[0]?.n || 0], significado: SUENOS[scores2[0]?.n || 0]?.nombre || "" },
+        terminacionesMasFrecuentes: getTerminations(ultimas2cifras).map((f, i) => ({ terminacion: i, frecuencia: f })).sort((a, b) => b.frecuencia - a.frecuencia).slice(0, 5),
       },
       analysisInfo: {
-        metodo: `Análisis independiente para turno ${turnoQuery.toUpperCase()}`,
-        factores: ["Frecuencia histórica turno (35%)", "Recencia (25%)", "Retraso (15%)", "Monte Carlo (10%)", "Posiciones (8%)", "Terminaciones (7%)"],
+        metodo: `Análisis por frecuencia real - turno ${turnoQuery.toUpperCase()}`,
+        factores: ["Frecuencia real de terminaciones (100%)"],
         datosUtilizados: `${sequences.length} sorteos de ${turnoQuery}`
       }
     })
