@@ -167,6 +167,7 @@ export default function Page() {
   useEffect(() => {
     const timer = setTimeout(() => {
       if (so) {
+        console.log("[DEBUG] useEffect triggered, calling gen() for turno:", so);
         gen();
       }
     }, 100);
@@ -281,18 +282,22 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   }
 
   async function gen() {
+    console.log("[DEBUG] gen() called for turno:", so);
     setLd(true);
     setEr("");
     setDn(false);
     setDt(null);
     try {
-      const r = await fetch("/api/predictions?sorteo=" + encodeURIComponent(so), {
+      const url = "/api/predictions?sorteo=" + encodeURIComponent(so);
+      console.log("[DEBUG] Fetching:", url);
+      const r = await fetch(url, {
         headers: { Authorization: "Bearer " + tkRef.current },
       });
       if (!r.ok) {
         throw new Error("Error del servidor: " + r.status);
       }
       const d = await r.json();
+      console.log("[DEBUG] Received data for turno:", d.turno, "numeros_2:", d.pred?.numeros_2 || d.numeros_2);
       if (!d) {
         throw new Error("No hay datos");
       }
