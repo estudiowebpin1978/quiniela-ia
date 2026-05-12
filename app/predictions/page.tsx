@@ -288,7 +288,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     setDn(false);
     setDt(null);
     try {
-      const url = "/api/predictions?sorteo=" + encodeURIComponent(so);
+      const url = "/api/predictions?sorteo=" + encodeURIComponent(so) + "&t=" + Date.now();
       console.log("[DEBUG] Fetching:", url);
       const r = await fetch(url, {
         headers: { Authorization: "Bearer " + tkRef.current },
