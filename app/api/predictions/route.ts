@@ -310,11 +310,20 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Score para 2 cifras - basado en las Últimas 2 cifras de los números reales
-    const scores2 = scoreDigitsForTurno(freq2, freq3, ultimas2cifras, ultimas3cifras, Math.min(200, ultimas2cifras.length), delay2, new Array(100).fill(0), getTerminations(ultimas2cifras))
-    
-    // Score para 3 cifras - basado en las Últimas 3 cifras de los números reales
-    const scores3 = scoreDigitsForTurno(freq3, freq3, ultimas2cifras, ultimas3cifras, Math.min(800, ultimas3cifras.length), delay3, new Array(100).fill(0), new Array(10).fill(0))
+    // Score para 2 cifras - ORDENAR POR FRECUENCIA REAL SIMPLEMENTE
+    // Basado solo en cuántas veces aparece cada terminación en los sorteos históricos
+    const scores2 = Array.from({ length: 100 }, (_, i) => ({
+      n: i,
+      freq: freq2[i],
+      delay: delay2[i],
+      trend: ultimas2cifras.filter(x => x === i).length
+    })).sort((a, b) => b.freq - a.freq)
+
+    // Score para 3 cifras - ORDENAR POR FRECUENCIA REAL
+    const scores3 = Array.from({ length: 1000 }, (_, i) => ({
+      n: i,
+      freq: freq3[i]
+    })).sort((a, b) => b.freq - a.freq)
 
     // Score para 4 cifras - basado en frecuencia real
     const scores4 = Array.from({ length: 10000 }, (_, i) => ({
