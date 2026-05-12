@@ -346,35 +346,19 @@ export async function GET(req: NextRequest) {
       score: Math.round(x.score * 10000) / 10000,
     }))
 
-    // Predicciones 4 CIFRAS - NÚMEROS COMPLETOS DEL SORTEO
-    // Tomar los números de 4 cifras más frecuentes de los sorteos reales
+    // Predicciones 4 CIFRAS - NÚMEROS COMPLETOS MÁS FRECUENTES
+    // Tomar directamente los 5 números de 4 cifras más frecuentes de los sorteos reales
     const top4Frequent = Array.from({ length: 10000 }, (_, i) => ({ n: i, f: freq4[i] }))
       .filter(x => x.f > 0)
       .sort((a, b) => b.f - a.f)
-      .slice(0, 10)
-
-    // Filtrar para incluir solo los que terminan en las terminaciones más activas
-    const terminaciones = getTerminations(ultimas2cifras)
-    const mejorTerminacion = terminaciones.indexOf(Math.max(...terminaciones))
-    
-    const pred4d = top4Frequent
-      .filter(x => x.n % 100 === mejorTerminacion || x.n % 100 === scores2[0]?.n || x.n % 100 === scores2[1]?.n)
       .slice(0, 5)
       .map((x) => ({
         numero: pad(x.n, 4),
-        score: Math.round((x.f / allNumbers.length) * 10000) / 10000,
+        frecuencia: x.f,
+        score: Math.round((x.f / numerosCompletos.length) * 10000) / 100,
       }))
 
-    // Si no hay suficientes, completar con los más frecuentes
-    if (pred4d.length < 5) {
-      const faltantes = top4Frequent.filter(x => !pred4d.find(p => p.numero === pad(x.n, 4))).slice(0, 5 - pred4d.length)
-      for (const f of faltantes) {
-        pred4d.push({
-          numero: pad(f.n, 4),
-          score: Math.round((f.f / allNumbers.length) * 10000) / 10000,
-        })
-      }
-    }
+    const pred4d = top4Frequent.map(x => ({ numero: x.numero, score: x.score }))
 
     const heatmap = freq2.map((f, n) => ({ 
       n, f, 
