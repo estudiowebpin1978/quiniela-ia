@@ -234,7 +234,7 @@ export async function GET(req: NextRequest) {
   const to = setTimeout(() => ctrl.abort(), 15000)
 
   try {
-    const url = `${SB}/rest/v1/draws?select=date,turno,numbers&turno=eq.${turnoQuery}&order=date.desc&limit=10000`
+    const url = `${SB}/rest/v1/draws?select=date,turno,numbers&turno=ilike.*${turnoQuery}*&order=date.desc&limit=10000`
     const res = await fetch(url, { 
       headers: { "apikey": SK, "Authorization": `Bearer ${SK}` }, 
       signal: ctrl.signal 
