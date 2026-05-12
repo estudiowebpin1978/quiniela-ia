@@ -260,41 +260,64 @@ export async function GET(req: NextRequest) {
 
     if (!sequences.length) return NextResponse.json({ error: "Sin secuencias válidas" }, { status: 500 })
 
-    const hist: number[] = []
-    const hist3: number[] = []
-    const freq = new Array(100).fill(0)
+    // ANALISIS DE NÚMEROS COMPLETOS DE 4 CIFRAS
+    const freq4 = new Array(10000).fill(0)
+    const freq2 = new Array(100).fill(0)
     const freq3 = new Array(1000).fill(0)
+    const hist2: number[] = []
+    const hist4: number[] = []
+    const allNumbers: number[] = []
 
     for (const seq of sequences) {
       seq.forEach((n) => {
-        const n2 = n % 100
-        const n3 = n % 1000
-        hist.push(n2)
-        hist3.push(n3)
-        freq[n2]++
-        freq3[n3]++
+        if (n >= 0 && n <= 9999) {
+          freq4[n]++
+          freq2[n % 100]++
+          freq3[n % 1000]++
+          hist2.push(n % 100)
+          hist4.push(n)
+          allNumbers.push(n)
+        }
       })
     }
 
-    const delay = new Array(100).fill(hist.length)
-    for (let i = hist.length - 1; i >= 0; i--) {
-      const num = hist[i]
-      if (num >= 0 && num <= 99 && delay[num] === hist.length) {
-        delay[num] = hist.length - 1 - i
+    // Análisis de las ÚLTIMAS 2 CIFRAS (más frecuente)
+    const delay2 = new Array(100).fill(hist2.length)
+    for (let i = hist2.length - 1; i >= 0; i--) {
+      const num = hist2[i]
+      if (delay2[num] === hist2.length) {
+        delay2[num] = hist2.length - 1 - i
       }
     }
 
-    const recentWindow = Math.min(200, hist.length)
-    const lastPositions = getLastPositions(sequences)
-    const terminationFreq = getTerminations(hist)
+    // Análisis de las ÚLTIMAS 3 CIFRAS
+    const delay3 = new Array(1000).fill(hist2.length)
+    for (let i = hist2.length - 1; i >= 0; i--) {
+      const num = hist2[i]
+      if (delay3[num] === hist2.length) {
+        delay3[num] = hist2.length - 1 - i
+      }
+    }
 
-    const scores = scoreDigitsForTurno(freq, freq3, hist, hist3, recentWindow, delay, lastPositions, terminationFreq)
-    const s3 = scoreDigits3ForTurno(freq3, hist3, Math.min(800, hist3.length))
+    // Score para 2 cifras
+    const scores2 = scoreDigitsForTurno(freq2, freq3, hist2, hist2, Math.min(200, hist2.length), delay2, new Array(100).fill(0), getTerminations(hist2))
+    
+    // Score para 3 cifras
+    const scores3 = scoreDigitsForTurno(freq3, freq3, hist2, hist2, Math.min(800, hist2.length), delay3, new Array(100).fill(0), new Array(10).fill(0))
 
+    // Score para 4 cifras - basado en frecuencia real
+    const scores4 = Array.from({ length: 10000 }, (_, i) => ({
+      n: i,
+      freq: freq4[i],
+      score: freq4[i]
+    })).sort((a, b) => b.score - a.score)
+
+    // Co-ocurrencia para 2 cifras
     const co = getCooccurrence(sequences.map(s => s.map(n => n % 100)))
-    const pair = getBestPair(scores, co)
+    const pair = getBestPair(scores2, co)
 
-    const top10 = scores.slice(0, 10).map((x, i) => ({
+    // TOP 10 de ÚLTIMAS 2 CIFRAS (más probable)
+    const top10 = scores2.slice(0, 10).map((x, i) => ({
       n: x.n,
       numero: pad(x.n),
       emoji: SUENOS[x.n]?.emoji || "❓",
@@ -306,27 +329,47 @@ export async function GET(req: NextRequest) {
       tendencia: x.trend,
     }))
 
-    const pred3d = s3.slice(0, 5).map((x) => ({
+    // Predicciones 3 CIFRAS (últimos 3 dígitos más probables)
+    const pred3d = scores3.slice(0, 5).map((x) => ({
       numero: pad(x.n, 3),
       score: Math.round(x.score * 10000) / 10000,
     }))
 
-    const pred4d = s3.slice(0, 5).map((x, i) => {
-      const base = scores[i % 10].n
-      return {
-        numero: pad(base, 2) + pad(s3[i].n % 100, 2),
-        score: Math.round(x.score * 10000) / 10000,
-      }
-    })
+    // Predicciones 4 CIFRAS - NÚMEROS COMPLETOS DEL SORTEO
+    // Combinar los números más frecuentes con las terminaciones más activas
+    const terminaciones = getTerminations(hist2)
+    const mejorTerminacion = terminaciones.indexOf(Math.max(...terminaciones))
+    
+    // Buscar números de 4 cifras que terminen en la terminación más activa
+    const pred4d = scores4
+      .filter(x => x.freq > 0)
+      .slice(0, 20)
+      .filter(x => x.n % 100 === mejorTerminacion || x.n % 100 === scores2[0].n || x.n % 100 === scores2[1].n)
+      .slice(0, 5)
+      .map((x) => ({
+        numero: pad(x.n, 4),
+        score: Math.round((x.freq / allNumbers.length) * 10000) / 10000,
+      }))
 
-    const heatmap = freq.map((f, n) => ({ 
+    // Si no hay suficientes con terminaciones, usar los más frecuentes
+    if (pred4d.length < 5) {
+      const备用 = scores4.filter(x => x.freq > 0).slice(0, 5).map((x) => ({
+        numero: pad(x.n, 4),
+        score: Math.round((x.freq / allNumbers.length) * 10000) / 10000,
+      }))
+      for (let i = pred4d.length; i < 5 && i <备用.length; i++) {
+        pred4d.push(备用[i])
+      }
+    }
+
+    const heatmap = freq2.map((f, n) => ({ 
       n, f, 
       s: SUENOS[n] || "",
-      pct: Math.round((f / hist.length) * 10000) / 100
+      pct: Math.round((f / hist2.length) * 10000) / 100
     }))
 
     const uniqueDates = [...new Set(dates)].sort().reverse()
-    const confidence = Math.round((scores.slice(0, 10).reduce((sum, x) => sum + x.score, 0) / 10) * 100)
+    const confidence = Math.round((scores2.slice(0, 10).reduce((sum, x) => sum + x.score, 0) / 10) * 100)
 
     return NextResponse.json({
       ok: true,
