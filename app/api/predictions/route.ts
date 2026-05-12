@@ -312,12 +312,17 @@ export async function GET(req: NextRequest) {
 
     // Score para 2 cifras - ORDENAR POR FRECUENCIA REAL SIMPLEMENTE
     // Basado solo en cuántas veces aparece cada terminación en los sorteos históricos
+    console.log("[DEBUG] freq2 valores principales:", freq2.slice(0, 20).map((f, i) => `${i}:${f}`).join(", "))
+    console.log("[DEBUG] top 5 freq2:", freq2.map((f, i) => ({n: i, f: f})).sort((a,b) => b.f - a.f).slice(0, 5))
+    
     const scores2 = Array.from({ length: 100 }, (_, i) => ({
       n: i,
       freq: freq2[i],
       delay: delay2[i],
       trend: ultimas2cifras.filter(x => x === i).length
     })).sort((a, b) => b.freq - a.freq)
+    
+    console.log("[DEBUG] scores2 top 5:", scores2.slice(0, 5).map(x => `${x.n}:${x.freq}`).join(", "))
 
     // Score para 3 cifras - ORDENAR POR FRECUENCIA REAL
     const scores3 = Array.from({ length: 1000 }, (_, i) => ({
