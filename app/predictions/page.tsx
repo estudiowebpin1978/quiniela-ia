@@ -165,9 +165,12 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    if (so) {
-      gen();
-    }
+    const timer = setTimeout(() => {
+      if (so) {
+        gen();
+      }
+    }, 100);
+    return () => clearTimeout(timer);
   }, [so]);
 
   async function installApp() {
