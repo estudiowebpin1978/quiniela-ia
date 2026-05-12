@@ -288,7 +288,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     setDn(false);
     setDt(null);
     try {
-      const url = "/api/predictions?sorteo=" + encodeURIComponent(so) + "&t=" + Date.now();
+      const url = "/api/analisis-avanzado?turno=" + encodeURIComponent(so.toLowerCase()) + "&dias=90&t=" + Date.now();
       console.log("[DEBUG] Fetching:", url);
       const r = await fetch(url, {
         headers: { Authorization: "Bearer " + tkRef.current },
@@ -297,17 +297,28 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         throw new Error("Error del servidor: " + r.status);
       }
       const d = await r.json();
-      console.log("[DEBUG] Received data for turno:", d.turno, "numeros_2:", d.pred?.numeros_2 || d.numeros_2);
+      console.log("[DEBUG] Received data for turno:", d.turno, "numeros_2:", d.predicciones?.dosCifras);
       if (!d) {
         throw new Error("No hay datos");
       }
       if (d.error) {
         throw new Error(d.error);
       }
-      const predData = d.pred || d;
-      setDt({ ...predData, heatmap: d.heatmap, ranking: d.numeros });
+      const predData = d.predicciones || d;
+      const nums2 = predData.dosCifras?.map((n: any) => n.numero) || [];
+      const nums3 = predData.tresCifras?.map((n: any) => n.numero) || [];
+      const nums4 = predData.cuatroCifras?.map((n: any) => n.numero) || [];
+      const rdbl = predData.redoblona || "";
+      setDt({ 
+        numeros_2: nums2, 
+        numeros_3: nums3, 
+        numeros_4: nums4, 
+        redoblona: rdbl,
+        heatmap: d.ranking || [],
+        ranking: d.ranking || []
+      });
       setDn(true);
-      if (d.aiInsight) setAiInsight(d.aiInsight);
+      if (d.confianza?.promedio) setAiInsight("Confianza promedio: " + d.confianza.promedio + "%");
       guardarPrediccion(true);
     } catch (e: any) {
       setEr(e?.message || String(e));
