@@ -342,17 +342,17 @@ export async function GET(req: NextRequest) {
       numero: pad(x.n),
       emoji: SUENOS[x.n]?.emoji || "❓",
       significado: SUENOS[x.n]?.nombre || "",
-      score: Math.round(x.score * 10000) / 10000,
+      score: Math.round((x.freq / ultimas2cifras.length) * 10000) / 10000,
       rank: i + 1,
       frecuencia: x.freq,
-      retraso: x.delay,
-      tendencia: x.trend,
+      retraso: x.delay || 0,
+      tendencia: x.trend || 0,
     }))
 
     // Predicciones 3 CIFRAS (últimos 3 dígitos más probables)
     const pred3d = scores3.slice(0, 5).map((x) => ({
       numero: pad(x.n, 3),
-      score: Math.round(x.score * 10000) / 10000,
+      score: Math.round((x.freq / ultimas3cifras.length) * 10000) / 10000,
     }))
 
     // Predicciones 4 CIFRAS - NÚMEROS COMPLETOS MÁS FRECUENTES
