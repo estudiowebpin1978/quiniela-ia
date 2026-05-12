@@ -14,7 +14,7 @@ async function scrapeQuinielaNacional(): Promise<Record<string, number[]>> {
   const results: Record<string, number[]> = {}
   
   try {
-    const res = await fetch("https://quiniela-nacional.com/quinielanacional/", {
+    const res = await fetch("https://quinielanacional1.com.ar/", {
       headers: { 
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept": "text/html,application/xhtml+xml"
@@ -27,11 +27,11 @@ async function scrapeQuinielaNacional(): Promise<Record<string, number[]>> {
     const html = await res.text()
     
     const turnos = [
-      { id: "nocturna", nombre: "Nocturna" },
-      { id: "vespertina", nombre: "Vespertina" },
-      { id: "matutina", nombre: "Matutina" },
-      { id: "primera", nombre: "Primera" },
-      { id: "previa", nombre: "Previa" }
+      { id: "Previa", nombre: "Previa" },
+      { id: "Primera", nombre: "Primera" },
+      { id: "Matutina", nombre: "Matutina" },
+      { id: "Vespertina", nombre: "Vespertina" },
+      { id: "Nocturna", nombre: "Nocturna" }
     ]
     
     const todosNumeros: string[] = []
@@ -41,6 +41,8 @@ async function scrapeQuinielaNacional(): Promise<Record<string, number[]>> {
     while ((match = numRegex.exec(html)) !== null) {
       todosNumeros.push(match[1])
     }
+    
+    console.log("Números encontrados:", todosNumeros.length)
     
     if (todosNumeros.length >= 100) {
       const porTurno = 20
