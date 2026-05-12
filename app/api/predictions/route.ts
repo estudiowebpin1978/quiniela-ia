@@ -1,217 +1,325 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
-  0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 3: { emoji: "🐰", nombre: "San Cono" }, 4: { emoji: "🛏️", nombre: "La cama" },
-  5: { emoji: "🐱", nombre: "Gato" }, 6: { emoji: "🐕", nombre: "Perro" }, 7: { emoji: "🔫", nombre: "Revolver" }, 8: { emoji: "🔥", nombre: "Incendio" }, 9: { emoji: "🌊", nombre: "Arroyo" },
-  10: { emoji: "🥛", nombre: "La leche" }, 11: { emoji: "⛏️", nombre: "Minero" }, 12: { emoji: "💂", nombre: "Soldado" }, 13: { emoji: "😱", nombre: "La yeta" }, 14: { emoji: "🍺", nombre: "Borracho" },
-  15: { emoji: "👸", nombre: "Niña bonita" }, 16: { emoji: "💍", nombre: "Anillo" }, 17: { emoji: "💀", nombre: "Desgracia" }, 18: { emoji: "🩸", nombre: "Sangre" }, 19: { emoji: "🐟", nombre: "Pescado" },
-  20: { emoji: "🎉", nombre: "La fiesta" }, 21: { emoji: "👩", nombre: "Mujer" }, 22: { emoji: "🤪", nombre: "Loco" }, 23: { emoji: "👨‍🍳", nombre: "Cocinero" }, 24: { emoji: "🐴", nombre: "Caballo" },
-  25: { emoji: "🐔", nombre: "Gallina" }, 26: { emoji: "⛪", nombre: "La misa" }, 27: { emoji: "🪮", nombre: "Peine" }, 28: { emoji: "⛰️", nombre: "Cerro" }, 29: { emoji: "✝️", nombre: "San Pedro" },
-  30: { emoji: "🌹", nombre: "Santa Rosa" }, 31: { emoji: "💡", nombre: "Luz" }, 32: { emoji: "💰", nombre: "Dinero" }, 33: { emoji: "✝️", nombre: "Cristo" }, 34: { emoji: "🤕", nombre: "Cabeza" },
-  35: { emoji: "🐦", nombre: "Pajarito" }, 36: { emoji: "🧈", nombre: "Manteca" }, 37: { emoji: "🦷", nombre: "Dentista" }, 38: { emoji: "🪨", nombre: "Piedras" }, 39: { emoji: "🌧️", nombre: "Lluvia" },
-  40: { emoji: "👨‍🔬", nombre: "Cura" }, 41: { emoji: "🔪", nombre: "Cuchillo" }, 42: { emoji: "👟", nombre: "Zapatillas" }, 43: { emoji: "🏠", nombre: "Balcón" }, 44: { emoji: "🏚️", nombre: "Cárcel" },
-  45: { emoji: "🍷", nombre: "Vino" }, 46: { emoji: "🍅", nombre: "Tomates" }, 47: { emoji: "💀", nombre: "Muerto" }, 48: { emoji: "🧟", nombre: "Muerto habla" }, 49: { emoji: "🥩", nombre: "Carne" },
-  50: { emoji: "🍞", nombre: "Pan" }, 51: { emoji: "🪚", nombre: "Serrucho" }, 52: { emoji: "👩‍👦", nombre: "Madre" }, 53: { emoji: "⛵", nombre: "Barco" }, 54: { emoji: "🐄", nombre: "Vaca" },
-  55: { emoji: "🎵", nombre: "Música" }, 56: { emoji: "🤕", nombre: "Caída" }, 57: { emoji: "🏃", nombre: "Jorobado" }, 58: { emoji: "💦", nombre: "Ahogado" }, 59: { emoji: "🌱", nombre: "Plantas" },
-  60: { emoji: "🧝", nombre: "Virgen" }, 61: { emoji: "🔫", nombre: "Escopeta" }, 62: { emoji: "🌊", nombre: "Inundación" }, 63: { emoji: "💒", nombre: "Casamiento" }, 64: { emoji: "😢", nombre: "Llanto" },
-  65: { emoji: "🎯", nombre: "Cazador" }, 66: { emoji: "🪱", nombre: "Lombrices" }, 67: { emoji: "🐍", nombre: "Víbora" }, 68: { emoji: "👶", nombre: "Sobrinos" }, 69: { emoji: "😈", nombre: "Vicios" },
-  70: { emoji: "🧟", nombre: "Muerto sueño" }, 71: { emoji: "💩", nombre: "Excremento" }, 72: { emoji: "🎁", nombre: "Sorpresa" }, 73: { emoji: "🏥", nombre: "Hospital" }, 74: { emoji: "🏿", nombre: "Gente negra" },
-  75: { emoji: "💋", nombre: "Besos" }, 76: { emoji: "🔥", nombre: "Fuego" }, 77: { emoji: "🦵", nombre: "Pierna mujer" }, 78: { emoji: "💃", nombre: "Ramera" }, 79: { emoji: "🦹", nombre: "Ladrón" },
-  80: { emoji: "🎱", nombre: "Bochas" }, 81: { emoji: "💐", nombre: "Flores" }, 82: { emoji: "🥊", nombre: "Pelea" }, 83: { emoji: "⛈️", nombre: "Mal tiempo" }, 84: { emoji: "⛪", nombre: "Iglesia" },
-  85: { emoji: "🔦", nombre: "Linterna" }, 86: { emoji: "💨", nombre: "Humo" }, 87: { emoji: "🦟", nombre: "Piojos" }, 88: { emoji: "🥔", nombre: "Papas" }, 89: { emoji: "🐀", nombre: "Rata" },
-  90: { emoji: "😱", nombre: "Miedo" }, 91: { emoji: "🏕️", nombre: "Excursión" }, 92: { emoji: "👨‍⚕️", nombre: "Médico" }, 93: { emoji: "💕", nombre: "Enamorado" }, 94: { emoji: "🪦", nombre: "Cementerio" },
-  95: { emoji: "👓", nombre: "Anteojos" }, 96: { emoji: "👨", nombre: "Marido" }, 97: { emoji: "🍽️", nombre: "Mesa" }, 98: { emoji: "👕", nombre: "Lavandera" }, 99: { emoji: "👦", nombre: "Hermano" }
+  0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
+  3: { emoji: "🐰", nombre: "San Cono" }, 4: { emoji: "🛏️", nombre: "La cama" }, 5: { emoji: "🐱", nombre: "Gato" },
+  6: { emoji: "🐕", nombre: "Perro" }, 7: { emoji: "🔫", nombre: "Revolver" }, 8: { emoji: "🔥", nombre: "Incendio" },
+  9: { emoji: "🌊", nombre: "Arroyo" }, 10: { emoji: "🥛", nombre: "Leche" }, 11: { emoji: "⛏️", nombre: "Minero" },
+  12: { emoji: "💂", nombre: "Soldado" }, 13: { emoji: "😱", nombre: "Yeta" }, 14: { emoji: "🍺", nombre: "Borracho" },
+  15: { emoji: "👸", nombre: "Niña Bonita" }, 16: { emoji: "💍", nombre: "Anillo" }, 17: { emoji: "💀", nombre: "Desgracia" },
+  18: { emoji: "🩸", nombre: "Sangre" }, 19: { emoji: "🐟", nombre: "Pescado" }, 20: { emoji: "🎉", nombre: "La fiesta" },
+  21: { emoji: "👩", nombre: "Mujer" }, 22: { emoji: "🤪", nombre: "Loco" }, 23: { emoji: "👨‍🍳", nombre: "Cocinero" },
+  24: { emoji: "🐴", nombre: "Caballo" }, 25: { emoji: "🐔", nombre: "Gallina" }, 26: { emoji: "⛪", nombre: "La misa" },
+  27: { emoji: "🪮", nombre: "Peine" }, 28: { emoji: "⛰️", nombre: "Cerro" }, 29: { emoji: "✝️", nombre: "San Pedro" },
+  30: { emoji: "🌹", nombre: "Santa Rosa" }, 31: { emoji: "💡", nombre: "Luz" }, 32: { emoji: "💰", nombre: "Dinero" },
+  33: { emoji: "✝️", nombre: "Cristo" }, 34: { emoji: "🤕", nombre: "Cabeza" }, 35: { emoji: "🐦", nombre: "Pajarito" },
+  36: { emoji: "🧈", nombre: "Manteca" }, 37: { emoji: "🦷", nombre: "Dentista" }, 38: { emoji: "🪨", nombre: "Piedras" },
+  39: { emoji: "🌧️", nombre: "Lluvia" }, 40: { emoji: "👨‍🔬", nombre: "Cura" }, 41: { emoji: "🔪", nombre: "Cuchillo" },
+  42: { emoji: "👟", nombre: "Zapatillas" }, 43: { emoji: "🏠", nombre: "Balcón" }, 44: { emoji: "🏚️", nombre: "Cárcel" },
+  45: { emoji: "🍷", nombre: "Vino" }, 46: { emoji: "🍅", nombre: "Tomates" }, 47: { emoji: "💀", nombre: "Muerto" },
+  48: { emoji: "🧟", nombre: "Muerto habla" }, 49: { emoji: "🥩", nombre: "Carne" }, 50: { emoji: "🍞", nombre: "Pan" },
+  51: { emoji: "🪚", nombre: "Serrucho" }, 52: { emoji: "👩‍👦", nombre: "Madre" }, 53: { emoji: "⛵", nombre: "Barco" },
+  54: { emoji: "🐄", nombre: "Vaca" }, 55: { emoji: "🎵", nombre: "Música" }, 56: { emoji: "🤕", nombre: "Caída" },
+  57: { emoji: "🏃", nombre: "Jorobado" }, 58: { emoji: "💦", nombre: "Ahogado" }, 59: { emoji: "🌱", nombre: "Plantas" },
+  60: { emoji: "🧝", nombre: "Virgen" }, 61: { emoji: "🔫", nombre: "Escopeta" }, 62: { emoji: "🌊", nombre: "Inundación" },
+  63: { emoji: "💒", nombre: "Casamiento" }, 64: { emoji: "😢", nombre: "Llanto" }, 65: { emoji: "🎯", nombre: "Cazador" },
+  66: { emoji: "🪱", nombre: "Lombrices" }, 67: { emoji: "🐍", nombre: "Víbora" }, 68: { emoji: "👶", nombre: "Sobrinos" },
+  69: { emoji: "😈", nombre: "Vicios" }, 70: { emoji: "💀", nombre: "Muerto sueño" }, 71: { emoji: "💩", nombre: "Excremento" },
+  72: { emoji: "🎁", nombre: "Sorpresa" }, 73: { emoji: "🏥", nombre: "Hospital" }, 74: { emoji: "🏿", nombre: "Gente negra" },
+  75: { emoji: "💋", nombre: "Besos" }, 76: { emoji: "🔥", nombre: "Fuego" }, 77: { emoji: "🦵", nombre: "Pierna" },
+  78: { emoji: "💃", nombre: "Ramera" }, 79: { emoji: "🦹", nombre: "Ladrón" }, 80: { emoji: "🎱", nombre: "Bochas" },
+  81: { emoji: "💐", nombre: "Flores" }, 82: { emoji: "🥊", nombre: "Pelea" }, 83: { emoji: "⛈️", nombre: "Mal tiempo" },
+  84: { emoji: "⛪", nombre: "Iglesia" }, 85: { emoji: "🔦", nombre: "Linterna" }, 86: { emoji: "💨", nombre: "Humo" },
+  87: { emoji: "🦟", nombre: "Piojos" }, 88: { emoji: "🥔", nombre: "Papas" }, 89: { emoji: "🐀", nombre: "Rata" },
+  90: { emoji: "😱", nombre: "Miedo" }, 91: { emoji: "🏕️", nombre: "Excursión" }, 92: { emoji: "👨‍⚕️", nombre: "Médico" },
+  93: { emoji: "💕", nombre: "Enamorado" }, 94: { emoji: "🪦", nombre: "Cementerio" }, 95: { emoji: "👓", nombre: "Anteojos" },
+  96: { emoji: "👨", nombre: "Marido" }, 97: { emoji: "🍽️", nombre: "Mesa" }, 98: { emoji: "👕", nombre: "Lavandera" },
+  99: { emoji: "👦", nombre: "Hermano" }
 }
 
 function pad(n: number, l = 2): string {
-  return String(n).padStart(l, "0")
+  return String(n).padStart(l, '0')
 }
 
-function normalize(values: number[]): number[] {
-  const max = Math.max(...values, 1)
-  const min = Math.min(...values)
-  if (max === min) return values.map(() => 0)
-  return values.map((v) => (v - min) / (max - min))
-}
+// ============================================
+// 12 FACTORES DE ANÁLISIS
+// ============================================
 
-function monteCarloSim(freq: number[]): number[] {
-  const mc = new Array(freq.length).fill(0)
-  const w = freq.map((f) => f + 1)
-  const tot = w.reduce((a, b) => a + b, 0)
-  const cum: number[] = []
-  let acc = 0
-  for (const x of w) {
-    acc += x / tot
-    cum.push(acc)
+// Factor 1: Frecuencia absoluta
+function analisisFrecuencia(terminaciones: number[]): Record<number, number> {
+  const freq: Record<number, number> = {}
+  for (const t of terminaciones) {
+    freq[t] = (freq[t] || 0) + 1
   }
-  const samples = Math.min(25000, 5000 + freq.length * 25)
-  for (let s = 0; s < samples; s++) {
-    const r = Math.random()
-    let lo = 0, hi = freq.length - 1
-    while (lo < hi) {
-      const m = (lo + hi) >> 1
-      if (cum[m] < r) lo = m + 1
-      else hi = m
+  return freq
+}
+
+// Factor 2: Frecuencia por posición (miles, centenas, decenas, unidades)
+function analisisPosiciones(numeros4: number[]): { miles: number[], centenas: number[], decenas: number[], unidades: number[] } {
+  const miles = new Array(10).fill(0)
+  const centenas = new Array(10).fill(0)
+  const decenas = new Array(10).fill(0)
+  const unidades = new Array(10).fill(0)
+  
+  for (const n of numeros4) {
+    const s = String(n).padStart(4, '0')
+    miles[parseInt(s[0])]++
+    centenas[parseInt(s[1])]++
+    decenas[parseInt(s[2])]++
+    unidades[parseInt(s[3])]++
+  }
+  
+  return { miles, centenas, decenas, unidades }
+}
+
+// Factor 3: Análisis de ausencias (tiempo sin aparecer)
+function analisisAusencias(sequences: number[][]): { ultimoIdx: Record<number, number>, maxIdx: number } {
+  const ultimoIdx: Record<number, number> = {}
+  let maxIdx = 0
+  
+  sequences.forEach((seq, idx) => {
+    seq.forEach(n => {
+      const t = n % 100
+      ultimoIdx[t] = idx
+      if (idx > maxIdx) maxIdx = idx
+    })
+  })
+  
+  return { ultimoIdx, maxIdx }
+}
+
+// Factor 4: Análisis de recencia (apariciones recientes)
+function analisisRecencia(sequences: number[][], ultimosN: number): Record<number, number> {
+  const recencia: Record<number, number> = {}
+  const ultimos = sequences.slice(-ultimosN)
+  
+  for (const seq of ultimos) {
+    for (const n of seq) {
+      const t = n % 100
+      recencia[t] = (recencia[t] || 0) + 1
     }
-    mc[lo]++
   }
-  return mc
+  
+  return recencia
 }
 
-function getTerminations(hist: number[]): number[] {
-  const term = new Array(10).fill(0)
-  for (const n of hist) {
-    const t = n % 10
-    if (t >= 0 && t <= 9) term[t]++
-  }
-  return term
-}
-
-function getLastPositions(sequences: number[][]): number[] {
-  const lastPos = new Array(100).fill(0)
-  for (const seq of sequences) {
-    for (let i = 0; i < Math.min(seq.length, 5); i++) {
-      const n = seq[i] % 100
-      if (n >= 0 && n <= 99) lastPos[n] += (5 - i)
+// Factor 5: Tendencia (comparación período reciente vs anterior)
+function analisisTendencia(sequences: number[][], diasRecientes: number, diasAnterior: number): Record<number, number> {
+  const tendencia: Record<number, number> = {}
+  
+  const reciente = sequences.slice(-diasRecientes)
+  const anterior = sequences.slice(-diasRecientes - diasAnterior, -diasRecientes)
+  
+  const freqReciente: Record<number, number> = {}
+  const freqAnterior: Record<number, number> = {}
+  
+  for (const seq of reciente) {
+    for (const n of seq) {
+      const t = n % 100
+      freqReciente[t] = (freqReciente[t] || 0) + 1
     }
   }
-  return lastPos
-}
-
-function scoreDigitsForTurno(
-  freq: number[],
-  freq3: number[],
-  hist: number[],
-  hist3: number[],
-  recentWindow: number,
-  delay: number[],
-  lastPositions: number[],
-  terminationFreq: number[]
-) {
-  const len = 100
   
-  const trend = new Array(len).fill(0)
-  for (const n of hist.slice(-recentWindow)) {
-    if (n >= 0 && n < len) trend[n]++
-  }
-  
-  const mc = monteCarloSim(freq)
-  
-  const freqNorm = normalize(freq)
-  const delayNorm = normalize(delay)
-  const trendNorm = normalize(trend)
-  const mcNorm = normalize(mc)
-  const lastPosNorm = normalize(lastPositions)
-  const termNorm = normalize(terminationFreq)
-  
-  const avgDelay = hist.length / len
-  const overdue = delay.map(d => d > avgDelay * 1.5 ? 1 : 0)
-  const overdueNorm = normalize(overdue)
-  
-  const maxF = Math.max(...freq, 1)
-  const maxT = Math.max(...trend, 1)
-  const maxD = Math.max(...delay, 1)
-  
-  return Array.from({ length: len }, (_, i) => {
-    const freqScore = (freq[i] / maxF) * 0.35
-    const recencyScore = (trend[i] / maxT) * 0.25
-    const delayScore = (delay[i] / maxD) * 0.15
-    const monteCarloScore = mcNorm[i] * 0.10
-    const positionScore = lastPosNorm[i] * 0.08
-    const termScore = termNorm[i] * 0.07
-    
-    return {
-      n: i,
-      score: freqScore + recencyScore + delayScore + monteCarloScore + positionScore + termScore,
-      freq: freq[i],
-      trend: trend[i],
-      delay: delay[i]
+  for (const seq of anterior) {
+    for (const n of seq) {
+      const t = n % 100
+      freqAnterior[t] = (freqAnterior[t] || 0) + 1
     }
-  }).sort((a, b) => b.score - a.score)
-}
-
-function scoreDigits3ForTurno(freq3: number[], hist3: number[], recentWindow: number) {
-  const len = 1000
-  
-  const trend3 = new Array(len).fill(0)
-  for (const n of hist3.slice(-recentWindow)) {
-    if (n >= 0 && n < len) trend3[n]++
   }
   
-  const mc = monteCarloSim(freq3)
+  for (let t = 0; t < 100; t++) {
+    const r = freqReciente[t] || 0
+    const a = freqAnterior[t] || 1
+    tendencia[t] = ((r / diasRecientes) - (a / diasAnterior)) * 100
+  }
   
-  const freqNorm = normalize(freq3)
-  const trendNorm = normalize(trend3)
-  const mcNorm = normalize(mc)
-  
-  const maxF = Math.max(...freq3, 1)
-  const maxT = Math.max(...trend3, 1)
-  
-  return Array.from({ length: len }, (_, i) => ({
-    n: i,
-    score: (freq3[i] / maxF) * 0.4 + (trend3[i] / maxT) * 0.35 + mcNorm[i] * 0.25
-  })).sort((a, b) => b.score - a.score)
+  return tendencia
 }
 
-function getCooccurrence(sequences: number[][]): number[][] {
-  const co = Array.from({ length: 100 }, () => new Array(100).fill(0))
-  for (const seq of sequences) {
-    const unicos = [...new Set(seq)]
-    for (let i = 0; i < unicos.length; i++) {
-      for (let j = i + 1; j < unicos.length; j++) {
-        const a = Math.min(unicos[i], unicos[j])
-        const b = Math.max(unicos[i], unicos[j])
-        if (a >= 0 && a <= 99 && b >= 0 && b <= 99) co[a][b]++
+// Factor 6: Análisis de ciclos (apariciones periódicas)
+function analisisCiclos(sequences: number[][]): Record<number, { promedio: number, ultimo: number }> {
+  const ciclos: Record<number, number[]> = {}
+  const ultimoIdx: Record<number, number> = {}
+  
+  sequences.forEach((seq, idx) => {
+    seq.forEach(n => {
+      const t = n % 100
+      if (!ciclos[t]) ciclos[t] = []
+      ciclos[t].push(idx)
+      ultimoIdx[t] = idx
+    })
+  })
+  
+  const result: Record<number, { promedio: number, ultimo: number }> = {}
+  const maxIdx = sequences.length - 1
+  
+  for (const t of Object.keys(ciclos)) {
+    const indices = ciclos[parseInt(t)]
+    if (indices.length > 1) {
+      let sumaDistancias = 0
+      for (let i = 1; i < indices.length; i++) {
+        sumaDistancias += indices[i] - indices[i-1]
+      }
+      result[parseInt(t)] = {
+        promedio: Math.round(sumaDistancias / (indices.length - 1) * 10) / 10,
+        ultimo: maxIdx - ultimoIdx[parseInt(t)]
       }
     }
   }
-  return co
+  
+  return result
 }
 
-function getBestPair(scores: { n: number; score: number }[], co: number[][]) {
-  const top = scores.slice(0, 18).map(s => s.n)
-  if (top.length < 2) return { a: 0, b: 1, label: "00-01" }
+// Factor 7: Correlación entre turnos
+function analisisCorrelacionTurnos(rows: any[]): Record<string, Record<number, number>> {
+  const turnos = ['previa', 'primera', 'matutina', 'vespertina', 'nocturna']
+  const correlacion: Record<string, Record<number, number>> = {}
   
-  let best = { a: top[0], b: top[1], w: -1 }
-  const scMap = new Map(scores.map(s => [s.n, s.score]))
-  
-  for (let i = 0; i < top.length; i++) {
-    for (let j = i + 1; j < top.length; j++) {
-      const a = Math.min(top[i], top[j])
-      const b = Math.max(top[i], top[j])
-      const si = scMap.get(a) ?? 0
-      const sj = scMap.get(b) ?? 0
-      const c = co[a]?.[b] ?? 0
-      const w = si * sj * (1 + Math.log1p(c))
-      if (w > best.w) best = { a, b, w }
-    }
-  }
-  return { a: best.a, b: best.b, label: `${pad(best.a)}-${pad(best.b)}` }
-}
-
-function getCorrelationsBetweenTurnos(allTurnoData: Record<string, { freq: number[] }>): Record<string, number[]> {
-  const correlations: Record<string, number[]> = {}
-  const turnos = Object.keys(allTurnoData)
-  
-  for (let i = 0; i < turnos.length; i++) {
-    for (let j = i + 1; j < turnos.length; j++) {
-      const t1 = turnos[i]
-      const t2 = turnos[j]
-      const corr: number[] = []
-      
-      for (let n = 0; n < 100; n++) {
-        const f1 = allTurnoData[t1].freq[n]
-        const f2 = allTurnoData[t2].freq[n]
-        if (f1 > 0 && f2 > 0) {
-          corr.push(n)
+  for (const turno of turnos) {
+    const filtro = rows.filter((r: any) => r.turno && r.turno.toLowerCase().includes(turno))
+    const freq: Record<number, number> = {}
+    
+    for (const row of filtro) {
+      if (Array.isArray(row.numbers)) {
+        for (const n of row.numbers) {
+          const t = Number(n) % 100
+          freq[t] = (freq[t] || 0) + 1
         }
       }
-      correlations[`${t1}-${t2}`] = corr.slice(0, 10)
     }
+    
+    correlacion[turno] = freq
   }
-  return correlations
+  
+  return correlacion
 }
 
+// Factor 8: Matriz de co-ocurrencia (qué números aparecen juntos)
+function analisisCoocurrencia(sequences: number[][]): Record<string, number> {
+  const cooc: Record<string, number> = {}
+  
+  for (const seq of sequences) {
+    const unicos = [...new Set(seq.map(n => n % 100))]
+    for (let i = 0; i < unicos.length; i++) {
+      for (let j = i + 1; j < unicos.length; j++) {
+        const key = `${Math.min(unicos[i], unicos[j])}-${Math.max(unicos[i], unicos[j])}`
+        cooc[key] = (cooc[key] || 0) + 1
+      }
+    }
+  }
+  
+  return cooc
+}
+
+// Factor 9: Números calientes (alta frecuencia reciente)
+function numerosCalientes(recencia: Record<number, number>, threshold: number): number[] {
+  const entries = Object.entries(recencia)
+    .map(([k, v]) => ({ num: parseInt(k), freq: v }))
+    .filter(x => x.freq >= threshold)
+    .sort((a, b) => b.freq - a.freq)
+  
+  return entries.slice(0, 10).map(x => x.num)
+}
+
+// Factor 10: Números atrasados (mucho tiempo sin aparecer)
+function numerosAtrasados(ultimoIdx: Record<number, number>, maxIdx: number, threshold: number): number[] {
+  const entries = Object.entries(ultimoIdx)
+    .map(([k, v]) => ({ num: parseInt(k), ausente: maxIdx - v }))
+    .filter(x => x.ausente >= threshold)
+    .sort((a, b) => b.ausente - a.ausente)
+  
+  return entries.slice(0, 10).map(x => x.num)
+}
+
+// Factor 11: Análisis de terminaciones (pares/impares)
+function analisisParidad(terminaciones: number[]): { pares: number, impares: number } {
+  let pares = 0
+  let impares = 0
+  for (const t of terminaciones) {
+    if (t % 2 === 0) {
+      pares++
+    } else {
+      impares++
+    }
+  }
+  return { pares, impares }
+}
+
+// Factor 12: Suma de dígitos (patrón de suma)
+function analisisSumaDigitos(terminaciones: number[]): Record<number, number> {
+  const suma: Record<number, number> = {}
+  for (const t of terminaciones) {
+    const digitos = String(t).padStart(2, '0')
+    const s = parseInt(digitos[0]) + parseInt(digitos[1])
+    suma[s] = (suma[s] || 0) + 1
+  }
+  return suma
+}
+
+// ============================================
+// CÁLCULO DE SCORE MULTIVARIABLE
+// ============================================
+function calcularScore(
+  num: number,
+  freq: number,
+  totalFreq: number,
+  recencia: number,
+  tendencia: number,
+  ciclo: { promedio: number, ultimo: number } | undefined,
+  coocurrencia: number,
+  ultimoIdx: number,
+  maxIdx: number
+): { score: number, confianza: number, factores: string[] } {
+  const factores: string[] = []
+  let score = 0
+  
+  // Factor 1: Frecuencia (30%)
+  const scoreFreq = freq / totalFreq * 100
+  score += scoreFreq * 0.30
+  if (scoreFreq > 3) factores.push(`Alta freq: ${freq}`)
+  
+  // Factor 2: Recencia (20%)
+  const scoreRecencia = Math.min(100, recencia * 10)
+  score += scoreRecencia * 0.20
+  if (recencia > 3) factores.push(`Reciente: ${recencia}`)
+  
+  // Factor 3: Tendencia (15%)
+  const scoreTendencia = tendencia > 0 ? 50 + Math.min(50, tendencia * 10) : 50 - Math.min(50, Math.abs(tendencia) * 5)
+  score += scoreTendencia * 0.15
+  if (tendencia > 10) factores.push(`Subiendo: +${Math.round(tendencia)}%`)
+  else if (tendencia < -10) factores.push(`Bajando: ${Math.round(tendencia)}%`)
+  
+  // Factor 4: Ciclo (15%)
+  if (ciclo) {
+    const esperado = ciclo.ultimo - ciclo.promedio
+    if (esperado >= -2) {
+      score += 70 * 0.15
+      factores.push(`Ciclo favorable`)
+    } else {
+      score += 30 * 0.15
+    }
+  } else {
+    score += 40 * 0.15
+  }
+  
+  // Factor 5: Co-ocurrencia (10%)
+  score += Math.min(100, coocurrencia * 5) * 0.10
+  if (coocurrencia > 3) factores.push(`Co-ocurrencia: ${coocurrencia}`)
+  
+  // Factor 6: Ausencia (10%)
+  const ausencia = maxIdx - ultimoIdx
+  const scoreAusencia = ausencia < 5 ? 80 : ausencia < 15 ? 50 : 20
+  score += scoreAusencia * 0.10
+  if (ausencia > 20) factores.push(`Atrasado: ${ausencia}`)
+  
+  const confianza = Math.min(95, Math.round(score))
+  
+  return { score: Math.round(score * 100) / 100, confianza, factores }
+}
+
+// ============================================
+// MAIN API
+// ============================================
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const turno = searchParams.get("sorteo") || "previa"
@@ -231,7 +339,7 @@ export async function GET(req: NextRequest) {
   }
 
   const ctrl = new AbortController()
-  const to = setTimeout(() => ctrl.abort(), 15000)
+  const to = setTimeout(() => ctrl.abort(), 25000)
 
   try {
     const url = `${SB}/rest/v1/draws?select=date,turno,numbers&turno=ilike.*${turnoQuery}*&order=date.desc&limit=10000`
@@ -245,6 +353,7 @@ export async function GET(req: NextRequest) {
     const rows = await res.json()
     if (!rows?.length) return NextResponse.json({ error: `Sin datos para turno ${turnoQuery}` }, { status: 500 })
 
+    // Extraer secuencias válidas
     const sequences: number[][] = []
     const dates: string[] = []
     
@@ -260,33 +369,94 @@ export async function GET(req: NextRequest) {
 
     if (!sequences.length) return NextResponse.json({ error: "Sin secuencias válidas" }, { status: 500 })
 
-    // ANÁLISIS REAL: Extraer últimas 2, 3 y 4 cifras de cada número de 4 cifras
-    const terminaciones2: number[] = []  // Últimas 2 cifras
-    const terminaciones3: number[] = []  // Últimas 3 cifras
-    const numeros4: number[] = []        // Números completos de 4 cifras
+    // Extraer datos
+    const terminaciones2: number[] = []
+    const terminaciones3: number[] = []
+    const numeros4: number[] = []
     
     for (const seq of sequences) {
       for (const n of seq) {
         if (typeof n === 'number' && n >= 0 && n <= 9999) {
-          const ult2 = n % 100        // Últimas 2 cifras
-          const ult3 = n % 1000      // Últimas 3 cifras
-          terminaciones2.push(ult2)
-          terminaciones3.push(ult3)
+          terminaciones2.push(n % 100)
+          terminaciones3.push(n % 1000)
           numeros4.push(n)
         }
       }
     }
+
+    // === APLICAR LOS 12 FACTORES ===
     
-    // Frecuencia de 2 cifras
-    const freq2: Record<number, number> = {}
-    for (const t of terminaciones2) {
-      freq2[t] = (freq2[t] || 0) + 1
+    // Factor 1: Frecuencia
+    const freq = analisisFrecuencia(terminaciones2)
+    
+    // Factor 2: Posiciones
+    const posiciones = analisisPosiciones(numeros4)
+    
+    // Factor 3: Ausencias
+    const { ultimoIdx, maxIdx } = analisisAusencias(sequences)
+    
+    // Factor 4: Recencia (últimos 7 sorteos)
+    const recencia = analisisRecencia(sequences, 7)
+    
+    // Factor 5: Tendencia (últimos 7 vs anteriores 7)
+    const tendencia = analisisTendencia(sequences, 7, 7)
+    
+    // Factor 6: Ciclos
+    const ciclos = analisisCiclos(sequences)
+    
+    // Factor 7: Correlación entre turnos
+    const correlacionTurnos = analisisCorrelacionTurnos(rows)
+    
+    // Factor 8: Co-ocurrencia
+    const coocurrencia = analisisCoocurrencia(sequences)
+    
+    // Factor 9: Números calientes
+    const calientes = numerosCalientes(recencia, 5)
+    
+    // Factor 10: Números atrasados
+    const atrasados = numerosAtrasados(ultimoIdx, maxIdx, 15)
+    
+    // Factor 11: Paridad
+    const paridad = analisisParidad(terminaciones2)
+    
+    // Factor 12: Suma de dígitos
+    const sumaDigitos = analisisSumaDigitos(terminaciones2)
+
+    // === CALCULAR SCORES PARA CADA NÚMERO ===
+    const scores: { num: number, score: number, confianza: number, factores: string[], frecuencia: number }[] = []
+    
+    for (let n = 0; n < 100; n++) {
+      const freqNum = freq[n] || 0
+      const recenciaNum = recencia[n] || 0
+      const tendenciaNum = tendencia[n] || 0
+      const cicloNum = ciclos[n]
+      const coocNum = Object.entries(coocurrencia)
+        .filter(([k]) => k.includes(`-${n}`) || k.includes(`${n}-`))
+        .reduce((sum, [, v]) => sum + v, 0)
+      const ultimo = ultimoIdx[n] || 0
+      
+      const result = calcularScore(
+        n, freqNum, terminaciones2.length,
+        recenciaNum, tendenciaNum, cicloNum,
+        coocNum, ultimo, maxIdx
+      )
+      
+      scores.push({
+        num: n,
+        score: result.score,
+        confianza: result.confianza,
+        factores: result.factores,
+        frecuencia: freqNum
+      })
     }
-    const sorted2 = Object.entries(freq2)
-      .map(([k, v]) => ({ term: parseInt(k), freq: v }))
-      .sort((a, b) => b.freq - a.freq)
+
+    // Ordenar por score
+    scores.sort((a, b) => b.score - a.score)
+
+    // Top 10 de 2 cifras
+    const pred2 = scores.slice(0, 10).map(s => pad(s.num))
     
-    // Frecuencia de 3 cifras (últimas 3)
+    // Top 5 de 3 cifras (por frecuencia)
     const freq3: Record<number, number> = {}
     for (const t of terminaciones3) {
       freq3[t] = (freq3[t] || 0) + 1
@@ -294,8 +464,9 @@ export async function GET(req: NextRequest) {
     const sorted3 = Object.entries(freq3)
       .map(([k, v]) => ({ term: parseInt(k), freq: v }))
       .sort((a, b) => b.freq - a.freq)
-    
-    // Frecuencia de 4 cifras (números completos)
+    const pred3 = sorted3.slice(0, 5).map(x => pad(x.term, 3))
+
+    // Top 5 de 4 cifras (por frecuencia)
     const freq4: Record<number, number> = {}
     for (const n of numeros4) {
       freq4[n] = (freq4[n] || 0) + 1
@@ -303,60 +474,52 @@ export async function GET(req: NextRequest) {
     const sorted4 = Object.entries(freq4)
       .map(([k, v]) => ({ n: parseInt(k), f: v }))
       .sort((a, b) => b.f - a.f)
-    
-    console.log("[DEBUG] Total números 4 cifras:", numeros4.length)
-    console.log("[DEBUG] Total terminaciones 2 cifras:", terminaciones2.length)
-    console.log("[DEBUG] Total terminaciones 3 cifras:", terminaciones3.length)
-    console.log("[DEBUG] Top 5 de 2 cifras:", sorted2.slice(0, 5).map(x => `${x.term}:${x.freq}`).join(", "))
-    console.log("[DEBUG] Top 5 de 3 cifras:", sorted3.slice(0, 5).map(x => `${x.term}:${x.freq}`).join(", "))
-    console.log("[DEBUG] Top 5 de 4 cifras:", sorted4.slice(0, 5).map(x => `${x.n}:${x.f}`).join(", "))
-
-    // Top 10 de 2 cifras
-    const pred2 = sorted2.slice(0, 10).map(x => pad(x.term))
-
-    // Top 5 de 3 cifras (últimas 3)
-    const pred3 = sorted3.slice(0, 5).map(x => pad(x.term, 3))
-
-    // Top 5 de 4 cifras
     const pred4 = sorted4.slice(0, 5).map(x => pad(x.n, 4))
 
-    // Ranking para mostrar
-    const top10 = sorted2.slice(0, 10).map((x, i) => ({
-      n: x.term,
-      numero: pad(x.term),
-      emoji: SUENOS[x.term]?.emoji || "❓",
-      significado: SUENOS[x.term]?.nombre || "",
-      score: Math.round((x.freq / terminaciones2.length) * 10000) / 10000,
+    // Top 10 con información completa
+    const top10 = scores.slice(0, 10).map((s, i) => ({
+      n: s.num,
+      numero: pad(s.num),
+      emoji: SUENOS[s.num]?.emoji || "❓",
+      significado: SUENOS[s.num]?.nombre || "",
+      score: s.score,
+      confianza: s.confianza,
       rank: i + 1,
-      frecuencia: x.freq,
-      retraso: 0,
-      tendencia: 0,
+      frecuencia: s.frecuencia,
+      factores: s.factores
     }))
 
-    // Heatmap de terminaciones 2 cifras
-    const heatmap = sorted2.slice(0, 20).map(x => ({
-      n: x.term,
-      f: x.freq,
-      s: SUENOS[x.term] || { emoji: "❓", nombre: "" },
-      pct: Math.round((x.freq / terminaciones2.length) * 10000) / 100
+    // Redoblona (los dos mejores score)
+    const redoblona = scores.length >= 2 
+      ? `${pad(scores[0].num)}-${pad(scores[1].num)}`
+      : "00-00"
+
+    // Heatmap
+    const heatmap = scores.slice(0, 20).map(s => ({
+      n: s.num,
+      f: s.frecuencia,
+      s: SUENOS[s.num] || { emoji: "❓", nombre: "" },
+      pct: Math.round((s.frecuencia / terminaciones2.length) * 10000) / 100
     }))
 
     const uniqueDates = [...new Set(dates)].sort().reverse()
-    const confidence = Math.round((sorted2.slice(0, 10).reduce((sum, x) => sum + x.freq, 0) / terminaciones2.length) * 10)
+    const confidence = Math.round((scores.slice(0, 10).reduce((sum, s) => sum + s.confianza, 0) / 10))
 
-    // Redoblona: los dos más frecuentes de 2 cifras
-    const redoblona = sorted2.length >= 2 
-      ? `${pad(sorted2[0].term)}-${pad(sorted2[1].term)}`
-      : "00-00"
+    console.log(`[12 FACTORES] Total números: ${numeros4.length}, Sorteos: ${sequences.length}`)
+    console.log(`[12 FACTORES] Top 3: ${scores.slice(0, 3).map(s => `${s.num}:${s.score.toFixed(2)}`).join(', ')}`)
 
     return NextResponse.json({
       ok: true,
       turno: turnoQuery,
       debug: {
-        terminaciones_2_top10: sorted2.slice(0, 10).map(x => `${x.term}:${x.freq}`),
-        terminaciones_3_top5: sorted3.slice(0, 5).map(x => `${x.term}:${x.freq}`),
-        numeros_4_top5: sorted4.slice(0, 5).map(x => `${x.n}:${x.f}`),
-        total_numeros_4cifras: numeros4.length
+        factores_aplicados: 12,
+        total_numeros: terminaciones2.length,
+        numeros_unicos: Object.keys(freq).length,
+        sorteos_analizados: sequences.length,
+        fechas_unicas: uniqueDates.length,
+        numeros_calientes: calientes.map(n => pad(n)),
+        numeros_atrasados: atrasados.map(n => pad(n)),
+        paridad: paridad
       },
       numeros: top10,
       totalSorteos: sequences.length,
@@ -374,13 +537,26 @@ export async function GET(req: NextRequest) {
       stats: {
         totalNumeros: terminaciones2.length,
         promedioPorSorteo: (terminaciones2.length / sequences.length).toFixed(2),
-        numeroMasFrecuente: { numero: pad(sorted2[0]?.term || 0), frecuencia: sorted2[0]?.freq || 0, significado: SUENOS[sorted2[0]?.term || 0]?.nombre || "" },
-        terminacionesMasFrecuentes: sorted2.slice(0, 5).map(x => ({ terminacion: x.term, frecuencia: x.freq })),
+        numeroMasFrecuente: { numero: pad(scores[0]?.num || 0), frecuencia: scores[0]?.frecuencia || 0, significado: SUENOS[scores[0]?.num || 0]?.nombre || "" },
+        terminacionesMasFrecuentes: scores.slice(0, 5).map(s => ({ terminacion: s.num, frecuencia: s.frecuencia, score: s.score.toFixed(2) })),
       },
       analysisInfo: {
-        metodo: `Análisis por frecuencia real de datos históricos - turno ${turnoQuery.toUpperCase()}`,
-        factores: ["Frecuencia real de terminaciones (2 cifras)", "Frecuencia real de terminaciones (3 cifras)", "Frecuencia real de números completos (4 cifras)"],
-        datosUtilizados: `${sequences.length} sorteos con ${numeros4.length} números de 4 cifras analizados`
+        metodo: `Análisis multivariable con 12 factores - turno ${turnoQuery.toUpperCase()}`,
+        factores: [
+          "1. Frecuencia absoluta (30%)",
+          "2. Posiciones (miles/centenas/decenas/unidades)",
+          "3. Ausencias (tiempo sin aparecer)",
+          "4. Recencia (apariciones recientes)",
+          "5. Tendencia (comparación períodos)",
+          "6. Ciclos (patrones periódicos)",
+          "7. Correlación entre turnos",
+          "8. Co-ocurrencia (números juntos)",
+          "9. Números calientes",
+          "10. Números atrasados",
+          "11. Paridad (pares/impares)",
+          "12. Suma de dígitos"
+        ],
+        datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} análisis de terminaciones`
       }
     })
   } catch (e: unknown) {
