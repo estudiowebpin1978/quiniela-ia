@@ -260,136 +260,96 @@ export async function GET(req: NextRequest) {
 
     if (!sequences.length) return NextResponse.json({ error: "Sin secuencias válidas" }, { status: 500 })
 
-    // ANALISIS DE NÚMEROS COMPLETOS DE 4 CIFRAS DE SORTEO
-    // Las predicciones de 2 cifras se basan en las ÚLTIMAS 2 CIFRAS de los números reales de 4 cifras
-    const freq4 = new Array(10000).fill(0)
-    const freq2 = new Array(100).fill(0)
-    const freq3 = new Array(1000).fill(0)
-    const allNumbers: number[] = []
-    const ultimas2cifras: number[] = []
-    const ultimas3cifras: number[] = []
-    const numerosCompletos: number[] = []
-
+    // ANÁLISIS SIMPLE: Extraer las últimas 2 cifras de TODOS los números de 4 cifras
+    const terminaciones: number[] = []
+    const numeros4: number[] = []
+    
     for (const seq of sequences) {
-      seq.forEach((n) => {
-        if (n >= 0 && n <= 9999) {
-          const u2 = n % 100
-          const u3 = n % 1000
-          
-          freq4[n]++
-          freq2[u2]++
-          freq3[u3]++
-          
-          ultimas2cifras.push(u2)
-          ultimas3cifras.push(u3)
-          numerosCompletos.push(n)
-          allNumbers.push(n)
+      for (const n of seq) {
+        if (typeof n === 'number' && n >= 0 && n <= 9999) {
+          const ult2 = n % 100
+          terminaciones.push(ult2)
+          numeros4.push(n)
         }
-      })
-    }
-
-    console.log(`[DEBUG] Total números analizados: ${allNumbers.length}`)
-    console.log(`[DEBUG] Ejemplo ultimas 2 cifras: ${ultimas2cifras.slice(0, 10).join(", ")}`)
-    console.log(`[DEBUG] Frecuencia 2 cifras más alta: ${freq2.indexOf(Math.max(...freq2))} con ${Math.max(...freq2)} apariciones`)
-
-    // Análisis de las ÚLTIMAS 2 CIFRAS (más frecuente)
-    const delay2 = new Array(100).fill(ultimas2cifras.length)
-    for (let i = ultimas2cifras.length - 1; i >= 0; i--) {
-      const num = ultimas2cifras[i]
-      if (delay2[num] === ultimas2cifras.length) {
-        delay2[num] = ultimas2cifras.length - 1 - i
       }
     }
-
-    // Análisis de las ÚLTIMAS 3 CIFRAS
-    const delay3 = new Array(1000).fill(ultimas3cifras.length)
-    for (let i = ultimas3cifras.length - 1; i >= 0; i--) {
-      const num = ultimas3cifras[i]
-      if (delay3[num] === ultimas3cifras.length) {
-        delay3[num] = ultimas3cifras.length - 1 - i
-      }
+    
+    // Contar frecuencia de cada terminación
+    const freqTerm: Record<number, number> = {}
+    for (const t of terminaciones) {
+      freqTerm[t] = (freqTerm[t] || 0) + 1
     }
-
-    // Score para 2 cifras - ORDENAR POR FRECUENCIA REAL SIMPLEMENTE
-    // Basado solo en cuántas veces aparece cada terminación en los sorteos históricos
-    console.log("[DEBUG] freq2 valores principales:", freq2.slice(0, 20).map((f, i) => `${i}:${f}`).join(", "))
-    console.log("[DEBUG] top 5 freq2:", freq2.map((f, i) => ({n: i, f: f})).sort((a,b) => b.f - a.f).slice(0, 5))
     
-    const scores2 = Array.from({ length: 100 }, (_, i) => ({
-      n: i,
-      freq: freq2[i],
-      delay: delay2[i],
-      trend: ultimas2cifras.filter(x => x === i).length
-    })).sort((a, b) => b.freq - a.freq)
+    // Ordenar por frecuencia
+    const sortedTerm = Object.entries(freqTerm)
+      .map(([k, v]) => ({ term: parseInt(k), freq: v }))
+      .sort((a, b) => b.freq - a.freq)
     
-    console.log("[DEBUG] scores2 top 5:", scores2.slice(0, 5).map(x => `${x.n}:${x.freq}`).join(", "))
+    // Los 10 más frecuentes
+    const topTerminaciones = sortedTerm.slice(0, 10).map(x => x.term)
+    
+    console.log("[DEBUG] Total terminaciones:", terminaciones.length)
+    console.log("[DEBUG] Top 5:", sortedTerm.slice(0, 5).map(x => `${x.term}:${x.freq}`).join(", "))
 
-    // Score para 3 cifras - ORDENAR POR FRECUENCIA REAL
-    const scores3 = Array.from({ length: 1000 }, (_, i) => ({
-      n: i,
-      freq: freq3[i]
-    })).sort((a, b) => b.freq - a.freq)
-
-    // Score para 4 cifras - basado en frecuencia real
-    const scores4 = Array.from({ length: 10000 }, (_, i) => ({
-      n: i,
-      freq: freq4[i],
-      score: freq4[i]
-    })).sort((a, b) => b.score - a.score)
-
-    // Co-ocurrencia para 2 cifras
-    const co = getCooccurrence(sequences.map(s => s.map(n => n % 100)))
-    const scoresForPair = scores2.map(x => ({ n: x.n, score: x.freq }))
-    const pair = getBestPair(scoresForPair, co)
-
-    // TOP 10 de ÚLTIMAS 2 CIFRAS (más probable)
-    const top10 = scores2.slice(0, 10).map((x, i) => ({
-      n: x.n,
-      numero: pad(x.n),
-      emoji: SUENOS[x.n]?.emoji || "❓",
-      significado: SUENOS[x.n]?.nombre || "",
-      score: Math.round((x.freq / ultimas2cifras.length) * 10000) / 10000,
+    // Usar las terminaciones más frecuentes para predictions
+    const top10 = sortedTerm.slice(0, 10).map((x, i) => ({
+      n: x.term,
+      numero: pad(x.term),
+      emoji: SUENOS[x.term]?.emoji || "❓",
+      significado: SUENOS[x.term]?.nombre || "",
+      score: Math.round((x.freq / terminaciones.length) * 10000) / 10000,
       rank: i + 1,
       frecuencia: x.freq,
-      retraso: x.delay || 0,
-      tendencia: x.trend || 0,
+      retraso: 0,
+      tendencia: 0,
     }))
 
-    // Predicciones 3 CIFRAS (últimos 3 dígitos más probables)
-    const pred3d = scores3.slice(0, 5).map((x) => ({
-      numero: pad(x.n, 3),
-      score: Math.round((x.freq / ultimas3cifras.length) * 10000) / 10000,
+    // Top 10 terminaciones para pred_2
+    const pred2 = topTerminaciones.map(t => pad(t))
+
+    // Predicciones 3 cifras (basadas en las más frecuentes)
+    const pred3d = sortedTerm.slice(0, 5).map(x => ({
+      numero: pad(x.term, 3),
+      score: Math.round((x.freq / terminaciones.length) * 10000) / 10000,
     }))
 
-    // Predicciones 4 CIFRAS - NÚMEROS COMPLETOS MÁS FRECUENTES
-    // Tomar directamente los 5 números de 4 cifras más frecuentes de los sorteos reales
-    const top4Frequent = Array.from({ length: 10000 }, (_, i) => ({ n: i, f: freq4[i] }))
-      .filter(x => x.f > 0)
+    // Predicciones 4 cifras - números completos más frecuentes
+    const freq4: Record<number, number> = {}
+    for (const n of numeros4) {
+      freq4[n] = (freq4[n] || 0) + 1
+    }
+    const sorted4 = Object.entries(freq4)
+      .map(([k, v]) => ({ n: parseInt(k), f: v }))
       .sort((a, b) => b.f - a.f)
       .slice(0, 5)
-      .map((x) => ({
-        numero: pad(x.n, 4),
-        frecuencia: x.f,
-        score: Math.round((x.f / numerosCompletos.length) * 10000) / 100,
-      }))
+    
+    const pred4d = sorted4.map(x => ({
+      numero: pad(x.n, 4),
+      score: Math.round((x.f / numeros4.length) * 10000) / 10000,
+    }))
 
-    const pred4d = top4Frequent.map(x => ({ numero: x.numero, score: x.frecuencia }))
-
-    const heatmap = freq2.map((f, n) => ({ 
-      n, f, 
-      s: SUENOS[n] || "",
-      pct: Math.round((f / ultimas2cifras.length) * 10000) / 100
+    // Heatmap de terminaciones
+    const heatmap = sortedTerm.slice(0, 20).map(x => ({
+      n: x.term,
+      f: x.freq,
+      s: SUENOS[x.term] || { emoji: "❓", nombre: "" },
+      pct: Math.round((x.freq / terminaciones.length) * 10000) / 100
     }))
 
     const uniqueDates = [...new Set(dates)].sort().reverse()
-    const confidence = Math.round((scores2.slice(0, 10).reduce((sum, x) => sum + x.freq, 0) / 10) * 100)
+    const confidence = Math.round((sortedTerm.slice(0, 10).reduce((sum, x) => sum + x.freq, 0) / terminaciones.length) * 10)
+
+    // Redoblona simple - los dos más frecuentes
+    const redoblona = sortedTerm.length >= 2 
+      ? `${pad(sortedTerm[0].term)}-${pad(sortedTerm[1].term)}`
+      : "00-00"
 
     return NextResponse.json({
       ok: true,
       turno: turnoQuery,
       debug: {
-        freq2_top10: scores2.slice(0, 10).map(x => ({ num: x.n, freq: x.freq })),
-        total_numeros: ultimas2cifras.length
+        terminaciones_top10: sortedTerm.slice(0, 10).map(x => `${x.term}:${x.freq}`),
+        total_numeros: terminaciones.length
       },
       numeros: top10,
       totalSorteos: sequences.length,
@@ -397,23 +357,23 @@ export async function GET(req: NextRequest) {
       generado: new Date().toISOString(),
       confidence,
       pred: {
-        numeros_2: top10.map(n => n.numero),
+        numeros_2: pred2,
         numeros_3: pred3d.map(p => p.numero),
         numeros_4: pred4d.map(p => p.numero),
-        redoblona: pair.label,
+        redoblona: redoblona,
       },
-      redoblona: pair.label,
+      redoblona: redoblona,
       heatmap,
       stats: {
-        totalNumeros: sequences.length,
-        promedioPorSorteo: (ultimas2cifras.length / sequences.length).toFixed(2),
-        numeroMasFrecuente: { numero: pad(scores2[0]?.n || 0), frecuencia: freq2[scores2[0]?.n || 0], significado: SUENOS[scores2[0]?.n || 0]?.nombre || "" },
-        terminacionesMasFrecuentes: getTerminations(ultimas2cifras).map((f, i) => ({ terminacion: i, frecuencia: f })).sort((a, b) => b.frecuencia - a.frecuencia).slice(0, 5),
+        totalNumeros: terminaciones.length,
+        promedioPorSorteo: (terminaciones.length / sequences.length).toFixed(2),
+        numeroMasFrecuente: { numero: pad(sortedTerm[0]?.term || 0), frecuencia: sortedTerm[0]?.freq || 0, significado: SUENOS[sortedTerm[0]?.term || 0]?.nombre || "" },
+        terminacionesMasFrecuentes: sortedTerm.slice(0, 5).map(x => ({ terminacion: x.term, frecuencia: x.freq })),
       },
       analysisInfo: {
         metodo: `Análisis por frecuencia real - turno ${turnoQuery.toUpperCase()}`,
         factores: ["Frecuencia real de terminaciones (100%)"],
-        datosUtilizados: `${sequences.length} sorteos de ${turnoQuery}`
+        datosUtilizados: `${sequences.length} sorteos de ${turnoQuery} (${terminaciones.length} números)`
       }
     })
   } catch (e: unknown) {
