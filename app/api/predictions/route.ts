@@ -336,29 +336,32 @@ export async function GET(req: NextRequest) {
     }))
 
     // Predicciones 4 CIFRAS - NÚMEROS COMPLETOS DEL SORTEO
-    // Combinar los números más frecuentes con las terminaciones más activas
+    // Tomar los números de 4 cifras más frecuentes de los sorteos reales
+    const top4Frequent = Array.from({ length: 10000 }, (_, i) => ({ n: i, f: freq4[i] }))
+      .filter(x => x.f > 0)
+      .sort((a, b) => b.f - a.f)
+      .slice(0, 10)
+
+    // Filtrar para incluir solo los que terminan en las terminaciones más activas
     const terminaciones = getTerminations(hist2)
     const mejorTerminacion = terminaciones.indexOf(Math.max(...terminaciones))
     
-    // Buscar números de 4 cifras que terminen en la terminación más activa
-    const pred4d = scores4
-      .filter(x => x.freq > 0)
-      .slice(0, 20)
-      .filter(x => x.n % 100 === mejorTerminacion || x.n % 100 === scores2[0].n || x.n % 100 === scores2[1].n)
+    const pred4d = top4Frequent
+      .filter(x => x.n % 100 === mejorTerminacion || x.n % 100 === scores2[0]?.n || x.n % 100 === scores2[1]?.n)
       .slice(0, 5)
       .map((x) => ({
         numero: pad(x.n, 4),
-        score: Math.round((x.freq / allNumbers.length) * 10000) / 10000,
+        score: Math.round((x.f / allNumbers.length) * 10000) / 10000,
       }))
 
-    // Si no hay suficientes con terminaciones, usar los más frecuentes
+    // Si no hay suficientes, completar con los más frecuentes
     if (pred4d.length < 5) {
-      const备用 = scores4.filter(x => x.freq > 0).slice(0, 5).map((x) => ({
-        numero: pad(x.n, 4),
-        score: Math.round((x.freq / allNumbers.length) * 10000) / 10000,
-      }))
-      for (let i = pred4d.length; i < 5 && i <备用.length; i++) {
-        pred4d.push(备用[i])
+      const faltantes = top4Frequent.filter(x => !pred4d.find(p => p.numero === pad(x.n, 4))).slice(0, 5 - pred4d.length)
+      for (const f of faltantes) {
+        pred4d.push({
+          numero: pad(f.n, 4),
+          score: Math.round((f.f / allNumbers.length) * 10000) / 10000,
+        })
       }
     }
 
