@@ -164,6 +164,12 @@ export default function Page() {
     };
   }, []);
 
+  useEffect(() => {
+    if (so) {
+      gen();
+    }
+  }, [so]);
+
   async function installApp() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
