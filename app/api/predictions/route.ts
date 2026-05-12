@@ -387,6 +387,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       turno: turnoQuery,
+      debug: {
+        freq2_top10: scores2.slice(0, 10).map(x => ({ num: x.n, freq: x.freq })),
+        total_numeros: ultimas2cifras.length
+      },
       numeros: top10,
       totalSorteos: sequences.length,
       fechasAnalizadas: uniqueDates.length,
