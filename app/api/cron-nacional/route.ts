@@ -12,19 +12,34 @@ function formatISO(d: Date): string {
 
 async function scrapeQuinielaNacional(): Promise<Record<string, number[]>> {
   const results: Record<string, number[]> = {}
+  const debug = process.env.DEBUG_SCRAPE === "true"
   
   try {
     const res = await fetch("https://quinielanacional1.com.ar/", {
       headers: { 
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "text/html,application/xhtml+xml"
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+        "Referer": "https://quinielanacional1.com.ar/",
+        "Upgrade-Insecure-Requests": "1"
       },
       signal: AbortSignal.timeout(30000)
     })
     
-    if (!res.ok) return {}
-    
     const html = await res.text()
+    console.log("[FETCH] Status:", res.status, "| Content-Type:", res.headers.get("content-type"), "| HTML length:", html.length)
+    
+    if (!res.ok) {
+      console.error("[FETCH ERROR] Status:", res.status, res.statusText)
+      console.log("[FETCH ERROR] Response body (first 500):", html.substring(0, 500))
+      return {}
+    }
+    
+    if (debug) {
+      console.log("=== DIAGNOSTIC INFO (debug mode) ===")
+      console.log("First 2000 chars:", html.substring(0, 2000))
+      console.log("======================")
+    }
     
     const turnos = [
       { id: "Previa", nombre: "Previa" },
@@ -42,7 +57,24 @@ async function scrapeQuinielaNacional(): Promise<Record<string, number[]>> {
       todosNumeros.push(match[1])
     }
     
-    console.log("Números encontrados:", todosNumeros.length)
+    console.log("Números encontrados con regex class='numero':", todosNumeros.length)
+    
+    if (todosNumeros.length === 0 || todosNumeros.length < 100) {
+      const altRegex = /(\d{4})/g
+      const allNumbers = []
+      let altMatch
+      while ((altMatch = altRegex.exec(html)) !== null) {
+        allNumbers.push(altMatch[1])
+      }
+      console.log("[FALLO] Números encontrados:", todosNumeros.length, "| Total 4-dígitos:", allNumbers.length)
+      console.log("[FALLO] Muestra números:", allNumbers.slice(0, 20))
+      console.log("[FALLO] HTML length:", html.length, "| Has class='numero':", html.includes('class="numero"'))
+      console.log("[FALLO] Status:", res.status, "| Content-Type:", res.headers.get("content-type"))
+      console.log("=== First 500 chars of HTML (always shown on failure) ===")
+      console.log(html.substring(0, 500))
+      console.log("=== Last 500 chars of HTML ===")
+      console.log(html.substring(html.length - 500))
+    }
     
     if (todosNumeros.length >= 100) {
       const porTurno = 20
