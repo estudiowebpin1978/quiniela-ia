@@ -260,50 +260,61 @@ export async function GET(req: NextRequest) {
 
     if (!sequences.length) return NextResponse.json({ error: "Sin secuencias válidas" }, { status: 500 })
 
-    // ANALISIS DE NÚMEROS COMPLETOS DE 4 CIFRAS
+    // ANALISIS DE NÚMEROS COMPLETOS DE 4 CIFRAS DE SORTEO
+    // Las predicciones de 2 cifras se basan en las ÚLTIMAS 2 CIFRAS de los números reales de 4 cifras
     const freq4 = new Array(10000).fill(0)
     const freq2 = new Array(100).fill(0)
     const freq3 = new Array(1000).fill(0)
-    const hist2: number[] = []
-    const hist4: number[] = []
     const allNumbers: number[] = []
+    const ultimas2cifras: number[] = []
+    const ultimas3cifras: number[] = []
+    const numerosCompletos: number[] = []
 
     for (const seq of sequences) {
       seq.forEach((n) => {
         if (n >= 0 && n <= 9999) {
+          const u2 = n % 100
+          const u3 = n % 1000
+          
           freq4[n]++
-          freq2[n % 100]++
-          freq3[n % 1000]++
-          hist2.push(n % 100)
-          hist4.push(n)
+          freq2[u2]++
+          freq3[u3]++
+          
+          ultimas2cifras.push(u2)
+          ultimas3cifras.push(u3)
+          numerosCompletos.push(n)
           allNumbers.push(n)
         }
       })
     }
 
+    console.log(`[DEBUG] Total números analizados: ${allNumbers.length}`)
+    console.log(`[DEBUG] Ejemplo ultimas 2 cifras: ${ultimas2cifras.slice(0, 10).join(", ")}`)
+    console.log(`[DEBUG] Frecuencia 2 cifras más alta: ${freq2.indexOf(Math.max(...freq2))} con ${Math.max(...freq2)} apariciones`)
+
     // Análisis de las ÚLTIMAS 2 CIFRAS (más frecuente)
-    const delay2 = new Array(100).fill(hist2.length)
-    for (let i = hist2.length - 1; i >= 0; i--) {
-      const num = hist2[i]
-      if (delay2[num] === hist2.length) {
-        delay2[num] = hist2.length - 1 - i
+    const delay2 = new Array(100).fill(ultimas2cifras.length)
+    for (let i = ultimas2cifras.length - 1; i >= 0; i--) {
+      const num = ultimas2cifras[i]
+      if (delay2[num] === ultimas2cifras.length) {
+        delay2[num] = ultimas2cifras.length - 1 - i
       }
     }
 
     // Análisis de las ÚLTIMAS 3 CIFRAS
-    const delay3 = new Array(1000).fill(hist2.length)
-    for (let i = hist2.length - 1; i >= 0; i--) {
-      const num = hist2[i]
-      if (delay3[num] === hist2.length) {
-        delay3[num] = hist2.length - 1 - i
+    const delay3 = new Array(1000).fill(ultimas3cifras.length)
+    for (let i = ultimas3cifras.length - 1; i >= 0; i--) {
+      const num = ultimas3cifras[i]
+      if (delay3[num] === ultimas3cifras.length) {
+        delay3[num] = ultimas3cifras.length - 1 - i
       }
     }
 
-    // Score para 2 cifras
-    const scores2 = scoreDigitsForTurno(freq2, freq3, hist2, hist2, Math.min(200, hist2.length), delay2, new Array(100).fill(0), getTerminations(hist2))
+    // Score para 2 cifras - basado en las Últimas 2 cifras de los números reales
+    const scores2 = scoreDigitsForTurno(freq2, freq3, ultimas2cifras, ultimas3cifras, Math.min(200, ultimas2cifras.length), delay2, new Array(100).fill(0), getTerminations(ultimas2cifras))
     
-    // Score para 3 cifras
-    const scores3 = scoreDigitsForTurno(freq3, freq3, hist2, hist2, Math.min(800, hist2.length), delay3, new Array(100).fill(0), new Array(10).fill(0))
+    // Score para 3 cifras - basado en las Últimas 3 cifras de los números reales
+    const scores3 = scoreDigitsForTurno(freq3, freq3, ultimas2cifras, ultimas3cifras, Math.min(800, ultimas3cifras.length), delay3, new Array(100).fill(0), new Array(10).fill(0))
 
     // Score para 4 cifras - basado en frecuencia real
     const scores4 = Array.from({ length: 10000 }, (_, i) => ({
@@ -343,7 +354,7 @@ export async function GET(req: NextRequest) {
       .slice(0, 10)
 
     // Filtrar para incluir solo los que terminan en las terminaciones más activas
-    const terminaciones = getTerminations(hist2)
+    const terminaciones = getTerminations(ultimas2cifras)
     const mejorTerminacion = terminaciones.indexOf(Math.max(...terminaciones))
     
     const pred4d = top4Frequent
@@ -368,7 +379,7 @@ export async function GET(req: NextRequest) {
     const heatmap = freq2.map((f, n) => ({ 
       n, f, 
       s: SUENOS[n] || "",
-      pct: Math.round((f / hist2.length) * 10000) / 100
+      pct: Math.round((f / ultimas2cifras.length) * 10000) / 100
     }))
 
     const uniqueDates = [...new Set(dates)].sort().reverse()
