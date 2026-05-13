@@ -164,16 +164,6 @@ export default function Page() {
     };
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (so) {
-        console.log("[DEBUG] useEffect triggered, calling gen() for turno:", so);
-        gen();
-      }
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [so]);
-
   async function installApp() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -215,16 +205,8 @@ export default function Page() {
         })
         .catch(() => {});
       cargarMisPreds(s.access_token);
-      fetch("/api/predictions?sorteo=Todos")
-        .then((r) => r.json())
-        .then((d) => { 
-          const total = d?.totalSorteos || d?.totalAllTurnos || 60;
-          const mensaje = `${total} sorteos analizados`;
-          const racha = d?.rachaDias || "--";
-          setStats({ totalSorteos: total, pct: "--", racha: racha, mensaje }); 
-          setStatsLoading(false); 
-        })
-        .catch(() => { setStats({ pct: "--", racha: "--", totalSorteos: "--", mensaje: "Cargando..." }); setStatsLoading(false); });
+      setStats({ totalSorteos: "--", pct: "--", racha: "--", mensaje: "Presiona 'Generar Predicción' para comenzar" }); 
+      setStatsLoading(false);
     } catch {
       window.location.href = "/login";
     }
@@ -308,7 +290,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       setDt({ ...predData, heatmap: d.heatmap, ranking: d.numeros });
       setDn(true);
       if (d.aiInsight) setAiInsight(d.aiInsight);
-      guardarPrediccion(true);
     } catch (e: any) {
       setEr(e?.message || String(e));
       console.log("Error gen:", e);
