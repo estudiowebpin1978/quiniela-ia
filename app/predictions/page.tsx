@@ -387,16 +387,24 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         const d = await r.json();
         if (d.predictions?.length) {
           const actualizadas = await Promise.all(d.predictions.map(async (p: any) => {
-            if (p.resultado && p.resultado.length) return p;
+            console.log("[DEBUG] Verificando prediccion:", p.fecha, p.turno);
+            if (p.resultado && Array.isArray(p.resultado) && p.resultado.length > 0) {
+              console.log("[DEBUG] Ya tiene resultado:", p.resultado);
+              return p;
+            }
             try {
-              const res = await fetch(`${SB_URL}/rest/v1/draws?date=eq.${p.fecha}&turno=eq.${p.turno}&select=numbers&limit=1`, {
+              const res = await fetch(`${SB_URL}/rest/v1/draws?date=eq.${p.fecha}&turno=ilike.*${encodeURIComponent(p.turno)}*&select=numbers&limit=1`, {
                 headers: { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY }
               });
               const rows = await res.json();
-              if (rows?.[0]?.numbers) {
+              console.log("[DEBUG] Respuesta DB:", rows?.length, "registros");
+              if (rows?.[0]?.numbers && Array.isArray(rows[0].numbers) && rows[0].numbers.length > 0) {
                 const nums = rows[0].numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"));
                 const aciertos = p.numeros.filter((n: string) => nums.includes(n)).map((n: string) => ({ numero: n, puesto: nums.indexOf(n) + 1 }));
+                console.log("[DEBUG] Aciertos encontrados:", aciertos.length, "- Números reales:", nums.slice(0, 5).join(", "));
                 return { ...p, resultado: nums, aciertos, acerto: aciertos.length > 0 };
+              } else {
+                console.log("[DEBUG] No se encontraron números para", p.fecha, p.turno);
               }
             } catch (e) { console.log("Error verificando:", e); }
             return p;
@@ -407,25 +415,29 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           return;
         }
       }
-    } catch {}
+    } catch (e) { console.error("Error cargando predicciones:", e); }
     const stored = localStorage.getItem("misPreds");
     if (stored) {
       try {
         let todas = JSON.parse(stored);
         if (todas.length > 0) {
           todas = await Promise.all(todas.map(async (p: any) => {
-            if (p.resultado && p.resultado.length) return p;
+            console.log("[DEBUG-LOCAL] Verificando:", p.fecha, p.turno);
+            if (p.resultado && Array.isArray(p.resultado) && p.resultado.length > 0) {
+              return p;
+            }
             try {
-              const res = await fetch(`${SB_URL}/rest/v1/draws?date=eq.${p.fecha}&turno=eq.${p.turno}&select=numbers&limit=1`, {
+              const res = await fetch(`${SB_URL}/rest/v1/draws?date=eq.${p.fecha}&turno=ilike.*${encodeURIComponent(p.turno)}*&select=numbers&limit=1`, {
                 headers: { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY }
               });
               const rows = await res.json();
-              if (rows?.[0]?.numbers) {
+              console.log("[DEBUG-LOCAL] Respuesta:", rows?.length);
+              if (rows?.[0]?.numbers && Array.isArray(rows[0].numbers)) {
                 const nums = rows[0].numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"));
                 const aciertos = p.numeros.filter((n: string) => nums.includes(n)).map((n: string) => ({ numero: n, puesto: nums.indexOf(n) + 1 }));
                 return { ...p, resultado: nums, aciertos, acerto: aciertos.length > 0 };
               }
-            } catch { }
+            } catch (e) { console.log("Error local:", e); }
             return p;
           }));
           localStorage.setItem("misPreds", JSON.stringify(todas));
@@ -433,7 +445,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         } else {
           setMisPreds(todas);
         }
-      } catch {
+      } catch (e) {
+        console.error("Error parseando localStorage:", e);
         setMisPreds([]);
       }
     } else {

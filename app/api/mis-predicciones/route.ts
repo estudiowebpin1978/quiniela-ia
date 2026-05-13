@@ -23,11 +23,17 @@ const TURNO_HOURS: Record<string, number> = {
 function hasDrawTimePassed(dateStr: string, turno: string): boolean {
   const turnoLower = turno.toLowerCase().replace(/-\d+cifras?$/i, "").trim()
   const hour = TURNO_HOURS[turnoLower]
-  if (!hour) return false
+  if (!hour) return true // Si no conocemos el turno, asumimos que ya pasó
   
-  // Crear fecha del sorteo en Argentina (UTC-3)
+  // Calcular si ya pasó la hora del sorteo
+  // Sorteos son alrededor de 15-30 min después de la hora oficial
+  // Nocturna ~21:30, así que verificamos 2 horas después
+  const hoursAdd: Record<string, number> = { "previa": 1, "primera": 1, "matutina": 1, "vespertina": 1, "nocturna": 3 }
+  const addHours = hoursAdd[turnoLower] ?? 2
+  
   const [year, month, day] = dateStr.split("-").map(Number)
-  const drawDate = new Date(Date.UTC(year, month - 1, day, hour + 3, 0, 0)) // +3 para Argentina
+  // Hora del sorteo en UTC
+  const drawDate = new Date(Date.UTC(year, month - 1, day, hour + addHours, 0, 0))
   
   const now = new Date()
   return now > drawDate
@@ -69,9 +75,9 @@ export async function GET(req: NextRequest) {
       const drawTimePassed = hasDrawTimePassed(predDate, turnoLower)
 
       if (drawTimePassed) {
-        // Try exact match first
+        // Try with ilike for partial match
         const drawRes = await fetch(
-          `${SB}/rest/v1/draws?date=eq.${predDate}&turno=eq.${turnoLower}&select=numbers&limit=1`,
+          `${SB}/rest/v1/draws?date=eq.${predDate}&turno=ilike.*${turnoLower}*&select=numbers&limit=1`,
           { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
         )
         let draws = await drawRes.json()
@@ -87,7 +93,12 @@ export async function GET(req: NextRequest) {
           const draws2 = await drawRes2.json()
           
           if (draws2?.length > 0) {
-            draw = draws2.find((d: any) => (d.turno || "").toLowerCase().trim() === turnoLower) || draws2[0]
+            // Find matching turno
+            const matched = draws2.find((d: any) => 
+              (d.turno || "").toLowerCase().includes(turnoLower) || 
+              turnoLower.includes((d.turno || "").toLowerCase())
+            )
+            draw = matched || draws2[0]
           }
         }
       }
