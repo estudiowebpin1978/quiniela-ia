@@ -164,6 +164,13 @@ export default function Page() {
     };
   }, []);
 
+  useEffect(() => {
+    if (tab === "mis" && tkRef.current) {
+      console.log("[DEBUG] Tab changed to mis, loading predictions...");
+      cargarMisPreds(tkRef.current);
+    }
+  }, [tab]);
+
   async function installApp() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -1271,7 +1278,24 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           )}
           {tab === "mis" && (
             <>
-              <div className="sec">Mis predicciones guardadas</div>
+              <div className="sec">Mis predicciones guardadas
+                <button 
+                  onClick={() => tkRef.current && cargarMisPreds(tkRef.current)}
+                  style={{
+                    marginLeft: 10,
+                    padding: "4px 12px",
+                    fontSize: 10,
+                    background: "#a855f7",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 6,
+                    cursor: "pointer"
+                  }}
+                  disabled={misLoading}
+                >
+                  {misLoading ? "Actualizando..." : "🔄 Actualizar Vergleich"}
+                </button>
+              </div>
               {misLoading ? (
                 <div style={{ textAlign: "center", padding: "30px", color: "#64748b", fontSize: 12 }}>Cargando historial de predicciones...</div>
               ) : misPreds.length === 0 ? (
