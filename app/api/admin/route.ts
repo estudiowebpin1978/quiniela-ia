@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 const SB=()=>(process.env.NEXT_PUBLIC_SUPABASE_URL||"").replace(/"/g,"").trim()
 const SK=()=>(process.env.SUPABASE_SERVICE_KEY||"").replace(/"/g,"").trim()
 async function isAdmin(token:string):Promise<boolean>{
-  try{const r1=await fetch(`${SB()}/auth/v1/user`,{headers:{"apikey":SK(),"Authorization":`Bearer ${token}`}});if(!r1.ok)return false;const user=await r1.json();const r2=await fetch(`${SB()}/rest/v1/user_profiles?id=eq.${user.id}&select=role&limit=1`,{headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`}});const p=await r2.json();return p?.[0]?.role==="admin"}catch{return false}}
+  try{const r1=await fetch(`${SB()}/auth/v1/user`,{headers:{"apikey":SK(),"Authorization":`Bearer ${token}`}});if(!r1.ok)return false;const user=await r1.json();const r2=await fetch(`${SB()}/rest/v1/user_profiles?id=eq.${user.id}&select=role&limit=1`,{headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`}});const p=await r2.json();return p?.[0]?.role==="admin"}catch{return false}
+}
 export async function GET(req:NextRequest){
   const token=req.headers.get("authorization")?.replace("Bearer ","")||""
   if(!await isAdmin(token))return NextResponse.json({error:"No autorizado"},{status:401})

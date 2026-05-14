@@ -28,11 +28,11 @@ export default function AdminPage(){
   async function runScraper(turno:string){
     setBusy(turno);setMsg("")
     try{
-      const params = new URLSearchParams({secret:"quiniela2024cron", turno})
+      const params = new URLSearchParams({secret:"quiniela_ia_cron_2024_seguro",save:"true"})
       if(scraperDate) params.set("date", scraperDate)
       const r=await fetch(`/api/cron?${params}`,{headers:{Authorization:"Bearer "+token}})
       const d=await r.json()
-      if(d.ok){setMsg("OK - "+JSON.stringify(d.results||d))}
+      if(d.ok||d.guardados!==undefined){setMsg(`OK - ${d.guardados||0} turnos guardados - ${d.message||""}`)}
       else{setMsg("Error: "+JSON.stringify(d))}
     }catch(e:any){setMsg("Error: "+e.message)}
     setBusy(null)
