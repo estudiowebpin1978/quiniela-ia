@@ -326,9 +326,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   }
 
   function fechaSorteo(sorteo: string): string {
-    const now = new Date()
-    const hora = now.getHours() * 100 + now.getMinutes()
-    const diaSemana = now.getDay() // 0=domingo, 1=lunes, ..., 5=viernes, 6=sábado
+    const ar = new Date(Date.now() - 3 * 3600000)
+    const hora = ar.getHours() * 100 + ar.getMinutes()
+    const diaSemana = ar.getDay() // 0=domingo, 1=lunes, ..., 5=viernes, 6=sábado
     
     // Feriados 2026 sin sorteos (Argentina)
     const feriados2026 = [
@@ -336,7 +336,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       "2026-05-01", "2026-05-25", "2026-06-20", "2026-07-09", "2026-12-08", "2026-12-25"
     ]
     
-    const fechaActual = now.toISOString().split("T")[0]
+    const fechaActual = ar.toISOString().split("T")[0]
     const esFeriado = feriados2026.includes(fechaActual)
     
     // Horarios oficiales Quiniela Nacional (CABA)
@@ -346,7 +346,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     // Si ya pasó la hora del turno, buscar siguiente día válido
     if (hora >= horaTurno) {
       for (let i = 1; i <= 3; i++) {
-        const sigFecha = new Date(now.getTime() + i * 86400000);
+        const sigFecha = new Date(ar.getTime() + i * 86400000);
         const sigDia = sigFecha.getDay();
         const sigFechaStr = sigFecha.toISOString().split("T")[0];
         
@@ -359,9 +359,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     }
     
     // Si la hora no pasó, verificar si hoy hay sorteos
-    if (diaSemana === 0) return new Date(now.getTime() + 86400000).toISOString().split("T")[0]; // Domingos
-    if (sorteo === "Previa" && diaSemana === 6) return new Date(now.getTime() + 86400000).toISOString().split("T")[0]; // Sábados sin Previa
-    if (esFeriado) return new Date(now.getTime() + 86400000).toISOString().split("T")[0];
+    if (diaSemana === 0) return new Date(ar.getTime() + 86400000).toISOString().split("T")[0]; // Domingos
+    if (sorteo === "Previa" && diaSemana === 6) return new Date(ar.getTime() + 86400000).toISOString().split("T")[0]; // Sábados sin Previa
+    if (esFeriado) return new Date(ar.getTime() + 86400000).toISOString().split("T")[0];
     
     // Hoy hay sorteos
     return fechaActual;

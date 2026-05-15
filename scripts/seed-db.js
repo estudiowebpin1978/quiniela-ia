@@ -1,11 +1,26 @@
+// ⚠️  ADVERTENCIA: Este script genera datos ALEATORIOS.
+// NO USAR para poblar la base de datos en producción.
+// Los datos aleatorios harán que las predicciones y resultados
+// oficiales mostrados a los usuarios sean INCORRECTOS.
+// Usar el scraper (/api/cron o /api/cron-nacional) para datos reales.
+
 const SB = "https://wazkylxgqckjfkcmfotl.supabase.co"
-const SK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indhemt5bHhncWNramZrY21mb3RsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjI0Nzc1NSwiZXhwIjoyMDg3ODIzNzU1fQ.IiksS0WwZZVlx9XJCzLhswJzSeeWnNS0dp3Z5uZiCSs"
+const SK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indhemt5bHhncWNramZrY21mb3RsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjI0Nzc1NSwiZXhwIjoyMDg3ODIzNzU1fQ.IiksS0WwZZVlx9XJCzLhswJzSeeWnNS0dp3Z5uZiCSs
 
 const headers = {
   "apikey": SK,
   "Authorization": "Bearer " + SK,
   "Content-Type": "application/json",
   "Prefer": "return=minimal"
+}
+
+function generateRandomDraw() {
+  const nums = []
+  while (nums.length < 20) {
+    const n = Math.floor(Math.random() * 10000)
+    if (!nums.includes(n)) nums.push(n)
+  }
+  return nums.sort(function() { return Math.random() - 0.5 })
 }
 
 function generateRandomDraw() {

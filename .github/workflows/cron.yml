@@ -9,6 +9,14 @@ on:
       date:
         description: 'Fecha específica (YYYY-MM-DD)'
         required: false
+      history:
+        description: 'Scrapear días históricos (true/false)'
+        required: false
+        default: 'false'
+      days:
+        description: 'Cantidad de días históricos (1-90)'
+        required: false
+        default: '7'
 
 jobs:
   fetch-draws:
@@ -19,10 +27,22 @@ jobs:
           if [ -z "${{ secrets.APP_URL }}" ]; then echo "Missing APP_URL secret"; exit 1; fi
           if [ -z "${{ secrets.CRON_SECRET }}" ]; then echo "Missing CRON_SECRET secret"; exit 1; fi
 
-      - name: Call cron endpoint - Quiniela Nacional
+      - name: Scrape all turnos for current day
         run: |
-          url="${{ secrets.APP_URL }}/api/cron-nacional?secret=${{ secrets.CRON_SECRET }}"
-          echo "Calling nacional: $url"
+          url="${{ secrets.APP_URL }}/api/cron-nacional?secret=${{ secrets.CRON_SECRET }}&save=true"
+          echo "Calling: $url"
+          response=$(curl -s -w "\n%{http_code}" "$url")
+          http_code=$(tail -n1 <<< "$response")
+          body=$(sed '$d' <<< "$response")
+          echo "HTTP status: $http_code"
+          echo "$body"
+
+      - name: Historical backfill (if triggered with history=true)
+        if: inputs.history == 'true'
+        run: |
+          days="${{ inputs.days || '7' }}"
+          url="${{ secrets.APP_URL }}/api/cron?secret=${{ secrets.CRON_SECRET }}&history=true&days=$days&force=true"
+          echo "Calling history: $url"
           response=$(curl -s -w "\n%{http_code}" "$url")
           http_code=$(tail -n1 <<< "$response")
           body=$(sed '$d' <<< "$response")

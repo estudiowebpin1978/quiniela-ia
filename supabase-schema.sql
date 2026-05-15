@@ -144,12 +144,10 @@ CREATE INDEX IF NOT EXISTS idx_model_scores_fecha ON model_scores(created_at DES
 -- ============================================
 CREATE TABLE IF NOT EXISTS user_predictions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id TEXT NOT NULL,
-    fecha DATE NOT NULL,
+    user_id UUID,
+    date DATE NOT NULL,
     turno TEXT NOT NULL,
-    numeros TEXT[],
-    resultado TEXT[],
-    aciertos INTEGER[],
+    numeros TEXT[] NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
