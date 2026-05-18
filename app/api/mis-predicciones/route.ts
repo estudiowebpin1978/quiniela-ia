@@ -20,21 +20,33 @@ const TURNO_HOURS: Record<string, number> = {
   "nocturna": 21,  // 21:00
 }
 
+const FERIADOS_2026 = [
+  "2026-01-01", "2026-02-16", "2026-02-17", "2026-03-24",
+  "2026-04-02", "2026-04-03", "2026-05-01", "2026-05-25",
+  "2026-06-20", "2026-07-09", "2026-12-08", "2026-12-25"
+]
+
+function isDiaSinSorteo(dateStr: string): boolean {
+  const d = new Date(dateStr + "T12:00:00-03:00")
+  const diaSemana = d.getDay()
+  if (diaSemana === 0) return true // Domingo
+  if (FERIADOS_2026.includes(dateStr)) return true
+  return false
+}
+
 function hasDrawTimePassed(dateStr: string, turno: string): boolean {
   const turnoLower = turno.toLowerCase().replace(/-\d+cifras?$/i, "").trim()
   const hour = TURNO_HOURS[turnoLower]
-  if (!hour) return true // Si no conocemos el turno, asumimos que ya pasó
-  
-  // Calcular si ya pasó la hora del sorteo
-  // Sorteos son alrededor de 15-30 min después de la hora oficial
-  // Nocturna ~21:30, así que verificamos 2 horas después
-  const hoursAdd: Record<string, number> = { "previa": 1, "primera": 1, "matutina": 1, "vespertina": 1, "nocturna": 3 }
-  const addHours = hoursAdd[turnoLower] ?? 2
-  
+  if (!hour) return true
+
+  // Argentina es UTC-3. Para convertir a UTC sumamos 3h,
+  // más un buffer para cuando los resultados se publican (~30min después)
+  const bufferHoras: Record<string, number> = { "previa": 1, "primera": 1, "matutina": 1, "vespertina": 1, "nocturna": 3 }
+  const addHours = (bufferHoras[turnoLower] ?? 2) + 3
+
   const [year, month, day] = dateStr.split("-").map(Number)
-  // Hora del sorteo en UTC
   const drawDate = new Date(Date.UTC(year, month - 1, day, hour + addHours, 0, 0))
-  
+
   const now = new Date()
   return now > drawDate
 }
@@ -71,8 +83,8 @@ export async function GET(req: NextRequest) {
 
       let draw: any = null
       
-      // Verificar si ya pasó la hora del sorteo
-      const drawTimePassed = hasDrawTimePassed(predDate, turnoLower)
+      // Verificar si ya pasó la hora del sorteo (y no es domingo/feriado)
+      const drawTimePassed = hasDrawTimePassed(predDate, turnoLower) && !isDiaSinSorteo(predDate)
 
       if (drawTimePassed) {
         // Try with ilike for partial match
