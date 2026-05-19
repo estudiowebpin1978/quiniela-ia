@@ -40,8 +40,8 @@ function hasDrawTimePassed(dateStr: string, turno: string): boolean {
   if (!hour) return true
 
   // Argentina es UTC-3. Para convertir a UTC sumamos 3h,
-  // más un buffer para cuando los resultados se publican (~30min después)
-  const bufferHoras: Record<string, number> = { "previa": 1, "primera": 1, "matutina": 1, "vespertina": 1, "nocturna": 3 }
+  // más un buffer para cuando los resultados se publican (~30-60min después)
+  const bufferHoras: Record<string, number> = { "previa": 1, "primera": 1, "matutina": 1, "vespertina": 1, "nocturna": 1 }
   const addHours = (bufferHoras[turnoLower] ?? 2) + 3
 
   const [year, month, day] = dateStr.split("-").map(Number)
