@@ -105,11 +105,18 @@ export default function Page() {
   const [aiInsight, setAiInsight] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const [stats, setStats] = useState<any>(null);
+  const [confianzaTurnos, setConfianzaTurnos] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem("confianzaTurnos") || "{}"); } catch { return {}; }
+  });
   const [statsLoading, setStatsLoading] = useState(true);
   const [userRole, setUserRole] = useState<"free" | "premium" | "admin">("free");
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstall, setShowInstall] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem("confianzaTurnos", JSON.stringify(confianzaTurnos));
+  }, [confianzaTurnos]);
 
   const misSummary = useMemo(() => {
     const totalSaved = misPreds.length;
@@ -296,6 +303,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       const predData = d.pred || d;
       setDt({ ...predData, heatmap: d.heatmap, ranking: d.numeros });
       setDn(true);
+      if (d.confidence) setConfianzaTurnos(p => ({ ...p, [so]: d.confidence }));
       if (d.aiInsight) setAiInsight(d.aiInsight);
     } catch (e: any) {
       setEr(e?.message || String(e));
@@ -627,6 +635,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .sb:active{transform:translateY(6px);box-shadow:none}
         .sb.on{background:linear-gradient(180deg,#a855f7,#8b5cf6);color:#fff;border-color:rgba(167,139,250,.95);box-shadow:0 8px 0 #5b21b6,0 12px 36px rgba(139,92,246,.5);font-size:15px}
         .sb.on .sh{opacity:1;color:#fff;font-weight:800;font-size:13px}
+        .sb .sc{font-size:11px;font-weight:800;color:#a78bfa;background:rgba(167,139,250,.12);padding:2px 8px;border-radius:10px;min-width:36px;margin-top:-2px}
+        .sb.on .sc{color:#fff;background:rgba(255,255,255,.18)}
         .sb:hover:not(.on){background:linear-gradient(180deg,#2d2b4a,#1e1e3a);color:#a855f7;border-color:rgba(167,139,250,.4);transform:translateY(-2px)}
         .btn3d{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:10px;border:none;border-radius:20px;font-family:'Inter',sans-serif;font-weight:900;cursor:pointer;transition:all .15s;user-select:none;-webkit-tap-highlight-color:transparent;width:100%;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
         .btn3d:active{transform:translateY(6px)!important;box-shadow:none!important}
@@ -828,6 +838,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               <button key={s} className={"sb" + (so === s ? " on" : "")} onClick={() => setSo(s)}>
                 <span>{s === "Vespertina" ? "Vesp" : s === "Primera" ? "1era" : s === "Matutina" ? "Mat" : s === "Nocturna" ? "Noct" : s}</span>
                 <span className="sh">{HORAS[s]}</span>
+                {confianzaTurnos[s] != null && <span className="sc">{confianzaTurnos[s]}%</span>}
               </button>
             ))}
           </div>
