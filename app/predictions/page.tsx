@@ -320,8 +320,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   }
 
   function fechaArgentina(): Date {
-    const s = hoyArgentina()
-    return new Date(+s.slice(0,4), +s.slice(5,7) - 1, +s.slice(8,10), 12, 0, 0)
+    return new Date(hoyArgentina() + "T12:00:00-03:00")
   }
 
   function hoyArgentina(): string {
@@ -333,11 +332,16 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     return sorteo + " del " + hoy;
   }
 
+  function diaSemanaART(d: Date): number {
+    return d.getUTCDay()
+  }
+
   function nextValidDate(sorteo: string): string {
+    const artMs = fechaArgentina().getTime()
     for (let i = 1; i <= 7; i++) {
-      const d = new Date(fechaArgentina().getTime() + i * 86400000);
-      const dia = d.getDay();
-      if (dia === 0) continue;
+      const d = new Date(artMs + i * 86400000);
+      const dia = diaSemanaART(d);
+      if (dia === 7) continue;
       if (sorteo === "Previa" && dia === 6) continue;
       return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(d)
     }
@@ -346,7 +350,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
   function fechaSorteo(sorteo: string): string {
     const fechaActual = hoyArgentina()
-    const diaSemana = fechaArgentina().getDay()
+    const dia = diaSemanaART(fechaArgentina())
     
     const feriados2026 = [
       "2026-01-01", "2026-02-16", "2026-02-17", "2026-03-24", "2026-04-02", "2026-04-03",
@@ -355,8 +359,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     ]
     
     if (feriados2026.includes(fechaActual)) return nextValidDate(sorteo)
-    if (diaSemana === 0) return nextValidDate(sorteo)
-    if (sorteo === "Previa" && diaSemana === 6) return nextValidDate(sorteo)
+    if (dia === 7) return nextValidDate(sorteo)
+    if (sorteo === "Previa" && dia === 6) return nextValidDate(sorteo)
     
     return fechaActual
   }
