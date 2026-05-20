@@ -80,7 +80,7 @@ export function entrenarRedNeuronal(
       const propagation = propagar(red, entrada);
       const salida = propagation.salidas[propagation.salidas.length - 1];
 
-      const perdida = calcularEntropiaCruzada(salida as number[], objetivo);
+      const perdida = calcularEntropiaCruzada(salida, objetivo);
       perdidaTotal += perdida;
 
       retropropagar(red, objetivo, propagation);
@@ -130,7 +130,7 @@ function crearOneHot(indice: number, numClases: number): number[] {
 
 interface PropagationResult {
   entradas: number[][];
-  salidas: number[];
+  salidas: number[][];
 }
 
 function propagar(red: RedNeuronal, entrada: number[]): PropagationResult {

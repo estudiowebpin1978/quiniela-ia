@@ -238,20 +238,20 @@ export function predecirRandomForest(
 
 function predecirArbol(arbol: ArbolDecision, features: number[]): number {
   if (arbol.valor !== undefined) {
-    return typeof arbor.valor === 'number' ? Math.min(99, Math.max(0, Math.round(arbol.valor))) : 0;
+          return typeof arbol.valor === 'number' ? Math.min(99, Math.max(0, Math.round(arbol.valor))) : 0;
   }
 
   if (arbol.feature === null || !features.length) {
     return 50;
   }
 
-  const featureStr = arbor.feature;
+  const featureStr = arbol.feature;
   const featureIdx = parseInt(featureStr.replace('feature_', ''));
   if (isNaN(featureIdx) || featureIdx < 0 || featureIdx >= features.length) return 50;
 
   if (arbol.threshold === null) return 50;
 
-  if (features[featureIdx] <= arbor.threshold) {
+  if (features[featureIdx] <= arbol.threshold) {
     return predecirArbol(arbol.izquierda!, features);
   } else {
     return predecirArbol(arbol.derecha!, features);
