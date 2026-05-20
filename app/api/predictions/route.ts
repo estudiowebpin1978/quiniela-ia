@@ -453,85 +453,46 @@ export async function GET(req: NextRequest) {
     // Ordenar por score
     scores.sort((a, b) => b.score - a.score)
 
-    // === SCORING DE 4 CIFRAS (12 FACTORES SOBRE DATOS REALES) ===
-    const freq4N: Record<number, number> = {}
-    for (const n of numeros4) freq4N[n] = (freq4N[n] || 0) + 1
-    const recencia4: Record<number, number> = {}
-    for (const seq of sequences.slice(0, 7)) { for (const n of [...new Set(seq)]) recencia4[n] = (recencia4[n] || 0) + 1 }
-    const ultimoIdx4: Record<number, number> = {}
-    for (let i = 0; i < sequences.length; i++) { for (const n of [...new Set(sequences[i])]) ultimoIdx4[n] = i }
-    const maxIdx4 = sequences.length - 1
-    const unicos4 = [...new Set(numeros4)]
-    const scores4: { num: number; score: number; freq: number }[] = []
-    for (const n of unicos4) {
-      let s = (freq4N[n] || 0) / unicos4.length * 100 * 0.3
-      s += Math.min(100, (recencia4[n] || 0) * 10) * 0.2
-      const idx = maxIdx4 - (ultimoIdx4[n] || 0)
-      if (idx < 5) s += 80 * 0.1
-      else if (idx < 15) s += 50 * 0.1
-      scores4.push({ num: n, score: s, freq: freq4N[n] || 0 })
-    }
-    scores4.sort((a, b) => b.score - a.score)
+    // Top 10 de 2 cifras (desde 12 factores)
+    const pred2 = scores.slice(0, 10).map(s => pad(s.num))
 
-    // Derivar 2 cifras desde 4 cifras (sumar scores de números que terminan igual)
-    const agg2: Record<number, number> = {}
-    for (const s of scores4) {
-      const d2 = s.num % 100
-      agg2[d2] = (agg2[d2] || 0) + s.score
-    }
-    const pred2from4 = Object.entries(agg2).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k]) => pad(+k))
+    // === Análisis de 4 cifras vía motor para 3 y 4 cifras ===
+    const sorteos = rows
+      .filter((row: any) => Array.isArray(row.numbers) && row.numbers.length >= 20)
+      .map((row: any) => ({
+        fecha: row.date,
+        turno: row.turno || turnoQuery,
+        numbers: row.numbers.map((n: any) => Number(n)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999)
+      }))
+    const { ejecutarAnalisisCompleto } = await import("@/lib/analisis/motor")
+    const analisisAv = ejecutarAnalisisCompleto(sorteos, { turno: turnoQuery, topNRanking: 15 })
 
-    // Derivar 3 cifras desde 4 cifras
-    const agg3: Record<number, number> = {}
-    for (const s of scores4) {
-      const d3 = s.num % 1000
-      agg3[d3] = (agg3[d3] || 0) + s.score
-    }
-    const pred3from4 = Object.entries(agg3).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k]) => pad(+k, 3))
+    const pred3 = analisisAv.recomendaciones.tresCifras.slice(0, 5).map(r => r.numero.padStart(3, '0'))
+    const pred4 = analisisAv.recomendaciones.cuatroCifras.slice(0, 5).map(r => r.numero.padStart(4, '0'))
 
-    // Top 5 de 4 cifras por score directo
-    const pred4from4 = scores4.slice(0, 5).map(s => pad(s.num, 4))
+    // Top 10 con información completa
+    const top10 = scores.slice(0, 10).map((s, i) => ({
+      n: s.num, numero: pad(s.num),
+      emoji: SUENOS[s.num]?.emoji || "❓",
+      significado: SUENOS[s.num]?.nombre || "",
+      score: s.score, confianza: s.confianza, rank: i + 1,
+      frecuencia: s.frecuencia, factores: s.factores
+    }))
 
-    // === PREDICCIONES FINALES (desde 4 cifras) ===
-    const pred2 = pred2from4
-    const pred3 = pred3from4
-    const pred4 = pred4from4
-
-    // Mapa de scores de 2 cifras (del análisis independiente) para lookup
-    const scoreMap = new Map(scores.map(s => [s.num, s]))
-    const lookupScore = (n: number) => scoreMap.get(n) || { score: 0, confianza: 0, frecuencia: 0, factores: [] as string[] }
-
-    // Top 10 con información completa (ordenado por score 4-cifras derivado)
-    const top10 = pred2from4.map((num, i) => {
-      const n = +num
-      const s = lookupScore(n)
-      return {
-        n, numero: pad(n),
-        emoji: SUENOS[n]?.emoji || "❓",
-        significado: SUENOS[n]?.nombre || "",
-        score: s.score, confianza: s.confianza, rank: i + 1,
-        frecuencia: s.frecuencia, factores: s.factores
-      }
-    })
-
-    // Redoblona (dos mejores de 2 cifras desde 4-cifras)
-    const redoblona = pred2from4.length >= 2 
-      ? `${pred2from4[0]}-${pred2from4[1]}`
+    // Redoblona (dos mejores score de 2 cifras)
+    const redoblona = scores.length >= 2 
+      ? `${pad(scores[0].num)}-${pad(scores[1].num)}`
       : "00-00"
 
-    // Heatmap (top 20 de 2 cifras desde 4-cifras)
-    const heatmap = pred2from4.slice(0, 20).map(num => {
-      const n = +num
-      const s = lookupScore(n)
-      return {
-        n, f: s.frecuencia,
-        s: SUENOS[n] || { emoji: "❓", nombre: "" },
-        pct: Math.round((s.frecuencia / terminaciones2.length) * 10000) / 100
-      }
-    })
+    // Heatmap
+    const heatmap = scores.slice(0, 20).map(s => ({
+      n: s.num, f: s.frecuencia,
+      s: SUENOS[s.num] || { emoji: "❓", nombre: "" },
+      pct: Math.round((s.frecuencia / terminaciones2.length) * 10000) / 100
+    }))
 
     const uniqueDates = [...new Set(dates)].sort().reverse()
-    const confidence = Math.round(pred2from4.reduce((sum, num) => sum + lookupScore(+num).confianza, 0) / pred2from4.length)
+    const confidence = Math.round((scores.slice(0, 10).reduce((sum, s) => sum + s.confianza, 0) / 10))
 
     console.log(`[12 FACTORES] Total números: ${numeros4.length}, Sorteos: ${sequences.length}`)
     console.log(`[12 FACTORES] Top 3: ${scores.slice(0, 3).map(s => `${s.num}:${s.score.toFixed(2)}`).join(', ')}`)
@@ -542,7 +503,7 @@ export async function GET(req: NextRequest) {
       debug: {
         factores_aplicados: 12,
         total_numeros: terminaciones2.length,
-        numeros_unicos_4cifras: unicos4.length,
+        numeros_unicos: Object.keys(freq).length,
         sorteos_analizados: sequences.length,
         fechas_unicas: uniqueDates.length,
         numeros_calientes: calientes.map(n => pad(n)),
@@ -563,17 +524,13 @@ export async function GET(req: NextRequest) {
       redoblona: redoblona,
       heatmap,
       stats: {
-        totalNumeros: numeros4.length,
-        promedioPorSorteo: (numeros4.length / sequences.length).toFixed(2),
-        numerosUnicos4Cifras: unicos4.length,
-        numeroMasFrecuente: (() => {
-          const t = scores4[0]
-          return t ? { numero: pad(t.num, 4), frecuencia: t.freq } : { numero: "0000", frecuencia: 0 }
-        })(),
-        predicciones2Cifras: top10.map(t => ({ numero: t.numero, score: t.score.toFixed(2) })),
+        totalNumeros: terminaciones2.length,
+        promedioPorSorteo: (terminaciones2.length / sequences.length).toFixed(2),
+        numeroMasFrecuente: { numero: pad(scores[0]?.num || 0), frecuencia: scores[0]?.frecuencia || 0, significado: SUENOS[scores[0]?.num || 0]?.nombre || "" },
+        terminacionesMasFrecuentes: scores.slice(0, 5).map(s => ({ terminacion: s.num, frecuencia: s.frecuencia, score: s.score.toFixed(2) })),
       },
       analysisInfo: {
-        metodo: `12 factores sobre historiales de 4 cifras - turno ${turnoQuery.toUpperCase()}`,
+        metodo: `12 factores en 2 cifras + scoring posicional para 3/4 cifras - turno ${turnoQuery.toUpperCase()}`,
         factores: [
           "1. Frecuencia absoluta (30%)",
           "2. Posiciones (miles/centenas/decenas/unidades)",
@@ -588,11 +545,11 @@ export async function GET(req: NextRequest) {
           "11. Paridad (pares/impares)",
           "12. Suma de dígitos"
         ],
-        datosUtilizados: `${sequences.length} sorteos con ${unicos4.length} números de 4 cifras únicos`,
-        predicciones: {
-          "2 cifras": `Las 10 mejores terminaciones de 2 cifras derivadas del scoring de 4 cifras`,
-          "3 cifras": `Las 5 mejores terminaciones de 3 cifras derivadas del scoring de 4 cifras`,
-          "4 cifras": `Los 5 números de 4 cifras con mayor score`
+        datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} terminaciones de 2 cifras + ${sorteos.length} sorteos para scoring de 3/4 cifras`,
+        confianzaAvanzada: {
+          promedioGeneral: analisisAv.resumen.promedioConfianza,
+          enCicloFavorable: analisisAv.ciclos.numerosEnCicloFavorables.slice(0, 10).map(n => pad(n)),
+          evitar: analisisAv.recomendaciones.evitar.slice(0, 10).map(n => pad(n))
         }
       }
     })
