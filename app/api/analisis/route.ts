@@ -21,14 +21,14 @@ function getFrecuencia(sequences: number[][], top = 20) {
 }
 
 function getPares(sequences: number[][], top = 20) {
-  const pares: Record<number, number> = {}
+  const pares: Record<string, number> = {}
   for (const seq of sequences) {
     const unicos = [...new Set(seq)]
     for (let i = 0; i < unicos.length; i++) {
       for (let j = i + 1; j < unicos.length; j++) {
         const a = Math.min(unicos[i], unicos[j])
         const b = Math.max(unicos[i], unicos[j])
-        const key = a * 100 + b
+        const key = `${a},${b}`
         pares[key] = (pares[key] || 0) + 1
       }
     }
@@ -36,7 +36,10 @@ function getPares(sequences: number[][], top = 20) {
   return Object.entries(pares)
     .sort((a, b) => b[1] - a[1])
     .slice(0, top)
-    .map(([k, c]) => ({ numeros: [Math.floor(parseInt(k) / 100), parseInt(k) % 100], conteo: c }))
+    .map(([k, c]) => {
+      const [a, b] = k.split(",").map(Number)
+      return { numeros: [a, b], conteo: c }
+    })
 }
 
 function getPosiciones(sequences: number[][]) {
@@ -82,7 +85,7 @@ export async function GET(req: NextRequest) {
     const porTurno: Record<string, {
       frecuencia: { numero: number; conteo: number }[]
       pares: { numeros: number[]; conteo: number }[]
-      numerosCalientes: { numero: number; diasAusente: number }[]
+      numerosAtrasados: { numero: number; diasAusente: number }[]
       recent: { numero: number; ultimaFecha: string }[]
     }> = {}
 
@@ -105,7 +108,7 @@ export async function GET(req: NextRequest) {
         }
       }
       
-      const calientes = [...numericos]
+      const atrasados = [...numericos]
         .map(n => ({
           numero: n,
           diasAusente: lastSeen[n] ? Math.floor((new Date().getTime() - new Date(lastSeen[n]).getTime()) / 86400000) : 999
@@ -116,7 +119,7 @@ export async function GET(req: NextRequest) {
       porTurno[t] = {
         frecuencia: freq,
         pares: pares,
-        numerosCalientes: calientes,
+        numerosAtrasados: atrasados,
         recent: freq.slice(0, 10).map(f => ({ numero: f.numero, ultimaFecha: lastSeen[f.numero] || "N/A" }))
       }
     }

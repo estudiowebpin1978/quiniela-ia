@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS user_predictions (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_user_predictions_user ON user_predictions(user_id, fecha DESC);
+CREATE INDEX IF NOT EXISTS idx_user_predictions_user ON user_predictions(user_id, date DESC);
 
 -- ============================================
 -- TABLA: analytics_cache (Cache de análisis)
