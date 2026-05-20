@@ -465,7 +465,7 @@ export async function GET(req: NextRequest) {
         numbers: row.numbers.map((n: any) => Number(n)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999)
       }))
     const { ejecutarAnalisisCompleto } = await import("@/lib/analisis/motor")
-    const analisisAv = ejecutarAnalisisCompleto(sorteos, { turno: turnoQuery, topNRanking: 15 })
+    const analisisAv = ejecutarAnalisisCompleto(sorteos, { topNRanking: 15 })
 
     const pred3 = analisisAv.recomendaciones.tresCifras.slice(0, 5).map(r => r.numero.padStart(3, '0'))
     const pred4 = analisisAv.recomendaciones.cuatroCifras.slice(0, 5).map(r => r.numero.padStart(4, '0'))
