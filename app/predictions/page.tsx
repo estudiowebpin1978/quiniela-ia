@@ -321,58 +321,37 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
   function proximoSorteo(sorteo: string): string {
     const ar = new Date(Date.now() - 3 * 3600000);
-    const hora = ar.getHours() * 100 + ar.getMinutes();
     const hoy = ar.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
-    const manana = new Date(ar.getTime() + 86400000).toLocaleDateString("es-AR", {
-      weekday: "long",
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-    const h: Record<string, number> = { Previa: 1015, Primera: 1200, Matutina: 1500, Vespertina: 1800, Nocturna: 2100 };
-    return hora < (h[sorteo] || 2100) ? sorteo + " del " + hoy : sorteo + " del " + manana;
+    return sorteo + " del " + hoy;
+  }
+
+  function nextValidDate(from: Date, sorteo: string): Date {
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date(from.getTime() + i * 86400000);
+      const dia = d.getDay();
+      if (dia === 0) continue;
+      if (sorteo === "Previa" && dia === 6) continue;
+      return d;
+    }
+    return from;
   }
 
   function fechaSorteo(sorteo: string): string {
     const ar = new Date(Date.now() - 3 * 3600000)
-    const hora = ar.getHours() * 100 + ar.getMinutes()
-    const diaSemana = ar.getDay() // 0=domingo, 1=lunes, ..., 5=viernes, 6=sábado
+    const diaSemana = ar.getDay()
     
-    // Feriados 2026 sin sorteos (Argentina)
     const feriados2026 = [
       "2026-01-01", "2026-02-16", "2026-02-17", "2026-03-24", "2026-04-02", "2026-04-03",
-      "2026-05-01", "2026-05-25", "2026-06-20", "2026-07-09", "2026-12-08", "2026-12-25"
+      "2026-05-01", "2026-05-25", "2026-06-20", "2026-07-09", "2026-08-17", "2026-10-12",
+      "2026-11-23", "2026-12-08", "2026-12-25"
     ]
     
     const fechaActual = ar.toISOString().split("T")[0]
-    const esFeriado = feriados2026.includes(fechaActual)
+    if (feriados2026.includes(fechaActual)) return nextValidDate(ar, sorteo).toISOString().split("T")[0]
+    if (diaSemana === 0) return nextValidDate(ar, sorteo).toISOString().split("T")[0]
+    if (sorteo === "Previa" && diaSemana === 6) return nextValidDate(ar, sorteo).toISOString().split("T")[0]
     
-    // Horarios oficiales Quiniela Nacional (CABA)
-    const h: Record<string, number> = { Previa: 1015, Primera: 1200, Matutina: 1500, Vespertina: 1800, Nocturna: 2100 };
-    const horaTurno = h[sorteo] || 2100;
-    
-    // Si ya pasó la hora del turno, buscar siguiente día válido
-    if (hora >= horaTurno) {
-      for (let i = 1; i <= 3; i++) {
-        const sigFecha = new Date(ar.getTime() + i * 86400000);
-        const sigDia = sigFecha.getDay();
-        const sigFechaStr = sigFecha.toISOString().split("T")[0];
-        
-        if (sigDia === 0) continue; // Domingos
-        if (sorteo === "Previa" && sigDia === 6) continue; // Sábados sin Previa
-        if (feriados2026.includes(sigFechaStr)) continue;
-        
-        return sigFechaStr;
-      }
-    }
-    
-    // Si la hora no pasó, verificar si hoy hay sorteos
-    if (diaSemana === 0) return new Date(ar.getTime() + 86400000).toISOString().split("T")[0]; // Domingos
-    if (sorteo === "Previa" && diaSemana === 6) return new Date(ar.getTime() + 86400000).toISOString().split("T")[0]; // Sábados sin Previa
-    if (esFeriado) return new Date(ar.getTime() + 86400000).toISOString().split("T")[0];
-    
-    // Hoy hay sorteos
-    return fechaActual;
+    return fechaActual
   }
 
   async function cargarMisPreds(token: string) {

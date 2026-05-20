@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { ejecutarAnalisisCompleto } from "@/lib/analisis/motor"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -384,6 +385,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // === ANÁLISIS AVANZADO (MOTOR) ===
+    const sorteos = rows
+      .filter((row: any) => Array.isArray(row.numbers) && row.numbers.length >= 20)
+      .map((row: any) => ({
+        fecha: row.date,
+        turno: row.turno || turnoQuery,
+        numbers: row.numbers.map((n: any) => Number(n)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999)
+      }))
+    const analisisAv = ejecutarAnalisisCompleto(sorteos, { turno: turnoQuery, topNRanking: 15 })
+
     // === APLICAR LOS 12 FACTORES ===
     
     // Factor 1: Frecuencia
@@ -456,25 +467,11 @@ export async function GET(req: NextRequest) {
     // Top 10 de 2 cifras
     const pred2 = scores.slice(0, 10).map(s => pad(s.num))
     
-    // Top 5 de 3 cifras (por frecuencia)
-    const freq3: Record<number, number> = {}
-    for (const t of terminaciones3) {
-      freq3[t] = (freq3[t] || 0) + 1
-    }
-    const sorted3 = Object.entries(freq3)
-      .map(([k, v]) => ({ term: parseInt(k), freq: v }))
-      .sort((a, b) => b.freq - a.freq)
-    const pred3 = sorted3.slice(0, 5).map(x => pad(x.term, 3))
+    // Top 5 de 3 cifras (desde motor avanzado)
+    const pred3 = analisisAv.recomendaciones.tresCifras.slice(0, 5).map(r => r.numero.padStart(3, '0'))
 
-    // Top 5 de 4 cifras (por frecuencia)
-    const freq4: Record<number, number> = {}
-    for (const n of numeros4) {
-      freq4[n] = (freq4[n] || 0) + 1
-    }
-    const sorted4 = Object.entries(freq4)
-      .map(([k, v]) => ({ n: parseInt(k), f: v }))
-      .sort((a, b) => b.f - a.f)
-    const pred4 = sorted4.slice(0, 5).map(x => pad(x.n, 4))
+    // Top 5 de 4 cifras (desde motor avanzado)
+    const pred4 = analisisAv.recomendaciones.cuatroCifras.slice(0, 5).map(r => r.numero.padStart(4, '0'))
 
     // Top 10 con información completa
     const top10 = scores.slice(0, 10).map((s, i) => ({
@@ -541,7 +538,7 @@ export async function GET(req: NextRequest) {
         terminacionesMasFrecuentes: scores.slice(0, 5).map(s => ({ terminacion: s.num, frecuencia: s.frecuencia, score: s.score.toFixed(2) })),
       },
       analysisInfo: {
-        metodo: `Análisis multivariable con 12 factores - turno ${turnoQuery.toUpperCase()}`,
+        metodo: `Análisis multivariable con 12 factores + motor avanzado - turno ${turnoQuery.toUpperCase()}`,
         factores: [
           "1. Frecuencia absoluta (30%)",
           "2. Posiciones (miles/centenas/decenas/unidades)",
@@ -556,7 +553,18 @@ export async function GET(req: NextRequest) {
           "11. Paridad (pares/impares)",
           "12. Suma de dígitos"
         ],
-        datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} análisis de terminaciones`
+        datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} análisis de terminaciones`,
+        confianzaAvanzada: {
+          promedioGeneral: analisisAv.resumen.promedioConfianza,
+          numerosAltaConfianza: analisisAv.confianza.filter(c => c.nivel === 'muy_alto' || c.nivel === 'alto').slice(0, 10).map(c => ({
+            numero: pad(c.numero),
+            nivel: c.nivel,
+            porcentaje: c.porcentaje,
+            explicacion: c.explicacion
+          })),
+          enCicloFavorable: analisisAv.ciclos.numerosEnCicloFavorables.slice(0, 10).map(n => pad(n)),
+          evitar: analisisAv.recomendaciones.evitar.slice(0, 10).map(n => pad(n))
+        }
       }
     })
   } catch (e: unknown) {
