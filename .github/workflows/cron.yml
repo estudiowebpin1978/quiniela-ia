@@ -36,6 +36,7 @@ jobs:
           body=$(sed '$d' <<< "$response")
           echo "HTTP status: $http_code"
           echo "$body"
+          if [ "$http_code" -ne 200 ]; then echo "ERROR: Cron API returned $http_code"; exit 1; fi
 
       - name: Historical backfill (if triggered with history=true)
         if: inputs.history == 'true'
@@ -48,3 +49,4 @@ jobs:
           body=$(sed '$d' <<< "$response")
           echo "HTTP status: $http_code"
           echo "$body"
+          if [ "$http_code" -ne 200 ]; then echo "ERROR: History API returned $http_code"; exit 1; fi

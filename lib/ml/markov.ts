@@ -114,7 +114,7 @@ function calcularEntropiaCadena(matriz: number[][]): number {
 
 export function predecirSiguienteMarkov(
   cadena: CadenaMarkov,
-  estadoActual: number,
+  estadoActual: number | number[],
   topK: number = 10
 ): PrediccionMarkov {
   if (!cadena.entrenada) {

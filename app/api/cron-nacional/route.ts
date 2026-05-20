@@ -5,18 +5,11 @@ const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_
 
 const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
-function formatISO(d: Date): string {
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, "0")
-  const dd = String(d.getDate()).padStart(2, "0")
-  return `${yyyy}-${mm}-${dd}`
-}
-
-function fechaUrl(d: Date): string {
-  const dd = String(d.getDate()).padStart(2, "0")
-  const mm = String(d.getMonth() + 1).padStart(2, "0")
-  const yy = String(d.getFullYear()).slice(-2)
-  return `${dd}-${mm}-${yy}`
+function fechaArgentina(): { fechaStr: string; diaSemana: number; fUrl: string } {
+  const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format()
+  const [yyyy, mm, dd] = p.split("-")
+  const dow = new Date(`${p}T12:00:00Z`).getDay()
+  return { fechaStr: p, diaSemana: dow, fUrl: `${dd}-${mm}-${yyyy.slice(-2)}` }
 }
 
 async function scrapeTurno(fechaUrl: string, turno: string): Promise<number[]> {
@@ -53,8 +46,8 @@ async function scrapeTurno(fechaUrl: string, turno: string): Promise<number[]> {
 
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret") || ""
-  const expected = process.env.CRON_SECRET || "quiniela_ia_cron_2024_seguro"
-
+  const expected = process.env.CRON_SECRET
+  if (!expected) return NextResponse.json({ error: "CRON_SECRET no configurado" }, { status: 500 })
   if (secret !== expected) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
@@ -63,23 +56,18 @@ export async function GET(req: NextRequest) {
   const turnoParam = req.nextUrl.searchParams.get("turno") || ""
   const dateParam = req.nextUrl.searchParams.get("date") || ""
 
-  const ahora = dateParam
-    ? new Date(dateParam + "T00:00:00")
-    : new Date(Date.now() - 3 * 3600000)
-  const diaSemana = ahora.getDay()
-  const fechaISO = formatISO(ahora)
-  const fUrl = fechaUrl(ahora)
+  const ahora = dateParam ? { fechaStr: dateParam, diaSemana: new Date(dateParam + "T12:00:00Z").getDay(), fUrl: (() => { const [y, m, d] = dateParam.split("-"); return `${d}-${m}-${y.slice(-2)}` })() } : fechaArgentina()
+  const diaSemana = ahora.diaSemana
+  const fechaISO = ahora.fechaStr
+  const fUrl = ahora.fUrl
 
-  const feriados2026 = [
-    "01-01", "02-16", "02-17", "03-24", "04-02", "04-03",
-    "05-01", "05-25", "06-20", "07-09", "12-08", "12-25"
-  ]
-  const fechaHoy = `${String(ahora.getMonth() + 1).padStart(2, "0")}-${String(ahora.getDate()).padStart(2, "0")}`
+  const feriados = ["01-01","02-16","02-17","03-24","04-02","04-03","05-01","05-25","06-20","07-09","08-17","10-12","11-23","12-08","12-25"]
+  const fechaHoy = ahora.fechaStr.slice(5)
 
   if (diaSemana === 0) {
     return NextResponse.json({ ok: false, message: "Domingo - No hay sorteos", guardados: 0 })
   }
-  if (feriados2026.includes(fechaHoy)) {
+  if (feriados.includes(fechaHoy)) {
     return NextResponse.json({ ok: false, message: `Feriado ${fechaHoy} - No hay sorteos`, guardados: 0 })
   }
 

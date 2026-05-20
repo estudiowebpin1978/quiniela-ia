@@ -156,7 +156,18 @@ export async function entrenarModelos(
   if (opciones.incluirMarkov !== false) {
     console.log('[Trainer] Entrenando Cadena de Markov...');
     const markov = crearCadenaMarkov(2);
-    const secuencias = entrenamiento.map(d => d.features.slice(0, 10));
+
+    const ordenados = [...sorteos].sort((a, b) =>
+      new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
+    );
+    const numerosDraws = ordenados
+      .filter(s => Array.isArray(s.numbers) && s.numbers.length > 0)
+      .map(s => s.numbers[0] % 100);
+    const secuencias: number[][] = [];
+    for (let i = 0; i < numerosDraws.length - 2; i++) {
+      secuencias.push([numerosDraws[i], numerosDraws[i + 1], numerosDraws[i + 2]]);
+    }
+
     const markovEntrenado = entrenarCadenaMarkov(markov, secuencias);
 
     modelos.push({
@@ -245,6 +256,27 @@ export function guardarModelos(modelos: ModeloEntrenado[], path: string): void {
   }));
   
   console.log(`[Trainer] Modelos guardados en ${path}`);
+}
+
+export function prepararPrediccion(sorteos: { fecha: string; turno: string; numbers: number[] }[]): number[] {
+  const window = sorteos.slice(-5);
+  if (window.length < 5) throw new Error("Se necesitan al menos 5 sorteos para la predicción");
+  const freqs = new Array(100).fill(0);
+  let ultIdx = 0;
+
+  window.forEach((s, idx) => {
+    const numbers = Array.isArray(s.numbers) ? s.numbers : [];
+    numbers.forEach(n => {
+      if (typeof n !== "number" || isNaN(n)) return;
+      freqs[n % 100]++;
+      ultIdx = idx;
+    });
+  });
+
+  const maxFreq = Math.max(...freqs);
+  const freqsNorm = maxFreq > 0 ? freqs.map(f => f / maxFreq) : freqs;
+
+  return [...freqsNorm, ...freqsNorm.slice(-50), window.length, ultIdx];
 }
 
 export function cargarModelos(path: string): ModeloEntrenado[] {

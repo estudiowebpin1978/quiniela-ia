@@ -8,14 +8,9 @@ export async function GET() {
   if (!SB || !SK) return NextResponse.json({ error: "Configuración incompleta" }, { status: 500 })
 
   try {
-    const [drawsRes, freqRes] = await Promise.all([
-      fetch(`${SB}/rest/v1/draws?select=date,turno,numbers&order=date.desc&limit=50000`, {
-        headers: { "apikey": SK, "Authorization": `Bearer ${SK}` }
-      }),
-      fetch(`${SB}/rest/v1/draws?select=date,turno,numbers&order=date.desc&limit=50000`, {
-        headers: { "apikey": SK, "Authorization": `Bearer ${SK}` }
-      })
-    ])
+    const drawsRes = await fetch(`${SB}/rest/v1/draws?select=date,turno,numbers&order=date.desc&limit=50000`, {
+      headers: { "apikey": SK, "Authorization": `Bearer ${SK}` }
+    })
     const rows: any[] = await drawsRes.json()
     if (!rows?.length) return NextResponse.json({ totalSorteos: 0, mensaje: "Sin datos" })
 

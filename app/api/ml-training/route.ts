@@ -39,24 +39,30 @@ export async function POST(req: NextRequest) {
         numbers: r.numbers.map((n: any) => Number(n)).filter((n: number) => !isNaN(n))
       }))
 
-    const { entrenarModelos } = await import("@/lib/ml/trainer")
+    const { entrenarModelos, prepararPrediccion } = await import("@/lib/ml/trainer")
     const resultado = await entrenarModelos(sorteos, { incluirRF, incluirMarkov, incluirNN })
 
-    const { predecirSiguienteMarkov } = await import("@/lib/ml/markov")
+    const { predecirSiguienteMarkov, evaluarModeloMarkov } = await import("@/lib/ml/markov")
     const { predecirRandomForest } = await import("@/lib/ml/random-forest")
-    const { predecirRedNeuronal } = await import("@/lib/ml/neural")
+    const { predecirRedNeuronal, predecirMultipleClases } = await import("@/lib/ml/neural")
 
     const topPredictions: Record<string, { numero: string; confianza: number }[]> = {}
 
     if (resultado.mejorModelo) {
-      const ultimos = sorteos.slice(0, 10).flatMap(s => s.numbers.map((n: number) => n % 100))
+      const ordenados = [...sorteos].sort((a: any, b: any) =>
+        new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
+      ).filter((s: any) => Array.isArray(s.numbers) && s.numbers.length > 0)
+      const vectorPrediccion = prepararPrediccion(ordenados)
+
+      const primerosDraws = ordenados.map((s: any) => s.numbers[0] % 100)
 
       for (const modelo of resultado.modelos) {
         const preds: { numero: string; confianza: number }[] = []
         const seen = new Set<number>()
 
         if (modelo.tipo === "markov") {
-          const markovPred = predecirSiguienteMarkov(modelo.modelo as any, ultimos[0] || 0, 10)
+          const estadoMarkov = [primerosDraws[primerosDraws.length - 2], primerosDraws[primerosDraws.length - 1]]
+          const markovPred = predecirSiguienteMarkov(modelo.modelo as any, estadoMarkov, 10)
           for (const p of markovPred.topK) {
             if (!seen.has(p.estado)) {
               seen.add(p.estado)
@@ -64,8 +70,7 @@ export async function POST(req: NextRequest) {
             }
           }
         } else if (modelo.tipo === "random-forest") {
-          const features = ultimos.slice(0, 10)
-          const rfPred = predecirRandomForest(modelo.modelo as any, features)
+          const rfPred = predecirRandomForest(modelo.modelo as any, vectorPrediccion)
           const probs = rfPred.probabilidades.map((p: number, i: number) => ({ estado: i, prob: p }))
             .sort((a: any, b: any) => b.prob - a.prob)
           for (const p of probs.slice(0, 10)) {
@@ -75,9 +80,13 @@ export async function POST(req: NextRequest) {
             }
           }
         } else if (modelo.tipo === "neural") {
-          const features = ultimos.slice(0, 10)
-          const nnPred = predecirRedNeuronal(modelo.modelo as any, features)
-          preds.push({ numero: String(nnPred.clasePredicha).padStart(2, "0"), confianza: Math.round(nnPred.confianza * 100) })
+          const nnTop = predecirMultipleClases(modelo.modelo as any, vectorPrediccion, 10)
+          for (const p of nnTop) {
+            if (!seen.has(p.clase)) {
+              seen.add(p.clase)
+              preds.push({ numero: String(p.clase).padStart(2, "0"), confianza: Math.round(p.probabilidad) })
+            }
+          }
         }
 
         topPredictions[modelo.tipo] = preds.slice(0, 10)

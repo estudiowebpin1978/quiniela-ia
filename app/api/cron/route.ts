@@ -99,17 +99,24 @@ export async function GET(req: NextRequest) {
     })
   }
   
-  const now = dateParam ? new Date(dateParam + 'T00:00:00') : new Date(Date.now() - 3 * 3600000)
-  const y = now.getFullYear()
-  const mo = String(now.getMonth() + 1).padStart(2, "0")
-  const d = String(now.getDate()).padStart(2, "0")
-  const fechaStr = `${y}-${mo}-${d}`
-  const fechaUrl = `${d}-${mo}-${String(y).slice(-2)}`
-  const hora = now.getHours()
-  const diaSemana = now.getDay() // 0=domingo, 6=sábado
-  
-  // Feriados 2026 sin sorteos
-  const feriados = ["2026-01-01","2026-02-16","2026-02-17","2026-03-24","2026-04-02","2026-04-03","2026-05-01","2026-05-25","2026-06-20","2026-07-09","2026-12-08","2026-12-25"]
+  const ahora = dateParam 
+    ? (() => {
+        const p = new Date(dateParam + "T12:00:00Z")
+        return { fechaStr: dateParam, diaSemana: p.getDay(), hora: p.getHours() }
+      })()
+    : (() => {
+        const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format()
+        const h = parseInt(new Intl.DateTimeFormat("en-US", { timeZone: "America/Argentina/Buenos_Aires", hour: "numeric", hour12: false }).format())
+        const dow = new Date(`${p}T12:00:00Z`).getDay()
+        return { fechaStr: p, diaSemana: dow, hora: h }
+      })()
+  const [y, mo, d] = ahora.fechaStr.split("-")
+  const fechaStr = ahora.fechaStr
+  const fechaUrl = `${d}-${mo}-${y.slice(-2)}`
+  const hora = ahora.hora
+  const diaSemana = ahora.diaSemana
+
+  const feriados = ["2026-01-01","2026-02-16","2026-02-17","2026-03-24","2026-04-02","2026-04-03","2026-05-01","2026-05-25","2026-06-20","2026-07-09","2026-08-17","2026-10-12","2026-11-23","2026-12-08","2026-12-25","2027-01-01"]
   const esFeriado = feriados.includes(fechaStr)
   
   const turnoParam = req.nextUrl.searchParams.get("turno")
@@ -141,11 +148,11 @@ export async function GET(req: NextRequest) {
     for (const t of TURNOS_VALIDOS) {
       let nums = await scrape(fechaUrl2, t)
       if (nums.length < 5) {
-        const yesterday = new Date(now)
-        yesterday.setDate(yesterday.getDate() - 1)
-        const yd = yesterday.getFullYear()
-        const md = String(yesterday.getMonth() + 1).padStart(2, "0")
-        const dd = String(yesterday.getDate()).padStart(2, "0")
+        const ayer = new Date(`${ahora.fechaStr}T12:00:00Z`)
+        ayer.setUTCDate(ayer.getUTCDate() - 1)
+        const yd = ayer.getUTCFullYear()
+        const md = String(ayer.getUTCMonth() + 1).padStart(2, "0")
+        const dd = String(ayer.getUTCDate()).padStart(2, "0")
         const fechaUrlYesterday = `${dd}-${md}-${String(yd).slice(-2)}`
         nums = await scrape(fechaUrlYesterday, t)
         if (nums.length >= 5) {
