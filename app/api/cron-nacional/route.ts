@@ -93,7 +93,14 @@ export async function GET(req: NextRequest) {
           headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
           body: JSON.stringify({ date: fechaISO, turno, numbers: nums, source: "quiniela-nacional.com" })
         })
-        if (r.ok) totalGuardados++
+        if (r.ok) {
+          totalGuardados++
+          fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-push?secret=${expected}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ turno, numeros: nums, fecha: fechaISO })
+          }).catch(() => {})
+        }
       }
     }
   }

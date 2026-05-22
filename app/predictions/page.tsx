@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useMemo } from "react";
+import { usePushNotifications } from "@/components/PushNotifications";
 
 const EMOJIS: Record<string, string> = {
   "00": "🥚", "01": "💧", "02": "🧒", "03": "⛪", "04": "🛏️", "05": "🐱", "06": "🐶", "07": "🔫", "08": "🔥", "09": "🏞️",
@@ -113,6 +114,7 @@ export default function Page() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstall, setShowInstall] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { subscribed: pushSubscribed, supported: pushSupported, loading: pushLoading, toggle: togglePush } = usePushNotifications();
 
   useEffect(() => {
     localStorage.setItem("confianzaTurnos", JSON.stringify(confianzaTurnos));
@@ -242,18 +244,11 @@ export default function Page() {
   }, []);
 
   async function pedirNotificaciones() {
-    if (!("Notification" in window)) {
-      alert("Tu navegador no soporta notificaciones");
+    if (!pushSupported) {
+      alert("Tu navegador no soporta notificaciones push");
       return;
     }
-    const perm = await Notification.requestPermission();
-    if (perm === "granted") {
-      localStorage.setItem("notif_enabled", "1");
-      new Notification("Quiniela IA activado!", {
-        body: "Te avisaremos cuando salgan los resultados de cada sorteo.",
-        icon: "/icon-192.png",
-      });
-    }
+    await togglePush();
   }
 
 function mostrarNotifResultado(turno: string, numeros: string[], aciertos: string[]) {
@@ -791,19 +786,21 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             {(pr || userRole === "admin") && <a href="/admin" className="nav-admin">⚙️ Admin</a>}
             <button
               onClick={pedirNotificaciones}
+              disabled={pushLoading}
               style={{
                 padding: "5px 10px",
                 borderRadius: 7,
-                border: "1px solid rgba(37,244,238,.2)",
-                background: "transparent",
-                color: "#25F4EE",
+                border: pushSubscribed ? "1px solid rgba(34,197,94,.5)" : "1px solid rgba(37,244,238,.2)",
+                background: pushSubscribed ? "rgba(34,197,94,.15)" : "transparent",
+                color: pushSubscribed ? "#4ade80" : "#25F4EE",
                 fontSize: 11,
-                cursor: "pointer",
+                cursor: pushLoading ? "wait" : "pointer",
                 fontFamily: "inherit",
+                opacity: pushSupported ? 1 : 0.4,
               }}
-              title="Tocar para activar notificaciones de resultados"
+              title={pushSubscribed ? "Notificaciones activadas" : "Tocar para activar notificaciones push"}
             >
-              🔔
+              {pushLoading ? "⏳" : pushSubscribed ? "🔔✅" : pushSupported ? "🔔" : "🔕"}
             </button>
             {showInstall && (
               <button onClick={installApp} style={{ padding: "6px 12px", borderRadius: 8, background: "linear-gradient(135deg,#ff3366,#ff6b81)", color: "#fff", border: "none", fontWeight: 700, fontSize: 11, cursor: "pointer", boxShadow: "0 4px 12px rgba(255,51,102,.4)" }}>
