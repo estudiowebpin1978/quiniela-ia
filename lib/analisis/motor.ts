@@ -168,7 +168,7 @@ function generarRecomendaciones(
     razon: `Frecuencia histórica del número`
   }));
 
-  const nums4 = generar4CifrasPorPosiciones(posiciones, 1).slice(0, 5).map(p => ({
+  const nums4 = generar4CifrasPorPosiciones(posiciones, 2).slice(0, 5).map(p => ({
     numero: p.numero,
     probabilidad: p.probabilidad,
     confianza: Math.round(p.probabilidad),
