@@ -69,18 +69,13 @@ export function prepararFeatures(sorteos: { fecha: string; turno: string; number
     const proximo = sorteosOrdenados[i];
 
     const freqs = new Array(100).fill(0);
-    const ausencias = new Array(100).fill(0);
     let ultIdx = 0;
 
     window.forEach((s, idx) => {
       const numbers = Array.isArray(s.numbers) ? s.numbers : [];
-      const appearing = new Set<number>();
-      
       numbers.forEach(n => {
         if (typeof n !== 'number' || isNaN(n)) return;
-        const n2 = n % 100;
-        freqs[n2]++;
-        appearing.add(n2);
+        freqs[n % 100]++;
         ultIdx = idx;
       });
     });
@@ -97,8 +92,14 @@ export function prepararFeatures(sorteos: { fecha: string; turno: string; number
 
     const targetNumbers = Array.isArray(proximo.numbers) ? proximo.numbers : [];
     if (targetNumbers.length > 0) {
-      features.push(featureVector);
-      etiquetas.push(targetNumbers[0] % 100);
+      const labels = new Set<number>();
+      for (const n of targetNumbers) {
+        if (typeof n === 'number' && !isNaN(n)) labels.add(n % 100);
+      }
+      for (const lbl of labels) {
+        features.push(featureVector);
+        etiquetas.push(lbl);
+      }
     }
   }
 

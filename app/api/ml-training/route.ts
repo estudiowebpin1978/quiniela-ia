@@ -95,6 +95,11 @@ export async function POST(req: NextRequest) {
 
     const mejor = resultado.mejorModelo
 
+    try {
+      const { setModelos } = await import("@/lib/ml/cache")
+      setModelos(turno, resultado.modelos.map(m => ({ tipo: m.tipo, nombre: m.nombre, modelo: m.modelo })))
+    } catch {}
+
     return NextResponse.json({
       ok: true,
       turno,

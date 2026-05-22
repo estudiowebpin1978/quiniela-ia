@@ -5,6 +5,7 @@ export interface ArbolDecision {
   izquierda?: ArbolDecision;
   derecha?: ArbolDecision;
   importancia: number;
+  featureIdx?: number;
 }
 
 export interface RandomForest {
@@ -138,7 +139,8 @@ function construirArbol(
     threshold: mejorSplit.threshold,
     izquierda: construirArbol(izquierda, profundidad + 1, maxProfundidad),
     derecha: construirArbol(derecha, profundidad + 1, maxProfundidad),
-    importancia: 1
+    importancia: 1,
+    featureIdx: mejorSplit.feature ?? undefined
   };
 }
 
@@ -148,13 +150,19 @@ function encontrarMejorSplit(
   if (datos.length < 2) return null;
 
   const nFeatures = datos[0].features.length;
+  const nSubset = Math.max(1, Math.round(Math.sqrt(nFeatures)));
+  const candidatas = new Set<number>();
+  while (candidatas.size < nSubset && candidatas.size < nFeatures) {
+    candidatas.add(Math.floor(Math.random() * nFeatures));
+  }
+
   let mejorGanancia = -Infinity;
   let mejorFeature: number | null = null;
   let mejorThreshold: number | null = null;
 
   const entropiaPadre = calcularEntropia(datos);
 
-  for (let f = 0; f < nFeatures; f++) {
+  for (const f of candidatas) {
     const valores = datos.map(d => d.features[f]);
     const min = Math.min(...valores);
     const max = Math.max(...valores);
@@ -224,9 +232,19 @@ export function predecirRandomForest(
   const maxProb = Math.max(...probabilidades);
   const prediccion = probabilidades.findIndex(p => p === maxProb);
 
+  const featCounts = new Map<number, number>();
+  const countFeatures = (nodo: ArbolDecision) => {
+    if (nodo.featureIdx !== undefined) {
+      featCounts.set(nodo.featureIdx, (featCounts.get(nodo.featureIdx) || 0) + 1);
+    }
+    if (nodo.izquierda) countFeatures(nodo.izquierda);
+    if (nodo.derecha) countFeatures(nodo.derecha);
+  };
+  for (const tree of rf.arbres) countFeatures(tree);
+  const maxCount = Math.max(...featCounts.values(), 1);
   const importanciaFeatures = rf.featureNames.map((name, i) => ({
     feature: name,
-    importancia: rf.arbres.reduce((sum, tree) => sum + (tree.importancia || 0), 0) / rf.nArboles
+    importancia: (featCounts.get(i) || 0) / maxCount
   }));
 
   return {
