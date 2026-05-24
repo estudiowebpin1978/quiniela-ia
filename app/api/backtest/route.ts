@@ -48,6 +48,8 @@ export async function GET(req: NextRequest) {
     if (draws.length < minEntreno + 10) return NextResponse.json({ error: `Solo ${draws.length} sorteos, minimo ${minEntreno + 10}` }, { status: 400 })
 
     const resultados: { total: number; aciertosTop: number; aciertosTotal: number; hitsPorSorteo: number[] } = { total: 0, aciertosTop: 0, aciertosTotal: 0, hitsPorSorteo: [] }
+    const calibracion: Record<string, { hits: number; total: number }> = {}
+    for (let r = 0; r <= 100; r += 10) calibracion[`${r}-${r+10}`] = { hits: 0, total: 0 }
 
     for (let i = minEntreno; i < draws.length; i++) {
       const train = draws.slice(0, i)
@@ -95,6 +97,15 @@ export async function GET(req: NextRequest) {
       if (hits.length > 0) { resultados.aciertosTop++; resultados.aciertosTotal += hits.length }
       resultados.total++
       resultados.hitsPorSorteo.push(hits.length)
+
+      for (const sc of scores.slice(0, topN)) {
+        const bucket = Math.floor(sc.s / 10) * 10
+        const key = `${bucket}-${bucket + 10}`
+        if (calibracion[key]) {
+          calibracion[key].total++
+          if (actualTerminos.includes(sc.n)) calibracion[key].hits++
+        }
+      }
     }
 
     return NextResponse.json({
@@ -107,6 +118,7 @@ export async function GET(req: NextRequest) {
       avgHits: resultados.total > 0 ? Math.round((resultados.aciertosTotal / resultados.total) * 100) / 100 : 0,
       maxHits: Math.max(...resultados.hitsPorSorteo),
       distribucion: resultados.hitsPorSorteo.reduce((acc:Record<number,number>, h) => { acc[h] = (acc[h] || 0) + 1; return acc }, {} as Record<number,number>),
+      calibracion: Object.fromEntries(Object.entries(calibracion).map(([k, v]) => [k, v.total > 0 ? { hitRate: Math.round(v.hits / v.total * 10000) / 100, muestras: v.total } : { hitRate: 0, muestras: 0 }])),
       conclusion: resultados.total > 0
         ? `En ${resultados.total} sorteos testeados, el método 12 factores acertó al menos 1 número en ${resultados.aciertosTop} sorteos (${Math.round(resultados.aciertosTop/resultados.total*100)}% de los sorteos). Promedio: ${(resultados.aciertosTotal/resultados.total).toFixed(2)} aciertos/sorteo.`
         : "Sin datos suficientes"

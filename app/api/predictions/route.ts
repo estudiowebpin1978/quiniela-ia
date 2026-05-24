@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
+import { analisisCrossTurno } from "@/lib/analisis/cross-turno"
+import { calcularPesosDinamicos, PesosDinamicos } from "@/lib/analisis/weights"
+import { calibrarConfianza } from "@/lib/analisis/calibration"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -451,8 +454,16 @@ export async function GET(req: NextRequest) {
     // Factor 12: Suma de dígitos
     const sumaDigitos = analisisSumaDigitos(terminaciones2)
 
-    // === CALCULAR SCORES PARA CADA NÚMERO (12 FACTORES) ===
-    const scores: { num: number, score: number, confianza: number, factores: string[], frecuencia: number }[] = []
+    // === FACTOR 13: ANÁLISIS CROSS-TURNO ===
+    let crossTurnoScore: Record<number, number> = {}
+    try { crossTurnoScore = (await analisisCrossTurno(turno, 3)).crossTurnoScore } catch {}
+
+    // === PESOS DINÁMICOS (auto-optimizados) ===
+    let pesosDinamicos: PesosDinamicos | null = null
+    try { pesosDinamicos = await calcularPesosDinamicos(turnoQuery) } catch {}
+
+    // === CALCULAR SCORES PARA CADA NÚMERO (12 FACTORES + CROSS-TURNO) ===
+    const scores: { num: number, score: number, confianza: number, factores: string[], frecuencia: number, crossTurno: number, pesoAjustado: number }[] = []
 
     const topDecenas = posiciones.decenas.map((v, i) => ({ d: i, v })).sort((a, b) => b.v - a.v);
     const topUnidades = posiciones.unidades.map((v, i) => ({ d: i, v })).sort((a, b) => b.v - a.v);
@@ -488,12 +499,24 @@ export async function GET(req: NextRequest) {
         sumaDigitosTop
       });
 
+      const crossBoost = crossTurnoScore[n] || 0
+      let ajustePeso = 1
+      if (pesosDinamicos) {
+        const baseSum = Object.values(pesosDinamicos).reduce((a, b) => a + b, 0)
+        ajustePeso = baseSum > 0 ? 1 + (pesosDinamicos.frecuencia - 0.15) * 0.5 : 1
+        ajustePeso = Math.max(0.85, Math.min(1.15, ajustePeso))
+      }
+
+      const scoreFinal = result.score * ajustePeso + crossBoost
+
       scores.push({
         num: n,
-        score: result.score,
-        confianza: result.confianza,
-        factores: result.factores,
-        frecuencia: freq[n] || 0
+        score: scoreFinal,
+        confianza: calibrarConfianza(scoreFinal, result.confianza),
+        factores: [...result.factores, ...(crossBoost > 0 ? [`Cross: +${crossBoost}`] : [])],
+        frecuencia: freq[n] || 0,
+        crossTurno: crossBoost,
+        pesoAjustado: Math.round(ajustePeso * 100) / 100
       });
     }
 
@@ -586,7 +609,10 @@ export async function GET(req: NextRequest) {
       ok: true,
       turno: turnoQuery,
       debug: {
-        factores_aplicados: 12,
+        factores_aplicados: 13,
+        pesos_dinamicos: pesosDinamicos ? Object.fromEntries(Object.entries(pesosDinamicos).map(([k, v]) => [k, +(v * 100).toFixed(1)])) : null,
+        cross_turno_activo: Object.values(crossTurnoScore).some(v => v > 0),
+        calibracion_aplicada: true,
         total_numeros: terminaciones2.length,
         numeros_unicos: Object.keys(freq).length,
         sorteos_analizados: sequences.length,
@@ -615,9 +641,9 @@ export async function GET(req: NextRequest) {
         terminacionesMasFrecuentes: scores.slice(0, 5).map(s => ({ terminacion: s.num, frecuencia: s.frecuencia, score: s.score.toFixed(2) })),
       },
       analysisInfo: {
-        metodo: `12 factores en 2 cifras + scoring posicional para 3/4 cifras - turno ${turnoQuery.toUpperCase()}`,
+        metodo: `13 factores + pesas dinámicas + calibración + cross-turno - turno ${turnoQuery.toUpperCase()}`,
         factores: [
-          "1. Frecuencia absoluta (30%)",
+          "1. Frecuencia absoluta",
           "2. Posiciones (miles/centenas/decenas/unidades)",
           "3. Ausencias (tiempo sin aparecer)",
           "4. Recencia (apariciones recientes)",
@@ -628,7 +654,8 @@ export async function GET(req: NextRequest) {
           "9. Números calientes",
           "10. Números atrasados",
           "11. Paridad (pares/impares)",
-          "12. Suma de dígitos"
+          "12. Suma de dígitos",
+          "13. Cross-turno (arrastre entre turnos)"
         ],
         datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} terminaciones de 2 cifras + ${sorteos.length} sorteos para scoring de 3/4 cifras`,
         confianzaAvanzada: {
