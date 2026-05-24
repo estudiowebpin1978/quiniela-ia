@@ -13,9 +13,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Faltan datos" }, { status: 400 })
     }
 
-    const webpush = await import("web-push")
     const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ""
     const vapidPrivate = process.env.VAPID_PRIVATE_KEY || ""
+    if (!vapidPublic || !vapidPrivate) {
+      return NextResponse.json({ ok: true, enviados: 0, message: "VAPID keys no configuradas" })
+    }
+    const webpush = await import("web-push")
     webpush.setVapidDetails("mailto:estudiowebpin@gmail.com", vapidPublic, vapidPrivate)
 
     const supabase = createClient(
