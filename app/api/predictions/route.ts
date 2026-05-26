@@ -537,7 +537,7 @@ export async function GET(req: NextRequest) {
     const { ejecutarAnalisisCompleto } = await import("@/lib/analisis/motor")
     const analisisAv = ejecutarAnalisisCompleto(sorteos, { topNRanking: 15 })
 
-    // === ENSEMBLE: Integrar ML cacheado ===
+    // === ENSEMBLE: Integrar ML cacheado (TypeScript) ===
     try {
       const { getModelos } = await import("@/lib/ml/cache")
       const cached = getModelos(turnoQuery)
@@ -572,6 +572,41 @@ export async function GET(req: NextRequest) {
           }
         }
         scores.sort((a, b) => b.score - a.score)
+      }
+    } catch {}
+
+    // === ENSEMBLE: Integrar modelos exportados desde Python (XGBoost / RF) ===
+    let boostPythonActivo = false
+    try {
+      const { obtenerBoostPython } = await import("@/lib/ml/python_model_loader")
+      const boostXGB = obtenerBoostPython(turnoQuery, "xgboost")
+      if (boostXGB) {
+        boostPythonActivo = true
+        for (const s of scores) {
+          const b = boostXGB[s.num] || 0
+          if (b > 0) s.score += Math.min(8, b / 10)
+        }
+        scores.sort((a, b) => b.score - a.score)
+      }
+    } catch {}
+
+    // === ENSEMBLE: FastAPI ML backend (si está disponible) ===
+    let mlApiActivo = false
+    try {
+      const mlApiUrl = process.env.ML_API_URL
+      if (mlApiUrl) {
+        mlApiActivo = true
+        const mlRes = await fetch(`${mlApiUrl}/predict?turno=${turnoQuery}&top=10`, { signal: AbortSignal.timeout(5000) })
+        if (mlRes.ok) {
+          const mlData = await mlRes.json()
+          if (mlData?.scores_completos) {
+            for (const s of scores) {
+              const boost = mlData.scores_completos[String(s.num).padStart(2, "0")] || 0
+              if (boost > 0) s.score += Math.min(10, boost / 5)
+            }
+            scores.sort((a, b) => b.score - a.score)
+          }
+        }
       }
     } catch {}
 
@@ -613,6 +648,8 @@ export async function GET(req: NextRequest) {
         pesos_dinamicos: pesosDinamicos ? Object.fromEntries(Object.entries(pesosDinamicos).map(([k, v]) => [k, +(v * 100).toFixed(1)])) : null,
         cross_turno_activo: Object.values(crossTurnoScore).some(v => v > 0),
         calibracion_aplicada: true,
+        modelos_python_activos: boostPythonActivo,
+        ml_api_externa_activa: mlApiActivo,
         total_numeros: terminaciones2.length,
         numeros_unicos: Object.keys(freq).length,
         sorteos_analizados: sequences.length,
@@ -641,7 +678,7 @@ export async function GET(req: NextRequest) {
         terminacionesMasFrecuentes: scores.slice(0, 5).map(s => ({ terminacion: s.num, frecuencia: s.frecuencia, score: s.score.toFixed(2) })),
       },
       analysisInfo: {
-        metodo: `13 factores + pesas dinámicas + calibración + cross-turno - turno ${turnoQuery.toUpperCase()}`,
+        metodo: `13 factores + pesas dinámicas + calibración + cross-turno + ML Python (XGBoost/RF/LSTM) - turno ${turnoQuery.toUpperCase()}`,
         factores: [
           "1. Frecuencia absoluta",
           "2. Posiciones (miles/centenas/decenas/unidades)",
@@ -655,7 +692,9 @@ export async function GET(req: NextRequest) {
           "10. Números atrasados",
           "11. Paridad (pares/impares)",
           "12. Suma de dígitos",
-          "13. Cross-turno (arrastre entre turnos)"
+          "13. Cross-turno (arrastre entre turnos)",
+          "14. XGBoost (Python - exportado)",
+          "15. FastAPI ML backend (externo)"
         ],
         datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} terminaciones de 2 cifras + ${sorteos.length} sorteos para scoring de 3/4 cifras`,
         confianzaAvanzada: {
