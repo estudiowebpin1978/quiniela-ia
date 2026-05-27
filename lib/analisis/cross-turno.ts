@@ -41,12 +41,27 @@ export interface CrossTurnoResult {
   crossTurnoScore: Record<number, number>;
 }
 
-export async function analisisCrossTurno(turno: string, diasAtras: number = 3): Promise<CrossTurnoResult> {
+export async function analisisCrossTurno(turno: string, diasAtras: number = 3, targetDate?: string): Promise<CrossTurnoResult> {
   const result: CrossTurnoResult = {
     arrastreNocturnaPrevia: new Set(),
     terminacionesRepetidas: new Set(),
     numerosMultiTurno: new Set(),
     crossTurnoScore: {}
+  }
+
+  const turnoCapitalizado = turno.charAt(0).toUpperCase() + turno.slice(1).toLowerCase()
+  const idxTurno = TURNOS_ORDER.indexOf(turnoCapitalizado)
+  if (idxTurno < 0) return result
+
+  // Use targetDate if provided (predicting for a future date), otherwise use today
+  const baseDate = targetDate ? new Date(targetDate + "T12:00:00-03:00") : new Date()
+
+  // Obtener sorteos del día anterior y del mismo día
+  const fechas: string[] = []
+  for (let i = -1; i <= 0; i++) {
+    const d = new Date(baseDate)
+    d.setDate(d.getDate() + i)
+    fechas.push(d.toISOString().split("T")[0])
   }
 
   const fechaHoy = new Intl.DateTimeFormat("en-CA", {

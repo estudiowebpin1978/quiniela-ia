@@ -355,6 +355,7 @@ function calcularScore(d: DatosDoceFactores): { score: number; confianza: number
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const turno = searchParams.get("sorteo") || "previa"
+  const targetDate = searchParams.get("date") || ""
 
   const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
   const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
@@ -374,7 +375,9 @@ export async function GET(req: NextRequest) {
   const to = setTimeout(() => ctrl.abort(), 25000)
 
   try {
-    const url = `${SB}/rest/v1/draws?select=date,turno,numbers&turno=ilike.*${turnoQuery}*&order=date.desc&limit=10000`
+    // Filter by target date: only use draws BEFORE the prediction date
+    const dateFilter = targetDate ? `&date=lt.${targetDate}` : ""
+    const url = `${SB}/rest/v1/draws?select=date,turno,numbers&turno=ilike.*${turnoQuery}*&order=date.desc&limit=10000${dateFilter}`
     const res = await fetch(url, { 
       headers: { "apikey": SK, "Authorization": `Bearer ${SK}` }, 
       signal: ctrl.signal 
@@ -456,7 +459,7 @@ export async function GET(req: NextRequest) {
 
     // === FACTOR 13: ANÁLISIS CROSS-TURNO ===
     let crossTurnoScore: Record<number, number> = {}
-    try { crossTurnoScore = (await analisisCrossTurno(turno, 3)).crossTurnoScore } catch {}
+    try { crossTurnoScore = (await analisisCrossTurno(turno, 3, targetDate || undefined)).crossTurnoScore } catch {}
 
     // === PESOS DINÁMICOS (auto-optimizados) ===
     let pesosDinamicos: PesosDinamicos | null = null

@@ -279,7 +279,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     setDn(false);
     setDt(null);
     try {
-      const url = "/api/predictions?sorteo=" + encodeURIComponent(so) + "&t=" + Date.now();
+      const predDate = fechaSorteo(so);
+      const url = "/api/predictions?sorteo=" + encodeURIComponent(so) + "&date=" + predDate + "&t=" + Date.now();
       console.log("[DEBUG] Fetching:", url);
       const r = await fetch(url, {
         headers: { Authorization: "Bearer " + tkRef.current },
@@ -314,8 +315,14 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     window.location.href = "/login";
   }
 
-  function fechaArgentina(): Date {
-    return new Date(hoyArgentina() + "T12:00:00-03:00")
+  // Horarios de cada sorteo (hora Argentina, el sorteo ya pasó si la hora actual >= cutoff)
+  const HORARIOS_SORTEOS: Record<string, number> = {
+    Previa: 10, Primera: 12, Matutina: 15, Vespertina: 18, Nocturna: 21
+  }
+
+  function ahoraArgentina(): Date {
+    const now = new Date()
+    return new Date(now.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }))
   }
 
   function hoyArgentina(): string {
@@ -323,20 +330,22 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   }
 
   function proximoSorteo(sorteo: string): string {
-    const hoy = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }).format()
-    return sorteo + " del " + hoy;
+    const fs = fechaSorteo(sorteo)
+    const d = new Date(fs + "T12:00:00-03:00")
+    const label = d.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })
+    return sorteo + " del " + label;
   }
 
   function diaSemanaART(d: Date): number {
-    return d.getUTCDay()
+    return d.getDay()
   }
 
   function nextValidDate(sorteo: string): string {
-    const artMs = fechaArgentina().getTime()
+    const artNow = ahoraArgentina()
     for (let i = 1; i <= 7; i++) {
-      const d = new Date(artMs + i * 86400000);
+      const d = new Date(artNow.getTime() + i * 86400000);
       const dia = diaSemanaART(d);
-      if (dia === 7) continue;
+      if (dia === 0) continue;
       if (sorteo === "Previa" && dia === 6) continue;
       return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(d)
     }
@@ -344,9 +353,19 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   }
 
   function fechaSorteo(sorteo: string): string {
+    const ahora = ahoraArgentina()
+    const horaActual = ahora.getHours()
+    const diaActual = ahora.getDay()
     const fechaActual = hoyArgentina()
-    const dia = diaSemanaART(fechaArgentina())
     
+    // Check if the draw for today has already passed
+    const horarioSorteo = HORARIOS_SORTEOS[sorteo] || 12
+    if (horaActual >= horarioSorteo) {
+      // Draw already happened today -> predict for next valid day
+      return nextValidDate(sorteo)
+    }
+    
+    // Check holidays, weekends
     const feriados2026 = [
       "2026-01-01", "2026-02-16", "2026-02-17", "2026-03-24", "2026-04-02", "2026-04-03",
       "2026-05-01", "2026-05-25", "2026-06-20", "2026-07-09", "2026-08-17", "2026-10-12",
@@ -354,8 +373,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     ]
     
     if (feriados2026.includes(fechaActual)) return nextValidDate(sorteo)
-    if (dia === 7) return nextValidDate(sorteo)
-    if (sorteo === "Previa" && dia === 6) return nextValidDate(sorteo)
+    if (diaActual === 0) return nextValidDate(sorteo)
+    if (sorteo === "Previa" && diaActual === 6) return nextValidDate(sorteo)
     
     return fechaActual
   }
