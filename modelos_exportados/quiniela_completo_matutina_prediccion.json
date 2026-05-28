@@ -1,0 +1,242 @@
+{
+  "modelo": "quiniela_completo_matutina",
+  "fecha_exportacion": "2026-05-28T02:10:38.100818",
+  "turno": "Matutina",
+  "xgboost_activo": false,
+  "pesos": {
+    "frecuencia": 0.1432,
+    "recencia": 0.1497,
+    "suma_digitos": 0.087,
+    "posicion": 0.0622,
+    "ciclo": 0.1562,
+    "tendencia": 0.0622,
+    "ausencia": 0.1281,
+    "coocurrencia": 0.0497,
+    "correlacion_turno": 0.0311,
+    "caliente": 0.0311,
+    "atrasado": 0.0249,
+    "cross_turno": 0.0746
+  },
+  "redoblona": "56-48",
+  "predicciones_2cifras": [
+    {
+      "numero": "56",
+      "score": 100.0,
+      "probabilidad": 95.0,
+      "factores": [
+        "recencia",
+        "tendencia",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "48",
+      "score": 93.63,
+      "probabilidad": 93.6,
+      "factores": [
+        "ciclo",
+        "coocurrencia",
+        "cross_turno"
+      ]
+    },
+    {
+      "numero": "21",
+      "score": 80.44,
+      "probabilidad": 80.4,
+      "factores": [
+        "ciclo",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "91",
+      "score": 80.19,
+      "probabilidad": 80.2,
+      "factores": [
+        "ciclo",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "83",
+      "score": 79.86,
+      "probabilidad": 79.9,
+      "factores": [
+        "ciclo",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "12",
+      "score": 79.25,
+      "probabilidad": 79.3,
+      "factores": [
+        "ciclo",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "13",
+      "score": 76.82,
+      "probabilidad": 76.8,
+      "factores": [
+        "recencia",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "29",
+      "score": 76.4,
+      "probabilidad": 76.4,
+      "factores": [
+        "recencia",
+        "tendencia",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "73",
+      "score": 72.43,
+      "probabilidad": 72.4,
+      "factores": [
+        "ciclo",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "01",
+      "score": 71.61,
+      "probabilidad": 71.6,
+      "factores": [
+        "recencia",
+        "coocurrencia"
+      ]
+    }
+  ],
+  "predicciones_3cifras": [
+    {
+      "numero": "463",
+      "score": 100.0,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "913",
+      "score": 99.78,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "373",
+      "score": 99.33,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "283",
+      "score": 97.71,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "693",
+      "score": 96.82,
+      "probabilidad": 95.0
+    }
+  ],
+  "predicciones_4cifras": [
+    {
+      "numero": "3603",
+      "score": 100.0,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "5293",
+      "score": 99.94,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "2073",
+      "score": 99.94,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "4453",
+      "score": 99.71,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "7793",
+      "score": 99.34,
+      "probabilidad": 95.0
+    }
+  ],
+  "scores_por_numero": {
+    "56": 100.0,
+    "48": 93.63,
+    "21": 80.44,
+    "91": 80.19,
+    "83": 79.86,
+    "12": 79.25,
+    "13": 76.82,
+    "29": 76.4,
+    "73": 72.43,
+    "01": 71.61
+  },
+  "top_10_2d": [
+    {
+      "numero": "56",
+      "score": 100.0
+    },
+    {
+      "numero": "48",
+      "score": 93.63
+    },
+    {
+      "numero": "21",
+      "score": 80.44
+    },
+    {
+      "numero": "91",
+      "score": 80.19
+    },
+    {
+      "numero": "83",
+      "score": 79.86
+    },
+    {
+      "numero": "12",
+      "score": 79.25
+    },
+    {
+      "numero": "13",
+      "score": 76.82
+    },
+    {
+      "numero": "29",
+      "score": 76.4
+    },
+    {
+      "numero": "73",
+      "score": 72.43
+    },
+    {
+      "numero": "01",
+      "score": 71.61
+    }
+  ],
+  "metadata": {
+    "turno": "Matutina",
+    "factores": [
+      "frecuencia",
+      "recencia",
+      "suma_digitos",
+      "posicion",
+      "ciclo",
+      "tendencia",
+      "ausencia",
+      "coocurrencia",
+      "correlacion_turno",
+      "caliente",
+      "atrasado",
+      "cross_turno"
+    ],
+    "sorteos_analizados": 214
+  }
+}

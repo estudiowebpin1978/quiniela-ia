@@ -79,17 +79,50 @@ def ejecutar_prediccion(
     for factor, peso in sorted(resultado['pesos_utilizados'].items(), key=lambda x: x[1], reverse=True):
         print(f"   {factor}: {peso:.2%}")
     
-    # Exportar a JSON
-    if exportar and resultado['predicciones_2cifras']:
-        scores = {r['numero']: r['score'] for r in resultado['predicciones_2cifras']}
+    # Exportar a JSON completo para la app TypeScript
+    if exportar:
+        scores_2d = {r['numero']: r['score'] for r in resultado['predicciones_2cifras']}
         exportar_modelo_json(
             f"quiniela_completo_{turno.lower()}",
-            scores,
+            scores_2d,
             metadata={"turno": turno, "factores": list(predictor.pesos.keys())}
         )
+        
+        # Exportar predicción completa en formato que la app entiende
+        export_completo = {
+            "modelo": f"quiniela_completo_{turno.lower()}",
+            "fecha_exportacion": __import__('datetime').datetime.now().isoformat(),
+            "turno": turno,
+            "xgboost_activo": resultado['xgboost_activo'],
+            "pesos": resultado['pesos_utilizados'],
+            "redoblona": resultado.get('redoblona', ''),
+            "predicciones_2cifras": [
+                {"numero": r['numero'], "score": r['score'], "probabilidad": r['probabilidad'], "factores": r['factores']}
+                for r in resultado['predicciones_2cifras']
+            ],
+            "predicciones_3cifras": [
+                {"numero": r['numero'], "score": r['score'], "probabilidad": r['probabilidad']}
+                for r in resultado['predicciones_3cifras']
+            ],
+            "predicciones_4cifras": [
+                {"numero": r['numero'], "score": r['score'], "probabilidad": r['probabilidad']}
+                for r in resultado['predicciones_4cifras']
+            ],
+            "scores_por_numero": scores_2d,
+            "top_10_2d": [{"numero": n, "score": s} for n, s in sorted(scores_2d.items(), key=lambda x: x[1], reverse=True)[:10]],
+            "metadata": {
+                "turno": turno,
+                "factores": list(predictor.pesos.keys()),
+                "sorteos_analizados": len(historico),
+            }
+        }
+        export_path = os.path.join("modelos_exportados", f"quiniela_completo_{turno.lower()}_prediccion.json")
+        with open(export_path, "w") as f:
+            json.dump(export_completo, f, indent=2)
+        print(f"Exportado completo: {export_path}")
     
-    # Guardar resultado completo
-    output = {
+    # Guardar resultado resumido
+    resumen = {
         "fecha": __import__('datetime').datetime.now().isoformat(),
         "turno": turno,
         "xgboost_activo": resultado['xgboost_activo'],
@@ -104,8 +137,8 @@ def ejecutar_prediccion(
     os.makedirs("resultados", exist_ok=True)
     path = os.path.join("resultados", f"prediccion_{turno.lower()}.json")
     with open(path, "w") as f:
-        json.dump(output, f, indent=2)
-    print(f"\nResultado guardado: {path}")
+        json.dump(resumen, f, indent=2)
+    print(f"Resultado guardado: {path}")
     
     return resultado
 

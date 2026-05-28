@@ -1,0 +1,248 @@
+{
+  "modelo": "quiniela_completo_nocturna",
+  "fecha_exportacion": "2026-05-28T02:10:49.731939",
+  "turno": "Nocturna",
+  "xgboost_activo": false,
+  "pesos": {
+    "frecuencia": 0.2572,
+    "recencia": 0.1355,
+    "suma_digitos": 0.087,
+    "posicion": 0.0622,
+    "ciclo": 0.0864,
+    "tendencia": 0.0622,
+    "ausencia": 0.0982,
+    "coocurrencia": 0.0497,
+    "correlacion_turno": 0.0311,
+    "caliente": 0.0311,
+    "atrasado": 0.0249,
+    "cross_turno": 0.0746
+  },
+  "redoblona": "51-38",
+  "predicciones_2cifras": [
+    {
+      "numero": "51",
+      "score": 100.0,
+      "probabilidad": 95.0,
+      "factores": [
+        "recencia",
+        "coocurrencia",
+        "cross_turno"
+      ]
+    },
+    {
+      "numero": "38",
+      "score": 97.92,
+      "probabilidad": 95.0,
+      "factores": [
+        "recencia",
+        "coocurrencia",
+        "cross_turno"
+      ]
+    },
+    {
+      "numero": "07",
+      "score": 91.99,
+      "probabilidad": 92.0,
+      "factores": [
+        "recencia",
+        "coocurrencia",
+        "cross_turno"
+      ]
+    },
+    {
+      "numero": "93",
+      "score": 86.94,
+      "probabilidad": 86.9,
+      "factores": [
+        "ciclo",
+        "coocurrencia",
+        "cross_turno"
+      ]
+    },
+    {
+      "numero": "27",
+      "score": 80.55,
+      "probabilidad": 80.5,
+      "factores": [
+        "ciclo",
+        "coocurrencia",
+        "cross_turno"
+      ]
+    },
+    {
+      "numero": "45",
+      "score": 78.48,
+      "probabilidad": 78.5,
+      "factores": [
+        "ciclo",
+        "coocurrencia",
+        "cross_turno"
+      ]
+    },
+    {
+      "numero": "68",
+      "score": 78.4,
+      "probabilidad": 78.4,
+      "factores": [
+        "ciclo",
+        "coocurrencia",
+        "cross_turno"
+      ]
+    },
+    {
+      "numero": "74",
+      "score": 77.97,
+      "probabilidad": 78.0,
+      "factores": [
+        "ciclo",
+        "coocurrencia",
+        "cross_turno"
+      ]
+    },
+    {
+      "numero": "49",
+      "score": 77.77,
+      "probabilidad": 77.8,
+      "factores": [
+        "ciclo",
+        "coocurrencia",
+        "cross_turno"
+      ]
+    },
+    {
+      "numero": "04",
+      "score": 77.07,
+      "probabilidad": 77.1,
+      "factores": [
+        "recencia",
+        "coocurrencia"
+      ]
+    }
+  ],
+  "predicciones_3cifras": [
+    {
+      "numero": "603",
+      "score": 100.0,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "773",
+      "score": 99.97,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "993",
+      "score": 98.9,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "563",
+      "score": 97.27,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "803",
+      "score": 96.21,
+      "probabilidad": 95.0
+    }
+  ],
+  "predicciones_4cifras": [
+    {
+      "numero": "5293",
+      "score": 100.0,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "3603",
+      "score": 99.83,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "2073",
+      "score": 99.82,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "4453",
+      "score": 99.81,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "7793",
+      "score": 98.83,
+      "probabilidad": 95.0
+    }
+  ],
+  "scores_por_numero": {
+    "51": 100.0,
+    "38": 97.92,
+    "07": 91.99,
+    "93": 86.94,
+    "27": 80.55,
+    "45": 78.48,
+    "68": 78.4,
+    "74": 77.97,
+    "49": 77.77,
+    "04": 77.07
+  },
+  "top_10_2d": [
+    {
+      "numero": "51",
+      "score": 100.0
+    },
+    {
+      "numero": "38",
+      "score": 97.92
+    },
+    {
+      "numero": "07",
+      "score": 91.99
+    },
+    {
+      "numero": "93",
+      "score": 86.94
+    },
+    {
+      "numero": "27",
+      "score": 80.55
+    },
+    {
+      "numero": "45",
+      "score": 78.48
+    },
+    {
+      "numero": "68",
+      "score": 78.4
+    },
+    {
+      "numero": "74",
+      "score": 77.97
+    },
+    {
+      "numero": "49",
+      "score": 77.77
+    },
+    {
+      "numero": "04",
+      "score": 77.07
+    }
+  ],
+  "metadata": {
+    "turno": "Nocturna",
+    "factores": [
+      "frecuencia",
+      "recencia",
+      "suma_digitos",
+      "posicion",
+      "ciclo",
+      "tendencia",
+      "ausencia",
+      "coocurrencia",
+      "correlacion_turno",
+      "caliente",
+      "atrasado",
+      "cross_turno"
+    ],
+    "sorteos_analizados": 210
+  }
+}

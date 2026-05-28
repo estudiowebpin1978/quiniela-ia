@@ -11,7 +11,7 @@ export interface ModeloExportado {
 
 const MODELOS_DIR = path.join(process.cwd(), "modelos_exportados")
 
-const cache = new Map<string, { data: ModeloExportado; timestamp: number }>()
+const cache = new Map<string, { data: any; timestamp: number }>()
 const CACHE_TTL = 10 * 60 * 1000
 
 export function cargarModeloPython(turno: string, tipo: "xgboost" | "random_forest"): ModeloExportado | null {
@@ -59,6 +59,41 @@ export function getModelosExportadosDisponibles(): { tipo: string; turno: string
     })
   } catch {
     return []
+  }
+}
+
+// ============================================================
+// PREDICCIÓN COMPLETA (reemplaza el cálculo TypeScript)
+// ============================================================
+
+export interface PrediccionCompletaPython {
+  modelo: string
+  fecha_exportacion: string
+  turno: string
+  xgboost_activo: boolean
+  pesos: Record<string, number>
+  redoblona: string
+  predicciones_2cifras: { numero: string; score: number; probabilidad: number; factores: string[] }[]
+  predicciones_3cifras: { numero: string; score: number; probabilidad: number }[]
+  predicciones_4cifras: { numero: string; score: number; probabilidad: number }[]
+  top_10_2d: { numero: string; score: number }[]
+  metadata: Record<string, any>
+}
+
+export function cargarPrediccionCompleta(turno: string): PrediccionCompletaPython | null {
+  const key = `completa_${turno}`
+  const cached = cache.get(key)
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.data as PrediccionCompletaPython
+
+  try {
+    const filePath = path.join(MODELOS_DIR, `quiniela_completo_${turno}_prediccion.json`)
+    if (!fs.existsSync(filePath)) return null
+    const raw = fs.readFileSync(filePath, "utf-8")
+    const data = JSON.parse(raw) as PrediccionCompletaPython
+    cache.set(key, { data, timestamp: Date.now() })
+    return data
+  } catch {
+    return null
   }
 }
 

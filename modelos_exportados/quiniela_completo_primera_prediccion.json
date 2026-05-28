@@ -1,0 +1,243 @@
+{
+  "modelo": "quiniela_completo_primera",
+  "fecha_exportacion": "2026-05-28T02:10:32.282618",
+  "turno": "Primera",
+  "xgboost_activo": false,
+  "pesos": {
+    "frecuencia": 0.1918,
+    "recencia": 0.2202,
+    "suma_digitos": 0.087,
+    "posicion": 0.0622,
+    "ciclo": 0.0888,
+    "tendencia": 0.0622,
+    "ausencia": 0.0764,
+    "coocurrencia": 0.0497,
+    "correlacion_turno": 0.0311,
+    "caliente": 0.0311,
+    "atrasado": 0.0249,
+    "cross_turno": 0.0746
+  },
+  "redoblona": "57-14",
+  "predicciones_2cifras": [
+    {
+      "numero": "57",
+      "score": 100.0,
+      "probabilidad": 95.0,
+      "factores": [
+        "recencia",
+        "tendencia",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "14",
+      "score": 90.09,
+      "probabilidad": 90.1,
+      "factores": [
+        "recencia",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "92",
+      "score": 86.87,
+      "probabilidad": 86.9,
+      "factores": [
+        "recencia",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "04",
+      "score": 86.53,
+      "probabilidad": 86.5,
+      "factores": [
+        "recencia",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "98",
+      "score": 85.07,
+      "probabilidad": 85.1,
+      "factores": [
+        "recencia",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "75",
+      "score": 81.49,
+      "probabilidad": 81.5,
+      "factores": [
+        "recencia",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "97",
+      "score": 80.66,
+      "probabilidad": 80.7,
+      "factores": [
+        "recencia",
+        "coocurrencia"
+      ]
+    },
+    {
+      "numero": "03",
+      "score": 70.71,
+      "probabilidad": 70.7,
+      "factores": [
+        "ciclo",
+        "coocurrencia",
+        "cross_turno"
+      ]
+    },
+    {
+      "numero": "64",
+      "score": 66.61,
+      "probabilidad": 66.6,
+      "factores": [
+        "ciclo",
+        "coocurrencia",
+        "cross_turno"
+      ]
+    },
+    {
+      "numero": "30",
+      "score": 66.38,
+      "probabilidad": 66.4,
+      "factores": [
+        "ciclo",
+        "coocurrencia",
+        "cross_turno"
+      ]
+    }
+  ],
+  "predicciones_3cifras": [
+    {
+      "numero": "392",
+      "score": 100.0,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "714",
+      "score": 97.92,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "957",
+      "score": 96.58,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "497",
+      "score": 96.08,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "804",
+      "score": 92.05,
+      "probabilidad": 92.1
+    }
+  ],
+  "predicciones_4cifras": [
+    {
+      "numero": "1714",
+      "score": 100.0,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "4497",
+      "score": 95.72,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "3957",
+      "score": 95.55,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "3392",
+      "score": 95.41,
+      "probabilidad": 95.0
+    },
+    {
+      "numero": "2804",
+      "score": 95.36,
+      "probabilidad": 95.0
+    }
+  ],
+  "scores_por_numero": {
+    "57": 100.0,
+    "14": 90.09,
+    "92": 86.87,
+    "04": 86.53,
+    "98": 85.07,
+    "75": 81.49,
+    "97": 80.66,
+    "03": 70.71,
+    "64": 66.61,
+    "30": 66.38
+  },
+  "top_10_2d": [
+    {
+      "numero": "57",
+      "score": 100.0
+    },
+    {
+      "numero": "14",
+      "score": 90.09
+    },
+    {
+      "numero": "92",
+      "score": 86.87
+    },
+    {
+      "numero": "04",
+      "score": 86.53
+    },
+    {
+      "numero": "98",
+      "score": 85.07
+    },
+    {
+      "numero": "75",
+      "score": 81.49
+    },
+    {
+      "numero": "97",
+      "score": 80.66
+    },
+    {
+      "numero": "03",
+      "score": 70.71
+    },
+    {
+      "numero": "64",
+      "score": 66.61
+    },
+    {
+      "numero": "30",
+      "score": 66.38
+    }
+  ],
+  "metadata": {
+    "turno": "Primera",
+    "factores": [
+      "frecuencia",
+      "recencia",
+      "suma_digitos",
+      "posicion",
+      "ciclo",
+      "tendencia",
+      "ausencia",
+      "coocurrencia",
+      "correlacion_turno",
+      "caliente",
+      "atrasado",
+      "cross_turno"
+    ],
+    "sorteos_analizados": 212
+  }
+}

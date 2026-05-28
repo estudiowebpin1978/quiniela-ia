@@ -24,3 +24,4 @@ validate-*.sh
 __pycache__/
 *.pyc
 resultados/
+

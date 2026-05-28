@@ -12,7 +12,18 @@ SUPABASE_URL = os.environ.get(
     "NEXT_PUBLIC_SUPABASE_URL",
     "https://wazkylxgqckjfkcmfotl.supabase.co"
 )
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+# Usa SUPABASE_SERVICE_ROLE_KEY primero (privilegiada),
+# luego SUPABASE_KEY (anon), luego la anon key hardcodeada como fallback
+_ANON_KEY = (
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+    ".eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indhemt5bHhncWNramZrY21mb3RsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyNDc3NTUsImV4cCI6MjA4NzgyMzc1NX0"
+    ".t_P2iF1eqEo1cqBXt3R4GQV2_XzVQ0VIq_2f6VS_Q2Y"
+)
+SUPABASE_KEY = (
+    os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    or os.environ.get("SUPABASE_KEY")
+    or _ANON_KEY
+)
 
 
 def obtener_sorteos_supabase(
@@ -26,9 +37,7 @@ def obtener_sorteos_supabase(
     Returns:
         lista de dicts con {date, turno, numbers}
     """
-    if not SUPABASE_KEY:
-        raise ValueError("SUPABASE_SERVICE_ROLE_KEY no configurada")
-    
+
     url = f"{SUPABASE_URL}/rest/v1/draws"
     params = {
         "select": "date,turno,numbers",
