@@ -21,3 +21,6 @@ RESUMEN-*.md
 validate-*.sh
 .vercel
 .vs/
+__pycache__/
+*.pyc
+resultados/
