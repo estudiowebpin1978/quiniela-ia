@@ -9,7 +9,7 @@ TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
 for turno in TURNOS:
     try:
-        ejecutar_prediccion(turno=turno, usar_xgboost=False, fuente="supabase", dias=365)
+        ejecutar_prediccion(turno=turno, usar_xgboost=True, fuente="supabase", dias=365)
         print(f"\nOK {turno} completado\n")
     except Exception as e:
         print(f"\nFAIL {turno} fallo: {e}\n")
