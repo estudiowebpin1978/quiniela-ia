@@ -1,33 +1,46 @@
-name: Scheduled draws scraper
+name: Scheduled draws scraper + predictor ML
 
 on:
   schedule:
-    # Ejecutar cada hora para obtener los sorteos disponibles
     - cron: '0 * * * *'
   workflow_dispatch:
     inputs:
       date:
-        description: 'Fecha específica (YYYY-MM-DD)'
+        description: 'Fecha especifica (YYYY-MM-DD)'
         required: false
       history:
-        description: 'Scrapear días históricos (true/false)'
+        description: 'Scrapear dias historicos (true/false)'
         required: false
         default: 'false'
       days:
-        description: 'Cantidad de días históricos (1-90)'
+        description: 'Cantidad de dias historicos (1-90)'
         required: false
         default: '7'
+      skip_scrape:
+        description: 'Saltar scrape y solo regenerar predicciones'
+        required: false
+        default: 'false'
+      with_xgboost:
+        description: 'Usar XGBoost (mas lento pero mas preciso)'
+        required: false
+        default: 'false'
 
 jobs:
   fetch-draws:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Validate required secrets
         run: |
           if [ -z "${{ secrets.APP_URL }}" ]; then echo "Missing APP_URL secret"; exit 1; fi
           if [ -z "${{ secrets.CRON_SECRET }}" ]; then echo "Missing CRON_SECRET secret"; exit 1; fi
 
       - name: Scrape all turnos for current day
+        if: inputs.skip_scrape != 'true'
         run: |
           url="${{ secrets.APP_URL }}/api/cron-nacional?secret=${{ secrets.CRON_SECRET }}&save=true"
           echo "Calling: $url"
@@ -36,7 +49,8 @@ jobs:
           body=$(sed '$d' <<< "$response")
           echo "HTTP status: $http_code"
           echo "$body"
-          if [ "$http_code" -ne 200 ]; then echo "ERROR: Cron API returned $http_code"; exit 1; fi
+          if [ "$http_code" -ne 200 ]; then echo "ERROR: Scrape API returned $http_code"; exit 1; fi
+          echo "SCRAPE_DONE=true" >> $GITHUB_ENV
 
       - name: Historical backfill (if triggered with history=true)
         if: inputs.history == 'true'
@@ -50,3 +64,37 @@ jobs:
           echo "HTTP status: $http_code"
           echo "$body"
           if [ "$http_code" -ne 200 ]; then echo "ERROR: History API returned $http_code"; exit 1; fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Regenerate predictions with quiniela_ml
+        run: |
+          python quiniela_ml/run_all.py
+
+      - name: Check if predictions changed
+        id: check_changes
+        run: |
+          git add modelos_exportados/
+          if git diff --cached --quiet; then
+            echo "No changes in prediction files"
+            echo "HAS_CHANGES=false" >> $GITHUB_ENV
+          else
+            echo "Predictions changed"
+            echo "HAS_CHANGES=true" >> $GITHUB_ENV
+          fi
+
+      - name: Commit and push updated predictions
+        if: env.HAS_CHANGES == 'true'
+        run: |
+          git config user.name "quiniela-ml-bot"
+          git config user.email "bot@quiniela-ia.app"
+          git commit -m "auto: regenerate predictions [skip ci]"
+          git push
