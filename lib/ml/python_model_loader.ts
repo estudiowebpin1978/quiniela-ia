@@ -19,16 +19,22 @@ export function cargarModeloPython(turno: string, tipo: "xgboost" | "random_fore
   const cached = cache.get(key)
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.data
 
-  try {
-    const filePath = path.join(MODELOS_DIR, `${tipo}_${turno}_prediccion.json`)
-    if (!fs.existsSync(filePath)) return null
-    const raw = fs.readFileSync(filePath, "utf-8")
-    const data = JSON.parse(raw) as ModeloExportado
-    cache.set(key, { data, timestamp: Date.now() })
-    return data
-  } catch {
-    return null
+  // Try new format (quiniela_completo_{turno}_prediccion.json) first, then old format (xgboost_{turno}_prediccion.json)
+  const namesToTry = [
+    `quiniela_completo_${turno}_prediccion.json`,
+    `${tipo}_${turno}_prediccion.json`,
+  ]
+  for (const name of namesToTry) {
+    try {
+      const filePath = path.join(MODELOS_DIR, name)
+      if (!fs.existsSync(filePath)) continue
+      const raw = fs.readFileSync(filePath, "utf-8")
+      const data = JSON.parse(raw) as ModeloExportado
+      cache.set(key, { data, timestamp: Date.now() })
+      return data
+    } catch {}
   }
+  return null
 }
 
 export function obtenerBoostPython(turno: string, tipo: "xgboost" | "random_forest" = "xgboost"): Record<number, number> | null {

@@ -404,117 +404,6 @@ export async function GET(req: NextRequest) {
 
     if (!sequences.length) return NextResponse.json({ error: "Sin secuencias válidas" }, { status: 500 })
 
-    // Intentar cargar predicción completa desde Python (quiniela_ml)
-    const { cargarPrediccionCompleta } = await import("@/lib/ml/python_model_loader")
-    const pythonPred = cargarPrediccionCompleta(turnoQuery)
-    
-    if (pythonPred) {
-      const pred2 = pythonPred.predicciones_2cifras
-      const pred3 = pythonPred.predicciones_3cifras
-      const pred4 = pythonPred.predicciones_4cifras
-
-      const numeros = pred2.map((p, i) => {
-        const num = parseInt(p.numero)
-        return {
-          n: num,
-          numero: p.numero,
-          emoji: SUENOS[num]?.emoji || "❓",
-          significado: SUENOS[num]?.nombre || "",
-          score: p.score,
-          confianza: p.probabilidad,
-          rank: i + 1,
-          frecuencia: 0,
-          factores: p.factores.slice(0, 3),
-        }
-      })
-
-      const heatmap = pred2.slice(0, 20).map(p => {
-        const num = parseInt(p.numero)
-        return {
-          n: num,
-          f: 0,
-          s: SUENOS[num] || { emoji: "❓", nombre: "" },
-          pct: 0
-        }
-      })
-
-      const confidence = Math.round(pred2.reduce((sum, p) => sum + p.probabilidad, 0) / pred2.length)
-
-      const uniqueDates = [...new Set(dates)].sort().reverse()
-
-      return NextResponse.json({
-        ok: true,
-        turno: turnoQuery,
-        debug: {
-          factores_aplicados: 12,
-          pesos_dinamicos: pythonPred.pesos ? Object.fromEntries(
-            Object.entries(pythonPred.pesos).map(([k, v]) => [k, +(v * 100).toFixed(1)])
-          ) : null,
-          cross_turno_activo: true,
-          calibracion_aplicada: true,
-          modelos_python_activos: true,
-          ml_api_externa_activa: false,
-          total_numeros: sequences.length * 20,
-          numeros_unicos: 100,
-          sorteos_analizados: sequences.length,
-          fechas_unicas: uniqueDates.length,
-          paridad: { pares: 0, impares: 0 },
-        },
-        numeros,
-        totalSorteos: sequences.length,
-        fechasAnalizadas: uniqueDates.length,
-        generado: pythonPred.fecha_exportacion,
-        confidence,
-        pred: {
-          numeros_2: pred2.map(p => p.numero),
-          numeros_3: pred3.map(p => p.numero),
-          numeros_4: pred4.map(p => p.numero),
-          redoblona: pythonPred.redoblona,
-        },
-        redoblona: pythonPred.redoblona,
-        heatmap,
-        stats: {
-          totalNumeros: sequences.length * 20,
-          promedioPorSorteo: "20.00",
-          numeroMasFrecuente: {
-            numero: pred2[0]?.numero || "00",
-            frecuencia: 0,
-            significado: SUENOS[parseInt(pred2[0]?.numero || "0")]?.nombre || ""
-          },
-          terminacionesMasFrecuentes: pred2.slice(0, 5).map(p => ({
-            terminacion: p.numero,
-            frecuencia: 0,
-            score: p.score.toFixed(2)
-          })),
-        },
-        analysisInfo: {
-          metodo: `12 factores + pesos dinámicos + calibración + XGBoost (Python quiniela_ml) - turno ${turnoQuery.toUpperCase()}`,
-          factores: [
-            "1. Frecuencia absoluta",
-            "2. Posiciones",
-            "3. Ausencias",
-            "4. Recencia",
-            "5. Tendencia",
-            "6. Ciclos",
-            "7. Correlación entre turnos",
-            "8. Co-ocurrencia",
-            "9. Números calientes",
-            "10. Números atrasados",
-            "11. Paridad",
-            "12. Suma de dígitos",
-            "13. Cross-turno",
-            "14. XGBoost + calibración isotónica (Python)",
-          ],
-          datosUtilizados: `${pythonPred.metadata?.sorteos_analizados || sequences.length} sorteos analizados por algoritmo Python quiniela_ml`,
-          confianzaAvanzada: {
-            promedioGeneral: confidence,
-            enCicloFavorable: pred2.slice(0, 5).map(p => p.numero),
-            evitar: pred2.slice(-5).map(p => p.numero)
-          }
-        }
-      })
-    }
-
     // Extraer datos
     const terminaciones2: number[] = []
     const terminaciones3: number[] = []
@@ -792,7 +681,7 @@ export async function GET(req: NextRequest) {
         terminacionesMasFrecuentes: scores.slice(0, 5).map(s => ({ terminacion: s.num, frecuencia: s.frecuencia, score: s.score.toFixed(2) })),
       },
       analysisInfo: {
-        metodo: `13 factores + pesas dinámicas + calibración + cross-turno + ML Python (XGBoost/RF/LSTM) - turno ${turnoQuery.toUpperCase()}`,
+        metodo: `12 factores en tiempo real desde BD + XGBoost Python + ML cache + pesos dinámicos + calibración - turno ${turnoQuery.toUpperCase()}`,
         factores: [
           "1. Frecuencia absoluta",
           "2. Posiciones (miles/centenas/decenas/unidades)",
