@@ -65,9 +65,11 @@ export async function GET(req: NextRequest) {
   const fechaHoy = ahora.fechaStr.slice(5)
 
   if (diaSemana === 0) {
+    console.log(`[CRON] Domingo ${fechaISO} - No hay sorteos`)
     return NextResponse.json({ ok: false, message: "Domingo - No hay sorteos", guardados: 0 })
   }
   if (feriados.includes(fechaHoy)) {
+    console.log(`[CRON] Feriado ${fechaHoy} - No hay sorteos`)
     return NextResponse.json({ ok: false, message: `Feriado ${fechaHoy} - No hay sorteos`, guardados: 0 })
   }
 
@@ -79,7 +81,17 @@ export async function GET(req: NextRequest) {
   let totalGuardados = 0
 
   for (const turno of turnosAEvaluar) {
-    const nums = await scrapeTurno(fUrl, turno)
+    // Sabados: no hay Previa
+    if (turno === "Previa" && diaSemana === 6) {
+      console.log(`[CRON] Sabado - saltando Previa`)
+      continue
+    }
+    let nums = await scrapeTurno(fUrl, turno)
+    // Reintentar 1 vez si fallo
+    if (nums.length < 5) {
+      await new Promise(r => setTimeout(r, 3000))
+      nums = await scrapeTurno(fUrl, turno)
+    }
     if (nums.length >= 5) {
       resultados[turno] = nums
 

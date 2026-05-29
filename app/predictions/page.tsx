@@ -342,12 +342,17 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
   function nextValidDate(sorteo: string): string {
     const artNow = ahoraArgentina()
+    const feriados2026 = ["2026-01-01","2026-02-16","2026-02-17","2026-03-24","2026-04-02","2026-04-03","2026-05-01","2026-05-25","2026-06-20","2026-07-09","2026-08-17","2026-10-12","2026-11-23","2026-11-27","2026-12-07","2026-12-08","2026-12-25"]
+    const feriados2027 = ["2027-01-01","2027-02-08","2027-02-09","2027-03-24","2027-04-01","2027-04-02","2027-05-01","2027-05-25","2027-06-20","2027-07-09","2027-08-17","2027-10-12","2027-11-22","2027-11-25","2027-12-08","2027-12-25"]
+    const feriados = [...feriados2026, ...feriados2027]
     for (let i = 1; i <= 7; i++) {
       const d = new Date(artNow.getTime() + i * 86400000);
       const dia = diaSemanaART(d);
+      const fecha = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(d)
       if (dia === 0) continue;
       if (sorteo === "Previa" && dia === 6) continue;
-      return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(d)
+      if (feriados.includes(fecha)) continue;
+      return fecha
     }
     return hoyArgentina()
   }
@@ -369,10 +374,16 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     const feriados2026 = [
       "2026-01-01", "2026-02-16", "2026-02-17", "2026-03-24", "2026-04-02", "2026-04-03",
       "2026-05-01", "2026-05-25", "2026-06-20", "2026-07-09", "2026-08-17", "2026-10-12",
-      "2026-11-23", "2026-12-08", "2026-12-25"
+      "2026-11-23", "2026-11-27", "2026-12-07", "2026-12-08", "2026-12-25"
     ]
     
-    if (feriados2026.includes(fechaActual)) return nextValidDate(sorteo)
+    const feriados2027 = [
+      "2027-01-01", "2027-02-08", "2027-02-09", "2027-03-24", "2027-04-01", "2027-04-02",
+      "2027-05-01", "2027-05-25", "2027-06-20", "2027-07-09", "2027-08-17", "2027-10-12",
+      "2027-11-22", "2027-11-25", "2027-12-08", "2027-12-25"
+    ]
+    const feriados = [...feriados2026, ...feriados2027]
+    if (feriados.includes(fechaActual)) return nextValidDate(sorteo)
     if (diaActual === 0) return nextValidDate(sorteo)
     if (sorteo === "Previa" && diaActual === 6) return nextValidDate(sorteo)
     
@@ -467,7 +478,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       const drawData = await r2.json();
       if (!drawData?.found || !drawData?.numbers?.length) {
         setResultadoControl({
-          error: "Todavia no hay resultado para este sorteo. Los crons cargan los datos 30 minutos despues de cada sorteo.",
+          error: `Todavia no hay resultado para ${so} del ${hoy}. Los resultados se cargan automaticamente hasta 30 min despues del sorteo.`,
         });
         return;
       }

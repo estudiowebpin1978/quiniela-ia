@@ -2,7 +2,9 @@ name: Scheduled draws scraper + predictor ML
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    # Cada 30 min en horario de sorteos (9 AM - 10 PM Argentina = 12-01 UTC)
+    - cron: '*/30 12-23 * * *'
+    - cron: '*/30 0-1 * * *'
   workflow_dispatch:
     inputs:
       date:
