@@ -92,7 +92,11 @@ export default function Page() {
   const [retryCount, setRetryCount] = useState(0);
   const [dt, setDt] = useState<PredData | null>(null);
   const [misPreds, setMisPreds] = useState<any[]>([]);
+  const [numDetail, setNumDetail] = useState<any>(null);
+  const [newDraws, setNewDraws] = useState(false);
+  const [lastDrawDate, setLastDrawDate] = useState("");
   const [misLoading, setMisLoading] = useState(false);
+  const [primerVisita, setPrimerVisita] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [controlando, setControlando] = useState(false);
@@ -132,7 +136,16 @@ export default function Page() {
       return acc;
     }, {});
     const bestTurno = Object.entries(hitsByTurno).sort((a: any, b: any) => b[1] - a[1])[0]?.[0] || "—";
-    return { totalSaved, totalAciertos, totalWithHits, totalWithResult, successRate, avgHits, bestTurno };
+    const now = new Date();
+    const thisWeek = misPreds.filter(p => {
+      if (!p.fecha) return false;
+      const d = new Date(p.fecha + "T00:00:00");
+      const diff = (now.getTime() - d.getTime()) / 86400000;
+      return diff >= 0 && diff <= 7;
+    });
+    const thisWeekHits = thisWeek.filter(p => p.aciertos?.length > 0).length;
+    const thisWeekRate = thisWeek.length ? Math.round((thisWeekHits / thisWeek.length) * 100) : 0;
+    return { totalSaved, totalAciertos, totalWithHits, totalWithResult, successRate, avgHits, bestTurno, thisWeek: thisWeek.length, thisWeekHits, thisWeekRate };
   }, [misPreds]);
 
   useEffect(() => {
@@ -220,9 +233,33 @@ export default function Page() {
           if (d?.role) setUserRole(d.role as "free" | "premium" | "admin");
         })
         .catch(() => {});
+      const savedLastDate = localStorage.getItem("quiniela-ia-ultimo-sorteo-visto");
+      if (savedLastDate) setLastDrawDate(savedLastDate);
       cargarMisPreds(s.access_token);
       setStats({ totalSorteos: "--", pct: "--", racha: "--", mensaje: "Presiona 'Generar Predicción' para comenzar" }); 
       setStatsLoading(false);
+      const visited = localStorage.getItem("quiniela-ia-tour-visto");
+      if (!visited) {
+        setPrimerVisita(true);
+        setShowHowItWorks(true);
+        localStorage.setItem("quiniela-ia-tour-visto", "true");
+      }
+      // Poll for new draws every 5 min
+      const pollInterval = setInterval(async () => {
+        try {
+          const r = await fetch(`/api/resultado?date=${hoyArgentina()}&turno=Nocturna&t=${Date.now()}`);
+          const d = await r.json();
+          if (d?.found && d?.numbers?.length) {
+            const latestKey = hoyArgentina() + "-nocturna";
+            setLastDrawDate(prev => {
+              if (prev && prev !== latestKey) setNewDraws(true);
+              return prev || latestKey;
+            });
+            if (!lastDrawDate) localStorage.setItem("quiniela-ia-ultimo-sorteo-visto", latestKey);
+          }
+        } catch {}
+      }, 300000);
+      return () => clearInterval(pollInterval);
     } catch {
       window.location.href = "/login";
     }
@@ -774,6 +811,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .calc-card-s{font-size:9px;opacity:.7;line-height:1.5}
         .sp{width:26px;height:26px;border:2px solid rgba(255,255,255,.1);border-top-color:#ff2d55;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 10px}
         @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes pulse{0%{opacity:1}50%{opacity:.5}100%{opacity:1}}
         .ld-box{text-align:center;padding:40px 20px;color:var(--dim);font-size:13px}
         .eb{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.18);border-radius:8px;padding:10px 12px;font-size:12px;color:#fca5a5;margin-bottom:12px}
         .ht{font-size:12px;color:var(--dim);text-align:center;padding:24px 0;line-height:2}
@@ -807,6 +845,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             <span className="nm">Quiniela IA</span>
           </div>
           <div className="nr">
+            {newDraws && <span style={{ background: "#22c55e", color: "#fff", padding: "4px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, animation: "pulse 2s infinite" }}>🆕 Resultados nuevos</span>}
             {!isOnline && <span style={{ background: "#ef4444", color: "#fff", padding: "4px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700 }}>📴 Offline</span>}
             {(pr || userRole === "admin") && <span className="pp">{userRole === "admin" ? "👑 ADMIN" : "⭐ PREMIUM"}</span>}
             {em && <span className="ne">{em.split("@")[0]}</span>}
@@ -844,10 +883,13 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         </nav>
         <div className="wr">
           <div className="hero">
-            <h1>Predicciones Inteligentes <span onClick={() => setShowHowItWorks(true)} style={{cursor:"pointer",fontSize:14}}>ℹ️</span></h1>
-            <p>Analisis estadistico real de la Quiniela Nacional de Buenos Aires. Motor con 12 factores de analisis y datos actualizados automaticamente.</p>
+            <h1>Quiniela IA <span onClick={() => setShowHowItWorks(true)} style={{cursor:"pointer",fontSize:14}}>ℹ️</span></h1>
+            <p><strong>No es magia. Es matemática.</strong> 12 factores estadísticos + Machine Learning (XGBoost) entrenado con +200 sorteos reales. Datos scrapeados cada 30 min de resultados oficiales.</p>
            <div className="sts">
-             </div>
+              <div className="sc"><div className="sv">+212</div><div className="sl">Sorteos analizados</div></div>
+              <div className="sc"><div className="sv">12</div><div className="sl">Factores estadísticos</div></div>
+              <div className="sc"><div className="sv">3</div><div className="sl">Modelos ML activos</div></div>
+              </div>
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 8, textAlign: "center" }}>🎯 Elegí el sorteo que querés analizar:</div>
           <div className="sorteo-btns">
@@ -906,11 +948,23 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             </button>
             <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y aciertos.</div>
           </div>
-{showCalc && (
+          {showCalc && (
             <div style={{ marginTop: 12, padding: 14, background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(34,197,94,.05))", borderRadius: 12, border: "1px solid rgba(34,197,94,.4)", textAlign: "center" }}>
               <div style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", marginBottom: 6 }}>💡 ESTRATEGIA RECOMENDADA</div>
               <div style={{ fontSize: 11, color: "#fff" }}>Apostá a 1° (cabeza) y a los 10</div>
               <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>para 2 cifras, lo mismo para 3 y 4 cifras!</div>
+            </div>
+          )}
+          {misSummary.totalSaved > 0 && (
+            <div style={{marginBottom:14,padding:14,borderRadius:12,background:"rgba(139,92,246,.06)",border:"1px solid rgba(139,92,246,.15)"}}>
+              <div style={{fontSize:10,fontWeight:800,color:"#a78bfa",textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>📊 Tu precisión personal</div>
+              <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
+                <span style={{fontSize:20,fontWeight:900,color:"#a855f7"}}>{misSummary.successRate}%</span>
+                <span style={{fontSize:11,color:"var(--dim)"}}>aciertos en {misSummary.totalSaved} predicciones · {misSummary.totalAciertos} números acertados</span>
+              </div>
+              {misSummary.thisWeek > 0 && (
+                <div style={{fontSize:10,color:"var(--dim)",marginTop:4}}>Esta semana: {misSummary.thisWeek} preds · {misSummary.thisWeekHits} con aciertos ({misSummary.thisWeekRate}%)</div>
+              )}
             </div>
           )}
           {resultadoControl && (
@@ -1062,14 +1116,30 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   </div>
                   <div className={dg > 2 && !pr ? "lk" : ""}>
                     <div className="g5">
-                      {cur.slice(0, dg === 2 ? 10 : 5).map((p: any, i: number) => (
-                        <div className="cd" key={i}>
+                      {cur.slice(0, dg === 2 ? 10 : 5).map((p: any, i: number) => {
+                        const r = ranking?.find((r: any) => r.numero === p.numero);
+                        return (
+                        <div className="cd" key={i} onClick={() => setNumDetail(r || p)} style={{cursor:"pointer"}}>
                           <div className="cr2">#{i + 1}</div>
                           <div className="ce">{getEmoji(p.numero)}</div>
                           <div className="cn">{p.numero}</div>
                           <div className="cs">{p.significado}</div>
+                          <div style={{
+                            marginTop:6,height:3,borderRadius:2,
+                            background:"rgba(255,255,255,.06)",
+                            overflow:"hidden"
+                          }}>
+                            <div style={{
+                              height:"100%",borderRadius:2,
+                              width: r?.score ? Math.min(100, (r.score || 0) * 100) + "%" : "0%",
+                              background:"linear-gradient(90deg,#a855f7,#ec4899)"
+                            }}/>
+                          </div>
+                          <div style={{fontSize:9,color:"#a78bfa",marginTop:3,fontWeight:600}}>
+                            {r?.score ? (r.score * 100).toFixed(0) + "%" : ""}
+                          </div>
                         </div>
-                      ))}
+                      )})}
                     </div>
                     {dg > 2 && !pr && (
                       <div className="lo">
@@ -1352,14 +1422,43 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   </div>
                   <div className="saved-summary" style={{ marginBottom: 20 }}>
                     <div className="saved-summary-card" style={{ gridColumn: "span 2" }}>
-                      <div className="saved-summary-label">Promedio aciertos</div>
-                      <div className="saved-summary-value">{misSummary.avgHits}</div>
+                      <div className="saved-summary-label">Esta semana</div>
+                      <div className="saved-summary-value">{misSummary.thisWeek}</div>
+                      <div style={{fontSize:10,color:"var(--dim)"}}>predicciones · {misSummary.thisWeekHits} con aciertos ({misSummary.thisWeekRate}%)</div>
                     </div>
                     <div className="saved-summary-card" style={{ gridColumn: "span 2" }}>
                       <div className="saved-summary-label">Mejor turno</div>
                       <div className="saved-summary-value">{misSummary.bestTurno}</div>
+                      <div style={{fontSize:10,color:"var(--dim)"}}>con más aciertos históricos</div>
                     </div>
                   </div>
+                  {(() => {
+                    const badges = [];
+                    if (misPreds.length >= 1) badges.push({icon:"🙌",label:"Primera predicción",color:"#4ade80"});
+                    if (misSummary.totalAciertos >= 1) badges.push({icon:"🎯",label:"Primer acierto",color:"#f59e0b"});
+                    if (misPreds.length >= 10) badges.push({icon:"💎",label:"10 predicciones",color:"#a855f7"});
+                    if (misPreds.length >= 30) badges.push({icon:"🏆",label:"30 predicciones",color:"#f472b6"});
+                    if (misSummary.totalWithHits >= 3) badges.push({icon:"🔥",label:misSummary.totalWithHits + " con aciertos",color:"#ef4444"});
+                    if (misSummary.successRate >= 50) badges.push({icon:"⭐",label:"+50% aciertos",color:"#f59e0b"});
+                    if (badges.length === 0) return null;
+                    return (
+                      <div style={{marginBottom:16}}>
+                        <div style={{fontSize:10,fontWeight:800,color:"var(--dim)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>🏅 Logros desbloqueados</div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                          {badges.map((b,i) => (
+                            <span key={i} style={{
+                              padding:"5px 10px",borderRadius:8,fontSize:11,fontWeight:700,
+                              background: b.color + "18",
+                              border: "1px solid " + b.color + "35",
+                              color: b.color
+                            }}>
+                              {b.icon} {b.label}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {misPreds.map((p: any, i: number) => {
                     const tieneAciertos = p.aciertos && p.aciertos.length > 0;
                     const fecha = p.date || p.fecha;
@@ -1430,18 +1529,36 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             <div className="pay-box">
               <div style={{ fontSize: 36, marginBottom: 8 }}>🚀</div>
               <h3 className="pay-title">MEMBRESÍA PREMIUM</h3>
-              <p style={{ fontSize: 13, fontWeight: 700, maxWidth: 280, margin: "0 auto 14px", lineHeight: 1.5, color: "var(--text)" }}>Predicciones 3 y 4 cifras + Redoblona completa + Análisis por turno.</p>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16,textAlign:"left"}}>
+                <div style={{borderRadius:12,border:"1px solid rgba(255,255,255,.08)",padding:12,background:"rgba(255,255,255,.03)"}}>
+                  <div style={{fontSize:10,fontWeight:800,color:"#4ade80",textTransform:"uppercase",marginBottom:8}}>GRATIS</div>
+                  <div style={{fontSize:11,color:"var(--dim)",lineHeight:1.8}}>
+                    ✓ 2 cifras (top 10)<br/>
+                    ✓ Mapa de calor<br/>
+                    ✓ Tendencias<br/>
+                    ✓ Guardar predicciones<br/>
+                    ✗ 3 cifras<br/>
+                    ✗ 4 cifras<br/>
+                    ✗ Redoblona
+                  </div>
+                </div>
+                <div style={{borderRadius:12,border:"1.5px solid #f59e0b",padding:12,background:"rgba(245,158,11,.06)"}}>
+                  <div style={{fontSize:10,fontWeight:800,color:"#f59e0b",textTransform:"uppercase",marginBottom:8}}>⭐ PREMIUM</div>
+                  <div style={{fontSize:11,color:"var(--dim)",lineHeight:1.8}}>
+                    ✓ 2 cifras (top 10)<br/>
+                    ✓ 3 cifras (top 5)<br/>
+                    ✓ 4 cifras (top 5)<br/>
+                    ✓ Redoblona completa<br/>
+                    ✓ Mapa de calor<br/>
+                    ✓ Tendencias<br/>
+                    ✓ Guardar predicciones
+                  </div>
+                </div>
+              </div>
               <div className="pay-price-outer">
                 <div className="pay-price">$10.000</div>
               </div>
-              <div className="pay-features">
-                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Predicciones 3 cifras (PRO)</div>
-                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Predicciones 4 cifras</div>
-                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Redoblona completa</div>
-                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Análisis por turno</div>
-                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Sin datos de tarjeta</div>
-                <div className="pay-feature"><span style={{color:"#22c55e"}}>✓</span> Activación inmediata!</div>
-              </div>
+              <div style={{fontSize:11,color:"var(--dim)",marginBottom:14}}>Pago único · Activación permanente · Sin suscripción</div>
               <div 
                 className="pay-alias" 
                 onClick={() => navigator.clipboard.writeText("quiniela.ia").then(() => alert("Alias copiado: quiniela.ia"))}
@@ -1453,7 +1570,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 Alias: <strong style={{color: "#6366f1"}}>quiniela.ia</strong>
               </div>
               <div style={{ fontSize: 26, fontWeight: 900, color: "#f59e0b", marginBottom: 16 }}>
-                TOTAL: $10.000 pesos
+                TOTAL: $10.000 ARS
               </div>
               <a 
                 href={WA} 
@@ -1482,6 +1599,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               >
                 📱 Enviar comprobante por WhatsApp
               </a>
+              <div style={{fontSize:10,color:"#475569",marginTop:12}}>Paga desde cualquier billetera virtual (Mercado Pago, Ualá, etc.)</div>
             </div>
           )}
           <div className="shr">
@@ -1545,15 +1663,52 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       {showHowItWorks && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={() => setShowHowItWorks(false)}>
           <div style={{background:"var(--card)",borderRadius:16,padding:24,maxWidth:400,width:"100%"}} onClick={e => e.stopPropagation()}>
-            <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Cómo funciona</div>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:16,color:"var(--text)"}}>🔬 Cómo funciona</div>
             <div style={{fontSize:13,lineHeight:1.7,color:"var(--dim)"}}>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>1. Análisis estadístico</strong><br/>Analizamos miles de sorteos históricos para identificar patrones reales.</p>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>2. Números calientes</strong><br/>Identificamos los números que más salen en los últimos 30 sorteos.</p>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>3. Números fríos</strong><br/>Detectamos números con alto retraso que podrían salir pronto.</p>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>4. Ciclos y tendencias</strong><br/>Evaluamos cambios de tendencia usando análisis Monte Carlo.</p>
-              <p><strong style={{color:"var(--text)"}}>5. Predicción final</strong><br/>Combinamos todos los factores para generar los números con mayor probabilidad.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>1. Datos reales</strong><br/>Scrapeamos resultados oficiales de la Quiniela Nacional cada 30 min. Tenemos +200 sorteos históricos.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>2. 12 factores estadísticos</strong><br/>Cada número recibe un score basado en frecuencia, recencia, ausencia, tendencia, ciclos, co-ocurrencia, posición, correlación entre turnos, paridad, suma de dígitos, calientes y atrasados.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>3. ML (XGBoost + Random Forest)</strong><br/>Modelos de Machine Learning entrenados con datos reales que aprenden patrones y ajustan las predicciones.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>4. Pesos dinámicos + calibración</strong><br/>Los factores se ponderan según su efectividad histórica. El sistema se auto-calibra para máxima precisión.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>5. Sin números aleatorios</strong><br/>No hay magia ni random. Cada predicción tiene una explicación matemática basada en datos reales.</p>
+              <p><strong style={{color:"var(--text)"}}>6. Resultados contrastables</strong><br/>Guardá tus predicciones y comparalas con los resultados oficiales automáticamente.</p>
             </div>
             <button onClick={() => setShowHowItWorks(false)} style={{marginTop:20,width:"100%",padding:"12px 20px",borderRadius:10,border:"none",background:"var(--red)",color:"#fff",fontWeight:700,cursor:"pointer"}}>Entendido</button>
+          </div>
+        </div>
+      )}
+      {numDetail && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={() => setNumDetail(null)}>
+          <div style={{background:"var(--card)",borderRadius:16,padding:24,maxWidth:380,width:"100%"}} onClick={e => e.stopPropagation()}>
+            <div style={{textAlign:"center",marginBottom:16}}>
+              <div style={{fontSize:48,marginBottom:4}}>{getEmoji(numDetail.numero)}</div>
+              <div style={{fontSize:36,fontWeight:900,background:"linear-gradient(180deg,#a855f7,#6366f1)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{numDetail.numero}</div>
+              <div style={{fontSize:14,color:"var(--dim)",marginTop:4}}>{numDetail.significado || "Sin significado"}</div>
+            </div>
+            <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:16}}>
+              <div style={{background:"rgba(168,85,247,.12)",borderRadius:10,padding:"8px 14px",textAlign:"center"}}>
+                <div style={{fontSize:18,fontWeight:900,color:"#a855f7"}}>{numDetail.score ? (numDetail.score * 100).toFixed(0) : "—"}</div>
+                <div style={{fontSize:9,color:"#a78bfa",fontWeight:700,textTransform:"uppercase"}}>Score</div>
+              </div>
+              <div style={{background:"rgba(99,102,241,.12)",borderRadius:10,padding:"8px 14px",textAlign:"center"}}>
+                <div style={{fontSize:18,fontWeight:900,color:"#818cf8"}}>{numDetail.confianza || "—"}</div>
+                <div style={{fontSize:9,color:"#a5b4fc",fontWeight:700,textTransform:"uppercase"}}>Confianza</div>
+              </div>
+              <div style={{background:"rgba(34,197,94,.12)",borderRadius:10,padding:"8px 14px",textAlign:"center"}}>
+                <div style={{fontSize:18,fontWeight:900,color:"#4ade80"}}>{numDetail.frecuencia || numDetail.frecuencia === 0 ? numDetail.frecuencia : "—"}</div>
+                <div style={{fontSize:9,color:"#86efac",fontWeight:700,textTransform:"uppercase"}}>Frecuencia</div>
+              </div>
+            </div>
+            <div style={{fontSize:11,color:"var(--dim)",lineHeight:1.8,borderTop:"1px solid rgba(255,255,255,.06)",paddingTop:12}}>
+              <strong style={{color:"var(--text)"}}>¿Por qué este número?</strong>
+              <ul style={{margin:"8px 0 0",padding:"0 0 0 16px"}}>
+                <li>Ranking <strong style={{color:"#a855f7"}}>#{numDetail.rank || "—"}</strong> en el análisis general</li>
+                {numDetail.frecuencia != null && <li>Apareció <strong style={{color:"#4ade80"}}>{numDetail.frecuencia} veces</strong> en el histórico</li>}
+                {numDetail.confianza != null && <li>Confianza del <strong style={{color:"#818cf8"}}>{numDetail.confianza}%</strong></li>}
+                {numDetail.score != null && <li>Score compuesto: <strong style={{color:"#a855f7"}}>{(numDetail.score * 100).toFixed(1)}%</strong></li>}
+                {numDetail.factores?.length > 0 && <li>Factores adicionales: {numDetail.factores.slice(0,3).join(", ")}{numDetail.factores.length > 3 ? "..." : ""}</li>}
+              </ul>
+            </div>
+            <button onClick={() => setNumDetail(null)} style={{marginTop:16,width:"100%",padding:"10px",borderRadius:10,border:"none",background:"rgba(255,255,255,.06)",color:"var(--text)",fontWeight:700,cursor:"pointer",fontSize:12}}>Cerrar</button>
           </div>
         </div>
       )}
