@@ -26,22 +26,40 @@ async function scrapeTurno(fechaUrl: string, turno: string): Promise<number[]> {
     if (!res.ok) return []
 
     const html = await res.text()
-    const idx = html.indexOf('class="veintena"')
-    if (idx < 0) return []
 
-    const chunk = html.slice(idx, idx + 4000)
-    const nums: number[] = []
-    const rx = /class="numero">(\d{4})<\/div>/g
-    let mx: RegExpExecArray | null
-    while ((mx = rx.exec(chunk)) !== null) {
-      const n = parseInt(mx[1])
-      if (n >= 0 && n <= 9999 && nums.indexOf(n) === -1) nums.push(n)
-      if (nums.length >= 20) break
+    // Buscar la seccion "Nacional" especificamente (el sitio muestra varias provincias)
+    const nacionalMark = '<p class="h3">Nacional</p>'
+    const nacionalIdx = html.indexOf(nacionalMark)
+    if (nacionalIdx < 0) {
+      console.log(`[SCRAPE] No se encontro seccion Nacional para ${turno}, buscando primer veintena`)
+      // Fallback: buscar primer veintena (puede ser Buenos Aires si Nacional no esta)
+      const idx = html.indexOf('class="veintena"')
+      if (idx < 0) return []
+      return extraerNumeros(html, idx)
     }
-    return nums
+
+    // Encontrar el primer class="veintena" DESPUES de la marca Nacional
+    const afterNacional = html.slice(nacionalIdx)
+    const veintenaIdx = afterNacional.indexOf('class="veintena"')
+    if (veintenaIdx < 0) return []
+
+    return extraerNumeros(afterNacional, veintenaIdx)
   } catch {
     return []
   }
+}
+
+function extraerNumeros(html: string, startIdx: number): number[] {
+  const chunk = html.slice(startIdx, startIdx + 4000)
+  const nums: number[] = []
+  const rx = /class="numero">(\d{4})<\/div>/g
+  let mx: RegExpExecArray | null
+  while ((mx = rx.exec(chunk)) !== null) {
+    const n = parseInt(mx[1])
+    if (n >= 0 && n <= 9999 && nums.indexOf(n) === -1) nums.push(n)
+    if (nums.length >= 20) break
+  }
+  return nums
 }
 
 export async function GET(req: NextRequest) {
