@@ -1,3 +1,18 @@
+/**
+ * Página principal de predicciones de Quiniela IA.
+ * 
+ * Funcionalidades:
+ * - Selección de turno (Previa, Primera, Matutina, Vespertina, Nocturna)
+ * - Generación de predicciones con 12 factores + ML
+ * - Mapa de calor de frecuencias
+ * - Tendencias y estadísticas
+ * - Guardado de predicciones y comparación con resultados reales
+ * - Sistema de logros/badges
+ * - Notificaciones push de nuevos resultados
+ * - Modo oscuro/claro
+ * - Integración premium (3 y 4 cifras)
+ */
+
 "use client";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { usePushNotifications } from "@/components/PushNotifications";

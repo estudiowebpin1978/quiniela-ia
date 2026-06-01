@@ -1,3 +1,22 @@
+/**
+ * API de predicciones de Quiniela IA.
+ * 
+ * Endpoint principal: GET /api/predictions?sorteo=Nocturna&date=2026-06-01
+ * 
+ * Calcula 12 factores estadísticos en tiempo real desde Supabase,
+ * integra modelos ML (Markov, Random Forest, Neural) cacheados,
+ * y aplica boost desde XGBoost Python exportado.
+ * 
+ * Factores:
+ *   1. Frecuencia absoluta    7. Correlación entre turnos
+ *   2. Posiciones             8. Co-ocurrencia
+ *   3. Ausencias              9. Números calientes
+ *   4. Recencia               10. Números atrasados
+ *   5. Tendencia              11. Paridad
+ *   6. Ciclos                 12. Suma de dígitos
+ *   + Cross-turno, XGBoost Python, ML cache, FastAPI externo
+ */
+
 import { NextRequest, NextResponse } from "next/server"
 import { analisisCrossTurno } from "@/lib/analisis/cross-turno"
 import { calcularPesosDinamicos, PesosDinamicos } from "@/lib/analisis/weights"

@@ -1,3 +1,13 @@
+/**
+ * Cargador de modelos Python (XGBoost / Random Forest) exportados a JSON.
+ * 
+ * Los modelos son entrenados por quiniela_ml/run_all.py y exportados a
+ * modelos_exportados/quiniela_completo_{turno}_prediccion.json.
+ * 
+ * La API de predicciones usa obtenerBoostPython() para aplicar un boost
+ * a los scores calculados en tiempo real desde TypeScript.
+ */
+
 import fs from "fs"
 import path from "path"
 
@@ -14,12 +24,15 @@ const MODELOS_DIR = path.join(process.cwd(), "modelos_exportados")
 const cache = new Map<string, { data: any; timestamp: number }>()
 const CACHE_TTL = 10 * 60 * 1000
 
+/**
+ * Carga un modelo exportado desde JSON con caché de 10 min.
+ * Intenta formato nuevo primero, luego formato legacy.
+ */
 export function cargarModeloPython(turno: string, tipo: "xgboost" | "random_forest"): ModeloExportado | null {
   const key = `${tipo}_${turno}`
   const cached = cache.get(key)
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.data
 
-  // Try new format (quiniela_completo_{turno}_prediccion.json) first, then old format (xgboost_{turno}_prediccion.json)
   const namesToTry = [
     `quiniela_completo_${turno}_prediccion.json`,
     `${tipo}_${turno}_prediccion.json`,
@@ -37,6 +50,10 @@ export function cargarModeloPython(turno: string, tipo: "xgboost" | "random_fore
   return null
 }
 
+/**
+ * Obtiene el boost de Python para cada número (0-99).
+ * Retorna Record<numero, score_boost> o null si no hay modelo.
+ */
 export function obtenerBoostPython(turno: string, tipo: "xgboost" | "random_forest" = "xgboost"): Record<number, number> | null {
   const modelo = cargarModeloPython(turno, tipo)
   if (!modelo) return null
@@ -47,6 +64,9 @@ export function obtenerBoostPython(turno: string, tipo: "xgboost" | "random_fore
   return boost
 }
 
+/**
+ * Lista todos los modelos exportados disponibles en modelos_exportados/.
+ */
 export function getModelosExportadosDisponibles(): { tipo: string; turno: string; fecha: string }[] {
   try {
     if (!fs.existsSync(MODELOS_DIR)) return []
