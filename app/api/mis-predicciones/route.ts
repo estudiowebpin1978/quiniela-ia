@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     const userId = user.id
 
     const predRes = await fetch(
-      `${SB()}/rest/v1/user_predictions?user_id=eq.${userId}&select=id,date,turno,numeros,created_at&order=created_at.desc&limit=30`,
+      `${SB()}/rest/v1/user_predictions?user_id=eq.${userId}&select=id,date,turno,numeros,numeros_3,numeros_4,created_at&order=created_at.desc&limit=30`,
       { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` } }
     )
     const predictions = await predRes.json()
@@ -121,6 +121,8 @@ export async function GET(req: NextRequest) {
       results.push({
         id: pred.id, fecha: pred.date, turno: pred.turno,
         numeros: pred.numeros,
+        numeros_3: pred.numeros_3 || [],
+        numeros_4: pred.numeros_4 || [],
         resultado: disponible && numerosReales.length > 0 ? numerosReales.slice(0, 20) : null,
         aciertos: disponible ? aciertos : [],
         acerto: disponible ? aciertos.length > 0 : false,
@@ -151,7 +153,7 @@ export async function POST(req: NextRequest) {
     if (!user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     const userId = user.id;
 
-    const { date, turno, numeros } = await req.json()
+    const { date, turno, numeros, numeros_3, numeros_4 } = await req.json()
     if (!date || !turno || !numeros?.length) {
       return NextResponse.json({ error: "Faltan campos" }, { status: 400 })
     }
@@ -169,7 +171,9 @@ export async function POST(req: NextRequest) {
       user_id: userId,
       date: date,
       turno: turno,
-      numeros: numeros
+      numeros: numeros,
+      numeros_3: numeros_3 || [],
+      numeros_4: numeros_4 || [],
     }
 
     const r = await fetch(`${SB}/rest/v1/user_predictions`, {

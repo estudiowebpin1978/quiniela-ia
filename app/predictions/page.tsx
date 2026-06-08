@@ -490,7 +490,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         return;
       }
       const reales = drawData.numbers.map((n: any) => String(Number(n) % 100).padStart(2, "0"));
-      const predichos = cur.slice(0, dg === 2 ? 10 : 5).map((p: any) => p.numero);
+      const predichos = cur.slice(0, 20).map((p: any) => p.numero);
       const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }));
       setResultadoControl({ aciertos, predichos, reales, fecha: hoy, turno: so });
       mostrarNotifResultado(so, reales, aciertos.map((a: any) => a.numero));
@@ -506,7 +506,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     }
     setGuardando(true);
     const fechaSorteoStr = fechaSorteo(so);
-    const nums = cur.slice(0, dg === 2 ? 10 : 5).map((p: any) => p.numero);
+    const nums = cur.slice(0, 20).map((p: any) => p.numero);
 
     // Check if already saved locally for this turno
     const storedRaw = localStorage.getItem("misPreds");
@@ -518,18 +518,20 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       return;
     }
 
-    const nuevaPred = {
+    const nuevaPred: any = {
       id: "local_" + Date.now(),
       fecha: fechaSorteoStr,
       turno: so,
       numeros: nums,
-      numeros_3: nums3,
-      numeros_4: nums4,
       created_at: new Date().toISOString(),
       resultado: null,
       aciertos: [],
       acerto: false,
     };
+    if (pr || userRole === "admin") {
+      nuevaPred.numeros_3 = nums3;
+      nuevaPred.numeros_4 = nums4;
+    }
 
     // Intentar guardar en Supabase
     if (tkRef.current) {
@@ -537,7 +539,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         const res = await fetch("/api/mis-predicciones", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
-          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: nums, numeros_3: nums3, numeros_4: nums4 }),
+          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: nums, ...((pr || userRole === "admin") ? { numeros_3: nums3, numeros_4: nums4 } : {}) }),
         });
         const data = await res.json();
         if (res.status === 409) {
@@ -571,7 +573,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     if (!dt?.numeros_2?.length) {
       return;
     }
-    const lineas = cur.slice(0, dg === 2 ? 10 : 5).map((p: any, i: number) => "#" + (i + 1) + " " + p.numero + " - " + p.significado).join("\n");
+    const lineas = cur.slice(0, 20).map((p: any, i: number) => "#" + (i + 1) + " " + p.numero + " - " + p.significado).join("\n");
     const rdblLine = dt?.redoblona ? "\nRedoblona: " + dt.redoblona : "";
     const txt = "QUINIELA IA - " + proximoSorteo(so) + "\n\n" + lineas + rdblLine + "\n\n" + APP_URL;
     navigator.clipboard
@@ -960,7 +962,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           {showCalc && (
             <div style={{ marginTop: 12, padding: 14, background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(34,197,94,.05))", borderRadius: 12, border: "1px solid rgba(34,197,94,.4)", textAlign: "center" }}>
               <div style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", marginBottom: 6 }}>💡 ESTRATEGIA RECOMENDADA</div>
-              <div style={{ fontSize: 11, color: "#fff" }}>Apostá a 1° (cabeza) y a los 10</div>
+              <div style={{ fontSize: 11, color: "#fff" }}>Apostá a 1° (cabeza) y a los 20</div>
               <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>para 2 cifras, lo mismo para 3 y 4 cifras!</div>
             </div>
           )}
@@ -1125,7 +1127,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   </div>
                   <div className={dg > 2 && !pr ? "lk" : ""}>
                     <div className="g5">
-                      {cur.slice(0, dg === 2 ? 10 : 5).map((p: any, i: number) => {
+                      {cur.slice(0, 20).map((p: any, i: number) => {
                         const r = ranking?.find((r: any) => r.numero === p.numero);
                         return (
                         <div className="cd" key={i} onClick={() => setNumDetail(r || p)} style={{cursor:"pointer"}}>
@@ -1498,6 +1500,26 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                             );
                           })}
                         </div>
+                        {(pr || userRole === "admin") && p.numeros_3?.length > 0 && (
+                          <div style={{ marginTop: 8, padding: "6px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}>
+                            <div style={{ fontSize: 10, color: "#f59e0b", fontWeight: 700, marginBottom: 4 }}>🔢 3 CIFRAS</div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                              {p.numeros_3.map((n: string, j: number) => (
+                                <span key={j} style={{ padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 700, background: "rgba(245,158,11,.12)", color: "#fbbf24", border: "1px solid rgba(245,158,11,.2)" }}>{n}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {(pr || userRole === "admin") && p.numeros_4?.length > 0 && (
+                          <div style={{ marginTop: 8, padding: "6px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}>
+                            <div style={{ fontSize: 10, color: "#a855f7", fontWeight: 700, marginBottom: 4 }}>🔢 4 CIFRAS</div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                              {p.numeros_4.map((n: string, j: number) => (
+                                <span key={j} style={{ padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 700, background: "rgba(168,85,247,.12)", color: "#c084fc", border: "1px solid rgba(168,85,247,.2)" }}>{n}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         {p.resultado && p.resultado.length > 0 && (
                           <div className="saved-results" style={{marginTop:8}}>
                             <div style={{fontSize:10,color:"#64748b",marginBottom:4}}>RESULTADOS OFICIALES:</div>
@@ -1542,7 +1564,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 <div style={{borderRadius:12,border:"1px solid rgba(255,255,255,.08)",padding:12,background:"rgba(255,255,255,.03)"}}>
                   <div style={{fontSize:10,fontWeight:800,color:"#4ade80",textTransform:"uppercase",marginBottom:8}}>GRATIS</div>
                   <div style={{fontSize:11,color:"var(--dim)",lineHeight:1.8}}>
-                    ✓ 2 cifras (top 10)<br/>
+                    ✓ 2 cifras (top 20)<br/>
                     ✓ Mapa de calor<br/>
                     ✓ Tendencias<br/>
                     ✓ Guardar predicciones<br/>
@@ -1554,9 +1576,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 <div style={{borderRadius:12,border:"1.5px solid #f59e0b",padding:12,background:"rgba(245,158,11,.06)"}}>
                   <div style={{fontSize:10,fontWeight:800,color:"#f59e0b",textTransform:"uppercase",marginBottom:8}}>⭐ PREMIUM</div>
                   <div style={{fontSize:11,color:"var(--dim)",lineHeight:1.8}}>
-                    ✓ 2 cifras (top 10)<br/>
-                    ✓ 3 cifras (top 5)<br/>
-                    ✓ 4 cifras (top 5)<br/>
+                    ✓ 2 cifras (top 20)<br/>
+                    ✓ 3 cifras (top 10)<br/>
+                    ✓ 4 cifras (top 10)<br/>
                     ✓ Redoblona completa<br/>
                     ✓ Mapa de calor<br/>
                     ✓ Tendencias<br/>

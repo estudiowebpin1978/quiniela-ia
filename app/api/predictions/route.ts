@@ -548,8 +548,8 @@ export async function GET(req: NextRequest) {
     // Ordenar por score
     scores.sort((a, b) => b.score - a.score)
 
-    // Top 10 de 2 cifras
-    const pred2 = scores.slice(0, 10).map(s => pad(s.num))
+    // Top 20 de 2 cifras
+    const pred2 = scores.slice(0, 20).map(s => pad(s.num))
 
     // === Análisis de 4 cifras vía motor para 3 y 4 cifras ===
     const sorteos = rows
@@ -635,11 +635,11 @@ export async function GET(req: NextRequest) {
       }
     } catch {}
 
-    const pred3 = analisisAv.recomendaciones.tresCifras.slice(0, 5).map(r => r.numero.padStart(3, '0'))
-    const pred4 = analisisAv.recomendaciones.cuatroCifras.slice(0, 5).map(r => r.numero.padStart(4, '0'))
+    const pred3 = analisisAv.recomendaciones.tresCifras.slice(0, 10).map(r => r.numero.padStart(3, '0'))
+    const pred4 = analisisAv.recomendaciones.cuatroCifras.slice(0, 10).map(r => r.numero.padStart(4, '0'))
 
-    // Top 10 con información completa
-    const top10 = scores.slice(0, 10).map((s, i) => ({
+    // Top 20 con información completa
+    const top20 = scores.slice(0, 20).map((s, i) => ({
       n: s.num, numero: pad(s.num),
       emoji: SUENOS[s.num]?.emoji || "❓",
       significado: SUENOS[s.num]?.nombre || "",
@@ -660,7 +660,7 @@ export async function GET(req: NextRequest) {
     }))
 
     const uniqueDates = [...new Set(dates)].sort().reverse()
-    const confidence = Math.round((scores.slice(0, 10).reduce((sum, s) => sum + s.confianza, 0) / 10))
+    const confidence = Math.round((scores.slice(0, 20).reduce((sum, s) => sum + s.confianza, 0) / 20))
 
     console.log(`[12 FACTORES] Total números: ${numeros4.length}, Sorteos: ${sequences.length}`)
     console.log(`[12 FACTORES] Top 3: ${scores.slice(0, 3).map(s => `${s.num}:${s.score.toFixed(2)}`).join(', ')}`)
@@ -683,7 +683,7 @@ export async function GET(req: NextRequest) {
         numeros_atrasados: atrasados.map(n => pad(n)),
         paridad: paridad
       },
-      numeros: top10,
+      numeros: top20,
       totalSorteos: sequences.length,
       fechasAnalizadas: uniqueDates.length,
       generado: new Date().toISOString(),
