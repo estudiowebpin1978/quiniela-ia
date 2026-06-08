@@ -1,79 +1,96 @@
 import { NextRequest, NextResponse } from "next/server"
 
-function decodeJwtPayload(token: string) {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const payload = Buffer.from(parts[1], "base64").toString("utf-8");
-    return JSON.parse(payload);
-  } catch {
-    return null;
-  }
-}
+const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
+const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
 
-// Horarios de sorteo (hora Argentina, UTC-3)
 const TURNO_HOURS: Record<string, number> = {
-  "previa": 10,      // 10:15
-  "primera": 12,    // 12:00
-  "matutina": 15,  // 15:00
-  "vespertina": 18, // 18:00
-  "nocturna": 21,  // 21:00
+  "previa": 10, "primera": 12, "matutina": 15, "vespertina": 18, "nocturna": 21,
 }
 
 const FERIADOS_2026 = [
-  "2026-01-01", "2026-02-16", "2026-02-17", "2026-03-24",
-  "2026-04-02", "2026-04-03", "2026-05-01", "2026-05-25",
-  "2026-06-20", "2026-07-09", "2026-08-17", "2026-10-12",
-  "2026-11-23", "2026-12-08", "2026-12-25"
+  "2026-01-01","2026-02-16","2026-02-17","2026-03-24",
+  "2026-04-02","2026-04-03","2026-05-01","2026-05-25",
+  "2026-06-20","2026-07-09","2026-08-17","2026-10-12",
+  "2026-11-23","2026-12-08","2026-12-25",
 ]
 
 function isDiaSinSorteo(dateStr: string): boolean {
   const d = new Date(dateStr + "T12:00:00-03:00")
-  const diaSemana = d.getDay()
-  if (diaSemana === 0) return true // Domingo
+  if (d.getDay() === 0) return true
   if (FERIADOS_2026.includes(dateStr)) return true
   return false
 }
 
-function hasDrawTimePassed(dateStr: string, turno: string): boolean {
-  const turnoLower = turno.toLowerCase().replace(/-\d+cifras?$/i, "").trim()
+// Primero busca en DB, si hay resultados ya estan disponibles.
+// Si no hay en DB, usa time check con buffer minimo.
+async function checkResultadosEnDB(dateStr: string, turno: string): Promise<{ disponible: boolean; numeros?: number[] }> {
+  try {
+    const res = await fetch(
+      `${SB()}/rest/v1/draws?date=eq.${dateStr}&turno=ilike.*${turno}*&select=numbers&limit=1`,
+      { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` }, signal: AbortSignal.timeout(5000) }
+    )
+    if (!res.ok) return { disponible: false }
+    const draws = await res.json()
+    if (draws?.[0]?.numbers && Array.isArray(draws[0].numbers) && draws[0].numbers.length >= 5) {
+      return { disponible: true, numeros: draws[0].numbers }
+    }
+  } catch {}
+  return { disponible: false }
+}
+
+async function hasResultadosDisponibles(dateStr: string, turnoLower: string): Promise<boolean> {
+  if (isDiaSinSorteo(dateStr)) return false
+  // Si ya estan en DB, disponibles inmediatamente
+  const enDB = await checkResultadosEnDB(dateStr, turnoLower)
+  if (enDB.disponible) return true
+  // Fallback: check time buffer (15min despues de la hora del sorteo)
   const hour = TURNO_HOURS[turnoLower]
   if (!hour) return true
+  const [y, m, d] = dateStr.split("-").map(Number)
+  const drawDate = new Date(Date.UTC(y, m - 1, d, hour + 3, 15, 0)) // UTC+3 + 15min buffer
+  return new Date() > drawDate
+}
 
-  // Argentina es UTC-3. Para convertir a UTC sumamos 3h,
-  // más un buffer para cuando los resultados se publican (~30-60min después)
-  const bufferHoras: Record<string, number> = { "previa": 1, "primera": 1, "matutina": 1, "vespertina": 1, "nocturna": 1 }
-  const addHours = (bufferHoras[turnoLower] ?? 2) + 3
-
-  const [year, month, day] = dateStr.split("-").map(Number)
-  const drawDate = new Date(Date.UTC(year, month - 1, day, hour + addHours, 0, 0))
-
-  const now = new Date()
-  return now > drawDate
+async function buscarDraw(dateStr: string, turnoLower: string): Promise<any> {
+  const res = await fetch(
+    `${SB()}/rest/v1/draws?date=eq.${dateStr}&turno=ilike.*${turnoLower}*&select=numbers&limit=1`,
+    { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` } }
+  )
+  let draws = await res.json()
+  if (draws?.[0]) return draws[0]
+  // Fallback: buscar por fecha
+  const res2 = await fetch(
+    `${SB()}/rest/v1/draws?date=eq.${dateStr}&select=numbers,turno&limit=10`,
+    { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` } }
+  )
+  const draws2 = await res2.json()
+  if (draws2?.length > 0) {
+    return draws2.find((d: any) =>
+      (d.turno || "").toLowerCase().includes(turnoLower) ||
+      turnoLower.includes((d.turno || "").toLowerCase())
+    ) || draws2[0]
+  }
+  return null
 }
 
 export async function GET(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
   if (!token) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
-  const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || ""
-  const SK = process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || ""
-
   try {
-    const userRes = await fetch(`${SB}/auth/v1/user`, {
-      headers: { "apikey": SK, "Authorization": `Bearer ${token}` }
+    const userRes = await fetch(`${SB()}/auth/v1/user`, {
+      headers: { "apikey": SK(), "Authorization": `Bearer ${token}` }
     })
     if (!userRes.ok) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     const user = await userRes.json()
     if (!user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    const userId = user.id;
+    const userId = user.id
 
     const predRes = await fetch(
-      `${SB}/rest/v1/user_predictions?user_id=eq.${userId}&select=id,date,turno,numeros,created_at&order=created_at.desc&limit=30`,
-      { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
+      `${SB()}/rest/v1/user_predictions?user_id=eq.${userId}&select=id,date,turno,numeros,created_at&order=created_at.desc&limit=30`,
+      { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` } }
     )
     const predictions = await predRes.json()
-    console.log("GET predictions for user", userId, "count:", Array.isArray(predictions) ? predictions.length : "error", predictions)
     if (!Array.isArray(predictions)) return NextResponse.json({ predictions: [] })
 
     const results = []
@@ -82,39 +99,8 @@ export async function GET(req: NextRequest) {
       const turnoLower = rawTurno.replace(/-\d+cifras?$/i, "").toLowerCase().trim()
       const predDate = (pred.date || "").trim()
 
-      let draw: any = null
-      
-      // Verificar si ya pasó la hora del sorteo (y no es domingo/feriado)
-      const drawTimePassed = hasDrawTimePassed(predDate, turnoLower) && !isDiaSinSorteo(predDate)
-
-      if (drawTimePassed) {
-        // Try with ilike for partial match
-        const drawRes = await fetch(
-          `${SB}/rest/v1/draws?date=eq.${predDate}&turno=ilike.*${turnoLower}*&select=numbers&limit=1`,
-          { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
-        )
-        let draws = await drawRes.json()
-        
-        if (draws?.[0]) {
-          draw = draws[0]
-        } else {
-          // Try searching by date only
-          const drawRes2 = await fetch(
-            `${SB}/rest/v1/draws?date=eq.${predDate}&select=numbers,turno&limit=10`,
-            { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
-          )
-          const draws2 = await drawRes2.json()
-          
-          if (draws2?.length > 0) {
-            // Find matching turno
-            const matched = draws2.find((d: any) => 
-              (d.turno || "").toLowerCase().includes(turnoLower) || 
-              turnoLower.includes((d.turno || "").toLowerCase())
-            )
-            draw = matched || draws2[0]
-          }
-        }
-      }
+      const disponible = await hasResultadosDisponibles(predDate, turnoLower)
+      const draw: any = disponible ? await buscarDraw(predDate, turnoLower) : null
 
       let aciertos: any[] = []
       let numerosReales: string[] = []
@@ -123,18 +109,9 @@ export async function GET(req: NextRequest) {
         const digitCount = rawTurno.match(/-\d+cifras?$/i)?.[1] || "2"
         numerosReales = draw.numbers.map((n: number) => {
           const num = Number(n)
-          if (digitCount === "2") return String(num % 100).padStart(2, "0")
-          if (digitCount === "3") return String(num % 1000).padStart(3, "0")
-          return String(num % 10000).padStart(4, "0")
+          return String(num % (digitCount === "2" ? 100 : digitCount === "3" ? 1000 : 10000)).padStart(Number(digitCount) || 2, "0")
         })
-        
-        const predNumeros = (pred.numeros || []).map((n: string) => {
-          const s = String(n)
-          if (digitCount === "2") return s.padStart(2, "0")
-          if (digitCount === "3") return s.padStart(3, "0")
-          return s.padStart(4, "0")
-        })
-        
+        const predNumeros = (pred.numeros || []).map((n: string) => String(n).padStart(Number(digitCount) || 2, "0"))
         aciertos = predNumeros.filter((n: string) => numerosReales.includes(n)).map((n: string) => ({
           numero: n,
           puesto: numerosReales.indexOf(n) + 1
@@ -142,15 +119,13 @@ export async function GET(req: NextRequest) {
       }
 
       results.push({
-        id: pred.id,
-        fecha: pred.date,
-        turno: pred.turno,
+        id: pred.id, fecha: pred.date, turno: pred.turno,
         numeros: pred.numeros,
-        resultado: drawTimePassed && numerosReales.length > 0 ? numerosReales.slice(0, 20) : null,
-        aciertos: drawTimePassed ? aciertos : [],
-        acerto: drawTimePassed ? aciertos.length > 0 : false,
+        resultado: disponible && numerosReales.length > 0 ? numerosReales.slice(0, 20) : null,
+        aciertos: disponible ? aciertos : [],
+        acerto: disponible ? aciertos.length > 0 : false,
         created_at: pred.created_at,
-        sorteoRealizado: drawTimePassed
+        sorteoRealizado: !!draw
       })
     }
 

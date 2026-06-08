@@ -38,8 +38,6 @@ function getEmoji(num: string): string {
 const CONTACT = "estudiowebpin@gmail.com";
 const WA = "https://wa.me/5493412500029?text=Hola!%20Quiero%20activar%20Premium%20de%20Quiniela%20IA.";
 const APP_URL = "https://quiniela-ia-two.vercel.app";
-const SB_URL = "https://wazkylxgqckjfkcmfotl.supabase.co";
-const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indhemt5bHhncWNramZrY21mb3RsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjI0Nzc1NSwiZXhwIjoyMDg3ODIzNzU1fQ.IiksS0WwZZVlx9XJCzLhswJzSeeWnNS0dp3Z5uZiCSs";
 const SORTEOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"];
 const HORAS: Record<string, string> = {
   Previa: "10:15",
@@ -240,6 +238,7 @@ export default function Page() {
         return;
       }
       tkRef.current = s.access_token;
+      (window as any).__QUINIELA_TOKEN = s.access_token;
       setEm(s.user?.email || "");
       fetch("/api/auth/me", { headers: { Authorization: "Bearer " + s.access_token } })
         .then((r) => (r.ok ? r.json() : null))
@@ -259,7 +258,7 @@ export default function Page() {
         setShowHowItWorks(true);
         localStorage.setItem("quiniela-ia-tour-visto", "true");
       }
-      // Poll for new draws every 5 min
+      // Poll for new draws and refresh saved predictions every 5 min
       const pollInterval = setInterval(async () => {
         try {
           const r = await fetch(`/api/resultado?date=${hoyArgentina()}&turno=Nocturna&t=${Date.now()}`);
@@ -273,6 +272,9 @@ export default function Page() {
             if (!lastDrawDate) localStorage.setItem("quiniela-ia-ultimo-sorteo-visto", latestKey);
           }
         } catch {}
+        // Auto-refresh saved predictions to check for new results
+        const tk = (window as any).__QUINIELA_TOKEN;
+        if (tk) cargarMisPreds(tk);
       }, 300000);
       return () => clearInterval(pollInterval);
     } catch {
@@ -449,31 +451,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         const r = await fetch("/api/mis-predicciones", { headers: { Authorization: "Bearer " + token } });
         const d = await r.json();
         if (d.predictions?.length) {
-          const actualizadas = await Promise.all(d.predictions.map(async (p: any) => {
-            console.log("[DEBUG] Verificando prediccion:", p.fecha, p.turno);
-            if (p.resultado && Array.isArray(p.resultado) && p.resultado.length > 0) {
-              console.log("[DEBUG] Ya tiene resultado:", p.resultado);
-              return p;
-            }
-            try {
-              const res = await fetch(`${SB_URL}/rest/v1/draws?date=eq.${p.fecha}&turno=ilike.*${encodeURIComponent(p.turno)}*&select=numbers&limit=1`, {
-                headers: { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY }
-              });
-              const rows = await res.json();
-              console.log("[DEBUG] Respuesta DB:", rows?.length, "registros");
-              if (rows?.[0]?.numbers && Array.isArray(rows[0].numbers) && rows[0].numbers.length > 0) {
-                const nums = rows[0].numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"));
-                const aciertos = p.numeros.filter((n: string) => nums.includes(n)).map((n: string) => ({ numero: n, puesto: nums.indexOf(n) + 1 }));
-                console.log("[DEBUG] Aciertos encontrados:", aciertos.length, "- Números reales:", nums.slice(0, 5).join(", "));
-                return { ...p, resultado: nums, aciertos, acerto: aciertos.length > 0 };
-              } else {
-                console.log("[DEBUG] No se encontraron números para", p.fecha, p.turno);
-              }
-            } catch (e) { console.log("Error verificando:", e); }
-            return p;
-          }));
-          setMisPreds(actualizadas);
-          localStorage.setItem("misPreds", JSON.stringify(actualizadas));
+          setMisPreds(d.predictions);
+          localStorage.setItem("misPreds", JSON.stringify(d.predictions));
           setMisLoading(false);
           return;
         }
@@ -482,34 +461,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     const stored = localStorage.getItem("misPreds");
     if (stored) {
       try {
-        let todas = JSON.parse(stored);
-        if (todas.length > 0) {
-          todas = await Promise.all(todas.map(async (p: any) => {
-            console.log("[DEBUG-LOCAL] Verificando:", p.fecha, p.turno);
-            if (p.resultado && Array.isArray(p.resultado) && p.resultado.length > 0) {
-              return p;
-            }
-            try {
-              const res = await fetch(`${SB_URL}/rest/v1/draws?date=eq.${p.fecha}&turno=ilike.*${encodeURIComponent(p.turno)}*&select=numbers&limit=1`, {
-                headers: { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY }
-              });
-              const rows = await res.json();
-              console.log("[DEBUG-LOCAL] Respuesta:", rows?.length);
-              if (rows?.[0]?.numbers && Array.isArray(rows[0].numbers)) {
-                const nums = rows[0].numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"));
-                const aciertos = p.numeros.filter((n: string) => nums.includes(n)).map((n: string) => ({ numero: n, puesto: nums.indexOf(n) + 1 }));
-                return { ...p, resultado: nums, aciertos, acerto: aciertos.length > 0 };
-              }
-            } catch (e) { console.log("Error local:", e); }
-            return p;
-          }));
-          localStorage.setItem("misPreds", JSON.stringify(todas));
-          setMisPreds(todas);
-        } else {
-          setMisPreds(todas);
-        }
-      } catch (e) {
-        console.error("Error parseando localStorage:", e);
+        setMisPreds(JSON.parse(stored));
+      } catch {
         setMisPreds([]);
       }
     } else {
