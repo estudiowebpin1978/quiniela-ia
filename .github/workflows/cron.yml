@@ -2,9 +2,9 @@ name: Scheduled draws scraper + predictor ML
 
 on:
   schedule:
-    # Cada 30 min en horario de sorteos (9 AM - 10 PM Argentina = 12-01 UTC)
-    - cron: '*/30 12-23 * * *'
-    - cron: '*/30 0-1 * * *'
+    # Cada 15 min en horario de sorteos (8:45 AM - 10:30 PM Argentina = 11:45-01:30 UTC)
+    - cron: '*/15 11-23 * * *'
+    - cron: '*/15 0-1 * * *'
   workflow_dispatch:
     inputs:
       date:
@@ -41,7 +41,7 @@ jobs:
           if [ -z "${{ secrets.APP_URL }}" ]; then echo "Missing APP_URL secret"; exit 1; fi
           if [ -z "${{ secrets.CRON_SECRET }}" ]; then echo "Missing CRON_SECRET secret"; exit 1; fi
 
-      - name: Scrape all turnos for current day
+      - name: Scrape today + backfill last 3 days
         if: inputs.skip_scrape != 'true'
         run: |
           url="${{ secrets.APP_URL }}/api/cron-nacional?secret=${{ secrets.CRON_SECRET }}&save=true"
