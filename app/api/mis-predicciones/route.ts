@@ -68,7 +68,7 @@ async function buscarDraw(dateStr: string, turnoLower: string): Promise<any> {
     return draws2.find((d: any) =>
       (d.turno || "").toLowerCase().includes(turnoLower) ||
       turnoLower.includes((d.turno || "").toLowerCase())
-    ) || draws2[0]
+    ) || null
   }
   return null
 }

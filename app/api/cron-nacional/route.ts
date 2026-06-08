@@ -50,6 +50,38 @@ async function scrapeUrl(url: string): Promise<number[]> {
   return extraerNumeros(await res.text(), 0)
 }
 
+async function scrapeFallback(turno: string): Promise<number[]> {
+  try {
+    const res = await fetch("https://quiniela22.com/amp/", {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+      },
+      signal: AbortSignal.timeout(15000)
+    })
+    if (!res.ok) return []
+    const html = await res.text()
+    const turnoLower = turno.toLowerCase()
+    const turnoRegex = new RegExp(`<div\\s+id="${turnoLower}"\\s+class="turno">`, "i")
+    const turnoMatch = turnoRegex.exec(html)
+    if (!turnoMatch) return []
+    const afterTurno = html.slice(turnoMatch.index)
+    const ciudadIdx = afterTurno.indexOf("<h3>Quiniela Ciudad</h3>")
+    if (ciudadIdx < 0) return []
+    const afterCiudad = afterTurno.slice(ciudadIdx)
+    const nums: number[] = []
+    const rx = /<div class="numero">(\d{4})<\/div>/g
+    let mx: RegExpExecArray | null
+    while ((mx = rx.exec(afterCiudad)) !== null) {
+      const n = parseInt(mx[1])
+      if (n >= 0 && n <= 9999 && !nums.includes(n)) nums.push(n)
+      if (nums.length >= 20) break
+    }
+    return nums
+  } catch { return [] }
+}
+
 async function scrapeTurno(fechaUrl: string, turno: string): Promise<number[]> {
   const url = `https://quinielanacional1.com.ar/${fechaUrl}/${turno}`
   const delays = [0, 3000, 10000]
@@ -72,25 +104,25 @@ async function scrapeTurno(fechaUrl: string, turno: string): Promise<number[]> {
       if (nacionalIdx < 0) {
         if (intento < 2) continue
         const idx = html.indexOf('class="veintena"')
-        return idx < 0 ? [] : extraerNumeros(html, idx)
+        return idx < 0 ? await scrapeFallback(turno) : extraerNumeros(html, idx)
       }
 
       const afterNacional = html.slice(nacionalIdx)
       const veintenaIdx = afterNacional.indexOf('class="veintena"')
       if (veintenaIdx < 0) {
         if (intento < 2) continue
-        return []
+        return await scrapeFallback(turno)
       }
 
       const nums = extraerNumeros(afterNacional, veintenaIdx)
       if (nums.length >= 20) return nums
       if (intento < 2) continue
-      return nums
+      return nums.length >= 5 ? nums : await scrapeFallback(turno)
     } catch {
-      if (intento >= 2) return []
+      if (intento >= 2) return await scrapeFallback(turno)
     }
   }
-  return []
+  return await scrapeFallback(turno)
 }
 
 async function guardarDraw(fechaISO: string, turno: string, nums: number[]): Promise<boolean> {

@@ -37,7 +37,16 @@ export async function GET(req: NextRequest) {
     const isPremium = profile?.role === "admin" ||
       (profile?.role === "premium" && profile?.premium_until && new Date(profile.premium_until) > new Date());
 
-    return NextResponse.json({ isPremium, role: profile?.role ?? "free", email: user.email });
+    let daysRemaining = null
+    if (profile?.premium_until) {
+      daysRemaining = Math.ceil((new Date(profile.premium_until).getTime() - Date.now()) / 86400000)
+      if (daysRemaining < 0) daysRemaining = 0
+    }
+
+    return NextResponse.json({
+      isPremium, role: profile?.role ?? "free", email: user.email,
+      premium_until: profile?.premium_until || null, daysRemaining
+    });
 
   } catch {
     clearTimeout(timeout);

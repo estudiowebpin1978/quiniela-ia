@@ -128,6 +128,7 @@ export default function Page() {
   });
   const [statsLoading, setStatsLoading] = useState(true);
   const [userRole, setUserRole] = useState<"free" | "premium" | "admin">("free");
+  const [premExpiry, setPremExpiry] = useState<{ premium_until: string | null; daysRemaining: number | null }>({ premium_until: null, daysRemaining: null });
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstall, setShowInstall] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -245,6 +246,7 @@ export default function Page() {
         .then((d) => {
           if (d?.isPremium) setPr(true);
           if (d?.role) setUserRole(d.role as "free" | "premium" | "admin");
+          if (d?.premium_until) setPremExpiry({ premium_until: d.premium_until, daysRemaining: d.daysRemaining });
         })
         .catch(() => {});
       const savedLastDate = localStorage.getItem("quiniela-ia-ultimo-sorteo-visto");
@@ -849,6 +851,45 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             </button>
           </div>
         </nav>
+        {pr && premExpiry.daysRemaining !== null && premExpiry.daysRemaining <= 7 && (
+          <div style={{
+            margin: "8px 12px 0", padding: "10px 14px", borderRadius: 12,
+            background: premExpiry.daysRemaining === 0
+              ? "linear-gradient(135deg,rgba(239,68,68,.15),rgba(239,68,68,.05))"
+              : "linear-gradient(135deg,rgba(250,204,21,.12),rgba(250,204,21,.04))",
+            border: premExpiry.daysRemaining === 0
+              ? "1.5px solid rgba(239,68,68,.35)"
+              : "1.5px solid rgba(250,204,21,.3)",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 18 }}>{premExpiry.daysRemaining === 0 ? "⏰" : "⚠️"}</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+                  {premExpiry.daysRemaining === 0
+                    ? "Tu suscripción Premium ha vencido"
+                    : `Tu suscripción Premium vence en ${premExpiry.daysRemaining} día${premExpiry.daysRemaining === 1 ? "" : "s"}`}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--dim)", marginTop: 2 }}>
+                  {premExpiry.daysRemaining === 0
+                    ? "Renová ahora para seguir accediendo a predicciones de 3 y 4 cifras."
+                    : "Renová antes del vencimiento para mantener el acceso."}
+                </div>
+              </div>
+            </div>
+            <a href={WA} target="_blank" rel="noopener noreferrer"
+              style={{
+                padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700,
+                background: premExpiry.daysRemaining === 0 ? "#ef4444" : "#eab308",
+                color: premExpiry.daysRemaining === 0 ? "#fff" : "#000",
+                textDecoration: "none", whiteSpace: "nowrap",
+                boxShadow: premExpiry.daysRemaining === 0 ? "0 4px 12px rgba(239,68,68,.3)" : "0 4px 12px rgba(250,204,21,.3)"
+              }}
+            >
+              {premExpiry.daysRemaining === 0 ? "Renovar ahora →" : "Renovar Premium →"}
+            </a>
+          </div>
+        )}
         <div className="wr">
           <div className="hero">
             <h1>Quiniela IA <span onClick={() => setShowHowItWorks(true)} style={{cursor:"pointer",fontSize:14}}>ℹ️</span></h1>
