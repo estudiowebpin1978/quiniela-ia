@@ -13,8 +13,14 @@ try:
 except ImportError:
     XGB_DISPONIBLE = False
 
-from sklearn.calibration import CalibratedClassifierCV
-from sklearn.model_selection import train_test_split
+try:
+    from sklearn.calibration import CalibratedClassifierCV
+    from sklearn.model_selection import train_test_split
+    SKLEARN_DISPONIBLE = True
+except ImportError:
+    SKLEARN_DISPONIBLE = False
+    CalibratedClassifierCV = None
+    train_test_split = None
 
 
 def crear_features_ml(secuencias_2d: list[list[int]], ventana: int = 5) -> tuple[np.ndarray, np.ndarray]:
@@ -69,12 +75,12 @@ def entrenar_xgboost(X: np.ndarray, y: np.ndarray, calibrar: bool = True) -> tup
         raise ImportError("XGBoost no está instalado. pip install xgboost")
     
     # Dividir para calibración
-    if calibrar and len(X) >= 200:
+    X_train, y_train = X, y
+    X_cal, y_cal = X, y
+    if calibrar and SKLEARN_DISPONIBLE and len(X) >= 200:
         X_train, X_cal, y_train, y_cal = train_test_split(
             X, y, test_size=0.2, random_state=42
         )
-    else:
-        X_train, y_train = X, y
     
     # Entrenar XGBoost
     model = xgb.XGBClassifier(
@@ -89,17 +95,21 @@ def entrenar_xgboost(X: np.ndarray, y: np.ndarray, calibrar: bool = True) -> tup
     
     # Calibrar
     calibrated = None
-    if calibrar and len(X) >= 200:
-        calibrated = CalibratedClassifierCV(
-            estimator=xgb.XGBClassifier(
-                n_estimators=200, max_depth=6, learning_rate=0.1,
-                subsample=0.8, colsample_bytree=0.8,
-                reg_lambda=1.0, tree_method='hist',
-                random_state=42, n_jobs=-1
-            ),
-            method='isotonic', cv=3
-        )
-        calibrated.fit(X_cal, y_cal)
+    if calibrar and SKLEARN_DISPONIBLE and len(X) >= 200:
+        try:
+            calibrated = CalibratedClassifierCV(
+                estimator=xgb.XGBClassifier(
+                    n_estimators=200, max_depth=6, learning_rate=0.1,
+                    subsample=0.8, colsample_bytree=0.8,
+                    reg_lambda=1.0, tree_method='hist',
+                    random_state=42, n_jobs=-1
+                ),
+                method='isotonic', cv=3
+            )
+            calibrated.fit(X_cal, y_cal)
+        except Exception as e:
+            print(f"  Calibracion XGBoost fallo: {e}")
+            calibrated = None
     
     return model, calibrated
 

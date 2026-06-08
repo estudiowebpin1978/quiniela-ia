@@ -20,7 +20,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { analisisCrossTurno } from "@/lib/analisis/cross-turno"
 import { calcularPesosDinamicos, PesosDinamicos } from "@/lib/analisis/weights"
-import { calibrarConfianza } from "@/lib/analisis/calibration"
+import { calibrarConfianza, recalibrar } from "@/lib/analisis/calibration"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -389,6 +389,9 @@ export async function GET(req: NextRequest) {
   if (!turnosValidos.includes(turnoQuery)) {
     return NextResponse.json({ error: `Sorteo inválido. Válidos: ${turnosValidos.join(", ")}` }, { status: 400 })
   }
+
+  // Recalibrar curva de confianza desde datos reales
+  recalibrar().catch(() => {})
 
   const ctrl = new AbortController()
   const to = setTimeout(() => ctrl.abort(), 25000)

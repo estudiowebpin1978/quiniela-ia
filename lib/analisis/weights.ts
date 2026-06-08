@@ -1,5 +1,5 @@
-const SB = "https://wazkylxgqckjfkcmfotl.supabase.co"
-const SK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indhemt5bHhncWNramZrY21mb3RsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjI0Nzc1NSwiZXhwIjoyMDg3ODIzNzU1fQ.IiksS0WwZZVlx9XJCzLhswJzSeeWnNS0dp3Z5uZiCSs"
+const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wazkylxgqckjfkcmfotl.supabase.co").replace(/"/g, "").trim()
+const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
 
 export interface PesosDinamicos {
   frecuencia: number;
@@ -27,10 +27,10 @@ const PESOS_BASE: PesosDinamicos = {
 const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
 async function fetchDraws(turno: string, limit: number = 30): Promise<number[][]> {
-  const url = `${SB}/rest/v1/draws?select=numbers,turno&turno=ilike.*${turno}*&order=date.desc&limit=${limit}`
+  const url = `${SB()}/rest/v1/draws?select=numbers,turno&turno=ilike.*${turno}*&order=date.desc&limit=${limit}`
   try {
     const res = await fetch(url, {
-      headers: { "apikey": SK, "Authorization": `Bearer ${SK}` },
+      headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` },
       signal: AbortSignal.timeout(8000)
     })
     if (!res.ok) return []

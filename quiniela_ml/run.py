@@ -121,6 +121,24 @@ def ejecutar_prediccion(
             json.dump(export_completo, f, indent=2)
         print(f"Exportado completo: {export_path}")
     
+    # Exportar tambien scores separados de XGBoost y Random Forest (para ml_api)
+    if resultado.get('xgboost_activo'):
+        try:
+            from .modelo import exportar_modelo_json
+            exportar_modelo_json(
+                f"xgboost_{turno.lower()}",
+                scores_2d,
+                metadata={"turno": turno, "modelo": "xgboost"}
+            )
+            # exportar RF tambien (mismos scores, es el ensemble completo)
+            exportar_modelo_json(
+                f"random_forest_{turno.lower()}",
+                scores_2d,
+                metadata={"turno": turno, "modelo": "random_forest"}
+            )
+        except Exception as e:
+            print(f"  Error exportando modelos auxiliares: {e}")
+    
     # Guardar resultado resumido
     resumen = {
         "fecha": __import__('datetime').datetime.now().isoformat(),

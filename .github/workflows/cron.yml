@@ -23,9 +23,9 @@ on:
         required: false
         default: 'false'
       with_xgboost:
-        description: 'Usar XGBoost (mas lento pero mas preciso)'
+        description: 'Usar XGBoost (si disponible en el entorno)'
         required: false
-        default: 'false'
+        default: 'true'
 
 jobs:
   fetch-draws:
