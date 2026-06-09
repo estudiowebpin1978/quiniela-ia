@@ -150,9 +150,9 @@ async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
   } catch { return false }
 }
 
-async function backfillDiasFaltantes(hoy: string, expected: string, cronSecret: string): Promise<number> {
+async function backfillDiasFaltantes(hoy: string, expected: string, cronSecret: string, maxDias: number = 7): Promise<number> {
   let backfilled = 0
-  for (let d = 1; d <= 3; d++) {
+  for (let d = 1; d <= maxDias; d++) {
     const f = new Date(hoy + "T12:00:00-03:00")
     f.setDate(f.getDate() - d)
     const fechaStr = f.toISOString().split("T")[0]
@@ -188,9 +188,17 @@ export async function GET(req: NextRequest) {
   const save = req.nextUrl.searchParams.get("save") === "true"
   const turnoParam = req.nextUrl.searchParams.get("turno") || ""
   const dateParam = req.nextUrl.searchParams.get("date") || ""
+  const fill = req.nextUrl.searchParams.get("fill") || ""
 
   const ahora = dateParam ? fechaArgentina(dateParam) : fechaArgentina()
   const { fechaStr: fechaISO, diaSemana, fUrl } = ahora
+
+  // Deep fill: buscar sorteos faltantes en un rango de hasta 90 dias
+  if (fill === "deep" && save) {
+    const fillDays = Math.min(parseInt(req.nextUrl.searchParams.get("days") || "90"), 90)
+    const fillBackfilled = await backfillDiasFaltantes(fechaISO, expected, secret, fillDays)
+    return NextResponse.json({ ok: true, message: "Deep fill completo", backfilled: fillBackfilled })
+  }
 
   if (esDiaSinSorteo(diaSemana, fechaISO)) {
     console.log(`[CRON] Sin sorteos ${fechaISO} (${diaSemana === 0 ? "Domingo" : "Feriado"})`)
