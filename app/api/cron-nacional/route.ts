@@ -100,21 +100,22 @@ async function scrapeTurno(fechaUrl: string, turno: string): Promise<number[]> {
       })).text()
 
       const nacionalMark = '<p class="h3">Nacional</p>'
-      const nacionalIdx = html.indexOf(nacionalMark)
-      if (nacionalIdx < 0) {
+      const ciudadMark = '<p class="h3">Ciudad</p>'
+      let sectionIdx = html.indexOf(nacionalMark)
+      if (sectionIdx < 0) sectionIdx = html.indexOf(ciudadMark)
+      if (sectionIdx < 0) {
         if (intento < 2) continue
-        const idx = html.indexOf('class="veintena"')
-        return idx < 0 ? await scrapeFallback(turno) : extraerNumeros(html, idx)
+        return await scrapeFallback(turno)
       }
 
-      const afterNacional = html.slice(nacionalIdx)
-      const veintenaIdx = afterNacional.indexOf('class="veintena"')
+      const afterSection = html.slice(sectionIdx)
+      const veintenaIdx = afterSection.indexOf('class="veintena"')
       if (veintenaIdx < 0) {
         if (intento < 2) continue
         return await scrapeFallback(turno)
       }
 
-      const nums = extraerNumeros(afterNacional, veintenaIdx)
+      const nums = extraerNumeros(afterSection, veintenaIdx)
       if (nums.length >= 20) return nums
       if (intento < 2) continue
       return nums.length >= 5 ? nums : await scrapeFallback(turno)
