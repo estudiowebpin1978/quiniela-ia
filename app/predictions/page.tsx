@@ -576,6 +576,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     }
 
     // Intentar guardar en Supabase
+    let cloudSaved = false
     if (tkRef.current) {
       try {
         const res = await fetch("/api/mis-predicciones", {
@@ -590,6 +591,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           return;
         }
         if (res.ok) {
+          cloudSaved = true
           console.log("Guardado en Supabase");
         } else {
           console.log("Error en Supabase:", data.error);

@@ -111,14 +111,19 @@ export async function GET(req: NextRequest) {
 
       let aciertos: any[] = []
       let numerosReales: string[] = []
-      let pred3: string[] = []
-      let pred4: string[] = []
 
       // Handle both flat array (free users) and structured object (premium users) formats
-      const pred2 = Array.isArray(pred.numeros) ? pred.numeros : (pred.numeros?.["2"] || [])
-      if (!Array.isArray(pred.numeros)) {
-        pred3 = pred.numeros?.["3"] || []
-        pred4 = pred.numeros?.["4"] || []
+      // Premium stores as [JSON.stringify({ "2": [...], "3": [...], "4": [...] })]
+      let numerosData: any = pred.numeros
+      if (Array.isArray(numerosData) && numerosData.length === 1 && typeof numerosData[0] === "string") {
+        try { numerosData = JSON.parse(numerosData[0]) } catch {}
+      }
+      const pred2: string[] = Array.isArray(numerosData) ? numerosData : (numerosData?.["2"] || [])
+      let pred3: string[] = []
+      let pred4: string[] = []
+      if (!Array.isArray(numerosData)) {
+        pred3 = numerosData?.["3"] || []
+        pred4 = numerosData?.["4"] || []
       }
 
       if (draw?.numbers && Array.isArray(draw.numbers)) {
@@ -170,7 +175,8 @@ export async function POST(req: NextRequest) {
     const userId = user.id;
 
     const { date, turno, numeros } = await req.json()
-    if (!date || !turno || !numeros?.length) {
+    const hasNumeros = Array.isArray(numeros) ? numeros.length > 0 : numeros && typeof numeros === "object" && Object.keys(numeros).length > 0
+    if (!date || !turno || !hasNumeros) {
       return NextResponse.json({ error: "Faltan campos" }, { status: 400 })
     }
 
@@ -183,11 +189,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Ya guardaste una predicción para este turno", duplicate: true }, { status: 409 })
     }
 
+    // Store: array for free users, JSON string in array for premium (object)
+    const numerosToStore = Array.isArray(numeros) ? numeros : [JSON.stringify(numeros)]
+
     const insertData: any = {
       user_id: userId,
       date: date,
       turno: turno,
-      numeros: numeros,
+      numeros: numerosToStore,
     }
 
     const r = await fetch(`${SB}/rest/v1/user_predictions`, {
