@@ -937,7 +937,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         <div className="wr">
           <div className="hero">
             <h1>Quiniela IA <span onClick={() => setShowHowItWorks(true)} style={{cursor:"pointer",fontSize:14}}>ℹ️</span></h1>
-            <p><strong>No es magia. Es matemática.</strong> 12 factores estadísticos + Machine Learning (XGBoost) entrenado con +200 sorteos reales. Datos scrapeados cada 30 min de resultados oficiales.</p>
+                <p><strong>No es magia. Es matemática.</strong> 30 factores estadísticos + Monte Carlo + Machine Learning (XGBoost + LightGBM) entrenado con +200 sorteos reales. Datos scrapeados cada 15 min de resultados oficiales de la Quiniela Nacional y Ciudad.</p>
            <div className="sts">
               <div className="sc"><div className="sv">+212</div><div className="sl">Sorteos analizados</div></div>
               <div className="sc"><div className="sv">12</div><div className="sl">Factores estadísticos</div></div>
@@ -1004,8 +1004,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           {showCalc && (
             <div style={{ marginTop: 12, padding: 14, background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(34,197,94,.05))", borderRadius: 12, border: "1px solid rgba(34,197,94,.4)", textAlign: "center" }}>
               <div style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", marginBottom: 6 }}>💡 ESTRATEGIA RECOMENDADA</div>
-              <div style={{ fontSize: 11, color: "#fff" }}>Apostá a 1° (cabeza) y a los 10</div>
-              <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>para 2 cifras, lo mismo para 3 y 4 cifras!</div>
+              <div style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>Apostá a la CABEZA (1°) + los 10 números</div>
+              <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>El 1° número es la predicción con mayor score de 30 factores. Los 10 son el top del ensemble matemático.</div>
             </div>
           )}
           {misSummary.totalSaved > 0 && (
@@ -1155,7 +1155,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               </div>
               {tab === "pred" && (
                 <>
-                  <div className="sec">Motor estadistico avanzado</div>
+                  <div className="sec">Motor de 30 factores estadísticos</div>
                   <div className="dtabs">
                     <button className={"dk dk-2" + (dg === 2 ? " on" : "")} onClick={() => setDg(2)}>
                       2 cifras
@@ -1198,7 +1198,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                       <div className="lo">
                         <div style={{ fontSize: 32 }}>🔐</div>
                         <h3>Predicciones {dg} digitos</h3>
-                        <p>Suscribite al Premium para acceder.</p>
+                        <p>El mismo motor de 30 factores predice números de {dg} cifras. Accedé con Premium.</p>
                         <div style={{fontSize:10,color:"#4ade80",marginTop:6}}>✓ Sin datos de tarjeta</div>
                         <div style={{fontSize:10,color:"#4ade80"}}>✓ Paga desde tu billetera virtual</div>
                         <div style={{fontSize:10,color:"#4ade80"}}>✓ Activación inmediata!</div>
@@ -1265,7 +1265,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                       >
                         <div style={{ fontSize: 36 }}>🔐</div>
                         <div style={{ fontWeight: 800, color: "#fff", fontSize: 16 }}>Redoblona Premium</div>
-                        <div style={{ fontSize: 12, color: "#94a3b8", maxWidth: 200, lineHeight: 1.6 }}>El par optimo de numeros para redoblona es exclusivo para usuarios Premium.</div>
+                        <div style={{ fontSize: 12, color: "#94a3b8", maxWidth: 200, lineHeight: 1.6 }}>El par óptimo se calcula con análisis de co-ocurrencia y correlación cross-turno. Exclusivo Premium.</div>
                         <div style={{fontSize:10,color:"#4ade80",marginTop:6}}>✓ Sin datos de tarjeta</div>
                         <div style={{fontSize:10,color:"#4ade80"}}>✓ Paga desde tu billetera virtual</div>
                         <div style={{fontSize:10,color:"#4ade80"}}>✓ Activación inmediata!</div>
@@ -1602,11 +1602,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             <div className="pay-box">
               <div style={{ fontSize: 36, marginBottom: 8 }}>🚀</div>
               <h3 className="pay-title">MEMBRESÍA PREMIUM</h3>
+              <div style={{fontSize:11,color:"var(--dim)",marginBottom:12,textAlign:"center",lineHeight:1.6}}>Accedé a predicciones de 3 y 4 cifras con el <strong style={{color:"var(--text)"}}>mismo motor matemático de 30 factores</strong> que analiza frecuencia, tendencia, Markov, Monte Carlo y ML en cada sorteo.</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16,textAlign:"left"}}>
                 <div style={{borderRadius:12,border:"1px solid rgba(255,255,255,.08)",padding:12,background:"rgba(255,255,255,.03)"}}>
                   <div style={{fontSize:10,fontWeight:800,color:"#4ade80",textTransform:"uppercase",marginBottom:8}}>GRATIS</div>
                   <div style={{fontSize:11,color:"var(--dim)",lineHeight:1.8}}>
-                    ✓ 2 cifras (top 20)<br/>
+                    ✓ 2 cifras (top 10)<br/>
                     ✓ Mapa de calor<br/>
                     ✓ Tendencias<br/>
                     ✓ Guardar predicciones<br/>
@@ -1618,9 +1619,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 <div style={{borderRadius:12,border:"1.5px solid #f59e0b",padding:12,background:"rgba(245,158,11,.06)"}}>
                   <div style={{fontSize:10,fontWeight:800,color:"#f59e0b",textTransform:"uppercase",marginBottom:8}}>⭐ PREMIUM</div>
                   <div style={{fontSize:11,color:"var(--dim)",lineHeight:1.8}}>
-                    ✓ 2 cifras (top 20)<br/>
-                    ✓ 3 cifras (top 10)<br/>
-                    ✓ 4 cifras (top 10)<br/>
+                    ✓ 2 cifras (top 10)<br/>
+                    ✓ 3 cifras (top 5)<br/>
+                    ✓ 4 cifras (top 5)<br/>
                     ✓ Redoblona completa<br/>
                     ✓ Mapa de calor<br/>
                     ✓ Tendencias<br/>
@@ -1738,12 +1739,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           <div style={{background:"var(--card)",borderRadius:16,padding:24,maxWidth:400,width:"100%"}} onClick={e => e.stopPropagation()}>
             <div style={{fontSize:18,fontWeight:800,marginBottom:16,color:"var(--text)"}}>🔬 Cómo funciona</div>
             <div style={{fontSize:13,lineHeight:1.7,color:"var(--dim)"}}>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>1. Datos reales</strong><br/>Scrapeamos resultados oficiales de la Quiniela Nacional cada 30 min. Tenemos +200 sorteos históricos.</p>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>2. 12 factores estadísticos</strong><br/>Cada número recibe un score basado en frecuencia, recencia, ausencia, tendencia, ciclos, co-ocurrencia, posición, correlación entre turnos, paridad, suma de dígitos, calientes y atrasados.</p>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>3. ML (XGBoost + Random Forest)</strong><br/>Modelos de Machine Learning entrenados con datos reales que aprenden patrones y ajustan las predicciones.</p>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>4. Pesos dinámicos + calibración</strong><br/>Los factores se ponderan según su efectividad histórica. El sistema se auto-calibra para máxima precisión.</p>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>5. Sin números aleatorios</strong><br/>No hay magia ni random. Cada predicción tiene una explicación matemática basada en datos reales.</p>
-              <p><strong style={{color:"var(--text)"}}>6. Resultados contrastables</strong><br/>Guardá tus predicciones y comparalas con los resultados oficiales automáticamente.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>1. Datos reales</strong><br/>Scrapeamos resultados oficiales de la Quiniela Nacional y Ciudad cada 15 min. Tenemos +200 sorteos históricos con todos los turnos completos.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>2. 30 factores estadísticos</strong><br/>Cada número recibe un score basado en frecuencia histórica, ausencia, recencia exponencial, tendencia, ciclos, momentum, Markov, entropía, clusters, co-ocurrencia, espejos, vecinos y más. Nada es al azar.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>3. Monte Carlo + Ensemble dinámico</strong><br/>5.000 simulaciones estadísticas combinan los 30 factores con análisis cross-turno. Los pesos se auto-calibran según el rendimiento histórico real.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>4. ML: XGBoost + LightGBM</strong><br/>Modelos de Machine Learning entrenados offline con +200 sorteos reales. Extraen 25 features por número y aprenden patrones que el análisis manual no detecta.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>5. Cero números aleatorios</strong><br/>No hay random. No hay "magia". Cada predicción es el resultado de cálculos matemáticos verificables sobre datos reales de la Lotería de la Ciudad.</p>
+              <p><strong style={{color:"var(--text)"}}>6. Resultados contrastables</strong><br/>Guardá tus predicciones y comparalas con los resultados oficiales automáticamente. Podés verificar cada acierto.</p>
             </div>
             <button onClick={() => setShowHowItWorks(false)} style={{marginTop:20,width:"100%",padding:"12px 20px",borderRadius:10,border:"none",background:"var(--red)",color:"#fff",fontWeight:700,cursor:"pointer"}}>Entendido</button>
           </div>
