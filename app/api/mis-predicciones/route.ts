@@ -111,6 +111,15 @@ export async function GET(req: NextRequest) {
 
       let aciertos: any[] = []
       let numerosReales: string[] = []
+      let pred3: string[] = []
+      let pred4: string[] = []
+
+      // Handle both flat array (free users) and structured object (premium users) formats
+      const pred2 = Array.isArray(pred.numeros) ? pred.numeros : (pred.numeros?.["2"] || [])
+      if (!Array.isArray(pred.numeros)) {
+        pred3 = pred.numeros?.["3"] || []
+        pred4 = pred.numeros?.["4"] || []
+      }
 
       if (draw?.numbers && Array.isArray(draw.numbers)) {
         const digitCount = rawTurno.match(/-\d+cifras?$/i)?.[1] || "2"
@@ -118,7 +127,7 @@ export async function GET(req: NextRequest) {
           const num = Number(n)
           return String(num % (digitCount === "2" ? 100 : digitCount === "3" ? 1000 : 10000)).padStart(Number(digitCount) || 2, "0")
         })
-        const predNumeros = (pred.numeros || []).map((n: string) => String(n).padStart(Number(digitCount) || 2, "0"))
+        const predNumeros = pred2.map((n: string) => String(n).padStart(Number(digitCount) || 2, "0"))
         aciertos = predNumeros.filter((n: string) => numerosReales.includes(n)).map((n: string) => ({
           numero: n,
           puesto: numerosReales.indexOf(n) + 1
@@ -127,8 +136,10 @@ export async function GET(req: NextRequest) {
 
       results.push({
         id: pred.id, fecha: pred.date, turno: pred.turno,
-        numeros: pred.numeros,
-        resultado: disponible && numerosReales.length > 0 ? numerosReales.slice(0, 20) : null,
+        numeros: pred2,
+        numeros_3: pred3,
+        numeros_4: pred4,
+        resultado: disponible && numerosReales.length > 0 ? numerosReales.slice(0, 10) : null,
         aciertos: disponible ? aciertos : [],
         acerto: disponible ? aciertos.length > 0 : false,
         created_at: pred.created_at,

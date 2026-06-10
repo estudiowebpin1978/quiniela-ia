@@ -466,9 +466,15 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       for (const p of apiPreds) {
         const key = (p.date || p.fecha || "") + "|" + (p.turno || "")
         const local = localMap.get(key)
+        // Extract 2-cifras from numeros (handles both flat array and structured object)
+        if (Array.isArray(p.numeros)) {
+          // flat array from free user — already correct
+        } else if (p.numeros?.["2"]) {
+          // structured object from premium — API already extracted pred2/3/4 into numeros/numeros_3/numeros_4
+        }
         if (local) {
-          if (local.numeros_3) p.numeros_3 = local.numeros_3
-          if (local.numeros_4) p.numeros_4 = local.numeros_4
+          if (!p.numeros_3?.length && local.numeros_3) p.numeros_3 = local.numeros_3
+          if (!p.numeros_4?.length && local.numeros_4) p.numeros_4 = local.numeros_4
         }
       }
       setMisPreds(apiPreds)
@@ -489,9 +495,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           const draw = await r.json()
           if (draw?.found && draw?.numbers?.length) {
             const reales = draw.numbers.map((n: any) => String(Number(n) % 100).padStart(2, "0"))
-            const predichos = (p.numeros || []).map((n: string) => String(n).padStart(2, "0"))
+            const pred2 = Array.isArray(p.numeros) ? p.numeros : (p.numeros?.["2"] || [])
+            const pred3 = !Array.isArray(p.numeros) ? (p.numeros?.["3"] || []) : (p.numeros_3 || [])
+            const pred4 = !Array.isArray(p.numeros) ? (p.numeros?.["4"] || []) : (p.numeros_4 || [])
+            const predichos = pred2.map((n: string) => String(n).padStart(2, "0"))
             const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }))
-            return { ...p, resultado: reales.slice(0, 20), aciertos, acerto: aciertos.length > 0 }
+            return { ...p, numeros: pred2, numeros_3: pred3, numeros_4: pred4, resultado: reales.slice(0, 10), aciertos, acerto: aciertos.length > 0 }
           }
         } catch (e) { console.warn("fallback compare error:", fechaVal, turnoVal, e) }
         return p
@@ -520,7 +529,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         return;
       }
       const reales = drawData.numbers.map((n: any) => String(Number(n) % 100).padStart(2, "0"));
-      const predichos = cur.slice(0, 20).map((p: any) => p.numero);
+      const predichos = cur.slice(0, 10).map((p: any) => p.numero);
       const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }));
       setResultadoControl({ aciertos, predichos, reales, fecha: hoy, turno: so });
       mostrarNotifResultado(so, reales, aciertos.map((a: any) => a.numero));
@@ -536,7 +545,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     }
     setGuardando(true);
     const fechaSorteoStr = fechaSorteo(so);
-    const nums = cur.slice(0, 20).map((p: any) => p.numero);
+    const nums = cur.slice(0, 10).map((p: any) => p.numero);
 
     // Check if already saved locally for this turno
     const storedRaw = localStorage.getItem("misPreds");
@@ -552,7 +561,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       id: "local_" + Date.now(),
       fecha: fechaSorteoStr,
       turno: so,
-      numeros: nums,
+      numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3, "4": nums4 } : nums,
       created_at: new Date().toISOString(),
       resultado: null,
       aciertos: [],
@@ -569,7 +578,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         const res = await fetch("/api/mis-predicciones", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
-          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: nums }),
+          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3, "4": nums4 } : nums }),
         });
         const data = await res.json();
         if (res.status === 409) {
@@ -603,7 +612,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     if (!dt?.numeros_2?.length) {
       return;
     }
-    const lineas = cur.slice(0, 20).map((p: any, i: number) => "#" + (i + 1) + " " + p.numero + " - " + p.significado).join("\n");
+    const lineas = cur.slice(0, 10).map((p: any, i: number) => "#" + (i + 1) + " " + p.numero + " - " + p.significado).join("\n");
     const rdblLine = dt?.redoblona ? "\nRedoblona: " + dt.redoblona : "";
     const txt = "QUINIELA IA - " + proximoSorteo(so) + "\n\n" + lineas + rdblLine + "\n\n" + APP_URL;
     navigator.clipboard
@@ -992,7 +1001,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           {showCalc && (
             <div style={{ marginTop: 12, padding: 14, background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(34,197,94,.05))", borderRadius: 12, border: "1px solid rgba(34,197,94,.4)", textAlign: "center" }}>
               <div style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", marginBottom: 6 }}>💡 ESTRATEGIA RECOMENDADA</div>
-              <div style={{ fontSize: 11, color: "#fff" }}>Apostá a 1° (cabeza) y a los 20</div>
+              <div style={{ fontSize: 11, color: "#fff" }}>Apostá a 1° (cabeza) y a los 10</div>
               <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>para 2 cifras, lo mismo para 3 y 4 cifras!</div>
             </div>
           )}
@@ -1157,7 +1166,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   </div>
                   <div className={dg > 2 && !pr ? "lk" : ""}>
                     <div className="g5">
-                      {cur.slice(0, 20).map((p: any, i: number) => {
+                      {cur.slice(0, 10).map((p: any, i: number) => {
                         const r = ranking?.find((r: any) => r.numero === p.numero);
                         return (
                         <div className="cd" key={i} onClick={() => setNumDetail(r || p)} style={{cursor:"pointer"}}>
