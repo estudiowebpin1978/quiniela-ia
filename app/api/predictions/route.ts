@@ -147,14 +147,6 @@ export async function GET(req: NextRequest) {
     const scores: { num: number, score: number, confianza: number, factores: string[], frecuencia: number, crossTurno: number, pesoAjustado: number }[] = []
 
     // Build frequency map for reference
-    const terminaciones2: number[] = []
-    for (const seq of sequences) {
-      for (const n of seq) {
-        if (typeof n === 'number' && n >= 0 && n <= 9999) {
-          terminaciones2.push(n % 100)
-        }
-      }
-    }
     const freq: Record<number, number> = {}
     for (const t of terminaciones2) { freq[t] = (freq[t] || 0) + 1 }
 
@@ -198,6 +190,12 @@ export async function GET(req: NextRequest) {
 
     // Ordenar por score
     scores.sort((a, b) => b.score - a.score)
+
+    // Derivar calientes/atrasados/paridad de los scores 30 factores
+    const calientes = scores.slice(0, 10).map(s => s.num)
+    const atrasados = scores.slice(-10).map(s => s.num)
+    const paresCount = terminaciones2.filter(t => t % 2 === 0).length
+    const paridad = { pares: paresCount, impares: terminaciones2.length - paresCount }
 
     // Top 10 de 2 cifras
     const pred2 = scores.slice(0, 10).map(s => pad(s.num))
