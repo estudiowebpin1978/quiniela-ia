@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
+const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wazkylxgqckjfkcmfotl.supabase.co").replace(/"/g, "").trim()
+const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
 
 const TURNO_HOURS: Record<string, number> = {
   "previa": 10, "primera": 12, "matutina": 15, "vespertina": 18, "nocturna": 21,
@@ -87,11 +87,18 @@ export async function GET(req: NextRequest) {
     const userId = user.id
 
     const predRes = await fetch(
-      `${SB()}/rest/v1/user_predictions?user_id=eq.${userId}&select=id,date,turno,numeros,numeros_3,numeros_4,created_at&order=created_at.desc&limit=30`,
+      `${SB()}/rest/v1/user_predictions?user_id=eq.${userId}&select=id,date,turno,numeros,created_at&order=created_at.desc&limit=30`,
       { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` } }
     )
     const predictions = await predRes.json()
-    if (!Array.isArray(predictions)) return NextResponse.json({ predictions: [] })
+    console.log(`mis-predicciones: ${userId} → ${predRes.status}, predictions=${Array.isArray(predictions) ? predictions.length : typeof predictions}`)
+    if (!Array.isArray(predictions)) {
+      console.error("mis-predicciones error:", JSON.stringify(predictions).slice(0, 200))
+      return NextResponse.json({ predictions: [] })
+    }
+    if (predictions.length === 0) {
+      console.log("mis-predicciones: no predictions found for user", userId)
+    }
 
     const results = []
     for (const pred of predictions) {
@@ -121,8 +128,6 @@ export async function GET(req: NextRequest) {
       results.push({
         id: pred.id, fecha: pred.date, turno: pred.turno,
         numeros: pred.numeros,
-        numeros_3: pred.numeros_3 || [],
-        numeros_4: pred.numeros_4 || [],
         resultado: disponible && numerosReales.length > 0 ? numerosReales.slice(0, 20) : null,
         aciertos: disponible ? aciertos : [],
         acerto: disponible ? aciertos.length > 0 : false,
@@ -141,8 +146,8 @@ export async function POST(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
   if (!token) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
-  const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || ""
-  const SK = process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || ""
+  const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wazkylxgqckjfkcmfotl.supabase.co").replace(/"/g, "").trim()
+  const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
 
   try {
     const userRes = await fetch(`${SB}/auth/v1/user`, {
@@ -153,7 +158,7 @@ export async function POST(req: NextRequest) {
     if (!user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     const userId = user.id;
 
-    const { date, turno, numeros, numeros_3, numeros_4 } = await req.json()
+    const { date, turno, numeros } = await req.json()
     if (!date || !turno || !numeros?.length) {
       return NextResponse.json({ error: "Faltan campos" }, { status: 400 })
     }
@@ -172,8 +177,6 @@ export async function POST(req: NextRequest) {
       date: date,
       turno: turno,
       numeros: numeros,
-      numeros_3: numeros_3 || [],
-      numeros_4: numeros_4 || [],
     }
 
     const r = await fetch(`${SB}/rest/v1/user_predictions`, {

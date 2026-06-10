@@ -448,25 +448,55 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
   async function cargarMisPreds(token: string) {
     setMisLoading(true);
-    try {
-      if (token) {
+    let apiPreds: any[] | null = null;
+    if (token) {
+      try {
         const r = await fetch("/api/mis-predicciones", { headers: { Authorization: "Bearer " + token } });
         const d = await r.json();
-        if (d.predictions?.length) {
-          setMisPreds(d.predictions);
-          localStorage.setItem("misPreds", JSON.stringify(d.predictions));
-          setMisLoading(false);
-          return;
+        if (d.predictions?.length) apiPreds = d.predictions;
+      } catch (e) { console.error("Error cargando predicciones:", e); }
+    }
+
+    // Merge 3/4 cifras from localStorage into API predictions
+    let storedPreds: any[] = [];
+    try { const s = localStorage.getItem("misPreds"); if (s) storedPreds = JSON.parse(s); } catch {}
+    const localMap = new Map(storedPreds.map((p: any) => [(p.date || p.fecha) + "|" + (p.turno || ""), p]))
+
+    if (apiPreds) {
+      for (const p of apiPreds) {
+        const key = (p.date || p.fecha || "") + "|" + (p.turno || "")
+        const local = localMap.get(key)
+        if (local) {
+          if (local.numeros_3) p.numeros_3 = local.numeros_3
+          if (local.numeros_4) p.numeros_4 = local.numeros_4
         }
       }
-    } catch (e) { console.error("Error cargando predicciones:", e); }
-    const stored = localStorage.getItem("misPreds");
-    if (stored) {
-      try {
-        setMisPreds(JSON.parse(stored));
-      } catch {
-        setMisPreds([]);
-      }
+      setMisPreds(apiPreds)
+      localStorage.setItem("misPreds", JSON.stringify(apiPreds))
+      setMisLoading(false)
+      return
+    }
+
+    // Fallback: localStorage + client-side comparison
+    if (storedPreds.length > 0) {
+      const enriched = await Promise.all(storedPreds.map(async (p: any) => {
+        if (p.resultado && p.resultado.length > 0) return p
+        const fechaVal = (p.date || p.fecha || "").trim()
+        const turnoVal = (p.turno || "").trim()
+        if (!fechaVal || !turnoVal) return p
+        try {
+          const r = await fetch(`/api/resultado?date=${fechaVal}&turno=${encodeURIComponent(turnoVal)}`)
+          const draw = await r.json()
+          if (draw?.found && draw?.numbers?.length) {
+            const reales = draw.numbers.map((n: any) => String(Number(n) % 100).padStart(2, "0"))
+            const predichos = (p.numeros || []).map((n: string) => String(n).padStart(2, "0"))
+            const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }))
+            return { ...p, resultado: reales.slice(0, 20), aciertos, acerto: aciertos.length > 0 }
+          }
+        } catch (e) { console.warn("fallback compare error:", fechaVal, turnoVal, e) }
+        return p
+      }))
+      setMisPreds(enriched);
     } else {
       setMisPreds([]);
     }
@@ -539,7 +569,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         const res = await fetch("/api/mis-predicciones", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
-          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: nums, ...((pr || userRole === "admin") ? { numeros_3: nums3, numeros_4: nums4 } : {}) }),
+          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: nums }),
         });
         const data = await res.json();
         if (res.status === 409) {
