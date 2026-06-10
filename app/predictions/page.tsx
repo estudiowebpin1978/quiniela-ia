@@ -557,19 +557,22 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       return;
     }
 
+    const nums3Save = (pr || userRole === "admin") ? nums3.slice(0, 5) : [];
+    const nums4Save = (pr || userRole === "admin") ? nums4.slice(0, 5) : [];
+
     const nuevaPred: any = {
       id: "local_" + Date.now(),
       fecha: fechaSorteoStr,
       turno: so,
-      numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3, "4": nums4 } : nums,
+      numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3Save, "4": nums4Save } : nums,
       created_at: new Date().toISOString(),
       resultado: null,
       aciertos: [],
       acerto: false,
     };
     if (pr || userRole === "admin") {
-      nuevaPred.numeros_3 = nums3;
-      nuevaPred.numeros_4 = nums4;
+      nuevaPred.numeros_3 = nums3Save;
+      nuevaPred.numeros_4 = nums4Save;
     }
 
     // Intentar guardar en Supabase
@@ -578,7 +581,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         const res = await fetch("/api/mis-predicciones", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
-          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3, "4": nums4 } : nums }),
+          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3Save, "4": nums4Save } : nums }),
         });
         const data = await res.json();
         if (res.status === 409) {
