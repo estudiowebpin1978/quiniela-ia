@@ -3,24 +3,17 @@
  * 
  * Endpoint principal: GET /api/predictions?sorteo=Nocturna&date=2026-06-01
  * 
- * Calcula 12 factores estadísticos en tiempo real desde Supabase,
- * integra modelos ML (Markov, Random Forest, Neural) cacheados,
- * y aplica boost desde XGBoost Python exportado.
- * 
- * Factores:
- *   1. Frecuencia absoluta    7. Correlación entre turnos
- *   2. Posiciones             8. Co-ocurrencia
- *   3. Ausencias              9. Números calientes
- *   4. Recencia               10. Números atrasados
- *   5. Tendencia              11. Paridad
- *   6. Ciclos                 12. Suma de dígitos
- *   + Cross-turno, XGBoost Python, ML cache, FastAPI externo
+ * Motor avanzado: 30 factores + Monte Carlo + Ensemble dinámico.
+ * Integra modelos ML (Markov, Random Forest, Neural, XGBoost Python).
+ * Backtesting con Hit@1/5/10, Precision, Recall, ROI.
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { analisisCrossTurno } from "@/lib/analisis/cross-turno"
 import { calcularPesosDinamicos, PesosDinamicos } from "@/lib/analisis/weights"
 import { calibrarConfianza, recalibrar } from "@/lib/analisis/calibration"
+import { calcularFactores30 } from "@/lib/analisis/factores30"
+import { runMonteCarlo } from "@/lib/analisis/montecarlo"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -61,311 +54,6 @@ const SUENOS: Record<number, { emoji: string; nombre: string }> = {
 
 function pad(n: number, l = 2): string {
   return String(n).padStart(l, '0')
-}
-
-// ============================================
-// 12 FACTORES DE ANÁLISIS
-// ============================================
-
-// Factor 1: Frecuencia absoluta
-function analisisFrecuencia(terminaciones: number[]): Record<number, number> {
-  const freq: Record<number, number> = {}
-  for (const t of terminaciones) {
-    freq[t] = (freq[t] || 0) + 1
-  }
-  return freq
-}
-
-// Factor 2: Frecuencia por posición (miles, centenas, decenas, unidades)
-function analisisPosiciones(numeros4: number[]): { miles: number[], centenas: number[], decenas: number[], unidades: number[] } {
-  const miles = new Array(10).fill(0)
-  const centenas = new Array(10).fill(0)
-  const decenas = new Array(10).fill(0)
-  const unidades = new Array(10).fill(0)
-  
-  for (const n of numeros4) {
-    const s = String(n).padStart(4, '0')
-    miles[parseInt(s[0])]++
-    centenas[parseInt(s[1])]++
-    decenas[parseInt(s[2])]++
-    unidades[parseInt(s[3])]++
-  }
-  
-  return { miles, centenas, decenas, unidades }
-}
-
-// Factor 3: Análisis de ausencias (tiempo sin aparecer)
-function analisisAusencias(sequences: number[][]): { ultimoIdx: Record<number, number>, maxIdx: number } {
-  const ultimoIdx: Record<number, number> = {}
-  let maxIdx = 0
-  
-  sequences.forEach((seq, idx) => {
-    seq.forEach(n => {
-      const t = n % 100
-      ultimoIdx[t] = idx
-      if (idx > maxIdx) maxIdx = idx
-    })
-  })
-  
-  return { ultimoIdx, maxIdx }
-}
-
-// Factor 4: Análisis de recencia (apariciones recientes)
-function analisisRecencia(sequences: number[][], ultimosN: number): Record<number, number> {
-  const recencia: Record<number, number> = {}
-  const ultimos = sequences.slice(-ultimosN)
-  
-  for (const seq of ultimos) {
-    for (const n of seq) {
-      const t = n % 100
-      recencia[t] = (recencia[t] || 0) + 1
-    }
-  }
-  
-  return recencia
-}
-
-// Factor 5: Tendencia (comparación período reciente vs anterior)
-function analisisTendencia(sequences: number[][], diasRecientes: number, diasAnterior: number): Record<number, number> {
-  const tendencia: Record<number, number> = {}
-  
-  const reciente = sequences.slice(-diasRecientes)
-  const anterior = sequences.slice(-diasRecientes - diasAnterior, -diasRecientes)
-  
-  const freqReciente: Record<number, number> = {}
-  const freqAnterior: Record<number, number> = {}
-  
-  for (const seq of reciente) {
-    for (const n of seq) {
-      const t = n % 100
-      freqReciente[t] = (freqReciente[t] || 0) + 1
-    }
-  }
-  
-  for (const seq of anterior) {
-    for (const n of seq) {
-      const t = n % 100
-      freqAnterior[t] = (freqAnterior[t] || 0) + 1
-    }
-  }
-  
-  for (let t = 0; t < 100; t++) {
-    const r = freqReciente[t] || 0
-    const a = freqAnterior[t] || 1
-    tendencia[t] = ((r / diasRecientes) - (a / diasAnterior)) * 100
-  }
-  
-  return tendencia
-}
-
-// Factor 6: Análisis de ciclos (apariciones periódicas)
-function analisisCiclos(sequences: number[][]): Record<number, { promedio: number, ultimo: number }> {
-  const ciclos: Record<number, number[]> = {}
-  const ultimoIdx: Record<number, number> = {}
-  
-  sequences.forEach((seq, idx) => {
-    seq.forEach(n => {
-      const t = n % 100
-      if (!ciclos[t]) ciclos[t] = []
-      ciclos[t].push(idx)
-      ultimoIdx[t] = idx
-    })
-  })
-  
-  const result: Record<number, { promedio: number, ultimo: number }> = {}
-  const maxIdx = sequences.length - 1
-  
-  for (const t of Object.keys(ciclos)) {
-    const indices = ciclos[parseInt(t)]
-    if (indices.length > 1) {
-      let sumaDistancias = 0
-      for (let i = 1; i < indices.length; i++) {
-        sumaDistancias += indices[i] - indices[i-1]
-      }
-      result[parseInt(t)] = {
-        promedio: Math.round(sumaDistancias / (indices.length - 1) * 10) / 10,
-        ultimo: maxIdx - ultimoIdx[parseInt(t)]
-      }
-    }
-  }
-  
-  return result
-}
-
-// Factor 7: Correlación entre turnos
-function analisisCorrelacionTurnos(rows: any[]): Record<string, Record<number, number>> {
-  const turnos = ['previa', 'primera', 'matutina', 'vespertina', 'nocturna']
-  const correlacion: Record<string, Record<number, number>> = {}
-  
-  for (const turno of turnos) {
-    const filtro = rows.filter((r: any) => r.turno && r.turno.toLowerCase().includes(turno))
-    const freq: Record<number, number> = {}
-    
-    for (const row of filtro) {
-      if (Array.isArray(row.numbers)) {
-        for (const n of row.numbers) {
-          const t = Number(n) % 100
-          freq[t] = (freq[t] || 0) + 1
-        }
-      }
-    }
-    
-    correlacion[turno] = freq
-  }
-  
-  return correlacion
-}
-
-// Factor 8: Matriz de co-ocurrencia (qué números aparecen juntos)
-function analisisCoocurrencia(sequences: number[][]): Record<string, number> {
-  const cooc: Record<string, number> = {}
-  
-  for (const seq of sequences) {
-    const unicos = [...new Set(seq.map(n => n % 100))]
-    for (let i = 0; i < unicos.length; i++) {
-      for (let j = i + 1; j < unicos.length; j++) {
-        const key = `${Math.min(unicos[i], unicos[j])}-${Math.max(unicos[i], unicos[j])}`
-        cooc[key] = (cooc[key] || 0) + 1
-      }
-    }
-  }
-  
-  return cooc
-}
-
-// Factor 9: Números calientes (alta frecuencia reciente)
-function numerosCalientes(recencia: Record<number, number>, threshold: number): number[] {
-  const entries = Object.entries(recencia)
-    .map(([k, v]) => ({ num: parseInt(k), freq: v }))
-    .filter(x => x.freq >= threshold)
-    .sort((a, b) => b.freq - a.freq)
-  
-  return entries.slice(0, 10).map(x => x.num)
-}
-
-// Factor 10: Números atrasados (mucho tiempo sin aparecer)
-function numerosAtrasados(ultimoIdx: Record<number, number>, maxIdx: number, threshold: number): number[] {
-  const entries = Object.entries(ultimoIdx)
-    .map(([k, v]) => ({ num: parseInt(k), ausente: maxIdx - v }))
-    .filter(x => x.ausente >= threshold)
-    .sort((a, b) => b.ausente - a.ausente)
-  
-  return entries.slice(0, 10).map(x => x.num)
-}
-
-// Factor 11: Análisis de terminaciones (pares/impares)
-function analisisParidad(terminaciones: number[]): { pares: number, impares: number } {
-  let pares = 0
-  let impares = 0
-  for (const t of terminaciones) {
-    if (t % 2 === 0) {
-      pares++
-    } else {
-      impares++
-    }
-  }
-  return { pares, impares }
-}
-
-// Factor 12: Suma de dígitos (patrón de suma)
-function analisisSumaDigitos(terminaciones: number[]): Record<number, number> {
-  const suma: Record<number, number> = {}
-  for (const t of terminaciones) {
-    const digitos = String(t).padStart(2, '0')
-    const s = parseInt(digitos[0]) + parseInt(digitos[1])
-    suma[s] = (suma[s] || 0) + 1
-  }
-  return suma
-}
-
-// ============================================
-// CÁLCULO DE SCORE MULTIVARIABLE
-// ============================================
-interface DatosDoceFactores {
-  num: number; freq: number; totalFreq: number; recencia: number;
-  tendencia: number; coocurrencia: number; ultimoIdx: number; maxIdx: number;
-  ciclo: { promedio: number; ultimo: number } | undefined;
-  digitos: number[]; posiciones: { miles: number[]; centenas: number[]; decenas: number[]; unidades: number[] };
-  esCaliente: boolean; esAtrasado: boolean;
-  freqTurno: Record<number, number>; freqTurnoTotal: number;
-  paridadMayoritaria: 'par' | 'impar';
-  sumaDigitosTop: Set<number>;
-}
-
-function calcularScore(d: DatosDoceFactores): { score: number; confianza: number; factores: string[] } {
-  const factores: string[] = [];
-  let score = 0;
-
-  // 1. Frecuencia (18%)
-  const scoreFreq = d.freq / d.totalFreq * 100;
-  score += scoreFreq * 0.18;
-  if (scoreFreq > 3) factores.push(`Freq: ${d.freq}`);
-
-  // 2. Posicion (10%): compara digitos del numero con los mas frecuentes
-  const tens = Math.floor(d.num / 10), units = d.num % 10;
-  const topDec = d.posiciones.decenas.slice(0, 3);
-  const topUni = d.posiciones.unidades.slice(0, 3);
-  let aciertosPos = 0;
-  if (topDec.includes(tens)) aciertosPos++;
-  if (topUni.includes(units)) aciertosPos++;
-  const scorePos = aciertosPos === 2 ? 90 : aciertosPos === 1 ? 60 : 30;
-  score += scorePos * 0.10;
-  if (aciertosPos > 0 && !factores.some(f => f.startsWith("Freq"))) factores.push(`Posición favorable`);
-
-  // 3. Recencia (14%)
-  const scoreRecencia = Math.min(100, d.recencia * 10);
-  score += scoreRecencia * 0.14;
-  if (d.recencia > 3) factores.push(`Reciente: ${d.recencia}`);
-
-  // 4. Tendencia (10%)
-  const scoreTendencia = d.tendencia > 0 ? 50 + Math.min(50, d.tendencia * 10) : 50 - Math.min(50, Math.abs(d.tendencia) * 5);
-  score += scoreTendencia * 0.10;
-  if (d.tendencia > 10) factores.push(`Sube: +${Math.round(d.tendencia)}%`);
-  else if (d.tendencia < -10) factores.push(`Baja: ${Math.round(d.tendencia)}%`);
-
-  // 5. Ciclo (10%)
-  if (d.ciclo) {
-    const esperado = d.ciclo.ultimo - d.ciclo.promedio;
-    score += (esperado >= -2 ? 70 : 30) * 0.10;
-    if (esperado >= -2) factores.push(`Ciclo favorable`);
-  } else score += 40 * 0.10;
-
-  // 6. Co-ocurrencia (8%)
-  score += Math.min(100, d.coocurrencia * 5) * 0.08;
-  if (d.coocurrencia > 3) factores.push(`Co-ocurre: ${d.coocurrencia}`);
-
-  // 7. Ausencia (8%)
-  const ausencia = d.maxIdx - d.ultimoIdx;
-  const scoreAus = ausencia < 5 ? 80 : ausencia < 15 ? 50 : 20;
-  score += scoreAus * 0.08;
-  if (ausencia > 15) factores.push(`Ausente: ${ausencia}`);
-
-  // 8. Caliente (5%)
-  if (d.esCaliente) { score += 80 * 0.05; factores.push(`Caliente`); }
-  else score += 30 * 0.05;
-
-  // 9. Atrasado (5%)
-  if (d.esAtrasado) score += 20 * 0.05;
-  else score += 60 * 0.05;
-
-  // 10. Correlacion turno (5%)
-  const freqTurnoNum = d.freqTurno[d.num] || 0;
-  const scoreTurno = d.freqTurnoTotal > 0 ? Math.min(100, (freqTurnoNum / d.freqTurnoTotal) * 10000) : 40;
-  score += scoreTurno * 0.05;
-
-  // 11. Paridad (4%)
-  const esPar = d.num % 2 === 0;
-  if ((d.paridadMayoritaria === 'par' && esPar) || (d.paridadMayoritaria === 'impar' && !esPar))
-    score += 70 * 0.04;
-  else score += 30 * 0.04;
-
-  // 12. Suma digitos (3%)
-  const sumaDig = Math.floor(d.num / 10) + (d.num % 10);
-  if (d.sumaDigitosTop.has(sumaDig)) score += 80 * 0.03;
-  else score += 30 * 0.03;
-
-  const confianza = Math.min(95, Math.round(score));
-  return { score: Math.round(score * 100) / 100, confianza, factores };
 }
 
 // ============================================
@@ -441,90 +129,45 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // === APLICAR LOS 12 FACTORES ===
-    
-    // Factor 1: Frecuencia
-    const freq = analisisFrecuencia(terminaciones2)
-    
-    // Factor 2: Posiciones
-    const posiciones = analisisPosiciones(numeros4)
-    
-    // Factor 3: Ausencias
-    const { ultimoIdx, maxIdx } = analisisAusencias(sequences)
-    
-    // Factor 4: Recencia (últimos 7 sorteos)
-    const recencia = analisisRecencia(sequences, 7)
-    
-    // Factor 5: Tendencia (últimos 7 vs anteriores 7)
-    const tendencia = analisisTendencia(sequences, 7, 7)
-    
-    // Factor 6: Ciclos
-    const ciclos = analisisCiclos(sequences)
-    
-    // Factor 7: Correlación entre turnos
-    const correlacionTurnos = analisisCorrelacionTurnos(rows)
-    
-    // Factor 8: Co-ocurrencia
-    const coocurrencia = analisisCoocurrencia(sequences)
-    
-    // Factor 9: Números calientes
-    const calientes = numerosCalientes(recencia, 5)
-    
-    // Factor 10: Números atrasados
-    const atrasados = numerosAtrasados(ultimoIdx, maxIdx, 15)
-    
-    // Factor 11: Paridad
-    const paridad = analisisParidad(terminaciones2)
-    
-    // Factor 12: Suma de dígitos
-    const sumaDigitos = analisisSumaDigitos(terminaciones2)
+    // === MOTOR DE 30 FACTORES ===
+    const factores30 = calcularFactores30(sequences, rows)
 
-    // === FACTOR 13: ANÁLISIS CROSS-TURNO ===
+    // === CROSS-TURNO ===
     let crossTurnoScore: Record<number, number> = {}
     try { crossTurnoScore = (await analisisCrossTurno(turno, 3, targetDate || undefined)).crossTurnoScore } catch {}
 
-    // === PESOS DINÁMICOS (auto-optimizados) ===
+    // === PESOS DINÁMICOS ===
     let pesosDinamicos: PesosDinamicos | null = null
     try { pesosDinamicos = await calcularPesosDinamicos(turnoQuery) } catch {}
 
-    // === CALCULAR SCORES PARA CADA NÚMERO (12 FACTORES + CROSS-TURNO) ===
+    // === MONTE CARLO SIMULATION ===
+    const monteCarloTop = runMonteCarlo(sequences, { simulations: 5000, topN: 100 })
+
+    // === ENSEMBLE: 30 FACTORES + CROSS-TURNO + MONTE CARLO + ML ===
     const scores: { num: number, score: number, confianza: number, factores: string[], frecuencia: number, crossTurno: number, pesoAjustado: number }[] = []
 
-    const topDecenas = posiciones.decenas.map((v, i) => ({ d: i, v })).sort((a, b) => b.v - a.v);
-    const topUnidades = posiciones.unidades.map((v, i) => ({ d: i, v })).sort((a, b) => b.v - a.v);
-    const setCalientes = new Set(calientes);
-    const setAtrasados = new Set(atrasados);
-    const freqTurnoActual = correlacionTurnos[turnoQuery] || {};
-    const freqTurnoTotal = Object.values(freqTurnoActual).reduce((a, b) => a + b, 1);
-    const paridadMayoritaria = paridad.pares >= paridad.impares ? 'par' : 'impar';
-    const sumaDigitosTop = new Set(
-      Object.entries(sumaDigitos).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k]) => parseInt(k))
-    );
+    // Build frequency map for reference
+    const terminaciones2: number[] = []
+    for (const seq of sequences) {
+      for (const n of seq) {
+        if (typeof n === 'number' && n >= 0 && n <= 9999) {
+          terminaciones2.push(n % 100)
+        }
+      }
+    }
+    const freq: Record<number, number> = {}
+    for (const t of terminaciones2) { freq[t] = (freq[t] || 0) + 1 }
 
     for (let n = 0; n < 100; n++) {
-      const result = calcularScore({
-        num: n,
-        freq: freq[n] || 0, totalFreq: terminaciones2.length,
-        recencia: recencia[n] || 0,
-        tendencia: tendencia[n] || 0,
-        coocurrencia: Object.entries(coocurrencia)
-          .filter(([k]) => k.includes(`-${n}`) || k.includes(`${n}-`))
-          .reduce((sum, [, v]) => sum + v, 0),
-        ultimoIdx: ultimoIdx[n] || 0, maxIdx,
-        ciclo: ciclos[n],
-        digitos: [Math.floor(n / 10), n % 10],
-        posiciones: {
-          miles: posiciones.miles, centenas: posiciones.centenas,
-          decenas: topDecenas.map(x => x.d), unidades: topUnidades.map(x => x.d)
-        },
-        esCaliente: setCalientes.has(n),
-        esAtrasado: setAtrasados.has(n),
-        freqTurno: freqTurnoActual, freqTurnoTotal,
-        paridadMayoritaria,
-        sumaDigitosTop
-      });
-
+      // 30-factor score
+      const factorScore = factores30.scores[n] || 0
+      // Cross-turno boost
       const crossBoost = crossTurnoScore[n] || 0
+      // Monte Carlo probability
+      const mcResult = monteCarloTop.find(r => r.number === n)
+      const mcScore = mcResult ? mcResult.probability : 0.1
+
+      // Dynamic weight adjustment
       let ajustePeso = 1
       if (pesosDinamicos) {
         const baseSum = Object.values(pesosDinamicos).reduce((a, b) => a + b, 0)
@@ -532,17 +175,25 @@ export async function GET(req: NextRequest) {
         ajustePeso = Math.max(0.85, Math.min(1.15, ajustePeso))
       }
 
-      const scoreFinal = result.score * ajustePeso + crossBoost
+      // Ensemble combination
+      const scoreFinal = (factorScore * 0.6 + mcScore * 0.25 + crossBoost * 0.15) * ajustePeso
+
+      // Get factor details
+      const detail = factores30.detail[n] || {}
+      const topFactors = Object.entries(detail)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 3)
+        .map(([name, val]) => `${name}: ${(val * 100).toFixed(0)}%`)
 
       scores.push({
         num: n,
         score: scoreFinal,
-        confianza: calibrarConfianza(scoreFinal, result.confianza),
-        factores: [...result.factores, ...(crossBoost > 0 ? [`Cross: +${crossBoost}`] : [])],
+        confianza: calibrarConfianza(scoreFinal, factorScore),
+        factores: [...topFactors, ...(crossBoost > 0 ? [`Cross: +${crossBoost.toFixed(3)}`] : [])],
         frecuencia: freq[n] || 0,
         crossTurno: crossBoost,
         pesoAjustado: Math.round(ajustePeso * 100) / 100
-      });
+      })
     }
 
     // Ordenar por score
@@ -662,23 +313,28 @@ export async function GET(req: NextRequest) {
     const uniqueDates = [...new Set(dates)].sort().reverse()
     const confidence = Math.round((scores.slice(0, 10).reduce((sum, s) => sum + s.confianza, 0) / 10))
 
-    console.log(`[12 FACTORES] Total números: ${numeros4.length}, Sorteos: ${sequences.length}`)
-    console.log(`[12 FACTORES] Top 3: ${scores.slice(0, 3).map(s => `${s.num}:${s.score.toFixed(2)}`).join(', ')}`)
+    console.log(`[30 FACTORES] Total números: ${terminaciones2.length}, Sorteos: ${sequences.length}`)
+    console.log(`[30 FACTORES] Top 3: ${scores.slice(0, 3).map(s => `${s.num}:${s.score.toFixed(2)}`).join(', ')}`)
+    console.log(`[MONTE CARLO] Simulaciones: 5000, Top MC: ${monteCarloTop.slice(0, 3).map(r => `${r.number}:${r.probability.toFixed(3)}`).join(', ')}`)
 
     return NextResponse.json({
       ok: true,
       turno: turnoQuery,
       debug: {
-        factores_aplicados: 13,
+        factores_aplicados: 30,
+        motor: "30 factores + Monte Carlo + Ensemble dinámico",
         pesos_dinamicos: pesosDinamicos ? Object.fromEntries(Object.entries(pesosDinamicos).map(([k, v]) => [k, +(v * 100).toFixed(1)])) : null,
         cross_turno_activo: Object.values(crossTurnoScore).some(v => v > 0),
         calibracion_aplicada: true,
         modelos_python_activos: boostPythonActivo,
         ml_api_externa_activa: mlApiActivo,
+        monte_carlo_simulaciones: 5000,
+        monte_carlo_top3: monteCarloTop.slice(0, 3).map(r => ({ number: r.number, probability: r.probability.toFixed(3) })),
         total_numeros: terminaciones2.length,
         numeros_unicos: Object.keys(freq).length,
         sorteos_analizados: sequences.length,
         fechas_unicas: uniqueDates.length,
+        factores_detalle: factores30.detail[scores[0]?.num || 0] || {},
         numeros_calientes: calientes.map(n => pad(n)),
         numeros_atrasados: atrasados.map(n => pad(n)),
         paridad: paridad
@@ -703,23 +359,41 @@ export async function GET(req: NextRequest) {
         terminacionesMasFrecuentes: scores.slice(0, 5).map(s => ({ terminacion: s.num, frecuencia: s.frecuencia, score: s.score.toFixed(2) })),
       },
       analysisInfo: {
-        metodo: `12 factores en tiempo real desde BD + XGBoost Python + ML cache + pesos dinámicos + calibración - turno ${turnoQuery.toUpperCase()}`,
+        metodo: `Motor avanzado: 30 factores + Monte Carlo (5000 sims) + Ensemble dinámico + ML (Markov, RF, Neural, XGBoost) - turno ${turnoQuery.toUpperCase()}`,
         factores: [
-          "1. Frecuencia absoluta",
-          "2. Posiciones (miles/centenas/decenas/unidades)",
-          "3. Ausencias (tiempo sin aparecer)",
-          "4. Recencia (apariciones recientes)",
-          "5. Tendencia (comparación períodos)",
-          "6. Ciclos (patrones periódicos)",
-          "7. Correlación entre turnos",
-          "8. Co-ocurrencia (números juntos)",
-          "9. Números calientes",
-          "10. Números atrasados",
-          "11. Paridad (pares/impares)",
-          "12. Suma de dígitos",
-          "13. Cross-turno (arrastre entre turnos)",
-          "14. XGBoost (Python - exportado)",
-          "15. FastAPI ML backend (externo)"
+          "1. Frecuencia histórica (8%)",
+          "2. Frecuencia últimos 100 sorteos (10%)",
+          "3. Frecuencia últimos 20 sorteos (8%)",
+          "4. Ausencia actual (6%)",
+          "5. Recencia exponencial (8%)",
+          "6. Tendencia (6%)",
+          "7. Ciclos (4%)",
+          "8. Media entre apariciones (3%)",
+          "9. Desviación estándar de intervalos (3%)",
+          "10. Momentum (5%)",
+          "11. Persistencia (3%)",
+          "12. Rebote (3%)",
+          "13. Hot Numbers (4%)",
+          "14. Cold Numbers (2%)",
+          "15. Pares/Impares (2%)",
+          "16. Bajos/Altos (2%)",
+          "17. Suma de dígitos (2%)",
+          "18. Terminaciones (3%)",
+          "19. Raíz digital (1%)",
+          "20. Espejos (2%)",
+          "21. Vecinos (2%)",
+          "22. Familias (2%)",
+          "23. Co-ocurrencia (3%)",
+          "24. Markov (4%)",
+          "25. Turnos del día (3%)",
+          "26. Día de la semana (2%)",
+          "27. Mes del año (1%)",
+          "28. Entropía (2%)",
+          "29. Clusters K-Means (2%)",
+          "30. Predicción IA (10%)",
+          "31. Cross-turno (arrastre)",
+          "32. XGBoost Python",
+          "33. Monte Carlo (5000 sims)"
         ],
         datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} terminaciones de 2 cifras + ${sorteos.length} sorteos para scoring de 3/4 cifras`,
         confianzaAvanzada: {
