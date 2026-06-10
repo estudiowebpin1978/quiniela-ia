@@ -97,6 +97,10 @@ jobs:
         run: |
           python quiniela_ml/run_all.py
 
+      - name: Train LightGBM + XGBoost ensemble
+        run: |
+          python lib/ml/python/train_lightgbm_xgboost.py
+
       - name: Check if predictions changed
         id: check_changes
         run: |

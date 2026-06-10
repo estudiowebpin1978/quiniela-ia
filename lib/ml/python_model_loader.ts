@@ -28,14 +28,16 @@ const CACHE_TTL = 10 * 60 * 1000
  * Carga un modelo exportado desde JSON con caché de 10 min.
  * Intenta formato nuevo primero, luego formato legacy.
  */
-export function cargarModeloPython(turno: string, tipo: "xgboost" | "random_forest"): ModeloExportado | null {
+export type ModeloTipo = "xgboost" | "random_forest" | "lightgbm" | "ensemble"
+
+export function cargarModeloPython(turno: string, tipo: ModeloTipo = "xgboost"): ModeloExportado | null {
   const key = `${tipo}_${turno}`
   const cached = cache.get(key)
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.data
 
   const namesToTry = [
-    `quiniela_completo_${turno}_prediccion.json`,
     `${tipo}_${turno}_prediccion.json`,
+    `quiniela_completo_${turno}_prediccion.json`,
   ]
   for (const name of namesToTry) {
     try {
@@ -54,7 +56,7 @@ export function cargarModeloPython(turno: string, tipo: "xgboost" | "random_fore
  * Obtiene el boost de Python para cada número (0-99).
  * Retorna Record<numero, score_boost> o null si no hay modelo.
  */
-export function obtenerBoostPython(turno: string, tipo: "xgboost" | "random_forest" = "xgboost"): Record<number, number> | null {
+export function obtenerBoostPython(turno: string, tipo: ModeloTipo = "xgboost"): Record<number, number> | null {
   const modelo = cargarModeloPython(turno, tipo)
   if (!modelo) return null
   const boost: Record<number, number> = {}
@@ -62,6 +64,31 @@ export function obtenerBoostPython(turno: string, tipo: "xgboost" | "random_fore
     boost[parseInt(numStr)] = score
   }
   return boost
+}
+
+/**
+ * Obtiene el boost combinado de LightGBM + XGBoost (ensemble ponderado).
+ * LightGBM 50% + XGBoost 50% si ambos existen, fallback a uno solo.
+ */
+export function obtenerBoostEnsemble(turno: string): Record<number, number> | null {
+  const lgbm = obtenerBoostPython(turno, "lightgbm")
+  const xgb = obtenerBoostPython(turno, "xgboost")
+  const ensemble = obtenerBoostPython(turno, "ensemble")
+
+  // If explicit ensemble exists, use it
+  if (ensemble) return ensemble
+
+  // Otherwise combine LGBM + XGB
+  if (lgbm && xgb) {
+    const combined: Record<number, number> = {}
+    for (let n = 0; n < 100; n++) {
+      combined[n] = ((lgbm[n] || 0) + (xgb[n] || 0)) / 2
+    }
+    return combined
+  }
+  if (lgbm) return lgbm
+  if (xgb) return xgb
+  return null
 }
 
 /**

@@ -251,16 +251,16 @@ export async function GET(req: NextRequest) {
       }
     } catch {}
 
-    // === ENSEMBLE: Integrar modelos exportados desde Python (XGBoost / RF) ===
+    // === ENSEMBLE: Integrar modelos exportados desde Python (LGBM + XGBoost ensemble) ===
     let boostPythonActivo = false
     try {
-      const { obtenerBoostPython } = await import("@/lib/ml/python_model_loader")
-      const boostXGB = obtenerBoostPython(turnoQuery, "xgboost")
-      if (boostXGB) {
+      const { obtenerBoostEnsemble } = await import("@/lib/ml/python_model_loader")
+      const boostEnsemble = obtenerBoostEnsemble(turnoQuery)
+      if (boostEnsemble) {
         boostPythonActivo = true
         for (const s of scores) {
-          const b = boostXGB[s.num] || 0
-          if (b > 0) s.score += Math.min(8, b / 10)
+          const b = boostEnsemble[s.num] || 0
+          if (b > 0) s.score += Math.min(10, b / 8)
         }
         scores.sort((a, b) => b.score - a.score)
       }
