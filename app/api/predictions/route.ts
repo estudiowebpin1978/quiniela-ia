@@ -14,6 +14,9 @@ import { calcularPesosDinamicos, PesosDinamicos } from "@/lib/analisis/weights"
 import { calibrarConfianza, recalibrar } from "@/lib/analisis/calibration"
 import { calcularFactores30 } from "@/lib/analisis/factores30"
 import { runMonteCarlo } from "@/lib/analisis/montecarlo"
+import { detectDrift, adjustWeightsForDrift } from "@/lib/analisis/drift"
+import { stackingEnsemble } from "@/lib/analisis/stacking"
+import { calculateSeasonalScores } from "@/lib/analisis/seasonal"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -132,6 +135,17 @@ export async function GET(req: NextRequest) {
     // === MOTOR DE 30 FACTORES ===
     const factores30 = calcularFactores30(sequences, rows)
 
+    // === DRIFT DETECTION ===
+    const recentDraws = sequences.slice(0, 20).map(s => s.map(n => n % 100))
+    const histDraws = sequences.map(s => s.map(n => n % 100))
+    const drift = detectDrift(recentDraws, histDraws)
+
+    // === SEASONAL FEATURES ===
+    const seasonalScores = calculateSeasonalScores(
+      sequences.map(s => s.map(n => n % 100)),
+      dates,
+    )
+
     // === CROSS-TURNO ===
     let crossTurnoScore: Record<number, number> = {}
     try { crossTurnoScore = (await analisisCrossTurno(turno, 3, targetDate || undefined)).crossTurnoScore } catch {}
@@ -158,6 +172,8 @@ export async function GET(req: NextRequest) {
       // Monte Carlo probability
       const mcResult = monteCarloTop.find(r => r.number === n)
       const mcScore = mcResult ? mcResult.probability : 0.1
+      // Seasonal boost
+      const seasonScore = seasonalScores[n] || 0.5
 
       // Dynamic weight adjustment
       let ajustePeso = 1
@@ -167,8 +183,16 @@ export async function GET(req: NextRequest) {
         ajustePeso = Math.max(0.85, Math.min(1.15, ajustePeso))
       }
 
-      // Ensemble combination
-      const scoreFinal = (factorScore * 0.6 + mcScore * 0.25 + crossBoost * 0.15) * ajustePeso
+      // Drift-adjusted weights
+      const driftFactor = drift.drifted ? (1 - drift.severity * 0.3) : 1
+
+      // Ensemble combination (with seasonal and drift)
+      const scoreFinal = (
+        factorScore * 0.55 * driftFactor +
+        mcScore * 0.25 +
+        crossBoost * 0.12 +
+        (seasonScore - 0.5) * 0.08
+      ) * ajustePeso
 
       // Get factor details
       const detail = factores30.detail[n] || {}
@@ -320,7 +344,7 @@ export async function GET(req: NextRequest) {
       turno: turnoQuery,
       debug: {
         factores_aplicados: 30,
-        motor: "30 factores + Monte Carlo + Ensemble dinámico",
+        motor: "30 factores + Monte Carlo + Ensemble dinámico + Drift + Seasonal",
         pesos_dinamicos: pesosDinamicos ? Object.fromEntries(Object.entries(pesosDinamicos).map(([k, v]) => [k, +(v * 100).toFixed(1)])) : null,
         cross_turno_activo: Object.values(crossTurnoScore).some(v => v > 0),
         calibracion_aplicada: true,
@@ -328,6 +352,18 @@ export async function GET(req: NextRequest) {
         ml_api_externa_activa: mlApiActivo,
         monte_carlo_simulaciones: 5000,
         monte_carlo_top3: monteCarloTop.slice(0, 3).map(r => ({ number: r.number, probability: r.probability.toFixed(3) })),
+        drift: {
+          detectado: drift.drifted,
+          severidad: Math.round(drift.severity * 100) + "%",
+          factores_afectados: drift.affectedFactors,
+          descripcion: drift.description,
+          recomendacion: drift.recommendation
+        },
+        seasonal: {
+          activo: true,
+          mes: new Date().getMonth() + 1,
+          dia: new Date().getDate()
+        },
         total_numeros: terminaciones2.length,
         numeros_unicos: Object.keys(freq).length,
         sorteos_analizados: sequences.length,

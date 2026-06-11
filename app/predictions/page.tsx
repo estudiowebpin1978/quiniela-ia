@@ -101,6 +101,8 @@ export default function Page() {
   const [dn, setDn] = useState(false);
   const [er, setEr] = useState("");
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [backtestData, setBacktestData] = useState<any>(null);
+  const [backtestLoading, setBacktestLoading] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [retryCount, setRetryCount] = useState(0);
   const [dt, setDt] = useState<PredData | null>(null);
@@ -1154,6 +1156,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   <span className="tb-ico">📋</span>
                   <span className="tb-lbl">Mis Preds</span>
                 </button>
+                <button className={"tb tb-acc" + (tab === "acc" ? " on" : "")} onClick={() => setTab("acc")}>
+                  <span className="tb-ico">🎯</span>
+                  <span className="tb-lbl">Precisión</span>
+                </button>
               </div>
               {tab === "pred" && (
                 <>
@@ -1599,6 +1605,71 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 </>
               )}
             </>
+              )}
+          {tab === "acc" && (
+            <div style={{marginTop:12}}>
+              <div className="sec">Precisión del Motor Predictivo</div>
+              {!backtestData && !backtestLoading && (
+                <button onClick={async () => {
+                  setBacktestLoading(true)
+                  try {
+                    const r = await fetch(`/api/backtest?turno=${so}&days=90`)
+                    const d = await r.json()
+                    setBacktestData(d)
+                  } catch (e) { console.error(e) }
+                  setBacktestLoading(false)
+                }} style={{width:"100%",padding:14,borderRadius:12,border:"1.5px solid rgba(99,102,241,.4)",background:"rgba(99,102,241,.08)",color:"#818cf8",fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:14}}>
+                  📊 Calcular métricas de precisión
+                </button>
+              )}
+              {backtestLoading && (
+                <div style={{textAlign:"center",padding:30,color:"var(--dim)",fontSize:12}}>
+                  <div style={{fontSize:24,marginBottom:8}}>⏳</div>
+                  Ejecutando walk-forward backtesting...
+                </div>
+              )}
+              {backtestData && (
+                <>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
+                    {[
+                      { label: "Hit@1", value: backtestData.metrics_top_1?.hitAt1 || 0, color: "#a855f7", desc: "Acierto exacto" },
+                      { label: "Hit@5", value: backtestData.metrics_top_5?.hitAt5 || 0, color: "#6366f1", desc: "Al menos 1 en top 5" },
+                      { label: "Hit@10", value: backtestData.metrics_top_10?.hitAt10 || 0, color: "#ec4899", desc: "Al menos 1 en top 10" },
+                    ].map((m, i) => (
+                      <div key={i} style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.08)",borderRadius:12,padding:14,textAlign:"center"}}>
+                        <div style={{fontSize:28,fontWeight:900,color:m.color}}>{m.value}%</div>
+                        <div style={{fontSize:11,fontWeight:700,color:"var(--text)",marginTop:2}}>{m.label}</div>
+                        <div style={{fontSize:9,color:"var(--dim)",marginTop:2}}>{m.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.08)",borderRadius:12,padding:14,marginBottom:14}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"var(--text)",marginBottom:8}}>Métricas detalladas (top 10)</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                      {[
+                        { label: "Sorteos analizados", val: backtestData.metrics_top_10?.totalDraws || 0 },
+                        { label: "Promedio aciertos/sorteo", val: backtestData.metrics_top_10?.avgHitsPerDraw || 0 },
+                        { label: "Máx aciertos en 1 sorteo", val: backtestData.metrics_top_10?.maxHits || 0 },
+                        { label: "Precisión", val: (backtestData.metrics_top_10?.precision || 0) + "%" },
+                        { label: "Recall", val: (backtestData.metrics_top_10?.recall || 0) + "%" },
+                        { label: "ROI teórico", val: (backtestData.metrics_top_10?.roi || 0) + "%" },
+                      ].map((item, i) => (
+                        <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,.04)"}}>
+                          <span style={{fontSize:10,color:"var(--dim)"}}>{item.label}</span>
+                          <span style={{fontSize:10,fontWeight:700,color:"var(--text)"}}>{item.val}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{fontSize:9,color:"var(--dim)",textAlign:"center",lineHeight:1.5}}>
+                    Walk-forward validation con {backtestData.metrics_top_10?.totalDraws || 0} sorteos de {backtestData.total_draws} totales · Motor de 30 factores · Top 10 predicciones
+                  </div>
+                  <button onClick={() => setBacktestData(null)} style={{width:"100%",padding:10,borderRadius:10,border:"1px solid rgba(255,255,255,.08)",background:"transparent",color:"var(--dim)",fontSize:10,cursor:"pointer",marginTop:10}}>
+                    Recalcular
+                  </button>
+                </>
+              )}
+            </div>
           )}
           {!pr && (
             <div className="pay-box">
