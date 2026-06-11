@@ -24,9 +24,10 @@ function isDiaSinSorteo(dateStr: string): boolean {
 // Primero busca en DB, si hay resultados ya estan disponibles.
 // Si no hay en DB, usa time check con buffer minimo.
 async function checkResultadosEnDB(dateStr: string, turno: string): Promise<{ disponible: boolean; numeros?: number[] }> {
+  const turnoNormalized = turno.charAt(0).toUpperCase() + turno.slice(1)
   try {
     const res = await fetch(
-      `${SB()}/rest/v1/draws?date=eq.${dateStr}&turno=ilike.*${turno}*&select=numbers&limit=1`,
+      `${SB()}/rest/v1/draws?date=eq.${dateStr}&turno=eq.${encodeURIComponent(turnoNormalized)}&select=numbers&limit=1`,
       { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` }, signal: AbortSignal.timeout(5000) }
     )
     if (!res.ok) return { disponible: false }
@@ -45,20 +46,25 @@ async function hasResultadosDisponibles(dateStr: string, turnoLower: string): Pr
   if (enDB.disponible) return true
   // Fallback: check time buffer (15min despues de la hora del sorteo)
   const hour = TURNO_HOURS[turnoLower]
-  if (!hour) return true
+  if (!hour) return false
   const [y, m, d] = dateStr.split("-").map(Number)
   const drawDate = new Date(Date.UTC(y, m - 1, d, hour + 3, 15, 0)) // UTC+3 + 15min buffer
   return new Date() > drawDate
 }
 
 async function buscarDraw(dateStr: string, turnoLower: string): Promise<any> {
+  // Normalize turno: capitalize first letter (DB stores "Nocturna", "Matutina", etc.)
+  const turnoNormalized = turnoLower.charAt(0).toUpperCase() + turnoLower.slice(1)
+
+  // Exact match by date + turno
   const res = await fetch(
-    `${SB()}/rest/v1/draws?date=eq.${dateStr}&turno=ilike.*${turnoLower}*&select=numbers&limit=1`,
+    `${SB()}/rest/v1/draws?date=eq.${dateStr}&turno=eq.${encodeURIComponent(turnoNormalized)}&select=numbers,turno&limit=1`,
     { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` } }
   )
   let draws = await res.json()
   if (draws?.[0]) return draws[0]
-  // Fallback: buscar por fecha
+
+  // Fallback: case-insensitive exact match
   const res2 = await fetch(
     `${SB()}/rest/v1/draws?date=eq.${dateStr}&select=numbers,turno&limit=10`,
     { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` } }
@@ -66,8 +72,7 @@ async function buscarDraw(dateStr: string, turnoLower: string): Promise<any> {
   const draws2 = await res2.json()
   if (draws2?.length > 0) {
     return draws2.find((d: any) =>
-      (d.turno || "").toLowerCase().includes(turnoLower) ||
-      turnoLower.includes((d.turno || "").toLowerCase())
+      (d.turno || "").toLowerCase().trim() === turnoLower
     ) || null
   }
   return null
