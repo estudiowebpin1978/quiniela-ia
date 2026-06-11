@@ -941,7 +941,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         <div className="wr">
           <div className="hero">
             <h1>Quiniela IA <span onClick={() => setShowHowItWorks(true)} style={{cursor:"pointer",fontSize:14}}>ℹ️</span></h1>
-                <p><strong>No es magia. Es matemática.</strong> 30 factores estadísticos + Monte Carlo + Machine Learning (XGBoost + LightGBM) entrenado con +200 sorteos reales. Datos scrapeados cada 15 min de resultados oficiales de la Quiniela Nacional y Ciudad.</p>
+                <p><strong>No es magia. Es matemática.</strong> 30 factores estadísticos + Monte Carlo + Machine Learning (XGBoost + LightGBM) entrenado con +200 sorteos reales. Datos scrapeados cada 15 min de resultados oficiales de la Quiniela Nacional.</p>
            <div className="sts">
               <div className="sc"><div className="sv">+212</div><div className="sl">Sorteos analizados</div></div>
               <div className="sc"><div className="sv">12</div><div className="sl">Factores estadísticos</div></div>
@@ -1552,22 +1552,40 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                         </div>
                         {(pr || userRole === "admin") && p.numeros_3?.length > 0 && (
                           <div style={{ marginTop: 8, padding: "6px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}>
-                            <div style={{ fontSize: 10, color: "#f59e0b", fontWeight: 700, marginBottom: 4 }}>🔢 3 CIFRAS</div>
+                            <div style={{ fontSize: 10, color: "#f59e0b", fontWeight: 700, marginBottom: 4 }}>🔢 3 CIFRAS {p.aciertos_3?.length > 0 && <span style={{color:"#22c55e"}}>✓ {p.aciertos_3.length} acierto{p.aciertos_3.length > 1 ? "s" : ""}</span>}</div>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                              {p.numeros_3.map((n: string, j: number) => (
-                                <span key={j} style={{ padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 700, background: "rgba(245,158,11,.12)", color: "#fbbf24", border: "1px solid rgba(245,158,11,.2)" }}>{n}</span>
-                              ))}
+                              {p.numeros_3.map((n: string, j: number) => {
+                                const hit3 = p.aciertos_3?.some((a: any) => a.numero === n);
+                                return (
+                                  <span key={j} style={{ padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 700,
+                                    background: hit3 ? "rgba(34,197,94,.2)" : "rgba(245,158,11,.12)",
+                                    color: hit3 ? "#22c55e" : "#fbbf24",
+                                    border: hit3 ? "1px solid rgba(34,197,94,.4)" : "1px solid rgba(245,158,11,.2)" }}>{n}</span>
+                                );
+                              })}
                             </div>
+                            {p.resultado_3?.length > 0 && (
+                              <div style={{fontSize:9,color:"#64748b",marginTop:4}}>Oficiales: {p.resultado_3.slice(0,5).join(", ")}{p.resultado_3.length > 5 ? "..." : ""}</div>
+                            )}
                           </div>
                         )}
                         {(pr || userRole === "admin") && p.numeros_4?.length > 0 && (
                           <div style={{ marginTop: 8, padding: "6px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}>
-                            <div style={{ fontSize: 10, color: "#a855f7", fontWeight: 700, marginBottom: 4 }}>🔢 4 CIFRAS</div>
+                            <div style={{ fontSize: 10, color: "#a855f7", fontWeight: 700, marginBottom: 4 }}>🔢 4 CIFRAS {p.aciertos_4?.length > 0 && <span style={{color:"#22c55e"}}>✓ {p.aciertos_4.length} acierto{p.aciertos_4.length > 1 ? "s" : ""}</span>}</div>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                              {p.numeros_4.map((n: string, j: number) => (
-                                <span key={j} style={{ padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 700, background: "rgba(168,85,247,.12)", color: "#c084fc", border: "1px solid rgba(168,85,247,.2)" }}>{n}</span>
-                              ))}
+                              {p.numeros_4.map((n: string, j: number) => {
+                                const hit4 = p.aciertos_4?.some((a: any) => a.numero === n);
+                                return (
+                                  <span key={j} style={{ padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 700,
+                                    background: hit4 ? "rgba(34,197,94,.2)" : "rgba(168,85,247,.12)",
+                                    color: hit4 ? "#22c55e" : "#c084fc",
+                                    border: hit4 ? "1px solid rgba(34,197,94,.4)" : "1px solid rgba(168,85,247,.2)" }}>{n}</span>
+                                );
+                              })}
                             </div>
+                            {p.resultado_4?.length > 0 && (
+                              <div style={{fontSize:9,color:"#64748b",marginTop:4}}>Oficiales: {p.resultado_4.slice(0,5).join(", ")}{p.resultado_4.length > 5 ? "..." : ""}</div>
+                            )}
                           </div>
                         )}
                         {p.resultado && p.resultado.length > 0 && (
@@ -1801,7 +1819,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               Desarrollado por <strong>EstudioWebPin</strong> · Autor: <strong>Adrian Hugo Lopez</strong>
             </div>
             <div className="dc">
-              Herramienta de analisis estadistico con fines informativos. No realiza apuestas ni maneja dinero. La Quiniela de la Ciudad es administrada por la Loteria de la Ciudad de Buenos Aires.
+              Herramienta de analisis estadistico con fines informativos. No realiza apuestas ni maneja dinero. La Quiniela Nacional es administrada por la Loteria Nacional.
               El juego en exceso puede causar adiccion. Linea gratuita: 0800-333-0062. Solo mayores de 18 anos.
             </div>
           </div>
@@ -1812,11 +1830,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           <div style={{background:"var(--card)",borderRadius:16,padding:24,maxWidth:400,width:"100%"}} onClick={e => e.stopPropagation()}>
             <div style={{fontSize:18,fontWeight:800,marginBottom:16,color:"var(--text)"}}>🔬 Cómo funciona</div>
             <div style={{fontSize:13,lineHeight:1.7,color:"var(--dim)"}}>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>1. Datos reales</strong><br/>Scrapeamos resultados oficiales de la Quiniela Nacional y Ciudad cada 15 min. Tenemos +200 sorteos históricos con todos los turnos completos.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>1. Datos reales</strong><br/>Scrapeamos resultados oficiales de la Quiniela Nacional cada 15 min. Tenemos +200 sorteos históricos con todos los turnos completos.</p>
               <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>2. 30 factores estadísticos</strong><br/>Cada número recibe un score basado en frecuencia histórica, ausencia, recencia exponencial, tendencia, ciclos, momentum, Markov, entropía, clusters, co-ocurrencia, espejos, vecinos y más. Nada es al azar.</p>
               <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>3. Monte Carlo + Ensemble dinámico</strong><br/>5.000 simulaciones estadísticas combinan los 30 factores con análisis cross-turno. Los pesos se auto-calibran según el rendimiento histórico real.</p>
               <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>4. ML: XGBoost + LightGBM</strong><br/>Modelos de Machine Learning entrenados offline con +200 sorteos reales. Extraen 25 features por número y aprenden patrones que el análisis manual no detecta.</p>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>5. Cero números aleatorios</strong><br/>No hay random. No hay "magia". Cada predicción es el resultado de cálculos matemáticos verificables sobre datos reales de la Lotería de la Ciudad.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>5. Cero números aleatorios</strong><br/>No hay random. No hay "magia". Cada predicción es el resultado de cálculos matemáticos verificables sobre datos reales de la Quiniela Nacional.</p>
               <p><strong style={{color:"var(--text)"}}>6. Resultados contrastables</strong><br/>Guardá tus predicciones y comparalas con los resultados oficiales automáticamente. Podés verificar cada acierto.</p>
             </div>
             <button onClick={() => setShowHowItWorks(false)} style={{marginTop:20,width:"100%",padding:"12px 20px",borderRadius:10,border:"none",background:"var(--red)",color:"#fff",fontWeight:700,cursor:"pointer"}}>Entendido</button>

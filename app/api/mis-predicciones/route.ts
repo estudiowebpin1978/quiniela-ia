@@ -115,7 +115,11 @@ export async function GET(req: NextRequest) {
       const draw: any = disponible ? await buscarDraw(predDate, turnoLower) : null
 
       let aciertos: any[] = []
+      let aciertos3: any[] = []
+      let aciertos4: any[] = []
       let numerosReales: string[] = []
+      let numerosReales3: string[] = []
+      let numerosReales4: string[] = []
 
       // Handle both flat array (free users) and structured object (premium users) formats
       // Premium stores as [JSON.stringify({ "2": [...], "3": [...], "4": [...] })]
@@ -132,17 +136,35 @@ export async function GET(req: NextRequest) {
       }
 
       if (draw?.numbers && Array.isArray(draw.numbers)) {
-        const digitCount = rawTurno.match(/-\d+cifras?$/i)?.[1] || "2"
-        numerosReales = draw.numbers.map((n: number) => {
-          const num = Number(n)
-          return String(num % (digitCount === "2" ? 100 : digitCount === "3" ? 1000 : 10000)).padStart(Number(digitCount) || 2, "0")
-        })
-        const predNumeros = pred2.map((n: string) => String(n).padStart(Number(digitCount) || 2, "0"))
-        aciertos = predNumeros.filter((n: string) => numerosReales.includes(n)).map((n: string) => ({
-          numero: n,
-          puesto: numerosReales.indexOf(n) + 1
+        // Generate draw results in all 3 formats
+        numerosReales = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
+        numerosReales3 = draw.numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
+        numerosReales4 = draw.numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
+
+        // Compare 2 cifras
+        const predNumeros2 = pred2.map((n: string) => String(n).padStart(2, "0"))
+        aciertos = predNumeros2.filter((n: string) => numerosReales.includes(n)).map((n: string) => ({
+          numero: n, puesto: numerosReales.indexOf(n) + 1, tipo: 2
         }))
+
+        // Compare 3 cifras
+        if (pred3.length > 0) {
+          const predNumeros3 = pred3.map((n: string) => String(n).padStart(3, "0"))
+          aciertos3 = predNumeros3.filter((n: string) => numerosReales3.includes(n)).map((n: string) => ({
+            numero: n, puesto: numerosReales3.indexOf(n) + 1, tipo: 3
+          }))
+        }
+
+        // Compare 4 cifras
+        if (pred4.length > 0) {
+          const predNumeros4 = pred4.map((n: string) => String(n).padStart(4, "0"))
+          aciertos4 = predNumeros4.filter((n: string) => numerosReales4.includes(n)).map((n: string) => ({
+            numero: n, puesto: numerosReales4.indexOf(n) + 1, tipo: 4
+          }))
+        }
       }
+
+      const allAciertos = [...aciertos, ...aciertos3, ...aciertos4]
 
       results.push({
         id: pred.id, fecha: pred.date, turno: pred.turno,
@@ -150,8 +172,13 @@ export async function GET(req: NextRequest) {
         numeros_3: pred3,
         numeros_4: pred4,
         resultado: disponible && numerosReales.length > 0 ? numerosReales.slice(0, 10) : null,
-        aciertos: disponible ? aciertos : [],
-        acerto: disponible ? aciertos.length > 0 : false,
+        resultado_3: disponible && numerosReales3.length > 0 ? numerosReales3.slice(0, 10) : null,
+        resultado_4: disponible && numerosReales4.length > 0 ? numerosReales4.slice(0, 10) : null,
+        aciertos: disponible ? allAciertos : [],
+        aciertos_2: disponible ? aciertos : [],
+        aciertos_3: disponible ? aciertos3 : [],
+        aciertos_4: disponible ? aciertos4 : [],
+        acerto: disponible ? allAciertos.length > 0 : false,
         created_at: pred.created_at,
         sorteoRealizado: !!draw
       })
