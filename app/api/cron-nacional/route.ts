@@ -179,11 +179,20 @@ async function backfillDiasFaltantes(hoy: string, expected: string, cronSecret: 
   return backfilled
 }
 
-export async function GET(req: NextRequest) {
+function isAuthorizedCron(req: NextRequest): boolean {
+  // Vercel Cron sends x-vercel-cron header
+  if (req.headers.get("x-vercel-cron") === "1") return true
+  // GitHub Actions / external cron via secret
   const secret = req.nextUrl.searchParams.get("secret") || ""
   const expected = process.env.CRON_SECRET
-  if (!expected) return NextResponse.json({ error: "CRON_SECRET no configurado" }, { status: 500 })
-  if (secret !== expected) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (secret && expected && secret === expected) return true
+  return false
+}
+
+export async function GET(req: NextRequest) {
+  if (!isAuthorizedCron(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const secret = req.nextUrl.searchParams.get("secret") || ""
+  const expected = process.env.CRON_SECRET || "quiniela_ia_cron_2024_seguro"
 
   const save = req.nextUrl.searchParams.get("save") === "true"
   const turnoParam = req.nextUrl.searchParams.get("turno") || ""

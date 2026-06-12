@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
 export async function GET(req: NextRequest) {
+  const isVercelCron = req.headers.get("x-vercel-cron") === "1"
   const secret = req.nextUrl.searchParams.get("secret") || ""
   const expected = process.env.CRON_SECRET
-  if (!expected) return NextResponse.json({ error: "CRON_SECRET no configurado" }, { status: 500 })
-  if (secret !== expected) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!isVercelCron && !(secret && expected && secret === expected)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
 
   const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ""
   const vapidPrivate = process.env.VAPID_PRIVATE_KEY || ""

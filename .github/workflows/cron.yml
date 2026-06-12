@@ -1,12 +1,6 @@
 name: Scheduled draws scraper + predictor ML
 
 on:
-  schedule:
-    # Cada 15 min en horario de sorteos (8:45 AM - 10:30 PM Argentina = 11:45-01:30 UTC)
-    - cron: '*/15 11-23 * * *'
-    - cron: '*/15 0-1 * * *'
-    # Una vez al dia a las 9:00 AM Argentina (12:00 UTC) para chequeo de vencimientos premium
-    - cron: '0 12 * * *'
   workflow_dispatch:
     inputs:
       date:
