@@ -3,10 +3,6 @@ import { NextRequest, NextResponse } from "next/server"
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wazkylxgqckjfkcmfotl.supabase.co").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
 
-const TURNO_HOURS: Record<string, number> = {
-  "previa": 10, "primera": 12, "matutina": 15, "vespertina": 18, "nocturna": 21,
-}
-
 const FERIADOS_2026 = [
   "2026-01-01","2026-02-16","2026-02-17","2026-03-24",
   "2026-04-02","2026-04-03","2026-05-01","2026-05-25",
@@ -41,15 +37,9 @@ async function checkResultadosEnDB(dateStr: string, turno: string): Promise<{ di
 
 async function hasResultadosDisponibles(dateStr: string, turnoLower: string): Promise<boolean> {
   if (isDiaSinSorteo(dateStr)) return false
-  // Si ya estan en DB, disponibles inmediatamente
+  // Solo disponible si ya está en la DB con números válidos
   const enDB = await checkResultadosEnDB(dateStr, turnoLower)
-  if (enDB.disponible) return true
-  // Fallback: check time buffer (15min despues de la hora del sorteo)
-  const hour = TURNO_HOURS[turnoLower]
-  if (!hour) return false
-  const [y, m, d] = dateStr.split("-").map(Number)
-  const drawDate = new Date(Date.UTC(y, m - 1, d, hour + 3, 15, 0)) // UTC+3 + 15min buffer
-  return new Date() > drawDate
+  return enDB.disponible
 }
 
 async function buscarDraw(dateStr: string, turnoLower: string): Promise<any> {
