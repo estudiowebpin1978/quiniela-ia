@@ -1,10 +1,6 @@
 {
   "crons": [
     {
-      "path": "/api/cron-scrape",
-      "schedule": "*/15 11-23 * * *"
-    },
-    {
       "path": "/api/cron-premium-expiry",
       "schedule": "0 12 * * *"
     }
