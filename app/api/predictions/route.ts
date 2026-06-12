@@ -17,6 +17,7 @@ import { runMonteCarlo } from "@/lib/analisis/montecarlo"
 import { detectDrift, adjustWeightsForDrift } from "@/lib/analisis/drift"
 import { stackingEnsemble } from "@/lib/analisis/stacking"
 import { calculateSeasonalScores } from "@/lib/analisis/seasonal"
+import { bayesianAnalysis, bayesianConfidence, bayesianCredibleSet } from "@/lib/analisis/bayesian"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -158,7 +159,7 @@ export async function GET(req: NextRequest) {
     const monteCarloTop = runMonteCarlo(sequences, { simulations: 5000, topN: 100 })
 
     // === ENSEMBLE: 30 FACTORES + CROSS-TURNO + MONTE CARLO + ML ===
-    const scores: { num: number, score: number, confianza: number, factores: string[], frecuencia: number, crossTurno: number, pesoAjustado: number }[] = []
+    const scores: { num: number, score: number, confianza: number, factores: string[], frecuencia: number, crossTurno: number, pesoAjustado: number, bayesianConfidence?: number, bayesianPosterior?: number, bayesianCiWidth?: number }[] = []
 
     // Build frequency map for reference
     const freq: Record<number, number> = {}
@@ -311,13 +312,29 @@ export async function GET(req: NextRequest) {
     const pred3 = analisisAv.recomendaciones.tresCifras.slice(0, 10).map(r => r.numero.padStart(3, '0'))
     const pred4 = analisisAv.recomendaciones.cuatroCifras.slice(0, 10).map(r => r.numero.padStart(4, '0'))
 
+    // === BAYESIAN UNCERTAINTY ===
+    let bayesian;
+    try {
+      bayesian = bayesianAnalysis(sequences, 10, 1);
+      const bayesianConf = bayesianConfidence(bayesian.credibleIntervals, bayesian.posterior);
+      // Update confianza with Bayesian values
+      for (let i = 0; i < scores.length; i++) {
+        const s = scores[i];
+        s.bayesianConfidence = bayesianConf[s.num] || s.confianza;
+        s.bayesianPosterior = bayesian.posterior[s.num] || 0;
+        s.bayesianCiWidth = (bayesian.credibleIntervals[s.num]?.hi || 0.01) - (bayesian.credibleIntervals[s.num]?.lo || 0);
+      }
+    } catch {}
+
     // Top 10 con información completa
     const top20 = scores.slice(0, 10).map((s, i) => ({
       n: s.num, numero: pad(s.num),
       emoji: SUENOS[s.num]?.emoji || "❓",
       significado: SUENOS[s.num]?.nombre || "",
       score: s.score, confianza: s.confianza, rank: i + 1,
-      frecuencia: s.frecuencia, factores: s.factores
+      frecuencia: s.frecuencia, factores: s.factores,
+      bayesianConfidence: (s as any).bayesianConfidence,
+      bayesianPosterior: (s as any).bayesianPosterior,
     }))
 
     // Redoblona (dos mejores score de 2 cifras)
@@ -333,7 +350,10 @@ export async function GET(req: NextRequest) {
     }))
 
     const uniqueDates = [...new Set(dates)].sort().reverse()
-    const confidence = Math.round((scores.slice(0, 10).reduce((sum, s) => sum + s.confianza, 0) / 10))
+    // Use Bayesian confidence if available, fallback to calibrated
+    const confidence = bayesian
+      ? Math.round((scores.slice(0, 10).reduce((sum, s) => sum + ((s as any).bayesianConfidence || s.confianza), 0) / 10))
+      : Math.round((scores.slice(0, 10).reduce((sum, s) => sum + s.confianza, 0) / 10))
 
     console.log(`[30 FACTORES] Total números: ${terminaciones2.length}, Sorteos: ${sequences.length}`)
     console.log(`[30 FACTORES] Top 3: ${scores.slice(0, 3).map(s => `${s.num}:${s.score.toFixed(2)}`).join(', ')}`)
@@ -344,7 +364,7 @@ export async function GET(req: NextRequest) {
       turno: turnoQuery,
       debug: {
         factores_aplicados: 30,
-        motor: "30 factores + Monte Carlo + Ensemble dinámico + Drift + Seasonal",
+        motor: "30 factores + Monte Carlo + Ensemble dinámico + Drift + Seasonal + Bayesian",
         pesos_dinamicos: pesosDinamicos ? Object.fromEntries(Object.entries(pesosDinamicos).map(([k, v]) => [k, +(v * 100).toFixed(1)])) : null,
         cross_turno_activo: Object.values(crossTurnoScore).some(v => v > 0),
         calibracion_aplicada: true,
@@ -364,6 +384,15 @@ export async function GET(req: NextRequest) {
           mes: new Date().getMonth() + 1,
           dia: new Date().getDate()
         },
+        bayesian: bayesian ? {
+          activo: true,
+          effectiveSampleSize: bayesian.effectiveSampleSize,
+          entropy: Math.round(bayesian.entropy * 100) / 100,
+          posteriorMassTopN: Math.round(bayesian.posteriorMassTopN * 10000) / 100,
+          topCredible: bayesianCredibleSet(bayesian.posterior, bayesian.credibleIntervals, 10).slice(0, 5).map(c => ({
+            numero: pad(c.num), posterior: (c.posterior * 100).toFixed(2) + "%", ciWidth: (c.ciWidth * 100).toFixed(2) + "%"
+          }))
+        } : null,
         total_numeros: terminaciones2.length,
         numeros_unicos: Object.keys(freq).length,
         sorteos_analizados: sequences.length,
@@ -393,7 +422,7 @@ export async function GET(req: NextRequest) {
         terminacionesMasFrecuentes: scores.slice(0, 5).map(s => ({ terminacion: s.num, frecuencia: s.frecuencia, score: s.score.toFixed(2) })),
       },
       analysisInfo: {
-        metodo: `Motor avanzado: 30 factores + Monte Carlo (5000 sims) + Ensemble dinámico + ML (Markov, RF, Neural, XGBoost) - turno ${turnoQuery.toUpperCase()}`,
+        metodo: `Motor avanzado: 30 factores + Monte Carlo (5000 sims) + Ensemble dinámico + ML (Markov, RF, Neural, XGBoost) + Bayesian uncertainty - turno ${turnoQuery.toUpperCase()}`,
         factores: [
           "1. Frecuencia histórica (8%)",
           "2. Frecuencia últimos 100 sorteos (10%)",
@@ -427,7 +456,8 @@ export async function GET(req: NextRequest) {
           "30. Predicción IA (10%)",
           "31. Cross-turno (arrastre)",
           "32. XGBoost Python",
-          "33. Monte Carlo (5000 sims)"
+          "33. Monte Carlo (5000 sims)",
+          "34. Bayesian uncertainty (Dirichlet posterior)"
         ],
         datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} terminaciones de 2 cifras + ${sorteos.length} sorteos para scoring de 3/4 cifras`,
         confianzaAvanzada: {

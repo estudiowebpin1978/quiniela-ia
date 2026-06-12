@@ -1163,7 +1163,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               </div>
               {tab === "pred" && (
                 <>
-                  <div className="sec">Motor de 30 factores estadísticos</div>
+                  <div className="sec">Motor de 30 factores + Bayesian uncertainty</div>
                   <div className="dtabs">
                     <button className={"dk dk-2" + (dg === 2 ? " on" : "")} onClick={() => setDg(2)}>
                       2 cifras
@@ -1862,6 +1862,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 <div style={{fontSize:18,fontWeight:900,color:"#4ade80"}}>{numDetail.frecuencia || numDetail.frecuencia === 0 ? numDetail.frecuencia : "—"}</div>
                 <div style={{fontSize:9,color:"#86efac",fontWeight:700,textTransform:"uppercase"}}>Frecuencia</div>
               </div>
+              {numDetail.bayesianConfidence != null && (
+                <div style={{background:"rgba(236,72,153,.12)",borderRadius:10,padding:"8px 14px",textAlign:"center"}}>
+                  <div style={{fontSize:18,fontWeight:900,color:"#f472b6"}}>{numDetail.bayesianConfidence}%</div>
+                  <div style={{fontSize:9,color:"#f9a8d4",fontWeight:700,textTransform:"uppercase"}}>Bayesian</div>
+                </div>
+              )}
             </div>
             <div style={{fontSize:11,color:"var(--dim)",lineHeight:1.8,borderTop:"1px solid rgba(255,255,255,.06)",paddingTop:12}}>
               <strong style={{color:"var(--text)"}}>¿Por qué este número?</strong>
@@ -1869,6 +1875,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 <li>Ranking <strong style={{color:"#a855f7"}}>#{numDetail.rank || "—"}</strong> en el análisis general</li>
                 {numDetail.frecuencia != null && <li>Apareció <strong style={{color:"#4ade80"}}>{numDetail.frecuencia} veces</strong> en el histórico</li>}
                 {numDetail.confianza != null && <li>Confianza del <strong style={{color:"#818cf8"}}>{numDetail.confianza}%</strong></li>}
+                {numDetail.bayesianPosterior != null && <li>Posterior Bayesiano: <strong style={{color:"#f472b6"}}>{(numDetail.bayesianPosterior * 100).toFixed(3)}%</strong></li>}
                 {numDetail.score != null && <li>Score compuesto: <strong style={{color:"#a855f7"}}>{(numDetail.score * 100).toFixed(1)}%</strong></li>}
                 {numDetail.factores?.length > 0 && <li>Factores adicionales: {numDetail.factores.slice(0,3).join(", ")}{numDetail.factores.length > 3 ? "..." : ""}</li>}
               </ul>
