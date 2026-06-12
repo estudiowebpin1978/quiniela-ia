@@ -105,13 +105,12 @@ function factorFrecuenciaHistorica(sequences: number[][]): Record<number, number
 }
 
 // ============================================
-// FACTOR 2: Frecuencia últimos 100 sorteos
+// FACTOR 2: Frecuencia histórica (mismo que factor 1, peso distinto)
 // ============================================
 function factorFrecuencia100(sequences: number[][]): Record<number, number> {
-  const recent = sequences.slice(0, 100)
   const freq: Record<number, number> = {}
   let total = 0
-  for (const seq of recent) {
+  for (const seq of sequences) {
     for (const n of seq) {
       const t = n % 100
       freq[t] = (freq[t] || 0) + 1
@@ -127,12 +126,11 @@ function factorFrecuencia100(sequences: number[][]): Record<number, number> {
 }
 
 // ============================================
-// FACTOR 3: Frecuencia últimos 20 sorteos
+// FACTOR 3: Frecuencia histórica (mismo que factor 1, peso distinto)
 // ============================================
 function factorFrecuencia20(sequences: number[][]): Record<number, number> {
-  const recent = sequences.slice(0, 20)
   const freq: Record<number, number> = {}
-  for (const seq of recent) {
+  for (const seq of sequences) {
     for (const n of seq) {
       const t = n % 100
       freq[t] = (freq[t] || 0) + 1
@@ -189,24 +187,25 @@ function factorRecenciaExponencial(sequences: number[][]): Record<number, number
 }
 
 // ============================================
-// FACTOR 6: Tendencia
+// FACTOR 6: Tendencia (primera mitad vs segunda mitad del histórico)
 // ============================================
 function factorTendencia(sequences: number[][]): Record<number, number> {
-  const recent = sequences.slice(0, 7)
-  const previous = sequences.slice(7, 14)
-  const freqRecent: Record<number, number> = {}
-  const freqPrevious: Record<number, number> = {}
-  for (const seq of recent) {
-    for (const n of seq) { freqRecent[n % 100] = (freqRecent[n % 100] || 0) + 1 }
+  const mid = Math.floor(sequences.length / 2)
+  const firstHalf = sequences.slice(0, mid)
+  const secondHalf = sequences.slice(mid)
+  const freqFirst: Record<number, number> = {}
+  const freqSecond: Record<number, number> = {}
+  for (const seq of firstHalf) {
+    for (const n of seq) { freqFirst[n % 100] = (freqFirst[n % 100] || 0) + 1 }
   }
-  for (const seq of previous) {
-    for (const n of seq) { freqPrevious[n % 100] = (freqPrevious[n % 100] || 0) + 1 }
+  for (const seq of secondHalf) {
+    for (const n of seq) { freqSecond[n % 100] = (freqSecond[n % 100] || 0) + 1 }
   }
   const scores: Record<number, number> = {}
   for (let i = 0; i < 100; i++) {
-    const r = (freqRecent[i] || 0) / Math.max(recent.length, 1)
-    const p = (freqPrevious[i] || 0) / Math.max(previous.length, 1)
-    const diff = r - p
+    const f1 = (freqFirst[i] || 0) / Math.max(firstHalf.length, 1)
+    const f2 = (freqSecond[i] || 0) / Math.max(secondHalf.length, 1)
+    const diff = f2 - f1  // positiva = sube en segunda mitad
     scores[i] = diff > 0 ? 0.5 + Math.min(0.5, diff * 10) : 0.5 - Math.min(0.5, Math.abs(diff) * 10)
   }
   return scores
@@ -295,18 +294,20 @@ function factorDesviacionIntervalos(sequences: number[][]): Record<number, numbe
 }
 
 // ============================================
-// FACTOR 10: Momentum
+// FACTOR 10: Momentum (tasa primera mitad vs segunda mitad del histórico)
 // ============================================
 function factorMomentum(sequences: number[][]): Record<number, number> {
+  const mid = Math.floor(sequences.length / 2)
+  const firstHalf = sequences.slice(0, mid)
+  const secondHalf = sequences.slice(mid)
   const scores: Record<number, number> = {}
   for (let i = 0; i < 100; i++) {
-    let count7 = 0, count30 = 0
-    sequences.slice(0, 7).forEach(seq => { if (seq.includes(i)) count7++ })
-    sequences.slice(0, 30).forEach(seq => { if (seq.includes(i)) count30++ })
-    const rate7 = count7 / 7
-    const rate30 = count30 / 30
-    // Momentum = how much recent rate exceeds longer-term rate
-    const momentum = rate30 > 0 ? (rate7 - rate30) / rate30 : 0
+    const countFirst = firstHalf.filter(seq => seq.includes(i)).length
+    const countSecond = secondHalf.filter(seq => seq.includes(i)).length
+    const rateFirst = countFirst / Math.max(firstHalf.length, 1)
+    const rateSecond = countSecond / Math.max(secondHalf.length, 1)
+    // Momentum = cómo cambia la tasa en la segunda mitad vs primera
+    const momentum = rateFirst > 0 ? (rateSecond - rateFirst) / rateFirst : 0
     scores[i] = Math.max(0, Math.min(1, 0.5 + momentum * 2))
   }
   return scores
@@ -352,11 +353,11 @@ function factorRebote(sequences: number[][]): Record<number, number> {
 }
 
 // ============================================
-// FACTOR 13: Hot Numbers
+// FACTOR 13: Hot Numbers (frecuencia total histórica)
 // ============================================
 function factorHotNumbers(sequences: number[][]): Record<number, number> {
   const freq: Record<number, number> = {}
-  sequences.slice(0, 10).forEach(seq => {
+  sequences.forEach(seq => {
     for (const n of seq) { freq[n % 100] = (freq[n % 100] || 0) + 1 }
   })
   const maxFreq = Math.max(...Object.values(freq), 1)
@@ -738,31 +739,31 @@ function factorEntropia(sequences: number[][]): Record<number, number> {
 }
 
 // ============================================
-// FACTOR 29: Clusters K-Means
+// FACTOR 29: Clusters K-Means (patrón frecuencia primera vs segunda mitad)
 // ============================================
 function factorClusters(sequences: number[][]): Record<number, number> {
-  // Simple clustering: group numbers by frequency pattern
-  const recentFreq: Record<number, number> = {}
-  const longFreq: Record<number, number> = {}
-  sequences.slice(0, 20).forEach(seq => {
-    for (const n of seq) recentFreq[n % 100] = (recentFreq[n % 100] || 0) + 1
+  const mid = Math.floor(sequences.length / 2)
+  const firstHalf = sequences.slice(0, mid)
+  const secondHalf = sequences.slice(mid)
+  const firstFreq: Record<number, number> = {}
+  const secondFreq: Record<number, number> = {}
+  firstHalf.forEach(seq => {
+    for (const n of seq) firstFreq[n % 100] = (firstFreq[n % 100] || 0) + 1
   })
-  sequences.forEach(seq => {
-    for (const n of seq) longFreq[n % 100] = (longFreq[n % 100] || 0) + 1
+  secondHalf.forEach(seq => {
+    for (const n of seq) secondFreq[n % 100] = (secondFreq[n % 100] || 0) + 1
   })
-  // Normalize to [0,1]
-  const maxRecent = Math.max(...Object.values(recentFreq), 1)
-  const maxLong = Math.max(...Object.values(longFreq), 1)
-  // Simple cluster assignment based on recent vs long freq
+  const maxFirst = Math.max(...Object.values(firstFreq), 1)
+  const maxSecond = Math.max(...Object.values(secondFreq), 1)
   const scores: Record<number, number> = {}
   for (let i = 0; i < 100; i++) {
-    const r = (recentFreq[i] || 0) / maxRecent
-    const l = (longFreq[i] || 0) / maxLong
-    // High recent + low long = emerging (good)
-    // High recent + high long = consistently hot (good)
-    // Low recent + high long = cooling off (medium)
-    // Low recent + low long = cold (low)
-    scores[i] = r * 0.6 + l * 0.4
+    const f1 = (firstFreq[i] || 0) / maxFirst
+    const f2 = (secondFreq[i] || 0) / maxSecond
+    // Emerging in second half (low first, high second) = good
+    // Consistently high = good
+    // Cooling off = medium
+    // Cold = low
+    scores[i] = f2 * 0.6 + f1 * 0.4
   }
   return scores
 }
