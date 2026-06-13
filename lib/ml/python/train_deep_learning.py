@@ -233,12 +233,12 @@ def train_and_export(turno):
 
     # === BNN (MC Dropout) ===
     print(f"    Training BNN (MC Dropout)...")
-    X_flat = X.reshape(len(X), -1)
+    X_train_flat = X_train.reshape(len(X_train), -1)
     X_test_flat = X_test.reshape(len(X_test), -1)
     last_flat = last_seq.reshape(1, -1)
 
     bnn = build_bnn_model()
-    bnn.fit(X_flat, y_train, epochs=30, batch_size=32, validation_data=(X_test_flat, y_test), verbose=0)
+    bnn.fit(X_train_flat, y_train, epochs=30, batch_size=32, validation_data=(X_test_flat, y_test), verbose=0)
 
     # MC Dropout prediction
     bnn_mean, bnn_std = mc_dropout_predict(bnn, last_flat, n_forward=50)
