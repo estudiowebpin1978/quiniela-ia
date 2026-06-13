@@ -121,7 +121,6 @@ export async function GET(req: NextRequest) {
   let guardados = 0
 
   for (const turno of TURNOS) {
-    if (turno === "Previa" && diaSemana === 6) continue
     if (await tieneDraw(fechaISO, turno)) continue
 
     const nums = await scrapeTurnoFast(fUrl, turno)
