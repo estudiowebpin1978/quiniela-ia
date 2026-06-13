@@ -1,0 +1,8 @@
+node_modules
+.venv-py312
+.git
+*.log
+__pycache__
+*.pyc
+modelos_exportados/lstm_*.json
+modelos_exportados/xgboost_*.json
