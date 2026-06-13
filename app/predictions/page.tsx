@@ -1728,7 +1728,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               <div className="pay-price-outer">
                 <div className="pay-price">$10.000</div>
               </div>
-              <div style={{fontSize:11,color:"var(--dim)",marginBottom:14}}>Pago único · Activación permanente · Sin suscripción</div>
+              <div style={{fontSize:11,color:"var(--dim)",marginBottom:14}}>Acceso 30 días · Sin suscripción automática · $10.000 ARS</div>
               <div 
                 className="pay-alias" 
                 onClick={() => navigator.clipboard.writeText("quiniela.ia").then(() => alert("Alias copiado: quiniela.ia"))}
