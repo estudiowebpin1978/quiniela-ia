@@ -12,6 +12,10 @@ import requests
 import numpy as np
 from datetime import datetime
 
+# Load .env.local
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from config import SUPABASE_URL, SUPABASE_KEY
+
 # Optional imports with fallback
 try:
     import lightgbm as lgb
@@ -30,11 +34,8 @@ except ImportError:
 from sklearn.model_selection import cross_val_score
 from sklearn.metrics import accuracy_score, log_loss
 
-SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-
 if not SUPABASE_KEY:
-    print("ERROR: SUPABASE_SERVICE_ROLE_KEY env var required")
+    print("ERROR: SUPABASE_SERVICE_ROLE_KEY not found in .env.local")
     sys.exit(1)
 
 EXPORT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "modelos_exportados")

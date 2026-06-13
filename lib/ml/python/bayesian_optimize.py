@@ -7,6 +7,10 @@ Output: modelos_exportados/optimizer_results.json
 import os, json, sys
 import numpy as np
 
+# Load .env.local
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from config import SUPABASE_URL, SUPABASE_KEY
+
 try:
     import optuna
     optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -20,9 +24,6 @@ try:
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
-
-SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
 EXPORT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "modelos_exportados")
 os.makedirs(EXPORT_DIR, exist_ok=True)
