@@ -21,6 +21,7 @@ import { bayesianAnalysis, bayesianConfidence, bayesianCredibleSet } from "@/lib
 import { analyzeCorrelations } from "@/lib/analisis/correlation"
 import { higherOrderMarkov } from "@/lib/analisis/markov-superior"
 import { detectCyclicPatterns } from "@/lib/analisis/cyclic"
+import { crossValidateWeights, MetaWeights } from "@/lib/analisis/meta-learner"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -192,6 +193,40 @@ export async function GET(req: NextRequest) {
     const freq: Record<number, number> = {}
     for (const t of terminaciones2) { freq[t] = (freq[t] || 0) + 1 }
 
+    // === META-LEARNER: Cross-validated weights ===
+    let metaWeights: MetaWeights | null = null
+    try {
+      // Build score arrays for cross-validation
+      const nSeq = sequences.length
+      const factorScoreArr: number[][] = []
+      const mcScoreArr: number[][] = []
+      const crossScoreArr: number[][] = []
+      const seasonalScoreArr: number[][] = []
+      const corrScoreArr: number[][] = []
+      const markovScoreArr: number[][] = []
+      const cyclicScoreArr: number[][] = []
+
+      for (let i = 0; i < nSeq; i++) {
+        factorScoreArr.push(Object.values(factores30.scores).slice(0, 100).map(Number))
+        mcScoreArr.push(monteCarloTop.map(r => r.probability))
+        crossScoreArr.push(new Array(100).fill(0))
+        seasonalScoreArr.push(new Array(100).fill(0.5))
+        corrScoreArr.push(correlationScores)
+        markovScoreArr.push(markovSuperScores)
+        cyclicScoreArr.push(cyclicScores)
+      }
+      metaWeights = crossValidateWeights(
+        sequences, factorScoreArr, mcScoreArr, crossScoreArr,
+        seasonalScoreArr, corrScoreArr, markovScoreArr, cyclicScoreArr
+      )
+    } catch {}
+
+    // Use meta-learned weights or fallback to defaults
+    const W = metaWeights || {
+      factores30: 0.40, montecarlo: 0.20, crossTurno: 0.10,
+      seasonal: 0.06, correlation: 0.08, markovSuperior: 0.10, cyclic: 0.06
+    }
+
     for (let n = 0; n < 100; n++) {
       // 30-factor score
       const factorScore = factores30.scores[n] || 0
@@ -219,15 +254,15 @@ export async function GET(req: NextRequest) {
       const markovSupScore = markovSuperScores[n] || 0.5
       const cyclicScore = cyclicScores[n] || 0.5
 
-      // Ensemble combination (with all features)
+      // Ensemble combination (meta-learned weights)
       const scoreFinal = (
-        factorScore * 0.40 * driftFactor +
-        mcScore * 0.20 +
-        crossBoost * 0.10 +
-        (seasonScore - 0.5) * 0.06 +
-        corrScore * 0.08 +
-        markovSupScore * 0.10 +
-        (cyclicScore - 0.5) * 0.06
+        factorScore * W.factores30 * driftFactor +
+        mcScore * W.montecarlo +
+        crossBoost * W.crossTurno +
+        (seasonScore - 0.5) * W.seasonal +
+        corrScore * W.correlation +
+        markovSupScore * W.markovSuperior +
+        (cyclicScore - 0.5) * W.cyclic
       ) * ajustePeso
 
       // Get factor details
@@ -401,6 +436,15 @@ export async function GET(req: NextRequest) {
         factores_aplicados: 30,
         motor: "30 factores + Monte Carlo + Ensemble dinámico + Drift + Seasonal + Bayesian + Correlation + Markov4 + Cyclic",
         pesos_dinamicos: pesosDinamicos ? Object.fromEntries(Object.entries(pesosDinamicos).map(([k, v]) => [k, +(v * 100).toFixed(1)])) : null,
+        meta_weights: metaWeights ? {
+          factores30: +(W.factores30 * 100).toFixed(1),
+          montecarlo: +(W.montecarlo * 100).toFixed(1),
+          crossTurno: +(W.crossTurno * 100).toFixed(1),
+          seasonal: +(W.seasonal * 100).toFixed(1),
+          correlation: +(W.correlation * 100).toFixed(1),
+          markovSuperior: +(W.markovSuperior * 100).toFixed(1),
+          cyclic: +(W.cyclic * 100).toFixed(1),
+        } : null,
         cross_turno_activo: Object.values(crossTurnoScore).some(v => v > 0),
         calibracion_aplicada: true,
         modelos_python_activos: boostPythonActivo,
