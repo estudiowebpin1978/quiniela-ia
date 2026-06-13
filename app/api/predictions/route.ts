@@ -22,6 +22,7 @@ import { analyzeCorrelations } from "@/lib/analisis/correlation"
 import { higherOrderMarkov } from "@/lib/analisis/markov-superior"
 import { detectCyclicPatterns } from "@/lib/analisis/cyclic"
 import { crossValidateWeights, MetaWeights } from "@/lib/analisis/meta-learner"
+import { getDeepLearningBoost, getPredictionUncertainty } from "@/lib/ml/deep-learning-loader"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -254,7 +255,11 @@ export async function GET(req: NextRequest) {
       const markovSupScore = markovSuperScores[n] || 0.5
       const cyclicScore = cyclicScores[n] || 0.5
 
-      // Ensemble combination (meta-learned weights)
+      // Deep Learning boost (LSTM + Transformer + BNN)
+      const dlBoost = getDeepLearningBoost(turnoQuery, n)
+      const dlUncertainty = getPredictionUncertainty(turnoQuery, n)
+
+      // Ensemble combination (meta-learned weights + deep learning)
       const scoreFinal = (
         factorScore * W.factores30 * driftFactor +
         mcScore * W.montecarlo +
@@ -262,7 +267,8 @@ export async function GET(req: NextRequest) {
         (seasonScore - 0.5) * W.seasonal +
         corrScore * W.correlation +
         markovSupScore * W.markovSuperior +
-        (cyclicScore - 0.5) * W.cyclic
+        (cyclicScore - 0.5) * W.cyclic +
+        dlBoost * 0.15 * (1 - dlUncertainty)  // DL boost weighted by confidence
       ) * ajustePeso
 
       // Get factor details
