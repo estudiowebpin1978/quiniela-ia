@@ -84,6 +84,24 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[]): Pro
   return r.ok
 }
 
+async function limpiarPrediccionesViejas(): Promise<number> {
+  const hace24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  try {
+    const r = await fetch(
+      `${SB()}/rest/v1/user_predictions?created_at=lt.${hace24h}&select=id`,
+      { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` }, signal: AbortSignal.timeout(8000) }
+    )
+    const old = await r.json()
+    if (!Array.isArray(old) || old.length === 0) return 0
+    const ids = old.map((p: any) => p.id)
+    const d = await fetch(
+      `${SB()}/rest/v1/user_predictions?id=in.(${ids.join(",")})`,
+      { method: "DELETE", headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}`, "Prefer": "return=minimal" }, signal: AbortSignal.timeout(8000) }
+    )
+    return d.ok ? ids.length : 0
+  } catch { return 0 }
+}
+
 export async function GET(req: NextRequest) {
   const isVercelCron = req.headers.get("x-vercel-cron") === "1"
   const secret = req.nextUrl.searchParams.get("secret") || ""
@@ -115,10 +133,15 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Limpiar predicciones de usuarios mayores a 24hs
+  let eliminadas = 0
+  try { eliminadas = await limpiarPrediccionesViejas() } catch {}
+
   return NextResponse.json({
     ok: true,
     fecha: fechaISO,
     guardados,
+    eliminadas,
     resultados,
     message: guardados > 0 ? `${guardados} sorteos guardados` : "Sin nuevos sorteos"
   })
