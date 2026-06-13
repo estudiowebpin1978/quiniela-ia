@@ -23,6 +23,7 @@ import { higherOrderMarkov } from "@/lib/analisis/markov-superior"
 import { detectCyclicPatterns } from "@/lib/analisis/cyclic"
 import { crossValidateWeights, MetaWeights } from "@/lib/analisis/meta-learner"
 import { getDeepLearningBoost, getPredictionUncertainty } from "@/lib/ml/deep-learning-loader"
+import { analyzeGraph } from "@/lib/analisis/graph"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -187,6 +188,14 @@ export async function GET(req: NextRequest) {
       cyclicScores = cyclicResult.scores
     } catch {}
 
+    // === GRAPH ANALYSIS ===
+    let graphScores = new Array(100).fill(0.5)
+    let graphResult: ReturnType<typeof analyzeGraph> | null = null
+    try {
+      graphResult = analyzeGraph(sequences)
+      graphScores = graphResult.scores
+    } catch {}
+
     // === ENSEMBLE: 30 FACTORES + CROSS-TURNO + MONTE CARLO + ML ===
     const scores: { num: number, score: number, confianza: number, factores: string[], frecuencia: number, crossTurno: number, pesoAjustado: number, bayesianConfidence?: number, bayesianPosterior?: number, bayesianCiWidth?: number }[] = []
 
@@ -259,7 +268,10 @@ export async function GET(req: NextRequest) {
       const dlBoost = getDeepLearningBoost(turnoQuery, n)
       const dlUncertainty = getPredictionUncertainty(turnoQuery, n)
 
-      // Ensemble combination (meta-learned weights + deep learning)
+      // Graph model score
+      const graphScore = graphScores[n] || 0.5
+
+      // Ensemble combination (all features + deep learning + graph)
       const scoreFinal = (
         factorScore * W.factores30 * driftFactor +
         mcScore * W.montecarlo +
@@ -268,7 +280,8 @@ export async function GET(req: NextRequest) {
         corrScore * W.correlation +
         markovSupScore * W.markovSuperior +
         (cyclicScore - 0.5) * W.cyclic +
-        dlBoost * 0.15 * (1 - dlUncertainty)  // DL boost weighted by confidence
+        dlBoost * 0.12 * (1 - dlUncertainty) +
+        graphScore * 0.08
       ) * ajustePeso
 
       // Get factor details
@@ -440,7 +453,7 @@ export async function GET(req: NextRequest) {
       turno: turnoQuery,
       debug: {
         factores_aplicados: 30,
-        motor: "30 factores + Monte Carlo + Ensemble dinámico + Drift + Seasonal + Bayesian + Correlation + Markov4 + Cyclic",
+        motor: "30 factores + Monte Carlo + Ensemble dinámico + Drift + Seasonal + Bayesian + Correlation + Markov4 + Cyclic + Graph + Deep Learning",
         pesos_dinamicos: pesosDinamicos ? Object.fromEntries(Object.entries(pesosDinamicos).map(([k, v]) => [k, +(v * 100).toFixed(1)])) : null,
         meta_weights: metaWeights ? {
           factores30: +(W.factores30 * 100).toFixed(1),
@@ -495,6 +508,13 @@ export async function GET(req: NextRequest) {
           topPatterns: cyclicResult.dominantFrequencies.slice(0, 5).map(f => ({
             numero: pad(f.num), period: f.period, strength: (f.strength * 100).toFixed(1) + "%"
           }))
+        } : null,
+        graph: graphResult ? {
+          activo: true,
+          topPageRank: graphResult.pagerank.map((p, i) => ({ n: i, p }))
+            .sort((a, b) => b.p - a.p).slice(0, 5)
+            .map(x => ({ numero: pad(x.n), score: (x.p * 100).toFixed(1) + "%" })),
+          communities: new Set(graphResult.communities).size
         } : null,
         total_numeros: terminaciones2.length,
         numeros_unicos: Object.keys(freq).length,
