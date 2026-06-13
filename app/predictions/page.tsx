@@ -1008,8 +1008,13 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           {showCalc && (
             <div style={{ marginTop: 12, padding: 14, background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(34,197,94,.05))", borderRadius: 12, border: "1px solid rgba(34,197,94,.4)", textAlign: "center" }}>
               <div style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", marginBottom: 6 }}>💡 ESTRATEGIA RECOMENDADA</div>
-              <div style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>Apostá a la CABEZA (1°) + los 10 números</div>
-              <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>El 1° número es la predicción con mayor score de 30 factores. Los 10 son el top del ensemble matemático.</div>
+              <div style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>Jugá los 10 números a la CABEZA (1°) y al 20°</div>
+              <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>Los 10 son el top del ensemble matemático. Apostar a 1° y 20° cubre mayor margen de aciertos.</div>
+              {pr && (
+                <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 6, fontWeight: 700 }}>
+                  ✨ Premium: jugá las 5 de 3 cifras y las 5 de 4 cifras a la cabeza (1°) y al 20°
+                </div>
+              )}
             </div>
           )}
           {misSummary.totalSaved > 0 && (
