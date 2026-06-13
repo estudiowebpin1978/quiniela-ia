@@ -17,57 +17,6 @@ function isDiaSinSorteo(dateStr: string): boolean {
   return false
 }
 
-// Primero busca en DB, si hay resultados ya estan disponibles.
-// Si no hay en DB, usa time check con buffer minimo.
-async function checkResultadosEnDB(dateStr: string, turno: string): Promise<{ disponible: boolean; numeros?: number[] }> {
-  const turnoNormalized = turno.charAt(0).toUpperCase() + turno.slice(1)
-  try {
-    const res = await fetch(
-      `${SB()}/rest/v1/draws?date=eq.${dateStr}&turno=eq.${encodeURIComponent(turnoNormalized)}&select=numbers&limit=1`,
-      { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` }, signal: AbortSignal.timeout(5000) }
-    )
-    if (!res.ok) return { disponible: false }
-    const draws = await res.json()
-    if (draws?.[0]?.numbers && Array.isArray(draws[0].numbers) && draws[0].numbers.length >= 5) {
-      return { disponible: true, numeros: draws[0].numbers }
-    }
-  } catch {}
-  return { disponible: false }
-}
-
-async function hasResultadosDisponibles(dateStr: string, turnoLower: string): Promise<boolean> {
-  if (isDiaSinSorteo(dateStr)) return false
-  // Solo disponible si ya está en la DB con números válidos
-  const enDB = await checkResultadosEnDB(dateStr, turnoLower)
-  return enDB.disponible
-}
-
-async function buscarDraw(dateStr: string, turnoLower: string): Promise<any> {
-  // Normalize turno: capitalize first letter (DB stores "Nocturna", "Matutina", etc.)
-  const turnoNormalized = turnoLower.charAt(0).toUpperCase() + turnoLower.slice(1)
-
-  // Exact match by date + turno
-  const res = await fetch(
-    `${SB()}/rest/v1/draws?date=eq.${dateStr}&turno=eq.${encodeURIComponent(turnoNormalized)}&select=numbers,turno&limit=1`,
-    { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` } }
-  )
-  let draws = await res.json()
-  if (draws?.[0]) return draws[0]
-
-  // Fallback: case-insensitive exact match
-  const res2 = await fetch(
-    `${SB()}/rest/v1/draws?date=eq.${dateStr}&select=numbers,turno&limit=10`,
-    { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` } }
-  )
-  const draws2 = await res2.json()
-  if (draws2?.length > 0) {
-    return draws2.find((d: any) =>
-      (d.turno || "").toLowerCase().trim() === turnoLower
-    ) || null
-  }
-  return null
-}
-
 export async function GET(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
   if (!token) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
@@ -86,23 +35,58 @@ export async function GET(req: NextRequest) {
       { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` } }
     )
     const predictions = await predRes.json()
-    console.log(`mis-predicciones: ${userId} → ${predRes.status}, predictions=${Array.isArray(predictions) ? predictions.length : typeof predictions}`)
-    if (!Array.isArray(predictions)) {
-      console.error("mis-predicciones error:", JSON.stringify(predictions).slice(0, 200))
-      return NextResponse.json({ predictions: [] })
-    }
-    if (predictions.length === 0) {
-      console.log("mis-predicciones: no predictions found for user", userId)
+    if (!Array.isArray(predictions)) return NextResponse.json({ predictions: [] })
+    if (predictions.length === 0) return NextResponse.json({ predictions: [] })
+
+    // === BATCH: fetch all draws for needed dates in ONE query ===
+    const turnoDates = predictions.map((p: any) => {
+      const t = (p.turno || "").replace(/-\d+cifras?$/i, "").toLowerCase().trim()
+      const d = (p.date || "").trim()
+      const tn = t.charAt(0).toUpperCase() + t.slice(1)
+      return { date: d, turno: t, turnoNormalized: tn, pred: p }
+    }).filter((td: any) => td.date && td.turno && !isDiaSinSorteo(td.date))
+
+    // Build OR filter: (date=eq.X AND turno=eq.Y) OR ...
+    const orFilters = turnoDates
+      .filter((td: any) => td.date && td.turnoNormalized)
+      .map((td: any) => `and(date.eq.${td.date},turno.eq.${td.turnoNormalized})`)
+    
+    let drawsMap: Record<string, any> = {}
+    if (orFilters.length > 0) {
+      // Supabase OR filter limit: batch in groups of 20
+      const batchSize = 20
+      for (let i = 0; i < orFilters.length; i += batchSize) {
+        const batch = orFilters.slice(i, i + batchSize)
+        const orStr = batch.join(",")
+        try {
+          const drawsRes = await fetch(
+            `${SB()}/rest/v1/draws?or=(${orStr})&select=numbers,turno,date&limit=100`,
+            { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` }, signal: AbortSignal.timeout(8000) }
+          )
+          if (drawsRes.ok) {
+            const draws = await drawsRes.json()
+            if (Array.isArray(draws)) {
+              for (const d of draws) {
+                const key = `${d.date}|${(d.turno || "").toLowerCase()}`
+                if (d.numbers && Array.isArray(d.numbers) && d.numbers.length >= 5) {
+                  drawsMap[key] = d
+                }
+              }
+            }
+          }
+        } catch {}
+      }
     }
 
+    // === Process predictions using drawsMap ===
     const results = []
     for (const pred of predictions) {
       const rawTurno = pred.turno || ""
       const turnoLower = rawTurno.replace(/-\d+cifras?$/i, "").toLowerCase().trim()
       const predDate = (pred.date || "").trim()
-
-      const disponible = await hasResultadosDisponibles(predDate, turnoLower)
-      const draw: any = disponible ? await buscarDraw(predDate, turnoLower) : null
+      const drawKey = `${predDate}|${turnoLower}`
+      const draw = drawsMap[drawKey] || null
+      const disponible = !!draw
 
       let aciertos: any[] = []
       let aciertos3: any[] = []
@@ -111,8 +95,6 @@ export async function GET(req: NextRequest) {
       let numerosReales3: string[] = []
       let numerosReales4: string[] = []
 
-      // Handle both flat array (free users) and structured object (premium users) formats
-      // Premium stores as [JSON.stringify({ "2": [...], "3": [...], "4": [...] })]
       let numerosData: any = pred.numeros
       if (Array.isArray(numerosData) && numerosData.length === 1 && typeof numerosData[0] === "string") {
         try { numerosData = JSON.parse(numerosData[0]) } catch {}
@@ -126,18 +108,15 @@ export async function GET(req: NextRequest) {
       }
 
       if (draw?.numbers && Array.isArray(draw.numbers)) {
-        // Generate draw results in all 3 formats
         numerosReales = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
         numerosReales3 = draw.numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
         numerosReales4 = draw.numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
 
-        // Compare 2 cifras
         const predNumeros2 = pred2.map((n: string) => String(n).padStart(2, "0"))
         aciertos = predNumeros2.filter((n: string) => numerosReales.includes(n)).map((n: string) => ({
           numero: n, puesto: numerosReales.indexOf(n) + 1, tipo: 2
         }))
 
-        // Compare 3 cifras
         if (pred3.length > 0) {
           const predNumeros3 = pred3.map((n: string) => String(n).padStart(3, "0"))
           aciertos3 = predNumeros3.filter((n: string) => numerosReales3.includes(n)).map((n: string) => ({
@@ -145,7 +124,6 @@ export async function GET(req: NextRequest) {
           }))
         }
 
-        // Compare 4 cifras
         if (pred4.length > 0) {
           const predNumeros4 = pred4.map((n: string) => String(n).padStart(4, "0"))
           aciertos4 = predNumeros4.filter((n: string) => numerosReales4.includes(n)).map((n: string) => ({
