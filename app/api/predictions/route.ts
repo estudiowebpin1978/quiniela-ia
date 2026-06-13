@@ -18,6 +18,9 @@ import { detectDrift, adjustWeightsForDrift } from "@/lib/analisis/drift"
 import { stackingEnsemble } from "@/lib/analisis/stacking"
 import { calculateSeasonalScores } from "@/lib/analisis/seasonal"
 import { bayesianAnalysis, bayesianConfidence, bayesianCredibleSet } from "@/lib/analisis/bayesian"
+import { analyzeCorrelations } from "@/lib/analisis/correlation"
+import { higherOrderMarkov } from "@/lib/analisis/markov-superior"
+import { detectCyclicPatterns } from "@/lib/analisis/cyclic"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -158,6 +161,30 @@ export async function GET(req: NextRequest) {
     // === MONTE CARLO SIMULATION ===
     const monteCarloTop = runMonteCarlo(sequences, { simulations: 5000, topN: 100 })
 
+    // === CORRELATION ANALYSIS ===
+    let correlationScores = new Array(100).fill(0.5)
+    let correlationResult: ReturnType<typeof analyzeCorrelations> | null = null
+    try {
+      correlationResult = analyzeCorrelations(sequences)
+      correlationScores = correlationResult.numberScores
+    } catch {}
+
+    // === HIGHER-ORDER MARKOV ===
+    let markovSuperScores = new Array(100).fill(0.5)
+    let markovSuperResult: ReturnType<typeof higherOrderMarkov> | null = null
+    try {
+      markovSuperResult = higherOrderMarkov(sequences, 4)
+      markovSuperScores = markovSuperResult.scores
+    } catch {}
+
+    // === CYCLIC PATTERNS ===
+    let cyclicScores = new Array(100).fill(0.5)
+    let cyclicResult: ReturnType<typeof detectCyclicPatterns> | null = null
+    try {
+      cyclicResult = detectCyclicPatterns(sequences)
+      cyclicScores = cyclicResult.scores
+    } catch {}
+
     // === ENSEMBLE: 30 FACTORES + CROSS-TURNO + MONTE CARLO + ML ===
     const scores: { num: number, score: number, confianza: number, factores: string[], frecuencia: number, crossTurno: number, pesoAjustado: number, bayesianConfidence?: number, bayesianPosterior?: number, bayesianCiWidth?: number }[] = []
 
@@ -187,12 +214,20 @@ export async function GET(req: NextRequest) {
       // Drift-adjusted weights
       const driftFactor = drift.drifted ? (1 - drift.severity * 0.3) : 1
 
-      // Ensemble combination (with seasonal and drift)
+      // New feature scores
+      const corrScore = correlationScores[n] || 0.5
+      const markovSupScore = markovSuperScores[n] || 0.5
+      const cyclicScore = cyclicScores[n] || 0.5
+
+      // Ensemble combination (with all features)
       const scoreFinal = (
-        factorScore * 0.55 * driftFactor +
-        mcScore * 0.25 +
-        crossBoost * 0.12 +
-        (seasonScore - 0.5) * 0.08
+        factorScore * 0.40 * driftFactor +
+        mcScore * 0.20 +
+        crossBoost * 0.10 +
+        (seasonScore - 0.5) * 0.06 +
+        corrScore * 0.08 +
+        markovSupScore * 0.10 +
+        (cyclicScore - 0.5) * 0.06
       ) * ajustePeso
 
       // Get factor details
@@ -364,7 +399,7 @@ export async function GET(req: NextRequest) {
       turno: turnoQuery,
       debug: {
         factores_aplicados: 30,
-        motor: "30 factores + Monte Carlo + Ensemble dinámico + Drift + Seasonal + Bayesian",
+        motor: "30 factores + Monte Carlo + Ensemble dinámico + Drift + Seasonal + Bayesian + Correlation + Markov4 + Cyclic",
         pesos_dinamicos: pesosDinamicos ? Object.fromEntries(Object.entries(pesosDinamicos).map(([k, v]) => [k, +(v * 100).toFixed(1)])) : null,
         cross_turno_activo: Object.values(crossTurnoScore).some(v => v > 0),
         calibracion_aplicada: true,
@@ -391,6 +426,24 @@ export async function GET(req: NextRequest) {
           posteriorMassTopN: Math.round(bayesian.posteriorMassTopN * 10000) / 100,
           topCredible: bayesianCredibleSet(bayesian.posterior, bayesian.credibleIntervals, 10).slice(0, 5).map(c => ({
             numero: pad(c.num), posterior: (c.posterior * 100).toFixed(2) + "%", ciWidth: (c.ciWidth * 100).toFixed(2) + "%"
+          }))
+        } : null,
+        correlation: correlationResult ? {
+          activo: true,
+          topPairs: correlationResult.pairs.slice(0, 5).map(p => ({
+            pair: `${pad(p.a)}-${pad(p.b)}`, lift: p.lift.toFixed(2), chiSquared: p.chiSquared.toFixed(1)
+          }))
+        } : null,
+        markovSuperior: markovSuperResult ? {
+          activo: true,
+          order: markovSuperResult.orderUsed,
+          entropy: markovSuperResult.transitionEntropy.toFixed(2),
+          mixingTime: markovSuperResult.mixingTime
+        } : null,
+        cyclic: cyclicResult ? {
+          activo: true,
+          topPatterns: cyclicResult.dominantFrequencies.slice(0, 5).map(f => ({
+            numero: pad(f.num), period: f.period, strength: (f.strength * 100).toFixed(1) + "%"
           }))
         } : null,
         total_numeros: terminaciones2.length,
@@ -422,7 +475,7 @@ export async function GET(req: NextRequest) {
         terminacionesMasFrecuentes: scores.slice(0, 5).map(s => ({ terminacion: s.num, frecuencia: s.frecuencia, score: s.score.toFixed(2) })),
       },
       analysisInfo: {
-        metodo: `Motor avanzado: 30 factores + Monte Carlo (5000 sims) + Ensemble dinámico + ML (Markov, RF, Neural, XGBoost) + Bayesian uncertainty - turno ${turnoQuery.toUpperCase()}`,
+        metodo: `Motor avanzado: 30 factores + Monte Carlo (5000 sims) + Ensemble dinámico + ML (Markov, RF, Neural, XGBoost) + Bayesian + Correlation + Markov4 + Cyclic - turno ${turnoQuery.toUpperCase()}`,
         factores: [
           "1. Frecuencia histórica (8%)",
           "2. Frecuencia últimos 100 sorteos (10%)",
@@ -457,7 +510,10 @@ export async function GET(req: NextRequest) {
           "31. Cross-turno (arrastre)",
           "32. XGBoost Python",
           "33. Monte Carlo (5000 sims)",
-          "34. Bayesian uncertainty (Dirichlet posterior)"
+          "34. Bayesian uncertainty (Dirichlet posterior)",
+          "35. Correlation analysis (Chi-squared + Pearson)",
+          "36. Higher-order Markov (order 2-4)",
+          "37. Cyclic patterns (Fourier + Autocorrelation)"
         ],
         datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} terminaciones de 2 cifras + ${sorteos.length} sorteos para scoring de 3/4 cifras`,
         confianzaAvanzada: {
