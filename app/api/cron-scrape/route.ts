@@ -25,6 +25,39 @@ function esDiaSinSorteo(diaSemana: number, fechaStr: string): boolean {
   return false
 }
 
+async function scrapeTurnoOficial(fechaISO: string, turno: string): Promise<number[]> {
+  // Lotería de la Ciudad - API oficial
+  // Reference: 2026-06-08 (Mon) = sorteo 52492, each day +5
+  const refDate = new Date("2026-06-08T12:00:00Z")
+  const targetDate = new Date(fechaISO + "T12:00:00Z")
+  const daysDiff = Math.round((targetDate.getTime() - refDate.getTime()) / (86400000))
+  const turnoIdx = TURNOS.indexOf(turno)
+  if (turnoIdx < 0) return []
+  const sorteoCode = 52492 + daysDiff * 5 + turnoIdx
+
+  try {
+    const r = await fetch("https://quiniela.loteriadelaciudad.gob.ar/resultadosQuiniela/consultaResultados.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
+      body: `codigo=0080&juridiccion=51&sorteo=${sorteoCode}`,
+      signal: AbortSignal.timeout(15000)
+    })
+    if (!r.ok) return []
+    const html = await r.text()
+    if (html.includes("No hay Sorteo")) return []
+
+    const nums: number[] = []
+    const rx = /\|(\d{2})\|(\d{4})\|/g
+    let mx: RegExpExecArray | null
+    while ((mx = rx.exec(html)) !== null) {
+      const n = parseInt(mx[2])
+      if (n >= 0 && n <= 9999 && !nums.includes(n)) nums.push(n)
+      if (nums.length >= 20) break
+    }
+    return nums
+  } catch { return [] }
+}
+
 async function scrapeTurnoFast(fechaUrl: string, turno: string): Promise<number[]> {
   const url = `https://quinielanacional1.com.ar/${fechaUrl}/${turno}`
   for (let intento = 0; intento < 2; intento++) {
@@ -71,7 +104,7 @@ async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
   } catch { return false }
 }
 
-async function guardarDraw(fechaISO: string, turno: string, nums: number[]): Promise<boolean> {
+async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string = "quiniela-nacional.com"): Promise<boolean> {
   await fetch(`${SB()}/rest/v1/draws?date=eq.${fechaISO}&turno=eq.${turno}`, {
     method: "DELETE",
     headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}`, "Prefer": "return=minimal" }
@@ -79,7 +112,7 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[]): Pro
   const r = await fetch(`${SB()}/rest/v1/draws`, {
     method: "POST",
     headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
-    body: JSON.stringify({ date: fechaISO, turno, numbers: nums, source: "quiniela-nacional.com" })
+    body: JSON.stringify({ date: fechaISO, turno, numbers: nums, source })
   })
   return r.ok
 }
@@ -123,9 +156,14 @@ export async function GET(req: NextRequest) {
   for (const turno of TURNOS) {
     if (await tieneDraw(fechaISO, turno)) continue
 
-    const nums = await scrapeTurnoFast(fUrl, turno)
+    let nums = await scrapeTurnoFast(fUrl, turno)
+    let source = "quiniela-nacional1.com.ar"
+    if (nums.length < 5) {
+      nums = await scrapeTurnoOficial(fechaISO, turno)
+      if (nums.length >= 5) source = "loteria-ciudad.gob.ar"
+    }
     if (nums.length >= 5) {
-      if (await guardarDraw(fechaISO, turno, nums)) {
+      if (await guardarDraw(fechaISO, turno, nums, source)) {
         guardados++
         resultados[turno] = nums
       }
