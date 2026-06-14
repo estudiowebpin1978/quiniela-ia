@@ -47,7 +47,7 @@ async function scrapeTurnoOficial(fechaISO: string, turno: string): Promise<numb
     if (html.includes("No hay Sorteo")) return []
 
     const nums: number[] = []
-    const rx = /\|(\d{2})\|(\d{4})\|/g
+    const rx = /<div class="pos">(\d{2})<\/div><div>(\d{4})<\/div>/g
     let mx: RegExpExecArray | null
     while ((mx = rx.exec(html)) !== null) {
       const n = parseInt(mx[2])
