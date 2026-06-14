@@ -143,9 +143,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { fechaStr: fechaISO, diaSemana, fUrl } = fechaArgentina()
+  const overrideDate = req.nextUrl.searchParams.get("date")
+  let fechaISO: string, diaSemana: number, fUrl: string
 
-  if (esDiaSinSorteo(diaSemana, fechaISO)) {
+  if (overrideDate && /^\d{4}-\d{2}-\d{2}$/.test(overrideDate)) {
+    const [yyyy, mm, dd] = overrideDate.split("-")
+    fechaISO = overrideDate
+    diaSemana = new Date(`${overrideDate}T12:00:00Z`).getDay()
+    fUrl = `${dd}-${mm}-${yyyy.slice(-2)}`
+  } else {
+    const f = fechaArgentina()
+    fechaISO = f.fechaStr
+    diaSemana = f.diaSemana
+    fUrl = f.fUrl
+  }
+
+  if (!overrideDate && esDiaSinSorteo(diaSemana, fechaISO)) {
     return NextResponse.json({ ok: true, message: "Sin sorteos", fecha: fechaISO })
   }
 
