@@ -20,6 +20,7 @@ import WhatsAppFAB from "@/components/WhatsAppFAB";
 import FooterDisclaimer from "@/components/FooterDisclaimer";
 import HistorialAciertos from "@/components/HistorialAciertos";
 import ExpiryBanner from "@/components/ExpiryBanner";
+import AgeGate from "@/components/AgeGate";
 
 const EMOJIS: Record<string, string> = {
   "00": "🥚", "01": "💧", "02": "🧒", "03": "⛪", "04": "🛏️", "05": "🐱", "06": "🐶", "07": "🔫", "08": "🔥", "09": "🏞️",
@@ -51,26 +52,26 @@ const HORAS: Record<string, string> = {
   Nocturna: "21:00",
 };
 const REVIEWS = [
-  { n: "Carlos M.", c: "Buenos Aires", t: "El motor estadistico me da mucha mas confianza.", s: 5 },
-  { n: "Laura G.", c: "Rosario", t: "Los numeros calientes realmente salen con frecuencia.", s: 5 },
+  { n: "Carlos M.", c: "Buenos Aires", t: "El motor estadístico es muy completo y detallado.", s: 5 },
+  { n: "Laura G.", c: "Rosario", t: "Los datos se actualizan rápido y son confiables.", s: 5 },
   { n: "Roberto P.", c: "Cordoba", t: "El análisis de pares correlacionados es muy útil.", s: 5 },
-  { n: "Marcela S.", c: "Mendoza", t: "Facil de usar. Ya no elijo al azar.", s: 4 },
+  { n: "Marcela S.", c: "Mendoza", t: "Fácil de usar. Muy intuitiva.", s: 4 },
   { n: "Diego F.", c: "Mar del Plata", t: "El mapa de calor es muy profesional.", s: 5 },
-  { n: "Ana B.", c: "Tucuman", t: "Excelente app. El motor es muy preciso.", s: 5 },
-  { n: "Jorge R.", c: "Salta", t: "Me ayudo a entender los patrones.", s: 4 },
+  { n: "Ana B.", c: "Tucuman", t: "Excelente app. Los gráficos son claros.", s: 5 },
+  { n: "Jorge R.", c: "Salta", t: "Me ayudo a entender los patrones de datos.", s: 4 },
   { n: "Patricia L.", c: "La Plata", t: "Muy buena app, la recomiendo.", s: 5 },
   { n: "Miguel A.", c: "Bahia Blanca", t: "Los análisis de 4 cifras son muy detallados.", s: 5 },
   { n: "Sandra V.", c: "Santa Fe", t: "El análisis de frecuencia cambió mi forma de ver los datos.", s: 5 },
-  { n: "Oscar T.", c: "Neuquen", t: "Muy completa y facil de usar.", s: 4 },
-  { n: "Claudia H.", c: "Posadas", t: "Gracias a esta app mejore mis resultados.", s: 5 },
+  { n: "Oscar T.", c: "Neuquen", t: "Muy completa y fácil de usar.", s: 4 },
+  { n: "Claudia H.", c: "Posadas", t: "La interfaz es muy clara y moderna.", s: 5 },
   { n: "Fernando N.", c: "Corrientes", t: "El motor Monte Carlo es impresionante.", s: 5 },
   { n: "Beatriz O.", c: "Resistencia", t: "La mejor herramienta de análisis estadístico que probé.", s: 5 },
-  { n: "Raul K.", c: "San Juan", t: "Increible la precision del sistema.", s: 4 },
-  { n: "Monica E.", c: "San Luis", t: "El análisis de correlaciones me dio muy buenos datos.", s: 5 },
-  { n: "Hector Q.", c: "Rio Gallegos", t: "Excelente herramienta estadistica.", s: 5 },
+  { n: "Raul K.", c: "San Juan", t: "Increíble la precisión de los datos.", s: 4 },
+  { n: "Monica E.", c: "San Luis", t: "El análisis de correlaciones es muy completo.", s: 5 },
+  { n: "Hector Q.", c: "Rio Gallegos", t: "Excelente herramienta estadística.", s: 5 },
   { n: "Viviana C.", c: "Ushuaia", t: "Los análisis son basados en datos reales.", s: 4 },
-  { n: "Alberto D.", c: "Mendoza", t: "El analisis de ciclos es unico.", s: 5 },
-  { n: "Norma I.", c: "Cordoba", t: "Muy completa. El premium vale cada peso.", s: 5 },
+  { n: "Alberto D.", c: "Mendoza", t: "El análisis de ciclos es único.", s: 5 },
+  { n: "Norma I.", c: "Cordoba", t: "Muy completa. El premium vale la pena.", s: 5 },
 ];
 
 type RankingItem = {
@@ -194,7 +195,6 @@ export default function Page() {
 
   useEffect(() => {
     if (tab === "mis" && tkRef.current) {
-      console.log("[DEBUG] Tab changed to mis, loading predictions...");
       cargarMisPreds(tkRef.current);
     }
   }, [tab]);
@@ -317,7 +317,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   }
 
   async function gen() {
-    console.log("[DEBUG] gen() called for turno:", so);
     setLd(true);
     setEr("");
     setDn(false);
@@ -325,7 +324,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     try {
       const predDate = fechaSorteo(so);
       const url = "/api/predictions?sorteo=" + encodeURIComponent(so) + "&date=" + predDate + "&t=" + Date.now();
-      console.log("[DEBUG] Fetching:", url);
       const r = await fetch(url, {
         headers: { Authorization: "Bearer " + tkRef.current },
       });
@@ -333,7 +331,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         throw new Error("Error del servidor: " + r.status);
       }
       const d = await r.json();
-      console.log("[DEBUG] Received data for turno:", d.turno, "numeros_2:", d.pred?.numeros_2 || d.numeros_2);
       if (!d) {
         throw new Error("No hay datos");
       }
@@ -347,7 +344,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       if (d.aiInsight) setAiInsight(d.aiInsight);
     } catch (e: any) {
       setEr(e?.message || String(e));
-      console.log("Error gen:", e);
     } finally {
       setLd(false);
     }
@@ -490,7 +486,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }))
             return { ...p, numeros: pred2, numeros_3: pred3, numeros_4: pred4, resultado: reales.slice(0, 10), aciertos, acerto: aciertos.length > 0 }
           }
-        } catch (e) { console.warn("fallback compare error:", fechaVal, turnoVal, e) }
+        } catch (e) { }
         return p
       }))
       setMisPreds(enriched);
@@ -580,12 +576,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         }
         if (res.ok) {
           cloudSaved = true
-          console.log("Guardado en Supabase");
-        } else {
-          console.log("Error en Supabase:", data.error);
         }
       } catch (e) {
-        console.log("Supabase no disponible, usando local");
       }
     }
 
@@ -656,6 +648,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
   return (
     <>
+      <AgeGate />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
@@ -842,7 +835,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       <div className="app">
         <nav className="nav">
           <div className="nl" onClick={() => window.scrollTo(0, 0)}>
-            <div className="ni">🎰</div>
+            <div className="ni">📊</div>
             <span className="nm">Quiniela IA</span>
           </div>
           <div className="nr">
@@ -1241,7 +1234,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     <div className="rdbl" style={{ marginTop: 12 }}>
                       <div style={{ fontSize: 12, color: "#25F4EE", marginBottom: 4, fontWeight: 700 }}>🎯 Par óptimo (Correlación)</div>
                       <div className="rpair">{rdbl}</div>
-                      <div style={{ fontSize: 11, color: "#64748b" }}>Apostale a que ambos aparecen en el mismo sorteo.</div>
+                      <div style={{ fontSize: 11, color: "#64748b" }}>Analizá la correlación entre ambos números en el mismo sorteo.</div>
                     </div>
                   )}
 
@@ -1265,7 +1258,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                           <div className="rdbl">
                             <div style={{ fontSize: 12, color: "#25F4EE", marginBottom: 4, fontWeight: 700 }}>Par optimo recomendado</div>
                             <div className="rpair">{rdbl}</div>
-                            <div style={{ fontSize: 11, color: "#64748b" }}>Apostale a que ambos aparecen en el mismo sorteo.</div>
+                            <div style={{ fontSize: 11, color: "#64748b" }}>Analizá la correlación entre ambos números en el mismo sorteo.</div>
                           </div>
                         )}
                         {dt?.numeros?.slice(0, 5).map((r: any, i: number) => (
@@ -1487,7 +1480,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   }}
                   disabled={misLoading}
                 >
-                  {misLoading ? "Actualizando..." : "🔄 Actualizar Vergleich"}
+                  {misLoading ? "Actualizando..." : "🔄 Actualizar"}
                 </button>
               </div>
               {misLoading ? (
@@ -1705,7 +1698,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                         { label: "Máx coincidencias en 1 sorteo", val: backtestData.metrics_top_10?.maxHits || 0 },
                         { label: "Precisión", val: (backtestData.metrics_top_10?.precision || 0) + "%" },
                         { label: "Recall", val: (backtestData.metrics_top_10?.recall || 0) + "%" },
-                        { label: "ROI teórico", val: (backtestData.metrics_top_10?.roi || 0) + "%" },
+                        { label: "Aciertos promedio", val: (backtestData.metrics_top_10?.avgHitsPerDraw || 0) },
                       ].map((item, i) => (
                         <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,.04)"}}>
                           <span style={{fontSize:10,color:"var(--dim)"}}>{item.label}</span>
@@ -1837,7 +1830,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               <h2 style={{ fontSize: 18, fontWeight: 800, background: "linear-gradient(135deg,#ff6b81,#ff2d55)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
                 Lo que dicen los usuarios
               </h2>
-              <p style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>Miles de quinieleros confian en Quiniela IA</p>
+              <p style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>Miles de usuarios confían en Quiniela IA</p>
             </div>
             <div className="rev-o">
               <div className="rev-tr" ref={scrollRef}>

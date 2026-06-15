@@ -429,7 +429,7 @@ function ScraperSection({ token }: { token: string }) {
   async function runScraper(turno: string) {
     setBusy(turno); setMsg("")
     try {
-      const params = new URLSearchParams({ secret: "quiniela_ia_cron_2024_seguro", save: "true" })
+      const params = new URLSearchParams({ save: "true" })
       if (scraperDate) params.set("date", scraperDate)
       const r = await fetch(`/api/cron-scrape?${params}`, { headers: { Authorization: "Bearer " + token } })
       const d = await r.json()

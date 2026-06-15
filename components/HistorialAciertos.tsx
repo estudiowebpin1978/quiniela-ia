@@ -24,7 +24,6 @@ export default function HistorialAciertos() {
       const data = await res.json()
       setDraws(data.draws || data || [])
     } catch (err) {
-      console.error("Error fetching draws:", err)
     } finally {
       setLoading(false)
     }
