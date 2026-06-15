@@ -9,7 +9,6 @@
  * - Guardado de análisis y comparación con resultados reales
  * - Sistema de logros/badges
  * - Notificaciones push de nuevos resultados
- * - Modo oscuro/claro
  * - Integración premium (3 y 4 cifras)
  */
 
@@ -128,7 +127,6 @@ export default function Page() {
   const [analisisLoading, setAnalisisLoading] = useState(false);
   const [resultadoControl, setResultadoControl] = useState<any>(null);
   const [aiInsight, setAiInsight] = useState("");
-  const [theme, setTheme] = useState<"dark" | "light">("light");
   const [stats, setStats] = useState<any>(null);
   const [confianzaTurnos, setConfianzaTurnos] = useState<Record<string, number>>(() => {
     try { return JSON.parse(localStorage.getItem("confianzaTurnos") || "{}"); } catch { return {}; }
@@ -171,20 +169,6 @@ export default function Page() {
   }, [misPreds]);
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("quiniela-ia-theme");
-    if (savedTheme === "light" || savedTheme === "dark") {
-      setTheme(savedTheme);
-    } else {
-      setTheme("light");
-    }
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("quiniela-ia-theme", theme);
-  }, [theme]);
-
-  useEffect(() => {
     setIsOnline(typeof navigator !== "undefined" ? navigator.onLine : true);
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -221,10 +205,6 @@ export default function Page() {
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === "accepted") setDeferredPrompt(null);
     setShowInstall(false);
-  }
-
-  function toggleTheme() {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   }
 
   const tkRef = useRef("");
@@ -679,8 +659,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        :root[data-theme="dark"]{--red:#FE2C55;--cyan:#25F4EE;--green:#22c55e;--bg:#010101;--bg2:#0d0d0d;--bg3:#141b2f;--card:#0d0d0d;--surface:rgba(13,13,13,.9);--text:#FFFFFF;--dim:#94a3b8;--border:rgba(255,255,255,.08);--nav-bg:rgba(6,8,15,.98);--panel-bg:rgba(255,255,255,.04);--panel-border:rgba(255,255,255,.08);--shadow:rgba(0,0,0,.32)}
-        :root[data-theme="light"]{--red:#c91e5f;--cyan:#0369a1;--green:#16a34a;--bg:#f8fafc;--bg2:#e2e8f0;--bg3:#ffffff;--card:#ffffff;--surface:rgba(255,255,255,.98);--text:#0a0e27;--dim:#475569;--border:rgba(30,41,59,.16);--nav-bg:rgba(255,255,255,.96);--panel-bg:rgba(255,255,255,.92);--panel-border:rgba(51,65,85,.18);--shadow:rgba(15,23,42,.12)}
+        :root{--red:#FE2C55;--cyan:#25F4EE;--green:#22c55e;--bg:#010101;--bg2:#0d0d0d;--bg3:#141b2f;--card:#0d0d0d;--surface:rgba(13,13,13,.9);--text:#FFFFFF;--dim:#94a3b8;--border:rgba(255,255,255,.08);--nav-bg:rgba(6,8,15,.98);--panel-bg:rgba(255,255,255,.04);--panel-border:rgba(255,255,255,.08);--shadow:rgba(0,0,0,.32)}
         body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
         .app{min-height:100vh;background:radial-gradient(ellipse 100% 80% at 50% -10%,rgba(99,102,241,.15),transparent 60%),radial-gradient(ellipse 60% 40% at 20% 80%,rgba(236,72,153,.1),transparent 50%),var(--bg)}
         .nav{position:sticky;top:0;z-index:100;background:rgba(15,15,25,.85);backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.08);padding:14px 18px;display:flex;align-items:center;justify-content:space-between}
@@ -692,8 +671,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .pp{background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;font-size:9px;font-weight:800;padding:4px 10px;border-radius:20px;box-shadow:0 2px 8px rgba(168,85,247,.4)}
         .ne{font-size:12px;color:var(--dim);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .nav-admin{padding:6px 12px;border-radius:10px;border:1px solid rgba(236,72,153,.4);background:rgba(236,72,153,.1);color:#f472b6;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:none}
-        .nav-theme{padding:6px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.15);background:linear-gradient(135deg,rgba(255,255,255,.1),rgba(255,255,255,.04));color:var(--text);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(0,0,0,.3);transition:all .2s}
-        .nav-theme:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.4)}
         .nav-out{padding:6px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:transparent;color:var(--dim);font-size:12px;cursor:pointer;font-family:inherit}
         .wr{max-width:520px;margin:0 auto;padding:24px 16px 100px}
         .hero{text-align:center;padding:16px 0 32px}
@@ -873,9 +850,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             {!isOnline && <span style={{ background: "#ef4444", color: "#fff", padding: "4px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700 }}>📴 Offline</span>}
             {(pr || userRole === "admin") && <span className="pp">{userRole === "admin" ? "👑 ADMIN" : "⭐ PREMIUM"}</span>}
             {em && <span className="ne">{em.split("@")[0]}</span>}
-            <button className="nav-theme" onClick={toggleTheme} title="Cambiar modo de color">
-              {theme === "light" ? "🌞 Claro" : "🌙 Oscuro"}
-            </button>
             {(pr || userRole === "admin") && <a href="/admin" className="nav-admin">⚙️ Admin</a>}
             <button
               onClick={pedirNotificaciones}
