@@ -25,7 +25,15 @@
   ],
   "categories": ["education", "utilities"],
   "lang": "es-AR",
-  "screenshots": [],
+  "screenshots": [
+    {
+      "src": "/screenshots/wide.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Pantalla principal de Quiniela IA"
+    }
+  ],
   "related_applications": [],
   "handle_links": "preferred"
 }

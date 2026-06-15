@@ -3,6 +3,6 @@
   "target": {
     "namespace": "android_app",
     "package_name": "com.quinielaia.app",
-    "sha256_cert_fingerprints": ["REEMPLAZAR_CON_FINGERPRINT_APK"]
+    "sha256_cert_fingerprints": ["Generá con: keytool -exportcert -alias your-key-name -keystore your-keystore.jks | sha256sum"]
   }
 }]
