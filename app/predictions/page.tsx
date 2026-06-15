@@ -1193,7 +1193,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     <div style={{ position: "relative" }}>
                       <div
                         className="g5"
-                        style={userRole === "free" ? { filter: "blur(8px)", userSelect: "none", pointerEvents: "none" } : {}}
+                        style={userRole === "free" && dg > 2 ? { filter: "blur(8px)", userSelect: "none", pointerEvents: "none" } : {}}
                       >
                         {cur.slice(0, 10).map((p: any, i: number) => {
                           const r = ranking?.find((r: any) => r.numero === p.numero);
@@ -1392,7 +1392,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                       >
                         <div className="trend-stat-value">{dt?.numeros_2?.slice(0, 5).join("-")}</div>
                         <div className="trend-stat-label">Top 5 cifras</div>
-                        {userRole === "free" && (
+                      {userRole === "free" && dg > 2 && (
                           <div
                             style={{
                               position: "absolute", inset: 0,
