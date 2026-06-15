@@ -3,60 +3,60 @@
     "turno": "previa",
     "best_score": 0.02926829268292683,
     "weights": {
-      "frecuenciaHistorica": 0.17512139022606388,
-      "frecuencia20": 0.2908022509514739,
-      "ausencia": 0.05164167120977467
+      "frecuenciaHistorica": 0.21332004311456843,
+      "frecuencia20": 0.3054897629484761,
+      "ausencia": 0.05356892816725217
     },
     "n_trials": 50,
     "n_draws": 225,
-    "timestamp": "2026-06-13T00:37:43.493964"
+    "timestamp": "2026-06-13T00:49:04.340558"
   },
   "primera": {
     "turno": "primera",
     "best_score": 0.11219512195121951,
     "weights": {
-      "frecuenciaHistorica": 0.13347601412039203,
-      "frecuencia20": 0.29084626665492624,
-      "ausencia": 0.26296091394713705
+      "frecuenciaHistorica": 0.10438554148766802,
+      "frecuencia20": 0.21859860572199885,
+      "ausencia": 0.2988935368681441
     },
     "n_trials": 50,
     "n_draws": 225,
-    "timestamp": "2026-06-13T00:37:43.952646"
+    "timestamp": "2026-06-13T00:49:04.873904"
   },
   "matutina": {
     "turno": "matutina",
-    "best_score": 0.14903846153846154,
+    "best_score": 0.1201923076923077,
     "weights": {
-      "frecuenciaHistorica": 0.10360005849850681,
-      "frecuencia20": 0.39324291819976076,
-      "ausencia": 0.0732109098349991
+      "frecuenciaHistorica": 0.5636690941439684,
+      "frecuencia20": 0.21461359822431925,
+      "ausencia": 0.2941679053010015
     },
     "n_trials": 50,
     "n_draws": 228,
-    "timestamp": "2026-06-13T00:37:44.487093"
+    "timestamp": "2026-06-13T00:49:05.415106"
   },
   "vespertina": {
     "turno": "vespertina",
     "best_score": 0.052884615384615384,
     "weights": {
-      "frecuenciaHistorica": 0.13650115073913355,
-      "frecuencia20": 0.3734355038473666,
-      "ausencia": 0.061916776720365524
+      "frecuenciaHistorica": 0.11942461419912687,
+      "frecuencia20": 0.3958502109130453,
+      "ausencia": 0.05733561735751867
     },
     "n_trials": 50,
     "n_draws": 228,
-    "timestamp": "2026-06-13T00:37:44.901584"
+    "timestamp": "2026-06-13T00:49:05.911883"
   },
   "nocturna": {
     "turno": "nocturna",
     "best_score": 0.04878048780487805,
     "weights": {
-      "frecuenciaHistorica": 0.21119237805884888,
-      "frecuencia20": 0.30310694832016616,
-      "ausencia": 0.16446167149554192
+      "frecuenciaHistorica": 0.18837060020909854,
+      "frecuencia20": 0.34569023137636057,
+      "ausencia": 0.09268511145800719
     },
     "n_trials": 50,
     "n_draws": 225,
-    "timestamp": "2026-06-13T00:37:45.285402"
+    "timestamp": "2026-06-13T00:49:06.398364"
   }
 }

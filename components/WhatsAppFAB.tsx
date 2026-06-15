@@ -26,7 +26,7 @@ export default function WhatsAppFAB() {
 
   function handleClick() {
     window.open(
-      "https://wa.me/5493412500029?text=Hola!%20Quiero%20recibir%201%20n%C3%BAmero%20fuerte%20GRATIS%20por%20WhatsApp%20cada%20ma%C3%B1ana%20%F0%9F%9A%80",
+      "https://whatsapp.com/channel/0029VbB7O9B9cDDUtBY9GU1F",
       "_blank"
     )
     handleDismiss()
@@ -78,10 +78,10 @@ export default function WhatsAppFAB() {
             ✕
           </button>
           <div style={{ fontSize: 12, fontWeight: 700, color: "#fff", marginBottom: 4, paddingRight: 16 }}>
-            🚀 Recibí 1 número fuerte GRATIS
+            🚀 Sugerencias diarias GRATIS
           </div>
           <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.5 }}>
-            Cada mañana te mandamos un análisis estadístico por WhatsApp
+            Unite al canal y recibí análisis y sugerencias todos los días
           </div>
           <div
             style={{

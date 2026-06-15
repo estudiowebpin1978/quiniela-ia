@@ -43,7 +43,7 @@ export default function PaywallModal({ open, onClose, onWhatsApp }: Props) {
             background: "linear-gradient(135deg,rgba(168,85,247,.12),rgba(99,102,241,.08))",
             position: "relative", cursor: "pointer", transition: "all .2s"
           }}
-          onClick={() => window.open("https://wa.me/5493412500029?text=Hola!%20Quiero%20activar%20Premium%20de%20Quiniela%20IA.", "_blank")}
+          onClick={() => window.open("https://whatsapp.com/channel/0029VbB7O9B9cDDUtBY9GU1F", "_blank")}
         >
           <div style={{
             position: "absolute", top: -10, right: 12,
@@ -71,7 +71,7 @@ export default function PaywallModal({ open, onClose, onWhatsApp }: Props) {
             border: "1px solid rgba(255,255,255,.1)", borderRadius: 16, padding: 16, marginBottom: 20,
             background: "rgba(255,255,255,.03)", cursor: "pointer", transition: "all .2s"
           }}
-          onClick={() => window.open("https://wa.me/5493412500029?text=Hola!%20Quiero%20activar%20Premium%20Mensual%20de%20Quiniela%20IA.", "_blank")}
+          onClick={() => window.open("https://whatsapp.com/channel/0029VbB7O9B9cDDUtBY9GU1F", "_blank")}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>

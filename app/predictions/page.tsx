@@ -40,7 +40,7 @@ function getEmoji(num: string): string {
 }
 
 const CONTACT = "estudiowebpin@gmail.com";
-const WA = "https://wa.me/5493412500029?text=Hola!%20Quiero%20activar%20Premium%20de%20Quiniela%20IA.";
+const WA = "https://whatsapp.com/channel/0029VbB7O9B9cDDUtBY9GU1F";
 const APP_URL = "https://quiniela-ia-two.vercel.app";
 const SORTEOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"];
 const HORAS: Record<string, string> = {
@@ -1957,7 +1957,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         open={showPaywall}
         onClose={() => setShowPaywall(false)}
         onWhatsApp={() => {
-          window.open("https://wa.me/5493412500029?text=Hola!%20Quiero%20activar%20Premium%20de%20Quiniela%20IA.", "_blank")
+          window.open("https://whatsapp.com/channel/0029VbB7O9B9cDDUtBY9GU1F", "_blank")
           setShowPaywall(false)
         }}
       />
