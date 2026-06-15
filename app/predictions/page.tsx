@@ -981,35 +981,34 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 transition: ".12s",
               }}
             >
-              {showCalc ? "▲ Cerrar" : (
-                misSummary.totalSaved > 0
-                  ? <>📊 Tu precisión personal · {misSummary.successRate}%</>
-                  : "📊 Tu precisión personal"
-              )}
+              {showCalc ? "▲ Cerrar" : "📊 Datos Históricos"}
             </button>
             <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
           </div>
-          {showCalc && (
-            <div style={{ marginTop: 12, padding: 14, background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(34,197,94,.05))", borderRadius: 12, border: "1px solid rgba(34,197,94,.4)", textAlign: "center" }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", marginBottom: 6 }}>💡 ESTRATEGIA RECOMENDADA</div>
-              <div style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>Top 10 números con mayor frecuencia estadística</div>
-              <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>Los 10 números con mayor score del ensemble matemático.</div>
-              {pr && (
-                <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 6, fontWeight: 700 }}>
-                  ✨ Premium: Top 5 números de 3 cifras y top 5 de 4 cifras por frecuencia
-                </div>
-              )}
-            </div>
-          )}
-          {misSummary.totalSaved > 0 && (
-            <div style={{marginBottom:14,padding:14,borderRadius:12,background:"rgba(139,92,246,.06)",border:"1px solid rgba(139,92,246,.15)"}}>
-              <div style={{fontSize:10,fontWeight:800,color:"#a78bfa",textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>📊 Tu precisión personal</div>
-              <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
-                <span style={{fontSize:20,fontWeight:900,color:"#a855f7"}}>{misSummary.successRate}%</span>
-                <span style={{fontSize:11,color:"var(--dim)"}}>coincidencias en {misSummary.totalSaved} análisis · {misSummary.totalAciertos} números coincidentes</span>
+          <div style={{ marginTop: 12, padding: 14, background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(34,197,94,.05))", borderRadius: 12, border: "1px solid rgba(34,197,94,.4)", textAlign: "center" }}>
+            <div style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>Top 10 números con mayor frecuencia estadística</div>
+            <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>Los 10 números con mayor score del ensemble matemático.</div>
+            {pr && (
+              <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 6, fontWeight: 700 }}>
+                ✨ Premium: Top 5 números de 3 cifras y top 5 de 4 cifras por frecuencia
               </div>
-              {misSummary.thisWeek > 0 && (
-                <div style={{fontSize:10,color:"var(--dim)",marginTop:4}}>Esta semana: {misSummary.thisWeek} análisis · {misSummary.thisWeekHits} con coincidencias ({misSummary.thisWeekRate}%)</div>
+            )}
+          </div>
+          {showCalc && (
+            <div style={{ marginTop: 12, padding: 14, borderRadius: 12, background: "rgba(139,92,246,.06)", border: "1px solid rgba(139,92,246,.15)" }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: "#a78bfa", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>📊 Tu precisión personal</div>
+              {misSummary.totalSaved > 0 ? (
+                <>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                    <span style={{ fontSize: 20, fontWeight: 900, color: "#a855f7" }}>{misSummary.successRate}%</span>
+                    <span style={{ fontSize: 11, color: "var(--dim)" }}>coincidencias en {misSummary.totalSaved} análisis · {misSummary.totalAciertos} números coincidentes</span>
+                  </div>
+                  {misSummary.thisWeek > 0 && (
+                    <div style={{ fontSize: 10, color: "var(--dim)", marginTop: 4 }}>Esta semana: {misSummary.thisWeek} análisis · {misSummary.thisWeekHits} con coincidencias ({misSummary.thisWeekRate}%)</div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: 12, color: "var(--dim)" }}>Guardá análisis para ver tu precisión personal.</div>
               )}
             </div>
           )}
