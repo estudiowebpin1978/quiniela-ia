@@ -922,11 +922,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           <div className="hero">
             <h1>Quiniela IA <span onClick={() => setShowHowItWorks(true)} style={{cursor:"pointer",fontSize:14}}>ℹ️</span></h1>
                 <p>Análisis estadístico con 30 factores + Machine Learning. Datos oficiales actualizados.</p>
-           <div className="sts">
-              <div className="sc"><div className="sv">+212</div><div className="sl">Sorteos analizados</div></div>
-              <div className="sc"><div className="sv">12</div><div className="sl">Factores estadísticos</div></div>
-              <div className="sc"><div className="sv">3</div><div className="sl">Modelos ML activos</div></div>
-              </div>
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 8, textAlign: "center" }}>🎯 Elegí el sorteo que querés analizar:</div>
           <div className="sorteo-btns">
