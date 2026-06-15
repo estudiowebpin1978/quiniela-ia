@@ -229,26 +229,6 @@ export default function Page() {
   const tkRef = useRef("");
   useEffect(() => {
     const proj = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").split("//")[1]?.split(".")[0] || "wazkylxgqckjfkcmfotl";
-    
-    const hash = window.location.hash;
-    if (hash && hash.includes("access_token")) {
-      const params = new URLSearchParams(hash.substring(1));
-      const accessToken = params.get("access_token");
-      const refreshToken = params.get("refresh_token");
-      const expiresIn = parseInt(params.get("expires_in") || "3600", 10);
-      if (accessToken) {
-        const session = {
-          access_token: accessToken,
-          refresh_token: refreshToken || "",
-          expires_at: Math.floor(Date.now() / 1000) + expiresIn,
-          token_type: "bearer",
-          user: null
-        };
-        localStorage.setItem("sb-" + proj + "-auth-token", JSON.stringify(session));
-        window.history.replaceState({}, "", window.location.pathname);
-      }
-    }
-
     const raw = localStorage.getItem("sb-" + proj + "-auth-token");
     if (!raw) {
       window.location.href = "/login";
