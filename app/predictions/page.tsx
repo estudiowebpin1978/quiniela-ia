@@ -20,6 +20,7 @@ import PaywallModal from "@/components/PaywallModal";
 import WhatsAppFAB from "@/components/WhatsAppFAB";
 import FooterDisclaimer from "@/components/FooterDisclaimer";
 import HistorialAciertos from "@/components/HistorialAciertos";
+import ExpiryBanner from "@/components/ExpiryBanner";
 
 const EMOJIS: Record<string, string> = {
   "00": "🥚", "01": "💧", "02": "🧒", "03": "⛪", "04": "🛏️", "05": "🐱", "06": "🐶", "07": "🔫", "08": "🔥", "09": "🏞️",
@@ -1082,6 +1083,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 </>
               )}
             </div>
+          )}
+          {pr && premExpiry.premium_until && (
+            <ExpiryBanner premiumUntil={premExpiry.premium_until} />
           )}
           {er && (
             <div className="eb" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
