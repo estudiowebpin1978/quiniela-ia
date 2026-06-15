@@ -16,6 +16,10 @@
 "use client";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { usePushNotifications } from "@/components/PushNotifications";
+import PaywallModal from "@/components/PaywallModal";
+import WhatsAppFAB from "@/components/WhatsAppFAB";
+import FooterDisclaimer from "@/components/FooterDisclaimer";
+import HistorialAciertos from "@/components/HistorialAciertos";
 
 const EMOJIS: Record<string, string> = {
   "00": "🥚", "01": "💧", "02": "🧒", "03": "⛪", "04": "🛏️", "05": "🐱", "06": "🐶", "07": "🔫", "08": "🔥", "09": "🏞️",
@@ -94,7 +98,7 @@ type PredData = {
 export default function Page() {
   const [pr, setPr] = useState(false);
   const [em, setEm] = useState("");
-  const [tab, setTab] = useState("pred");
+  const [tab, setTab] = useState<"pred" | "rdbl" | "freq" | "trend" | "mis" | "acc" | "hist" | "analisis">("pred");
   const [so, setSo] = useState("Nocturna");
   const [dg, setDg] = useState(2);
   const [ld, setLd] = useState(false);
@@ -130,6 +134,7 @@ export default function Page() {
   });
   const [statsLoading, setStatsLoading] = useState(true);
   const [userRole, setUserRole] = useState<"free" | "premium" | "admin">("free");
+  const [showPaywall, setShowPaywall] = useState(false);
   const [premExpiry, setPremExpiry] = useState<{ premium_until: string | null; daysRemaining: number | null }>({ premium_until: null, daysRemaining: null });
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstall, setShowInstall] = useState(false);
@@ -224,6 +229,26 @@ export default function Page() {
   const tkRef = useRef("");
   useEffect(() => {
     const proj = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").split("//")[1]?.split(".")[0] || "wazkylxgqckjfkcmfotl";
+    
+    const hash = window.location.hash;
+    if (hash && hash.includes("access_token")) {
+      const params = new URLSearchParams(hash.substring(1));
+      const accessToken = params.get("access_token");
+      const refreshToken = params.get("refresh_token");
+      const expiresIn = parseInt(params.get("expires_in") || "3600", 10);
+      if (accessToken) {
+        const session = {
+          access_token: accessToken,
+          refresh_token: refreshToken || "",
+          expires_at: Math.floor(Date.now() / 1000) + expiresIn,
+          token_type: "bearer",
+          user: null
+        };
+        localStorage.setItem("sb-" + proj + "-auth-token", JSON.stringify(session));
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    }
+
     const raw = localStorage.getItem("sb-" + proj + "-auth-token");
     if (!raw) {
       window.location.href = "/login";
@@ -1159,11 +1184,15 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 </button>
                 <button className={"tb tb-mis" + (tab === "mis" ? " on" : "")} onClick={() => setTab("mis")}>
                   <span className="tb-ico">📋</span>
-                  <span className="tb-lbl">Mis Preds</span>
+                  <span className="tb-lbl">Mis Análisis</span>
                 </button>
                 <button className={"tb tb-acc" + (tab === "acc" ? " on" : "")} onClick={() => setTab("acc")}>
                   <span className="tb-ico">🎯</span>
                   <span className="tb-lbl">Precisión</span>
+                </button>
+                <button className={"tb" + (tab === "hist" ? " on" : "")} onClick={() => setTab("hist")} style={tab === "hist" ? { background: "linear-gradient(135deg,#3b82f6,#2563eb)", color: "#fff", boxShadow: "0 4px 12px rgba(59,130,246,0.4)" } : {}}>
+                  <span className="tb-ico">📜</span>
+                  <span className="tb-lbl">Historial</span>
                 </button>
               </div>
               {tab === "pred" && (
@@ -1181,31 +1210,61 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     </button>
                   </div>
                   <div className={dg > 2 && !pr ? "lk" : ""}>
-                    <div className="g5">
-                      {cur.slice(0, 10).map((p: any, i: number) => {
-                        const r = ranking?.find((r: any) => r.numero === p.numero);
-                        return (
-                        <div className="cd" key={i} onClick={() => setNumDetail(r || p)} style={{cursor:"pointer"}}>
-                          <div className="cr2">#{i + 1}</div>
-                          <div className="ce">{getEmoji(p.numero)}</div>
-                          <div className="cn">{p.numero}</div>
-                          <div className="cs">{p.significado}</div>
-                          <div style={{
-                            marginTop:6,height:3,borderRadius:2,
-                            background:"rgba(255,255,255,.06)",
-                            overflow:"hidden"
-                          }}>
+                    <div style={{ position: "relative" }}>
+                      <div
+                        className="g5"
+                        style={userRole === "free" ? { filter: "blur(8px)", userSelect: "none", pointerEvents: "none" } : {}}
+                      >
+                        {cur.slice(0, 10).map((p: any, i: number) => {
+                          const r = ranking?.find((r: any) => r.numero === p.numero);
+                          return (
+                          <div className="cd" key={i} onClick={() => setNumDetail(r || p)} style={{cursor:"pointer"}}>
+                            <div className="cr2">#{i + 1}</div>
+                            <div className="ce">{getEmoji(p.numero)}</div>
+                            <div className="cn">{p.numero}</div>
+                            <div className="cs">{p.significado}</div>
                             <div style={{
-                              height:"100%",borderRadius:2,
-                              width: r?.score ? Math.min(100, (r.score || 0) * 100) + "%" : "0%",
-                              background:"linear-gradient(90deg,#a855f7,#ec4899)"
-                            }}/>
+                              marginTop:6,height:3,borderRadius:2,
+                              background:"rgba(255,255,255,.06)",
+                              overflow:"hidden"
+                            }}>
+                              <div style={{
+                                height:"100%",borderRadius:2,
+                                width: r?.score ? Math.min(100, (r.score || 0) * 100) + "%" : "0%",
+                                background:"linear-gradient(90deg,#a855f7,#ec4899)"
+                              }}/>
+                            </div>
+                            <div style={{fontSize:9,color:"#a78bfa",marginTop:3,fontWeight:600}}>
+                              {r?.score ? (r.score * 100).toFixed(0) + "%" : ""}
+                            </div>
                           </div>
-                          <div style={{fontSize:9,color:"#a78bfa",marginTop:3,fontWeight:600}}>
-                            {r?.score ? (r.score * 100).toFixed(0) + "%" : ""}
+                        )})}
+                      </div>
+                      {userRole === "free" && (
+                        <div
+                          style={{
+                            position: "absolute", inset: 0,
+                            display: "flex", flexDirection: "column",
+                            alignItems: "center", justifyContent: "center",
+                            background: "rgba(0,0,0,0.4)", borderRadius: 14,
+                            cursor: "pointer", zIndex: 10
+                          }}
+                          onClick={() => setShowPaywall(true)}
+                        >
+                          <div style={{ fontSize: 32, marginBottom: 8 }}>🧠</div>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginBottom: 4 }}>La IA ya calculó las probabilidades</div>
+                          <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 12 }}>Desbloqueá el análisis completo con Machine Learning</div>
+                          <div style={{
+                            background: "linear-gradient(135deg,#a855f7,#7c3aed)",
+                            color: "#fff", fontSize: 13, fontWeight: 800,
+                            padding: "10px 24px", borderRadius: 12,
+                            boxShadow: "0 4px 16px rgba(168,85,247,0.4)"
+                          }}>
+                            🔓 Desbloquear Análisis
                           </div>
+                          <div style={{ fontSize: 10, color: "#64748b", marginTop: 8 }}>Desde $3.500 ARS · Sin suscripción</div>
                         </div>
-                      )})}
+                      )}
                     </div>
                     {dg > 2 && !pr && (
                       <div className="lo">
@@ -1347,9 +1406,24 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     </div>
 
                     <div className="trend-stats">
-                      <div className="trend-stat-card">
+                      <div
+                        className="trend-stat-card"
+                        style={userRole === "free" ? { filter: "blur(6px)", userSelect: "none", position: "relative" } : {}}
+                      >
                         <div className="trend-stat-value">{dt?.numeros_2?.slice(0, 5).join("-")}</div>
                         <div className="trend-stat-label">Top 5 cifras</div>
+                        {userRole === "free" && (
+                          <div
+                            style={{
+                              position: "absolute", inset: 0,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              background: "rgba(0,0,0,0.3)", borderRadius: 10, cursor: "pointer"
+                            }}
+                            onClick={() => setShowPaywall(true)}
+                          >
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#a855f7" }}>PRO 🔒</span>
+                          </div>
+                        )}
                       </div>
                       <div className="trend-stat-card">
                         <div className="trend-stat-value">{dt?.stats?.numeroMasFrecuente?.numero}</div>
@@ -1694,6 +1768,16 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               )}
             </div>
           )}
+          {tab === "hist" && (
+            <div style={{marginTop:12}}>
+              <div className="sec">📜 Historial de Sorteos - Transparencia Total</div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 12, lineHeight: 1.6 }}>
+                Todos los resultados mostrados son <strong style={{ color: "#fff" }}>datos oficiales</strong> de la Quiniela Nacional.
+                Podés verificar cada sorteo en las fuentes oficiales.
+              </div>
+              <HistorialAciertos />
+            </div>
+          )}
           {!pr && (
             <div className="pay-box">
               <div style={{ fontSize: 36, marginBottom: 8 }}>🚀</div>
@@ -1889,6 +1973,16 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           </div>
         </div>
       )}
+      <PaywallModal
+        open={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        onWhatsApp={() => {
+          window.open("https://wa.me/5493412500029?text=Hola!%20Quiero%20activar%20Premium%20de%20Quiniela%20IA.", "_blank")
+          setShowPaywall(false)
+        }}
+      />
+      <WhatsAppFAB />
+      <FooterDisclaimer />
     </>
   );
 }
