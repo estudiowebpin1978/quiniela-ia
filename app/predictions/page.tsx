@@ -981,7 +981,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 transition: ".12s",
               }}
             >
-              {showCalc ? "▲ Cerrar sugerencias" : "📊 Datos estadísticos"}
+              {showCalc ? "▲ Cerrar" : (
+                misSummary.totalSaved > 0
+                  ? <>📊 Tu precisión personal · {misSummary.successRate}%</>
+                  : "📊 Tu precisión personal"
+              )}
             </button>
             <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
           </div>
