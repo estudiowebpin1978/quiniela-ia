@@ -921,7 +921,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         <div className="wr">
           <div className="hero">
             <h1>Quiniela IA <span onClick={() => setShowHowItWorks(true)} style={{cursor:"pointer",fontSize:14}}>ℹ️</span></h1>
-                <p><strong>No es magia. Es matemática.</strong> 30 factores estadísticos + Monte Carlo + Machine Learning (XGBoost + LightGBM) entrenado con +200 sorteos reales. Datos scrapeados cada 15 min de resultados oficiales de la Quiniela Nacional.</p>
+                <p>Análisis estadístico con 30 factores + Machine Learning. Datos oficiales actualizados.</p>
            <div className="sts">
               <div className="sc"><div className="sv">+212</div><div className="sl">Sorteos analizados</div></div>
               <div className="sc"><div className="sv">12</div><div className="sl">Factores estadísticos</div></div>
