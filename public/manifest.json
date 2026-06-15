@@ -1,7 +1,7 @@
 {
-  "name": "Quiniela IA - Predicciones Inteligentes",
+  "name": "Quiniela IA - Análisis Estadístico con IA",
   "short_name": "Quiniela IA",
-  "description": "Sistema de predicción estadística para la Quiniela Nacional de Buenos Aires",
+  "description": "Herramienta de análisis estadístico para la Quiniela Nacional de Buenos Aires. Solo entretenimiento.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0f",

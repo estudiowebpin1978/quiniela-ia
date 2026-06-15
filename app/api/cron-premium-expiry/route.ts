@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
 
     const title = expired ? "⏰ Premium vencido" : "⚠️ Premium próximo a vencer"
     const body = expired
-      ? "Tu suscripción Premium ha vencido. Renová para seguir accediendo a predicciones de 3 y 4 cifras."
+      ? "Tu suscripción Premium ha vencido. Renová para seguir accediendo a análisis de 3 y 4 cifras."
       : `Tu Premium vence en ${daysLeft} día${daysLeft === 1 ? "" : "s"}. Renová antes del vencimiento.`
 
     const payload = JSON.stringify({ title, body, url: "/predictions" })

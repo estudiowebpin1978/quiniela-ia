@@ -1,12 +1,12 @@
 /**
- * Página principal de predicciones de Quiniela IA.
+ * Página principal de análisis estadístico de Quiniela IA.
  * 
  * Funcionalidades:
  * - Selección de turno (Previa, Primera, Matutina, Vespertina, Nocturna)
- * - Generación de predicciones con 12 factores + ML
+ * - Generación de análisis con 30 factores + ML
  * - Mapa de calor de frecuencias
  * - Tendencias y estadísticas
- * - Guardado de predicciones y comparación con resultados reales
+ * - Guardado de análisis y comparación con resultados reales
  * - Sistema de logros/badges
  * - Notificaciones push de nuevos resultados
  * - Modo oscuro/claro
@@ -49,22 +49,22 @@ const HORAS: Record<string, string> = {
 const REVIEWS = [
   { n: "Carlos M.", c: "Buenos Aires", t: "El motor estadistico me da mucha mas confianza.", s: 5 },
   { n: "Laura G.", c: "Rosario", t: "Los numeros calientes realmente salen con frecuencia.", s: 5 },
-  { n: "Roberto P.", c: "Cordoba", t: "La redoblona del premium es increible.", s: 5 },
+  { n: "Roberto P.", c: "Cordoba", t: "El análisis de pares correlacionados es muy útil.", s: 5 },
   { n: "Marcela S.", c: "Mendoza", t: "Facil de usar. Ya no elijo al azar.", s: 4 },
   { n: "Diego F.", c: "Mar del Plata", t: "El mapa de calor es muy profesional.", s: 5 },
   { n: "Ana B.", c: "Tucuman", t: "Excelente app. El motor es muy preciso.", s: 5 },
   { n: "Jorge R.", c: "Salta", t: "Me ayudo a entender los patrones.", s: 4 },
   { n: "Patricia L.", c: "La Plata", t: "Muy buena app, la recomiendo.", s: 5 },
-  { n: "Miguel A.", c: "Bahia Blanca", t: "Las predicciones de 4 cifras son muy buenas.", s: 5 },
-  { n: "Sandra V.", c: "Santa Fe", t: "El analisis de frecuencia me cambio la manera de jugar.", s: 5 },
+  { n: "Miguel A.", c: "Bahia Blanca", t: "Los análisis de 4 cifras son muy detallados.", s: 5 },
+  { n: "Sandra V.", c: "Santa Fe", t: "El análisis de frecuencia cambió mi forma de ver los datos.", s: 5 },
   { n: "Oscar T.", c: "Neuquen", t: "Muy completa y facil de usar.", s: 4 },
   { n: "Claudia H.", c: "Posadas", t: "Gracias a esta app mejore mis resultados.", s: 5 },
   { n: "Fernando N.", c: "Corrientes", t: "El motor Monte Carlo es impresionante.", s: 5 },
-  { n: "Beatriz O.", c: "Resistencia", t: "La mejor app de quiniela que probe.", s: 5 },
+  { n: "Beatriz O.", c: "Resistencia", t: "La mejor herramienta de análisis estadístico que probé.", s: 5 },
   { n: "Raul K.", c: "San Juan", t: "Increible la precision del sistema.", s: 4 },
-  { n: "Monica E.", c: "San Luis", t: "La redoblona me dio muy buenos resultados.", s: 5 },
+  { n: "Monica E.", c: "San Luis", t: "El análisis de correlaciones me dio muy buenos datos.", s: 5 },
   { n: "Hector Q.", c: "Rio Gallegos", t: "Excelente herramienta estadistica.", s: 5 },
-  { n: "Viviana C.", c: "Ushuaia", t: "Las predicciones son basadas en datos reales.", s: 4 },
+  { n: "Viviana C.", c: "Ushuaia", t: "Los análisis son basados en datos reales.", s: 4 },
   { n: "Alberto D.", c: "Mendoza", t: "El analisis de ciclos es unico.", s: 5 },
   { n: "Norma I.", c: "Cordoba", t: "Muy completa. El premium vale cada peso.", s: 5 },
 ];
@@ -254,7 +254,7 @@ export default function Page() {
       const savedLastDate = localStorage.getItem("quiniela-ia-ultimo-sorteo-visto");
       if (savedLastDate) setLastDrawDate(savedLastDate);
       cargarMisPreds(s.access_token);
-      setStats({ totalSorteos: "--", pct: "--", racha: "--", mensaje: "Presiona 'Generar Predicción' para comenzar" }); 
+      setStats({ totalSorteos: "--", pct: "--", racha: "--", mensaje: "Presiona 'Generar Análisis' para comenzar" }); 
       setStatsLoading(false);
       const visited = localStorage.getItem("quiniela-ia-tour-visto");
       if (!visited) {
@@ -325,7 +325,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     }
     if (!("Notification" in window) || Notification.permission !== "granted") return;
     const body = aciertos && aciertos.length > 0
-      ? "Acertaste " + aciertos.length + " numero(s)! " + aciertos.join(", ") + " en " + turno
+      ? "Coincidencia: " + aciertos.length + " número(s)! " + aciertos.join(", ") + " en " + turno
       : "Resultados del " + turno + " disponibles.";
     new Notification("Quiniela IA", { body, icon: "/icon-192.png" });
   }
@@ -555,7 +555,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     const yaExiste = todas.some((p: any) => p.fecha === fechaSorteoStr && p.turno === so);
     if (yaExiste) {
       setGuardando(false);
-      alert("Ya guardaste una predicción para este turno");
+      alert("Ya guardaste un análisis para este turno");
       return;
     }
 
@@ -589,7 +589,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         const data = await res.json();
         if (res.status === 409) {
           setGuardando(false);
-          alert("Ya guardaste una predicción para este turno");
+          alert("Ya guardaste un análisis para este turno");
           return;
         }
         if (res.ok) {
@@ -621,7 +621,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     }
     const lineas = cur.slice(0, 10).map((p: any, i: number) => "#" + (i + 1) + " " + p.numero + " - " + p.significado).join("\n");
     const rdblLine = dt?.redoblona ? "\nRedoblona: " + dt.redoblona : "";
-    const txt = "QUINIELA IA - " + proximoSorteo(so) + "\n\n" + lineas + rdblLine + "\n\n" + APP_URL;
+    const txt = "QUINIELA IA ANÁLISIS - " + proximoSorteo(so) + "\n\n" + lineas + rdblLine + "\n\n" + APP_URL;
     navigator.clipboard
       .writeText(txt)
       .then(() => alert("Copiado!"))
@@ -637,7 +637,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   }
 
   function share(p: string) {
-    const txt = encodeURIComponent("Proba Quiniela IA - Predicciones estadisticas reales");
+    const txt = encodeURIComponent("Probá Quiniela IA - Análisis estadístico basado en datos reales");
     const url = encodeURIComponent(APP_URL);
     if (p === "copy") {
       navigator.clipboard.writeText(APP_URL).then(() => alert("Link copiado!"));
@@ -920,7 +920,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 </div>
                 <div style={{ fontSize: 11, color: "var(--dim)", marginTop: 2 }}>
                   {premExpiry.daysRemaining === 0
-                    ? "Renová ahora para seguir accediendo a predicciones de 3 y 4 cifras."
+                    ? "Renová ahora para seguir accediendo a análisis de 3 y 4 cifras."
                     : "Renová antes del vencimiento para mantener el acceso."}
                 </div>
               </div>
@@ -959,7 +959,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             ))}
           </div>
           <button className="btn3d btn-gen" onClick={gen} disabled={ld} style={{ opacity: ld ? 0.6 : 1 }}>
-            {ld ? "⏳ Analizando datos..." : "⚡ Generar Predicción Ahora"}
+            {ld ? "⏳ Analizando datos..." : "⚡ Generar Análisis Ahora"}
           </button>
           <div style={{ display: "grid", gap: 10, margin: "16px 0 18px" }}>
             <button
@@ -982,7 +982,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 transition: ".12s",
               }}
             >
-              📋 Mis Predicciones
+              📋 Mis Análisis
             </button>
             <button
               onClick={() => setShowCalc(!showCalc)}
@@ -1001,18 +1001,18 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 transition: ".12s",
               }}
             >
-              {showCalc ? "▲ Cerrar sugerencias" : "💰 Sugerencias de apuesta"}
+              {showCalc ? "▲ Cerrar sugerencias" : "📊 Datos estadísticos"}
             </button>
-            <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y aciertos.</div>
+            <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
           </div>
           {showCalc && (
             <div style={{ marginTop: 12, padding: 14, background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(34,197,94,.05))", borderRadius: 12, border: "1px solid rgba(34,197,94,.4)", textAlign: "center" }}>
               <div style={{ fontSize: 13, fontWeight: 800, color: "#4ade80", marginBottom: 6 }}>💡 ESTRATEGIA RECOMENDADA</div>
-              <div style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>Jugá los 10 números a la CABEZA (1°) y al 20°</div>
-              <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>Los 10 son el top del ensemble matemático. Apostar a 1° y 20° cubre mayor margen de aciertos.</div>
+              <div style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>Top 10 números con mayor frecuencia estadística</div>
+              <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>Los 10 números con mayor score del ensemble matemático.</div>
               {pr && (
                 <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 6, fontWeight: 700 }}>
-                  ✨ Premium: jugá las 5 de 3 cifras y las 5 de 4 cifras a la cabeza (1°) y al 20°
+                  ✨ Premium: Top 5 números de 3 cifras y top 5 de 4 cifras por frecuencia
                 </div>
               )}
             </div>
@@ -1022,10 +1022,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               <div style={{fontSize:10,fontWeight:800,color:"#a78bfa",textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>📊 Tu precisión personal</div>
               <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
                 <span style={{fontSize:20,fontWeight:900,color:"#a855f7"}}>{misSummary.successRate}%</span>
-                <span style={{fontSize:11,color:"var(--dim)"}}>aciertos en {misSummary.totalSaved} predicciones · {misSummary.totalAciertos} números acertados</span>
+                <span style={{fontSize:11,color:"var(--dim)"}}>coincidencias en {misSummary.totalSaved} análisis · {misSummary.totalAciertos} números coincidentes</span>
               </div>
               {misSummary.thisWeek > 0 && (
-                <div style={{fontSize:10,color:"var(--dim)",marginTop:4}}>Esta semana: {misSummary.thisWeek} preds · {misSummary.thisWeekHits} con aciertos ({misSummary.thisWeekRate}%)</div>
+                <div style={{fontSize:10,color:"var(--dim)",marginTop:4}}>Esta semana: {misSummary.thisWeek} análisis · {misSummary.thisWeekHits} con coincidencias ({misSummary.thisWeekRate}%)</div>
               )}
             </div>
           )}
@@ -1056,7 +1056,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                       textAlign: "center",
                     }}
                   >
-                    {resultadoControl.aciertos?.length > 0 ? "🎉 Acertaste " + resultadoControl.aciertos.length + " numero(s)!" : "😔 Sin aciertos esta vez"}
+                    {resultadoControl.aciertos?.length > 0 ? "📊 Coincidencia: " + resultadoControl.aciertos.length + " número(s)" : "Sin coincidencias esta vez"}
                   </div>
                   {resultadoControl.aciertos?.length > 0 && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginBottom: 10 }}>
@@ -1090,7 +1090,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             <div className="ht">
               👆 Seleccioná el sorteo de arriba y apretá
               <br />
-              <strong>⚡ Generar Predicción Ahora</strong>
+              <strong>⚡ Generar Análisis Ahora</strong>
               <br />
               <span style={{ fontSize: 11, color: "#475569" }}>Motor estadístico con datos reales actualizados</span>
             </div>
@@ -1143,11 +1143,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               <div className="tbs">
                 <button className={"tb tb-pred" + (tab === "pred" ? " on" : "")} onClick={() => setTab("pred")}>
                   <span className="tb-ico">🎯</span>
-                  <span className="tb-lbl">Predicc.</span>
+                  <span className="tb-lbl">Análisis</span>
                 </button>
                 <button className={"tb tb-rdbl" + (tab === "rdbl" ? " on" : "")} onClick={() => setTab("rdbl")}>
                   <span className="tb-ico">🎲</span>
-                  <span className="tb-lbl">Redoblona</span>
+                  <span className="tb-lbl">Correlación</span>
                 </button>
                 <button className={"tb tb-freq" + (tab === "freq" ? " on" : "")} onClick={() => setTab("freq")}>
                   <span className="tb-ico">🔥</span>
@@ -1210,7 +1210,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     {dg > 2 && !pr && (
                       <div className="lo">
                         <div style={{ fontSize: 32 }}>🔐</div>
-                        <h3>Predicciones {dg} digitos</h3>
+                        <h3>Análisis {dg} dígitos</h3>
                         <p>El mismo motor de 30 factores predice números de {dg} cifras. Accedé con Premium.</p>
                         <div style={{fontSize:10,color:"#4ade80",marginTop:6}}>✓ Sin datos de tarjeta</div>
                         <div style={{fontSize:10,color:"#4ade80"}}>✓ Paga desde tu billetera virtual</div>
@@ -1224,7 +1224,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
                   {rdbl && tab === "pred" && (pr || userRole === "admin") && (
                     <div className="rdbl" style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 12, color: "#25F4EE", marginBottom: 4, fontWeight: 700 }}>🎯 Par óptimo (Redoblona)</div>
+                      <div style={{ fontSize: 12, color: "#25F4EE", marginBottom: 4, fontWeight: 700 }}>🎯 Par óptimo (Correlación)</div>
                       <div className="rpair">{rdbl}</div>
                       <div style={{ fontSize: 11, color: "#64748b" }}>Apostale a que ambos aparecen en el mismo sorteo.</div>
                     </div>
@@ -1242,7 +1242,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               )}
               {tab === "rdbl" && (
                 <>
-                  <div className="sec">Analisis de redoblona</div>
+                  <div className="sec">Análisis de correlación</div>
                   <div style={{ minHeight: 160 }}>
                     {pr ? (
                       <>
@@ -1277,7 +1277,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                         }}
                       >
                         <div style={{ fontSize: 36 }}>🔐</div>
-                        <div style={{ fontWeight: 800, color: "#fff", fontSize: 16 }}>Redoblona Premium</div>
+                        <div style={{ fontWeight: 800, color: "#fff", fontSize: 16 }}>Correlación Premium</div>
                         <div style={{ fontSize: 12, color: "#94a3b8", maxWidth: 200, lineHeight: 1.6 }}>El par óptimo se calcula con análisis de co-ocurrencia y correlación cross-turno. Exclusivo Premium.</div>
                         <div style={{fontSize:10,color:"#4ade80",marginTop:6}}>✓ Sin datos de tarjeta</div>
                         <div style={{fontSize:10,color:"#4ade80"}}>✓ Paga desde tu billetera virtual</div>
@@ -1442,7 +1442,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           )}
           {tab === "mis" && (
             <>
-              <div className="sec">Mis predicciones guardadas
+              <div className="sec">Mis análisis guardados
                 <button 
                   onClick={() => tkRef.current && cargarMisPreds(tkRef.current)}
                   style={{
@@ -1461,10 +1461,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 </button>
               </div>
               {misLoading ? (
-                <div style={{ textAlign: "center", padding: "30px", color: "#64748b", fontSize: 12 }}>Cargando historial de predicciones...</div>
+                <div style={{ textAlign: "center", padding: "30px", color: "#64748b", fontSize: 12 }}>Cargando historial de análisis...</div>
               ) : misPreds.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "30px", color: "#64748b", fontSize: 12 }}>
-                  Aun no guardaste predicciones.<br />Genera una prediccion y apreta Guardar para comparar.
+                  Aún no guardaste análisis.<br />Generá un análisis y apretá Guardar para comparar.
                 </div>
               ) : (
                 <>
@@ -1478,7 +1478,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                       <div className="saved-summary-value">{misSummary.totalWithResult}</div>
                     </div>
                     <div className="saved-summary-card">
-                      <div className="saved-summary-label">Predicciones con acierto</div>
+                      <div className="saved-summary-label">Análisis con coincidencia</div>
                       <div className="saved-summary-value">{misSummary.successRate}%</div>
                     </div>
                     <div className="saved-summary-card">
@@ -1490,22 +1490,22 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     <div className="saved-summary-card" style={{ gridColumn: "span 2" }}>
                       <div className="saved-summary-label">Esta semana</div>
                       <div className="saved-summary-value">{misSummary.thisWeek}</div>
-                      <div style={{fontSize:10,color:"var(--dim)"}}>predicciones · {misSummary.thisWeekHits} con aciertos ({misSummary.thisWeekRate}%)</div>
+                      <div style={{fontSize:10,color:"var(--dim)"}}>análisis · {misSummary.thisWeekHits} con coincidencias ({misSummary.thisWeekRate}%)</div>
                     </div>
                     <div className="saved-summary-card" style={{ gridColumn: "span 2" }}>
                       <div className="saved-summary-label">Mejor turno</div>
                       <div className="saved-summary-value">{misSummary.bestTurno}</div>
-                      <div style={{fontSize:10,color:"var(--dim)"}}>con más aciertos históricos</div>
+                      <div style={{fontSize:10,color:"var(--dim)"}}>con más coincidencias históricas</div>
                     </div>
                   </div>
                   {(() => {
                     const badges = [];
-                    if (misPreds.length >= 1) badges.push({icon:"🙌",label:"Primera predicción",color:"#4ade80"});
-                    if (misSummary.totalAciertos >= 1) badges.push({icon:"🎯",label:"Primer acierto",color:"#f59e0b"});
-                    if (misPreds.length >= 10) badges.push({icon:"💎",label:"10 predicciones",color:"#a855f7"});
-                    if (misPreds.length >= 30) badges.push({icon:"🏆",label:"30 predicciones",color:"#f472b6"});
-                    if (misSummary.totalWithHits >= 3) badges.push({icon:"🔥",label:misSummary.totalWithHits + " con aciertos",color:"#ef4444"});
-                    if (misSummary.successRate >= 50) badges.push({icon:"⭐",label:"+50% aciertos",color:"#f59e0b"});
+                    if (misPreds.length >= 1) badges.push({icon:"🙌",label:"Primer análisis",color:"#4ade80"});
+                    if (misSummary.totalAciertos >= 1) badges.push({icon:"🎯",label:"Primera coincidencia",color:"#f59e0b"});
+                    if (misPreds.length >= 10) badges.push({icon:"💎",label:"10 análisis",color:"#a855f7"});
+                    if (misPreds.length >= 30) badges.push({icon:"🏆",label:"30 análisis",color:"#f472b6"});
+                    if (misSummary.totalWithHits >= 3) badges.push({icon:"🔥",label:misSummary.totalWithHits + " con coincidencias",color:"#ef4444"});
+                    if (misSummary.successRate >= 50) badges.push({icon:"⭐",label:"+50% coincidencias",color:"#f59e0b"});
                     if (badges.length === 0) return null;
                     return (
                       <div style={{marginBottom:16}}>
@@ -1538,7 +1538,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                             <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>{p.numeros?.length || 0} nums</span>
                             {p.resultado && p.resultado.length > 0 ? (
                               <div className={`saved-card-status ${p.acerto ? "hit" : "miss"}`}>
-                                {p.acerto ? `🎉 ${p.aciertos.length} acierto(s)` : "Sin aciertos"}
+                                {p.acerto ? `📊 ${p.aciertos.length} coincidencia(s)` : "Sin coincidencias"}
                               </div>
                             ) : (
                               <div className="saved-card-status miss">⏳ Esperando resultado</div>
@@ -1557,7 +1557,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                         </div>
                         {(pr || userRole === "admin") && p.numeros_3?.length > 0 && (
                           <div style={{ marginTop: 8, padding: "6px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}>
-                            <div style={{ fontSize: 10, color: "#f59e0b", fontWeight: 700, marginBottom: 4 }}>🔢 3 CIFRAS {p.aciertos_3?.length > 0 && <span style={{color:"#22c55e"}}>✓ {p.aciertos_3.length} acierto{p.aciertos_3.length > 1 ? "s" : ""}</span>}</div>
+                            <div style={{ fontSize: 10, color: "#f59e0b", fontWeight: 700, marginBottom: 4 }}>🔢 3 CIFRAS {p.aciertos_3?.length > 0 && <span style={{color:"#22c55e"}}>✓ {p.aciertos_3.length} coincidencia{p.aciertos_3.length > 1 ? "s" : ""}</span>}</div>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                               {p.numeros_3.map((n: string, j: number) => {
                                 const hit3 = p.aciertos_3?.some((a: any) => a.numero === n);
@@ -1576,7 +1576,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                         )}
                         {(pr || userRole === "admin") && p.numeros_4?.length > 0 && (
                           <div style={{ marginTop: 8, padding: "6px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}>
-                            <div style={{ fontSize: 10, color: "#a855f7", fontWeight: 700, marginBottom: 4 }}>🔢 4 CIFRAS {p.aciertos_4?.length > 0 && <span style={{color:"#22c55e"}}>✓ {p.aciertos_4.length} acierto{p.aciertos_4.length > 1 ? "s" : ""}</span>}</div>
+                            <div style={{ fontSize: 10, color: "#a855f7", fontWeight: 700, marginBottom: 4 }}>🔢 4 CIFRAS {p.aciertos_4?.length > 0 && <span style={{color:"#22c55e"}}>✓ {p.aciertos_4.length} coincidencia{p.aciertos_4.length > 1 ? "s" : ""}</span>}</div>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                               {p.numeros_4.map((n: string, j: number) => {
                                 const hit4 = p.aciertos_4?.some((a: any) => a.numero === n);
@@ -1671,8 +1671,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
                       {[
                         { label: "Sorteos analizados", val: backtestData.metrics_top_10?.totalDraws || 0 },
-                        { label: "Promedio aciertos/sorteo", val: backtestData.metrics_top_10?.avgHitsPerDraw || 0 },
-                        { label: "Máx aciertos en 1 sorteo", val: backtestData.metrics_top_10?.maxHits || 0 },
+                        { label: "Promedio coincidencias/sorteo", val: backtestData.metrics_top_10?.avgHitsPerDraw || 0 },
+                        { label: "Máx coincidencias en 1 sorteo", val: backtestData.metrics_top_10?.maxHits || 0 },
                         { label: "Precisión", val: (backtestData.metrics_top_10?.precision || 0) + "%" },
                         { label: "Recall", val: (backtestData.metrics_top_10?.recall || 0) + "%" },
                         { label: "ROI teórico", val: (backtestData.metrics_top_10?.roi || 0) + "%" },
@@ -1685,7 +1685,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     </div>
                   </div>
                   <div style={{fontSize:9,color:"var(--dim)",textAlign:"center",lineHeight:1.5}}>
-                    Walk-forward validation con {backtestData.metrics_top_10?.totalDraws || 0} sorteos de {backtestData.total_draws} totales · Motor de 30 factores · Top 10 predicciones
+                     Walk-forward validation con {backtestData.metrics_top_10?.totalDraws || 0} sorteos de {backtestData.total_draws} totales · Motor de 30 factores · Top 10 análisis
                   </div>
                   <button onClick={() => setBacktestData(null)} style={{width:"100%",padding:10,borderRadius:10,border:"1px solid rgba(255,255,255,.08)",background:"transparent",color:"var(--dim)",fontSize:10,cursor:"pointer",marginTop:10}}>
                     Recalcular
@@ -1698,7 +1698,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             <div className="pay-box">
               <div style={{ fontSize: 36, marginBottom: 8 }}>🚀</div>
               <h3 className="pay-title">MEMBRESÍA PREMIUM</h3>
-              <div style={{fontSize:11,color:"var(--dim)",marginBottom:12,textAlign:"center",lineHeight:1.6}}>Accedé a predicciones de 3 y 4 cifras con el <strong style={{color:"var(--text)"}}>mismo motor matemático de 30 factores</strong> que analiza frecuencia, tendencia, Markov, Monte Carlo y ML en cada sorteo.</div>
+              <div style={{fontSize:11,color:"var(--dim)",marginBottom:12,textAlign:"center",lineHeight:1.6}}>Accedé a análisis de 3 y 4 cifras con el <strong style={{color:"var(--text)"}}>mismo motor matemático de 30 factores</strong> que analiza frecuencia, tendencia, Markov, Monte Carlo y ML en cada sorteo.</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16,textAlign:"left"}}>
                 <div style={{borderRadius:12,border:"1px solid rgba(255,255,255,.08)",padding:12,background:"rgba(255,255,255,.03)"}}>
                   <div style={{fontSize:10,fontWeight:800,color:"#4ade80",textTransform:"uppercase",marginBottom:8}}>GRATIS</div>
@@ -1706,10 +1706,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     ✓ 2 cifras (top 10)<br/>
                     ✓ Mapa de calor<br/>
                     ✓ Tendencias<br/>
-                    ✓ Guardar predicciones<br/>
+                    ✓ Guardar análisis<br/>
                     ✗ 3 cifras<br/>
                     ✗ 4 cifras<br/>
-                    ✗ Redoblona
+                    ✗ Correlación
                   </div>
                 </div>
                 <div style={{borderRadius:12,border:"1.5px solid #f59e0b",padding:12,background:"rgba(245,158,11,.06)"}}>
@@ -1718,10 +1718,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     ✓ 2 cifras (top 10)<br/>
                     ✓ 3 cifras (top 5)<br/>
                     ✓ 4 cifras (top 5)<br/>
-                    ✓ Redoblona completa<br/>
+                    ✓ Correlación completa<br/>
                     ✓ Mapa de calor<br/>
                     ✓ Tendencias<br/>
-                    ✓ Guardar predicciones
+                    ✓ Guardar análisis
                   </div>
                 </div>
               </div>
@@ -1824,8 +1824,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               Desarrollado por <strong>EstudioWebPin</strong> · Autor: <strong>Adrian Hugo Lopez</strong>
             </div>
             <div className="dc">
-              Herramienta de analisis estadistico con fines informativos. No realiza apuestas ni maneja dinero. La Quiniela Nacional es administrada por la Loteria Nacional.
-              El juego en exceso puede causar adiccion. Linea gratuita: 0800-333-0062. Solo mayores de 18 anos.
+              <strong style={{color:"#94a3b8"}}>Aviso Legal:</strong> Quiniela IA es una herramienta de análisis estadístico y entretenimiento. Los resultados mostrados son análisis basados en datos históricos y <strong style={{color:"#f87171"}}>no garantizan resultados futuros</strong>. La Quiniela Nacional es un juego de azar. Juegá responsablemente. Esta aplicación no está afiliada a la Lotería Nacional ni a ninguna entidad oficial de lotería. Los datos se obtienen de fuentes públicas con fines informativos y educativos.
+              El juego en exceso puede causar adicción. Línea gratuita: 0800-333-0062. Solo mayores de 18 años.
             </div>
           </div>
         </div>
@@ -1839,8 +1839,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>2. 30 factores estadísticos</strong><br/>Cada número recibe un score basado en frecuencia histórica, ausencia, recencia exponencial, tendencia, ciclos, momentum, Markov, entropía, clusters, co-ocurrencia, espejos, vecinos y más. Nada es al azar.</p>
               <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>3. Monte Carlo + Ensemble dinámico</strong><br/>5.000 simulaciones estadísticas combinan los 30 factores con análisis cross-turno. Los pesos se auto-calibran según el rendimiento histórico real.</p>
               <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>4. ML: XGBoost + LightGBM</strong><br/>Modelos de Machine Learning entrenados offline con +200 sorteos reales. Extraen 25 features por número y aprenden patrones que el análisis manual no detecta.</p>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>5. Cero números aleatorios</strong><br/>No hay random. No hay "magia". Cada predicción es el resultado de cálculos matemáticos verificables sobre datos reales de la Quiniela Nacional.</p>
-              <p><strong style={{color:"var(--text)"}}>6. Resultados contrastables</strong><br/>Guardá tus predicciones y comparalas con los resultados oficiales automáticamente. Podés verificar cada acierto.</p>
+               <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>5. Cero números aleatorios</strong><br/>No hay random. No hay "magia". Cada análisis es el resultado de cálculos matemáticos verificables sobre datos reales de la Quiniela Nacional.</p>
+              <p><strong style={{color:"var(--text)"}}>6. Resultados contrastables</strong><br/>Guardá tus análisis y comparalos con los resultados oficiales automáticamente. Podés verificar cada coincidencia.</p>
             </div>
             <button onClick={() => setShowHowItWorks(false)} style={{marginTop:20,width:"100%",padding:"12px 20px",borderRadius:10,border:"none",background:"var(--red)",color:"#fff",fontWeight:700,cursor:"pointer"}}>Entendido</button>
           </div>

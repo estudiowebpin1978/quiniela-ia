@@ -55,7 +55,7 @@ return(<>
       <div style={{textAlign:"center",marginBottom:24}}>
         <div className="logo">🎰</div>
         <span className="app-name">Quiniela IA</span>
-        <div style={{fontSize:13,color:"#64748b",marginTop:8,letterSpacing:1}}>PREDICCIONES ESTADÍSTICAS</div>
+        <div style={{fontSize:13,color:"#64748b",marginTop:8,letterSpacing:1}}>ANÁLISIS ESTADÍSTICOS CON IA</div>
       </div>
 
       <div className="badge">🎉 100% GRÁTIS · SIN TARJETA</div>

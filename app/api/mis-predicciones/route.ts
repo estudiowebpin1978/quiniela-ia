@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
     )
     const existing = await checkRes.json()
     if (Array.isArray(existing) && existing.length > 0) {
-      return NextResponse.json({ error: "Ya guardaste una predicción para este turno", duplicate: true }, { status: 409 })
+      return NextResponse.json({ error: "Ya guardaste un análisis para este turno", duplicate: true }, { status: 409 })
     }
 
     // Store: array for free users, JSON string in array for premium (object)

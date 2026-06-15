@@ -2,21 +2,21 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Quiniela IA — Predicciones Inteligentes con IA",
-  description: "Sistema de predicción estadística para la Quiniela Nacional de Buenos Aires. Análisis de números calientes, fríos y ciclos. Predicciones gratis.",
-  keywords: "quiniela, predictor, lotería, números, argentina, buenos aires, quiniela nacional, prefiero",
+  title: "Quiniela IA — Análisis Estadístico Avanzado con IA",
+  description: "Herramienta de análisis estadístico para la Quiniela Nacional de Buenos Aires. Motor de 30 factores, Monte Carlo, Machine Learning. Solo entretenimiento y análisis de datos.",
+  keywords: "análisis estadístico, quiniela nacional, números, argentina, buenos aires, machine learning, datos, tendencias",
   authors: [{ name: "Quiniela IA" }],
 openGraph: {
-    title: "Quiniela IA - Predicciones Inteligentes",
-    description: "Gana con estadísticas reales. Análisis de números calientes, fríos y ciclos.",
+    title: "Quiniela IA - Análisis Estadístico con IA",
+    description: "Herramienta de análisis estadístico basada en 30 factores y Machine Learning.",
     type: "website",
     locale: "es_AR",
     siteName: "Quiniela IA",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Quiniela IA - Predicciones Inteligentes",
-    description: "Gana con estadísticas reales",
+    title: "Quiniela IA - Análisis Estadístico con IA",
+    description: "Análisis estadístico basado en datos reales y Machine Learning",
   },
   manifest: "/manifest.json",
 };

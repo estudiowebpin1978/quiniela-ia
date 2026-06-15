@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     const predictions = await predRes.json()
     
     if (!predictions?.length) {
-      return NextResponse.json({ message: "No hay predicciones para comparar", results: [] })
+      return NextResponse.json({ message: "No hay análisis para comparar", results: [] })
     }
 
     const fechas = [...new Set(predictions.map((p: any) => p.date))]
