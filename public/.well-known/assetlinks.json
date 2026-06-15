@@ -2,7 +2,7 @@
   "relation": ["delegate_permission/common.handle_all_urls"],
   "target": {
     "namespace": "android_app",
-    "package_name": "com.quinielaia.app",
-    "sha256_cert_fingerprints": ["Generá con: keytool -exportcert -alias your-key-name -keystore your-keystore.jks | sha256sum"]
+    "package_name": "app.vercel.quiniela_ia_two.twa",
+    "sha256_cert_fingerprints": ["E3:EE:68:AE:60:C5:B7:E1:28:64:FA:7A:19:D5:6D:E6:64:6A:CA:44:96:64:69:E7:3C:AF:A2:1E:6A:74:62:5B"]
   }
 }]
