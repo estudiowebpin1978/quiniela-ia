@@ -187,6 +187,11 @@ export async function GET(req: NextRequest) {
   let eliminadas = 0
   try { eliminadas = await limpiarPrediccionesViejas() } catch {}
 
+  // Auto-train ML models in background after scraping new draws
+  if (guardados > 0) {
+    import("@/lib/ml/auto-train").then(m => m.autoTrainAll()).catch(() => {})
+  }
+
   return NextResponse.json({
     ok: true,
     fecha: fechaISO,

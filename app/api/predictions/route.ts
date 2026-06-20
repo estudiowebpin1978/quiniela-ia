@@ -91,6 +91,9 @@ export async function GET(req: NextRequest) {
   // Recalibrar curva de confianza desde datos reales
   recalibrar().catch(() => {})
 
+  // Load deep learning models from Supabase (async, cached)
+  import("@/lib/ml/deep-learning-loader").then(m => m.loadDeepLearningFromSupabase()).catch(() => {})
+
   const ctrl = new AbortController()
   const to = setTimeout(() => ctrl.abort(), 25000)
 
@@ -326,9 +329,19 @@ export async function GET(req: NextRequest) {
     const analisisAv = ejecutarAnalisisCompleto(sorteos, { topNRanking: 15 })
 
     // === ENSEMBLE: Integrar ML cacheado (TypeScript) ===
+    // Auto-train on cold start if cache is empty
     try {
       const { getModelos } = await import("@/lib/ml/cache")
-      const cached = getModelos(turnoQuery)
+      let cached = getModelos(turnoQuery)
+      
+      // Lazy init: auto-train if cache empty (cold start)
+      if (!cached || cached.length === 0) {
+        try {
+          const { autoTrainSingle } = await import("@/lib/ml/auto-train")
+          cached = await autoTrainSingle(turnoQuery)
+        } catch {}
+      }
+
       if (cached && cached.length > 0) {
         const ordenados = [...sorteos].sort((a: any, b: any) =>
           new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
