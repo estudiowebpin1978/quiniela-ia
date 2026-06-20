@@ -202,7 +202,7 @@ export function generarInformeConfianza(
   } else if (promedio >= 50) {
     resumen = `Sistema con confianza media. ${altoConfianza.length} números con alta probabilidad.`;
   } else {
-    resumen = `Sistema con confianza variable. Se recomienda diversificar apuestas.`;
+    resumen = `Sistema con confianza variable. Se recomienda diversificar selecciones.`;
   }
 
   return {

@@ -21,6 +21,9 @@ import FooterDisclaimer from "@/components/FooterDisclaimer";
 import HistorialAciertos from "@/components/HistorialAciertos";
 import ExpiryBanner from "@/components/ExpiryBanner";
 import AgeGate from "@/components/AgeGate";
+import { ToastProvider, useToast } from "@/components/Toast";
+import { saveAuth, getAccessToken, clearAuth, getAuth } from "@/lib/auth";
+import { esFeriado, esDiaSinSorteo, motivoDiaSinSorteo, todosLosFeriados } from "@/lib/feriados";
 
 const EMOJIS: Record<string, string> = {
   "00": "🥚", "01": "💧", "02": "🧒", "03": "⛪", "04": "🛏️", "05": "🐱", "06": "🐶", "07": "🔫", "08": "🔥", "09": "🏞️",
@@ -41,7 +44,7 @@ function getEmoji(num: string): string {
 }
 
 const CONTACT = "estudiowebpin@gmail.com";
-const WA = "https://whatsapp.com/channel/0029VbB7O9B9cDDUtBY9GU1F";
+const WA = "https://api.whatsapp.com/send?phone=5493412500029";
 const APP_URL = "https://quiniela-ia-two.vercel.app";
 const SORTEOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"];
 const HORAS: Record<string, string> = {
@@ -96,7 +99,8 @@ type PredData = {
   heatmap: { n: number; f: number; s: string; pct: number }[];
 };
 
-export default function Page() {
+function PageInner() {
+  const toast = useToast();
   const [pr, setPr] = useState(false);
   const [em, setEm] = useState("");
   const [tab, setTab] = useState<"pred" | "rdbl" | "freq" | "trend" | "mis" | "acc" | "hist" | "analisis">("pred");
@@ -134,6 +138,7 @@ export default function Page() {
   });
   const [statsLoading, setStatsLoading] = useState(true);
   const [userRole, setUserRole] = useState<"free" | "premium" | "admin">("free");
+  const [userId, setUserId] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [premExpiry, setPremExpiry] = useState<{ premium_until: string | null; daysRemaining: number | null }>({ premium_until: null, daysRemaining: null });
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -209,67 +214,60 @@ export default function Page() {
 
   const tkRef = useRef("");
   useEffect(() => {
-    const proj = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").split("//")[1]?.split(".")[0] || "wazkylxgqckjfkcmfotl";
-    const raw = localStorage.getItem("sb-" + proj + "-auth-token");
-    if (!raw) {
+    const auth = getAuth();
+    if (!auth) {
       window.location.href = "/login";
       return;
     }
-    try {
-      const s = JSON.parse(raw);
-      if (!s?.access_token) {
-        window.location.href = "/login";
-        return;
-      }
-      if (s.expires_at && s.expires_at < Math.floor(Date.now() / 1000)) {
-        localStorage.removeItem("sb-" + proj + "-auth-token");
-        window.location.href = "/login";
-        return;
-      }
-      tkRef.current = s.access_token;
-      (window as any).__QUINIELA_TOKEN = s.access_token;
-      setEm(s.user?.email || "");
-      fetch("/api/auth/me", { headers: { Authorization: "Bearer " + s.access_token } })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (d?.isPremium) setPr(true);
-          if (d?.role) setUserRole(d.role as "free" | "premium" | "admin");
-          if (d?.premium_until) setPremExpiry({ premium_until: d.premium_until, daysRemaining: d.daysRemaining });
-        })
-        .catch(() => {});
-      const savedLastDate = localStorage.getItem("quiniela-ia-ultimo-sorteo-visto");
-      if (savedLastDate) setLastDrawDate(savedLastDate);
-      cargarMisPreds(s.access_token);
-      setStats({ totalSorteos: "--", pct: "--", racha: "--", mensaje: "Presiona 'Generar Análisis' para comenzar" }); 
-      setStatsLoading(false);
-      const visited = localStorage.getItem("quiniela-ia-tour-visto");
-      if (!visited) {
-        setPrimerVisita(true);
-        setShowHowItWorks(true);
-        localStorage.setItem("quiniela-ia-tour-visto", "true");
-      }
-      // Poll for new draws and refresh saved predictions every 5 min
-      const pollInterval = setInterval(async () => {
-        try {
-          const r = await fetch(`/api/resultado?date=${hoyArgentina()}&turno=Nocturna&t=${Date.now()}`);
-          const d = await r.json();
-          if (d?.found && d?.numbers?.length) {
-            const latestKey = hoyArgentina() + "-nocturna";
-            setLastDrawDate(prev => {
-              if (prev && prev !== latestKey) setNewDraws(true);
-              return prev || latestKey;
-            });
-            if (!lastDrawDate) localStorage.setItem("quiniela-ia-ultimo-sorteo-visto", latestKey);
-          }
-        } catch {}
-        // Auto-refresh saved predictions to check for new results
-        const tk = (window as any).__QUINIELA_TOKEN;
-        if (tk) cargarMisPreds(tk);
-      }, 300000);
-      return () => clearInterval(pollInterval);
-    } catch {
-      window.location.href = "/login";
+    tkRef.current = auth.access_token;
+    setEm(auth.user?.email || "");
+    fetch("/api/auth/me", { headers: { Authorization: "Bearer " + auth.access_token } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.isPremium) setPr(true);
+        if (d?.role) setUserRole(d.role as "free" | "premium" | "admin");
+        if (d?.userId) setUserId(d.userId);
+        if (d?.premium_until) setPremExpiry({ premium_until: d.premium_until, daysRemaining: d.daysRemaining });
+      })
+      .catch(() => {});
+    // Handle payment success/failure from Ualá redirect
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentStatus = urlParams.get("payment");
+    if (paymentStatus === "success") {
+      setTimeout(() => { toast("¡Pago acreditado! Tu acceso premium se activó automáticamente."); }, 1000);
+      window.history.replaceState({}, "", "/predictions");
+    } else if (paymentStatus === "failed") {
+      setTimeout(() => { toast("El pago no se completó. Intentá de nuevo."); }, 1000);
+      window.history.replaceState({}, "", "/predictions");
     }
+    const savedLastDate = localStorage.getItem("quiniela-ia-ultimo-sorteo-visto");
+    if (savedLastDate) setLastDrawDate(savedLastDate);
+    cargarMisPreds(auth.access_token);
+    setStats({ totalSorteos: "--", pct: "--", racha: "--", mensaje: "Presiona 'Generar Análisis' para comenzar" }); 
+    setStatsLoading(false);
+    const visited = localStorage.getItem("quiniela-ia-tour-visto");
+    if (!visited) {
+      setPrimerVisita(true);
+      setShowHowItWorks(true);
+      localStorage.setItem("quiniela-ia-tour-visto", "true");
+    }
+    const pollInterval = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/resultado?date=${hoyArgentina()}&turno=Nocturna&t=${Date.now()}`);
+        const d = await r.json();
+        if (d?.found && d?.numbers?.length) {
+          const latestKey = hoyArgentina() + "-nocturna";
+          setLastDrawDate(prev => {
+            if (prev && prev !== latestKey) setNewDraws(true);
+            return prev || latestKey;
+          });
+          if (!lastDrawDate) localStorage.setItem("quiniela-ia-ultimo-sorteo-visto", latestKey);
+        }
+      } catch {}
+      const tk = getAccessToken();
+      if (tk) cargarMisPreds(tk);
+    }, 300000);
+    return () => clearInterval(pollInterval);
   }, []);
 
   useEffect(() => {
@@ -289,7 +287,7 @@ export default function Page() {
 
   async function pedirNotificaciones() {
     if (!pushSupported) {
-      alert("Tu navegador no soporta notificaciones push");
+      toast("Tu navegador no soporta notificaciones push", "error");
       return;
     }
     await togglePush();
@@ -323,6 +321,23 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     setDt(null);
     try {
       const predDate = fechaSorteo(so);
+      const hoy = hoyArgentina();
+      const artNow = ahoraArgentina();
+      const diaSemana = artNow.getDay();
+      const esFeriadoHoy = esFeriado(hoy);
+      const esDomingo = diaSemana === 0;
+      const esSabadoPrevia = diaSemana === 6 && so === "Previa";
+      const noHaySorteoHoy = esFeriadoHoy || esDomingo || esSabadoPrevia;
+
+      if (noHaySorteoHoy && predDate !== hoy) {
+        const motivo = esFeriadoHoy ? "feriado" : esDomingo ? "domingo" : "sábado (no hay Previa)";
+        const prox = predDate;
+        const label = new Date(prox + "T12:00:00-03:00").toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+        setEr(`Hoy es ${motivo}, no hay sorteo ${so.toLowerCase()}. El próximo sorteo es el ${label}.`);
+        setLd(false);
+        return;
+      }
+
       const url = "/api/predictions?sorteo=" + encodeURIComponent(so) + "&date=" + predDate + "&t=" + Date.now();
       const r = await fetch(url, {
         headers: { Authorization: "Bearer " + tkRef.current },
@@ -350,8 +365,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   }
 
   function logout() {
-    const proj = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").split("//")[1]?.split(".")[0] || "wazkylxgqckjfkcmfotl";
-    localStorage.removeItem("sb-" + proj + "-auth-token");
+    clearAuth();
     window.location.href = "/login";
   }
 
@@ -382,9 +396,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
   function nextValidDate(sorteo: string): string {
     const artNow = ahoraArgentina()
-    const feriados2026 = ["2026-01-01","2026-02-16","2026-02-17","2026-03-24","2026-04-02","2026-04-03","2026-05-01","2026-05-25","2026-06-20","2026-07-09","2026-08-17","2026-10-12","2026-11-23","2026-11-27","2026-12-07","2026-12-08","2026-12-25"]
-    const feriados2027 = ["2027-01-01","2027-02-08","2027-02-09","2027-03-24","2027-04-01","2027-04-02","2027-05-01","2027-05-25","2027-06-20","2027-07-09","2027-08-17","2027-10-12","2027-11-22","2027-11-25","2027-12-08","2027-12-25"]
-    const feriados = [...feriados2026, ...feriados2027]
+    const feriados = todosLosFeriados()
     for (let i = 1; i <= 7; i++) {
       const d = new Date(artNow.getTime() + i * 86400000);
       const dia = diaSemanaART(d);
@@ -402,6 +414,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     const horaActual = ahora.getHours()
     const diaActual = ahora.getDay()
     const fechaActual = hoyArgentina()
+    const feriados = todosLosFeriados()
     
     // Check if the draw for today has already passed
     const horarioSorteo = HORARIOS_SORTEOS[sorteo] || 12
@@ -411,18 +424,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     }
     
     // Check holidays, weekends
-    const feriados2026 = [
-      "2026-01-01", "2026-02-16", "2026-02-17", "2026-03-24", "2026-04-02", "2026-04-03",
-      "2026-05-01", "2026-05-25", "2026-06-20", "2026-07-09", "2026-08-17", "2026-10-12",
-      "2026-11-23", "2026-11-27", "2026-12-07", "2026-12-08", "2026-12-25"
-    ]
-    
-    const feriados2027 = [
-      "2027-01-01", "2027-02-08", "2027-02-09", "2027-03-24", "2027-04-01", "2027-04-02",
-      "2027-05-01", "2027-05-25", "2027-06-20", "2027-07-09", "2027-08-17", "2027-10-12",
-      "2027-11-22", "2027-11-25", "2027-12-08", "2027-12-25"
-    ]
-    const feriados = [...feriados2026, ...feriados2027]
     if (feriados.includes(fechaActual)) return nextValidDate(sorteo)
     if (diaActual === 0) return nextValidDate(sorteo)
     if (sorteo === "Previa" && diaActual === 6) return nextValidDate(sorteo)
@@ -438,7 +439,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         const r = await fetch("/api/mis-predicciones", { headers: { Authorization: "Bearer " + token } });
         const d = await r.json();
         if (d.predictions?.length) apiPreds = d.predictions;
-      } catch (e) { console.error("Error cargando predicciones:", e); }
+      } catch {}
     }
 
     // Merge 3/4 cifras from localStorage into API predictions
@@ -537,7 +538,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     const yaExiste = todas.some((p: any) => p.fecha === fechaSorteoStr && p.turno === so);
     if (yaExiste) {
       setGuardando(false);
-      alert("Ya guardaste un análisis para este turno");
+      toast("Ya guardaste un análisis para este turno", "info");
       return;
     }
 
@@ -571,7 +572,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         const data = await res.json();
         if (res.status === 409) {
           setGuardando(false);
-          alert("Ya guardaste un análisis para este turno");
+          toast("Ya guardaste un análisis para este turno", "info");
           return;
         }
         if (res.ok) {
@@ -602,7 +603,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     const txt = "QUINIELA IA ANÁLISIS - " + proximoSorteo(so) + "\n\n" + lineas + rdblLine + "\n\n" + APP_URL;
     navigator.clipboard
       .writeText(txt)
-      .then(() => alert("Copiado!"))
+      .then(() => toast("Copiado al portapapeles", "success"))
       .catch(() => {
         const el = document.createElement("textarea");
         el.value = txt;
@@ -610,7 +611,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         el.select();
         document.execCommand("copy");
         document.body.removeChild(el);
-        alert("Copiado!");
+        toast("Copiado al portapapeles", "success");
       });
   }
 
@@ -618,7 +619,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     const txt = encodeURIComponent("Probá Quiniela IA - Análisis estadístico basado en datos reales");
     const url = encodeURIComponent(APP_URL);
     if (p === "copy") {
-      navigator.clipboard.writeText(APP_URL).then(() => alert("Link copiado!"));
+      navigator.clipboard.writeText(APP_URL).then(() => toast("Link copiado al portapapeles", "success"));
       return;
     }
     const urls: any = {
@@ -655,7 +656,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         :root{--red:#FE2C55;--cyan:#25F4EE;--green:#22c55e;--bg:#010101;--bg2:#0d0d0d;--bg3:#141b2f;--card:#0d0d0d;--surface:rgba(13,13,13,.9);--text:#FFFFFF;--dim:#94a3b8;--border:rgba(255,255,255,.08);--nav-bg:rgba(6,8,15,.98);--panel-bg:rgba(255,255,255,.04);--panel-border:rgba(255,255,255,.08);--shadow:rgba(0,0,0,.32)}
         body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
         .app{min-height:100vh;background:radial-gradient(ellipse 100% 80% at 50% -10%,rgba(99,102,241,.15),transparent 60%),radial-gradient(ellipse 60% 40% at 20% 80%,rgba(236,72,153,.1),transparent 50%),var(--bg)}
-        .nav{position:sticky;top:0;z-index:100;background:rgba(15,15,25,.85);backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.08);padding:14px 18px;display:flex;align-items:center;justify-content:space-between}
+        .nav{position:sticky;top:0;z-index:100;background:rgba(15,15,25,.85);backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.08);padding:10px 18px;display:flex;align-items:center;justify-content:space-between}
         .card-bg{background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:24px}
         .nl{display:flex;align-items:center;gap:10px;cursor:pointer}
         .ni{width:40px;height:40px;background:linear-gradient(145deg,#ff3366,#ec4899);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 4px 0 #be123c,0 8px 20px rgba(236,72,153,.4)}
@@ -665,17 +666,17 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .ne{font-size:12px;color:var(--dim);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .nav-admin{padding:6px 12px;border-radius:10px;border:1px solid rgba(236,72,153,.4);background:rgba(236,72,153,.1);color:#f472b6;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:none}
         .nav-out{padding:6px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:transparent;color:var(--dim);font-size:12px;cursor:pointer;font-family:inherit}
-        .wr{max-width:520px;margin:0 auto;padding:24px 16px 100px}
-        .hero{text-align:center;padding:16px 0 32px}
-        .hero h1{font-size:clamp(34px,9vw,60px);font-weight:900;background:linear-gradient(180deg,#fff 0%,#f472b6 50%,#ec4899 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0;padding:0;margin-bottom:12px;line-height:1.05;letter-spacing:-1px;filter:drop-shadow(0 4px 20px rgba(236,72,153,.3))}
-        .hero p{color:#94a3b8;font-size:15px;max-width:380px;margin:0 auto 24px;line-height:1.7;font-weight:500}
+        .wr{max-width:520px;margin:0 auto;padding:16px 16px 80px}
+        .hero{text-align:center;padding:12px 0 20px}
+        .hero h1{font-size:clamp(34px,9vw,60px);font-weight:900;background:linear-gradient(180deg,#fff 0%,#f472b6 50%,#ec4899 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0;padding:0;margin-bottom:8px;line-height:1.05;letter-spacing:-1px;filter:drop-shadow(0 4px 20px rgba(236,72,153,.3))}
+        .hero p{color:#94a3b8;font-size:14px;max-width:380px;margin:0 auto 16px;line-height:1.5;font-weight:500}
         .sts{display:flex;gap:12px;justify-content:center}
         .sc{background:linear-gradient(180deg,rgba(99,102,241,.15),rgba(99,102,241,.05));border:1px solid rgba(99,102,241,.3);border-radius:20px;padding:18px 24px;text-align:center;color:var(--text);box-shadow:0 6px 0 rgba(0,0,0,.4),0 8px 24px rgba(99,102,241,.2);transition:.2s}
         .sc:hover{transform:translateY(-3px);box-shadow:0 10px 0 rgba(0,0,0,.4),0 12px 32px rgba(99,102,241,.3)}
         .sv{font-size:26px;font-weight:900;background:linear-gradient(180deg,#a855f7,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
         .sl{font-size:11px;color:#a5b4fc;margin-top:6px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
-        .sorteo-label{font-size:12px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:3px;margin-bottom:14px;text-align:center}
-        .sorteo-btns{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:20px}
+        .sorteo-label{font-size:12px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:3px;margin-bottom:10px;text-align:center}
+        .sorteo-btns{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}
         .sb{padding:18px 8px 16px;border-radius:20px;background:linear-gradient(180deg,#1e1e3a,#0f0f1f);color:#94a3b8;border:2px solid rgba(255,255,255,.1);box-shadow:0 8px 0 #050510,0 10px 28px rgba(0,0,0,.6);cursor:pointer;font-family:'Inter',sans-serif;font-weight:900;font-size:14px;text-align:center;transition:.15s;display:flex;flex-direction:column;align-items:center;gap:8px;user-select:none;letter-spacing:.5px}
         .sb .sh{font-size:12px;font-weight:700;opacity:.9;color:#64748b}
         .sb:active{transform:translateY(6px);box-shadow:none}
@@ -685,13 +686,13 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .sb.on .sc{color:#fff;background:rgba(255,255,255,.18)}
         .sb:hover:not(.on){background:linear-gradient(180deg,#2d2b4a,#1e1e3a);color:#a855f7;border-color:rgba(167,139,250,.4);transform:translateY(-2px)}
         .btn3d{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:10px;border:none;border-radius:20px;font-family:'Inter',sans-serif;font-weight:900;cursor:pointer;transition:all .15s;user-select:none;-webkit-tap-highlight-color:transparent;width:100%;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
-        .btn3d:active{transform:translateY(6px)!important;box-shadow:none!important}
+        .btn3d:active{transform:translateY(6px)!important;box-shadow:none!important;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
         .btn-gen{padding:24px 32px;font-size:20px;letter-spacing:1px;background:linear-gradient(180deg,#f472b6,#ec4899);color:#fff;box-shadow:0 10px 0 #be185d,0 14px 40px rgba(236,72,153,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)}
         .btn-gen:hover{background:linear-gradient(180deg,#fb7185,#f43f5e);transform:translateY(-3px);box-shadow:0 14px 0 #be185d,0 18px 50px rgba(236,72,153,.6)}
         .btn-prem{padding:18px 28px;font-size:15px;background:linear-gradient(180deg,#a855f7,#8b5cf6);color:#fff;box-shadow:0 8px 0 #6d28d9,0 12px 36px rgba(139,92,246,.5),inset 0 1px 0 rgba(255,255,255,.3)}
         .btn-copy{padding:16px 28px;font-size:14px;background:linear-gradient(180deg,#4f46e5,#3730a3);color:#fff;border:2px solid rgba(129,140,248,.4);box-shadow:0 8px 0 #1e1b4b,0 12px 32px rgba(79,70,229,.4),inset 0 1px 0 rgba(255,255,255,.15)}
         .btn-save{padding:16px 28px;font-size:14px;background:linear-gradient(180deg,#10b981,#059669);color:#fff;border:2px solid rgba(52,211,153,.4);box-shadow:0 8px 0 #047857,0 12px 36px rgba(16,185,129,.4),inset 0 1px 0 rgba(255,255,255,.25)}
-        .dtabs{display:flex;gap:10px;margin-bottom:18px}
+        .dtabs{display:flex;gap:10px;margin-bottom:12px}
         .dk{flex:1;padding:16px 8px;text-align:center;border-radius:16px;font-family:'Inter',sans-serif;font-weight:900;font-size:14px;cursor:pointer;position:relative;transition:.12s;user-select:none;border:none;box-shadow:0 6px 0 rgba(0,0,0,.5)}
         .dk:active{transform:translateY(5px);box-shadow:none}
         .dk-2{background:linear-gradient(180deg,#ec4899,#db2777);color:#fff;box-shadow:0 6px 0 #9d174d}
@@ -700,7 +701,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .dk.on{filter:brightness(1.1);box-shadow:0 3px 0 rgba(0,0,0,.5)}
         .dk:not(.on){opacity:.5}
         .pbdg{position:absolute;top:-10px;right:4px;background:#fff;color:#1e1b4b;font-size:8px;font-weight:900;padding:3px 8px;border-radius:10px}
-        .g5{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:18px}
+        .g5{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
         .cd{background:linear-gradient(180deg,#1e1e3a,#0f0f1f);border:2px solid rgba(255,255,255,.1);border-radius:24px;padding:22px 6px 18px;text-align:center;position:relative;box-shadow:0 10px 0 rgba(0,0,0,.5),0 14px 36px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.08);transition:.2s;cursor:default}
         .cd:hover{transform:translateY(-6px);border-color:rgba(167,139,250,.6);box-shadow:0 16px 0 rgba(0,0,0,.5),0 20px 48px rgba(139,92,246,.3),inset 0 1px 0 rgba(255,255,255,.12)}
         .cr2{position:absolute;top:8px;left:8px;font-size:11px;color:var(--dim);font-weight:900}
@@ -712,7 +713,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .lo h3{font-size:15px;color:var(--text);font-weight:700}
         .lo p{font-size:11px;color:var(--dim);max-width:200px;line-height:1.5}
         .uc{display:inline-block;background:linear-gradient(135deg,#20d5ec,#00a8c8);color:#001a20;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:800;text-decoration:none;margin-bottom:4px}
-        .tbs{display:flex;gap:5px;margin-bottom:18px;overflow-x:auto;padding-bottom:2px}
+        .tbs{display:flex;gap:5px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px}
         .tb{flex:1;min-width:72px;padding:11px 4px;text-align:center;border-radius:12px;border:none;font-family:'Inter',sans-serif;font-weight:800;font-size:11px;cursor:pointer;white-space:nowrap;transition:.1s;user-select:none;display:flex;flex-direction:column;align-items:center;gap:3px;box-shadow:0 4px 0 rgba(0,0,0,.4)}
         .tb:active{transform:translateY(3px);box-shadow:none}
         .tb-pred{background:linear-gradient(180deg,#1e1e2e,#12121e);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
@@ -727,22 +728,22 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .tb-mis.on{background:linear-gradient(180deg,#10b981,#059669);color:#fff;border-color:#10b981;box-shadow:0 6px 0 #047857}
         .tb .tb-ico{font-size:18px}
         .tb .tb-lbl{font-size:11px}
-        .ibox{background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.15);border-radius:16px;padding:16px 18px;font-size:13px;color:#a5b4fc;line-height:1.9;margin-top:14px}
+        .ibox{background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.15);border-radius:16px;padding:14px 16px;font-size:13px;color:#a5b4fc;line-height:1.7;margin-top:10px}
         .ibox strong{color:#c4b5fd}
-        .rdbl{background:rgba(139,92,246,.05);border:1px solid rgba(139,92,246,.2);border-radius:20px;padding:20px;margin-bottom:16px}
+        .rdbl{background:rgba(139,92,246,.05);border:1px solid rgba(139,92,246,.2);border-radius:20px;padding:16px;margin-bottom:12px}
         .heatmap-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}
         .heatmap-cell{aspect-ratio:1;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s}
         .heatmap-cell:hover{transform:scale(1.15);z-index:10}
         .hm-num{font-size:10px;font-weight:800;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.9)}
         .rpair{font-size:42px;font-weight:900;background:linear-gradient(135deg,#22d3ee,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;letter-spacing:10px;margin:14px 0}
-        .rg{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:16px}
+        .rg{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
         .rc{background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:14px;padding:14px 6px;text-align:center;transition:.15s}
         .rc:hover{border-color:rgba(139,92,246,.5);transform:translateY(-3px)}
         .rn{font-size:26px;font-weight:900;color:#a855f7}
         .rk{font-size:9px;color:#a855f7;opacity:.8;margin-top:4px}
         .rv{font-size:9px;color:var(--dim);margin-top:4px}
-        .trend-chart{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:20px;padding:20px;margin-bottom:18px}
-        .trend-info{padding:14px;margin-bottom:18px}
+        .trend-chart{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:20px;padding:16px;margin-bottom:12px}
+        .trend-info{padding:12px;margin-bottom:12px}
         .trend-info-title{font-size:16px;font-weight:800;color:#fbbf24;margin-bottom:6px}
         .trend-info-desc{font-size:12px;color:#94a3b8}
         .trend-bars{display:flex;flex-direction:column;gap:10px;margin:18px 0}
@@ -752,25 +753,31 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .trend-bar-fill{height:100%;background:linear-gradient(90deg,#f59e0b,#fbbf24);border-radius:9px;transition:width .3s}
         .trend-bar-value{font-size:11px;color:#f59e0b;width:48px;text-align:right}
         .trend-bar-meaning{font-size:10px;color:#64748b;width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .trend-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+        .trend-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
         .trend-stat-card{background:rgba(0,0,0,.2);border-radius:10px;padding:12px 8px;text-align:center}
         .trend-stat-value{font-size:14px;font-weight:900;color:#fff;margin-bottom:4px}
         .trend-stat-label{font-size:10px;color:#64748b}
-        .trend-metric{background:rgba(245,158,11,.1);border-radius:12px;padding:16px;text-align:center;margin-top:14px}
+        .trend-metric{background:rgba(245,158,11,.1);border-radius:12px;padding:14px;text-align:center;margin-top:10px}
         .trend-metric-title{font-size:12px;color:#f59e0b;font-weight:700;margin-bottom:6px}
         .trend-metric-value{font-size:24px;font-weight:900;color:#fff;margin-bottom:4px}
         .trend-metric-desc{font-size:10px;color:#64748b}
-        .tips{background:rgba(255,45,85,.04);border:1px solid rgba(255,45,85,.15);border-radius:14px;padding:14px;margin-bottom:14px}
+        .cabeza-badge{position:absolute;top:4px;right:4px;background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#1a0e00;font-size:7px;font-weight:900;padding:2px 6px;border-radius:8px;letter-spacing:.5px}
+        .acum-badge{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);background:rgba(34,197,94,.9);color:#fff;font-size:7px;font-weight:800;padding:1px 5px;border-radius:6px}
+        .heatmap-stats{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:12px;padding:10px;margin-top:8px;text-align:center}
+        .heatmap-stat-row{display:flex;justify-content:space-between;font-size:11px;margin:4px 0}
+        .heatmap-stat-label{color:#94a3b8}
+        .heatmap-stat-value{color:#22c55e;font-weight:800}
+        .tips{background:rgba(255,45,85,.04);border:1px solid rgba(255,45,85,.15);border-radius:14px;padding:12px;margin-bottom:12px}
         .tips-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
         .tip-box{border-radius:10px;padding:10px 6px;border:1px solid}
         .tip-n{padding:2px 5px;border-radius:4px;font-size:10px;font-weight:800}
-        .shr{margin-top:24px;padding:16px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:14px;text-align:center}
-        .shr-t{font-size:12px;font-weight:700;color:var(--t);margin-bottom:12px}
+        .shr{margin-top:16px;padding:14px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:14px;text-align:center}
+        .shr-t{font-size:12px;font-weight:700;color:var(--t);margin-bottom:8px}
         .shr-b{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
         .sbt{padding:8px 14px;border:none;border-radius:9px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;box-shadow:0 3px 0 rgba(0,0,0,.4);transition:.08s;user-select:none}
         .sbt:active{transform:translateY(2px);box-shadow:none}
         .sbt.wa{background:#25D366;color:#fff}.sbt.fb{background:#1877F2;color:#fff}.sbt.tw{background:#000;color:#fff}.sbt.tg{background:#0088cc;color:#fff}.sbt.cp{background:rgba(255,255,255,.08);color:var(--t);border:1px solid rgba(255,255,255,.1)}
-        .rev{margin-top:28px;padding-top:22px;border-top:1px solid rgba(255,255,255,.06)}
+        .rev{margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.06)}
         .rev-o{overflow:hidden;position:relative}
         .rev-o::before,.rev-o::after{content:'';position:absolute;top:0;bottom:0;width:50px;z-index:2;pointer-events:none}
         .rev-o::before{left:0;background:linear-gradient(to right,var(--dark),transparent)}
@@ -781,23 +788,23 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .rev-t{font-size:11px;color:var(--t);font-style:italic;line-height:1.5;margin-bottom:5px}
         .rev-a{font-size:10px;color:var(--dim)}
         .rev-a strong{color:var(--t)}
-        .pay-box{margin-top:24px;background:linear-gradient(135deg,rgba(37,244,238,.05),rgba(0,192,184,.03));border:1.5px solid rgba(37,244,238,.2);border-radius:18px;padding:24px 18px;text-align:center;box-shadow:0 8px 32px rgba(32,213,236,.08)}
-        .pay-title{font-size:22px;font-weight:900;background:linear-gradient(135deg,#f59e0b,#ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px}
+        .pay-box{margin-top:16px;background:linear-gradient(135deg,rgba(37,244,238,.05),rgba(0,192,184,.03));border:1.5px solid rgba(37,244,238,.2);border-radius:18px;padding:20px 18px;text-align:center;box-shadow:0 8px 32px rgba(32,213,236,.08)}
+        .pay-title{font-size:22px;font-weight:900;background:linear-gradient(135deg,#f59e0b,#ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:12px}
         .pay-price{font-size:42px;font-weight:900;color:#f59e0b;text-shadow:0 4px 0 #b45309,0 6px 12px rgba(245,158,11,.4);margin-bottom:16px;transform:rotate(-2deg);display:inline-block}
         .pay-price-outer{position:relative;display:inline-block}
         .pay-price-outer::before{content:'';position:absolute;inset:-4px;border:3px solid #f59e0b;border-radius:16px;transform:rotate(2deg)}
         .pay-alias{background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:14px;font-size:20px;font-weight:800;color:#fff;letter-spacing:1px;padding:16px 28px;margin-bottom:12px;box-shadow:0 6px 20px rgba(99,102,241,.4),inset 0 1px 0 rgba(255,255,255,.2);cursor:pointer;transition:transform .1s}
         .pay-alias:active{transform:scale(.98)}
-        .pay-features{display:flex,flexDirection:"column",gap:8px;marginBottom:16px}
-        .pay-feature{fontSize:13px,color:var(--text)}
-        .pay-feature span{marginRight:8px}
-        .pay-cta{display:inline-flex,alignItems:"center",gap:8,padding:"12px 24px",background:"#25D366",color:"#fff",borderRadius:12,fontSize:14px,fontWeight:700}
-        .ft{margin-top:28px;padding-top:16px;border-top:1px solid rgba(255,255,255,.05);text-align:center}
-        .ft p{font-size:11px;color:var(--dim);line-height:1.9}
+        .pay-features{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+        .pay-feature{font-size:13px;color:var(--text)}
+        .pay-feature span{margin-right:8px}
+        .pay-cta{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;background:#25D366;color:#fff;border-radius:12px;font-size:14px;font-weight:700}
+        .ft{margin-top:16px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);text-align:center}
+        .ft p{font-size:10px;color:var(--dim);line-height:1.5}
         .ft a{color:#ff6b81;text-decoration:none}
-        .credit{font-size:11px;color:#475569;margin-top:10px;letter-spacing:.3px}
+        .credit{font-size:9px;color:#475569;margin-top:4px;letter-spacing:.3px}
         .credit strong{color:#64748b}
-        .dc{margin-top:12px;font-size:9px;color:#374151;line-height:1.6;text-align:center}
+        .dc{margin-top:4px;font-size:9px;color:#374151;line-height:1.5;text-align:center}
         .calc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
         .calc-card{border-radius:12px;padding:12px 10px;text-align:center}
         .calc-card-t{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
@@ -973,15 +980,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             </button>
             <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
           </div>
-          <div style={{ marginTop: 12, padding: 14, background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(34,197,94,.05))", borderRadius: 12, border: "1px solid rgba(34,197,94,.4)", textAlign: "center" }}>
-            <div style={{ fontSize: 12, color: "#fff", fontWeight: 700 }}>Top 10 números con mayor frecuencia estadística</div>
-            <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 4 }}>Los 10 números con mayor score del ensemble matemático.</div>
-            {pr && (
-              <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 6, fontWeight: 700 }}>
-                ✨ Premium: Top 5 números de 3 cifras y top 5 de 4 cifras por frecuencia
-              </div>
-            )}
-          </div>
           {showCalc && (
             <div style={{ marginTop: 12, padding: 14, borderRadius: 12, background: "rgba(139,92,246,.06)", border: "1px solid rgba(139,92,246,.15)" }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: "#a78bfa", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>📊 Tu precisión personal</div>
@@ -998,6 +996,28 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               ) : (
                 <div style={{ fontSize: 12, color: "var(--dim)" }}>Guardá análisis para ver tu precisión personal.</div>
               )}
+            </div>
+          )}
+          {showCalc && backtestData && (
+            <div style={{ marginTop: 10, padding: 12, borderRadius: 10, background: "rgba(34,197,94,.08)", border: "1px solid rgba(34,197,94,.2)" }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: "#22c55e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>📈 Backtesting {so} (Walk-forward)</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+                <div style={{textAlign:"center",padding:"6px",background:"rgba(0,0,0,.2)",borderRadius:8}}>
+                  <div style={{fontSize:18,fontWeight:900,color:"#a855f7"}}>{backtestData.metrics_top_1?.hitAt1?.toFixed(1) || 0}%</div>
+                  <div style={{fontSize:9,color:"#94a3b8"}}>Hit@1 (Cabeza)</div>
+                </div>
+                <div style={{textAlign:"center",padding:"6px",background:"rgba(0,0,0,.2)",borderRadius:8}}>
+                  <div style={{fontSize:18,fontWeight:900,color:"#6366f1"}}>{backtestData.metrics_top_5?.hitAt5?.toFixed(1) || 0}%</div>
+                  <div style={{fontSize:9,color:"#94a3b8"}}>Hit@5 (Top 5)</div>
+                </div>
+                <div style={{textAlign:"center",padding:"6px",background:"rgba(0,0,0,.2)",borderRadius:8}}>
+                  <div style={{fontSize:18,fontWeight:900,color:"#ec4899"}}>{backtestData.metrics_top_10?.hitAt10?.toFixed(1) || 0}%</div>
+                  <div style={{fontSize:9,color:"#94a3b8"}}>Hit@10 (Top 10)</div>
+                </div>
+              </div>
+              <div style={{fontSize:9,color:"#64748b",marginTop:6,textAlign:"center"}}>
+                {backtestData.metrics_top_10?.totalDraws || 0} sorteos · Promedio {backtestData.metrics_top_10?.avgHitsPerDraw || 0} coincidencias/sorteo
+              </div>
             </div>
           )}
           {resultadoControl && (
@@ -1166,8 +1186,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                       >
                         {cur.slice(0, 10).map((p: any, i: number) => {
                           const r = ranking?.find((r: any) => r.numero === p.numero);
+                          const isCabeza = i === 0;
+                          const post = r?.bayesianPosterior ? (r.bayesianPosterior * 100).toFixed(2) + "%" : "";
                           return (
-                          <div className="cd" key={i} onClick={() => setNumDetail(r || p)} style={{cursor:"pointer"}}>
+                          <div className="cd" key={i} onClick={() => setNumDetail(r || p)} style={{cursor:"pointer", position:"relative"}}>
+                            {isCabeza && <span className="cabeza-badge">CABEZA</span>}
                             <div className="cr2">#{i + 1}</div>
                             <div className="ce">{getEmoji(p.numero)}</div>
                             <div className="cn">{p.numero}</div>
@@ -1186,10 +1209,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                             <div style={{fontSize:9,color:"#a78bfa",marginTop:3,fontWeight:600}}>
                               {r?.score ? (r.score * 100).toFixed(0) + "%" : ""}
                             </div>
+                            {post && <div style={{fontSize:7,color:"#22c55e",marginTop:2,fontWeight:700}}>Post: {post}</div>}
                           </div>
                         )})}
                       </div>
-                      {userRole === "free" && (
+                      {userRole === "free" && dg > 2 && (
                         <div
                           style={{
                             position: "absolute", inset: 0,
@@ -1325,9 +1349,31 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     <div style={{ padding: 20, textAlign: "center", color: "#64748b" }}>
                       Cargando mapa de calor...
                     </div>
-                  )}
-                  
-                </>
+                    )}
+                    
+                    {dt?.heatmap && dt.heatmap.length > 0 && (
+                      <div className="heatmap-stats">
+                        <div style={{fontSize:10,fontWeight:800,color:"#22c55e",marginBottom:6}}>📈 Frecuencia acumulada (top 100)</div>
+                        <div className="heatmap-stat-row">
+                          <span className="heatmap-stat-label">Top 10 (%):</span>
+                          <span className="heatmap-stat-value">
+                            {((dt.heatmap.slice(0,10).reduce((a,b)=>a+(b.f||0),0) / dt.heatmap.reduce((a,b)=>a+(b.f||0),1)) * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="heatmap-stat-row">
+                          <span className="heatmap-stat-label">Top 20 (%):</span>
+                          <span className="heatmap-stat-value">
+                            {((dt.heatmap.slice(0,20).reduce((a,b)=>a+(b.f||0),0) / dt.heatmap.reduce((a,b)=>a+(b.f||0),1)) * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="heatmap-stat-row">
+                          <span className="heatmap-stat-label">Sorteos analizados:</span>
+                          <span className="heatmap-stat-value">{dt.totalSorteos || dt?.numeros?.length || 0}</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                  </>
               )}
               {tab === "trend" && (
                 <>
@@ -1662,7 +1708,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     const r = await fetch(`/api/backtest?turno=${so}&days=90`)
                     const d = await r.json()
                     setBacktestData(d)
-                  } catch (e) { console.error(e) }
+                   } catch {}
                   setBacktestLoading(false)
                 }} style={{width:"100%",padding:14,borderRadius:12,border:"1.5px solid rgba(99,102,241,.4)",background:"rgba(99,102,241,.08)",color:"#818cf8",fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:14}}>
                   📊 Calcular métricas de precisión
@@ -1728,81 +1774,98 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             </div>
           )}
           {!pr && (
-            <div className="pay-box">
-              <div style={{ fontSize: 36, marginBottom: 8 }}>🚀</div>
-              <h3 className="pay-title">MEMBRESÍA PREMIUM</h3>
-              <div style={{fontSize:11,color:"var(--dim)",marginBottom:12,textAlign:"center",lineHeight:1.6}}>Accedé a análisis de 3 y 4 cifras con el <strong style={{color:"var(--text)"}}>mismo motor matemático de 30 factores</strong> que analiza frecuencia, tendencia, Markov, Monte Carlo y ML en cada sorteo.</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16,textAlign:"left"}}>
-                <div style={{borderRadius:12,border:"1px solid rgba(255,255,255,.08)",padding:12,background:"rgba(255,255,255,.03)"}}>
-                  <div style={{fontSize:10,fontWeight:800,color:"#4ade80",textTransform:"uppercase",marginBottom:8}}>GRATIS</div>
-                  <div style={{fontSize:11,color:"var(--dim)",lineHeight:1.8}}>
-                    ✓ 2 cifras (top 10)<br/>
-                    ✓ Mapa de calor<br/>
-                    ✓ Tendencias<br/>
-                    ✓ Guardar análisis<br/>
-                    ✗ 3 cifras<br/>
-                    ✗ 4 cifras<br/>
-                    ✗ Correlación
+            <div className="pay-box" style={{padding:"24px 20px"}}>
+              <div style={{fontSize:36,textAlign:"center",marginBottom:8}}>🧠</div>
+              <h3 className="pay-title" style={{marginBottom:6}}>ELEGÍ TU MEDIO DE PAGO PARA ACCEDER</h3>
+              <div style={{fontSize:12,color:"var(--dim)",marginBottom:20,textAlign:"center",lineHeight:1.6}}>
+                Desbloqueá análisis de <strong style={{color:"#a855f7"}}>3 y 4 cifras</strong> con Machine Learning
+              </div>
+
+              {/* Plan Semanal */}
+              <div style={{border:"1px solid rgba(168,85,247,.3)",borderRadius:14,overflow:"hidden",marginBottom:12}}>
+                <div style={{background:"linear-gradient(135deg,rgba(168,85,247,.15),rgba(99,102,241,.08))",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase Semanal</div>
+                    <div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>7 días de acceso</div>
+                  </div>
+                  <div style={{fontSize:22,fontWeight:900,color:"#a855f7"}}>$3.500</div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0}}>
+                  <div
+                    onClick={() => setShowPaywall(true)}
+                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",borderRight:"1px solid rgba(255,255,255,.06)",background:"rgba(255,255,255,.02)",transition:"background .2s"}}
+                  >
+                    <div style={{fontSize:20,marginBottom:4}}>💳</div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#fff"}}>Tarjeta</div>
+                    <div style={{fontSize:10,color:"#4ade80",marginTop:1}}>Inmediato</div>
+                  </div>
+                  <div
+                    onClick={() => {navigator.clipboard.writeText("quiniela.ia").then(() => toast("Alias copiado","success"))}}
+                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",background:"rgba(255,255,255,.02)",transition:"background .2s"}}
+                  >
+                    <div style={{fontSize:20,marginBottom:4}}>🏦</div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#fff"}}>Transferencia</div>
+                    <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>Tocá aquí para copiar Alias</div>
+                    <div style={{fontSize:10,color:"#f59e0b",marginTop:1}}>En 24hs</div>
                   </div>
                 </div>
-                <div style={{borderRadius:12,border:"1.5px solid #f59e0b",padding:12,background:"rgba(245,158,11,.06)"}}>
-                  <div style={{fontSize:10,fontWeight:800,color:"#f59e0b",textTransform:"uppercase",marginBottom:8}}>⭐ PREMIUM</div>
-                  <div style={{fontSize:11,color:"var(--dim)",lineHeight:1.8}}>
-                    ✓ 2 cifras (top 10)<br/>
-                    ✓ 3 cifras (top 5)<br/>
-                    ✓ 4 cifras (top 5)<br/>
-                    ✓ Correlación completa<br/>
-                    ✓ Mapa de calor<br/>
-                    ✓ Tendencias<br/>
-                    ✓ Guardar análisis
+              </div>
+
+              {/* Plan Mensual */}
+              <div style={{border:"1.5px solid rgba(34,197,94,.4)",borderRadius:14,overflow:"hidden",marginBottom:16,position:"relative"}}>
+                <div style={{position:"absolute",top:0,right:0,background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",fontSize:9,fontWeight:800,padding:"4px 10px",borderRadius:"0 14px 0 8px",letterSpacing:0.5}}>AHORRÁ 40%</div>
+                <div style={{background:"linear-gradient(135deg,rgba(34,197,94,.12),rgba(16,163,74,.06))",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase Mensual</div>
+                    <div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>30 días de acceso</div>
+                  </div>
+                  <div style={{fontSize:22,fontWeight:900,color:"#22c55e"}}>$10.000</div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0}}>
+                  <div
+                    onClick={() => setShowPaywall(true)}
+                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",borderRight:"1px solid rgba(255,255,255,.06)",background:"rgba(255,255,255,.02)",transition:"background .2s"}}
+                  >
+                    <div style={{fontSize:20,marginBottom:4}}>💳</div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#fff"}}>Tarjeta</div>
+                    <div style={{fontSize:10,color:"#4ade80",marginTop:1}}>Inmediato</div>
+                  </div>
+                  <div
+                    onClick={() => {navigator.clipboard.writeText("quiniela.ia").then(() => toast("Alias copiado","success"))}}
+                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",background:"rgba(255,255,255,.02)",transition:"background .2s"}}
+                  >
+                    <div style={{fontSize:20,marginBottom:4}}>🏦</div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#fff"}}>Transferencia</div>
+                    <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>Tocá aquí para copiar Alias</div>
+                    <div style={{fontSize:10,color:"#f59e0b",marginTop:1}}>En 24hs</div>
                   </div>
                 </div>
               </div>
-              <div className="pay-price-outer">
-                <div className="pay-price">$10.000</div>
+
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+                <div style={{flex:1,height:1,background:"rgba(255,255,255,.08)"}}/>
+                <span style={{fontSize:10,color:"#475569"}}>Alias: <strong style={{color:"#818cf8"}}>quiniela.ia</strong> · Pago único · Sin renovación</span>
+                <div style={{flex:1,height:1,background:"rgba(255,255,255,.08)"}}/>
               </div>
-              <div style={{fontSize:11,color:"var(--dim)",marginBottom:14}}>Acceso 30 días · Sin suscripción automática · $10.000 ARS</div>
-              <div 
-                className="pay-alias" 
-                onClick={() => navigator.clipboard.writeText("quiniela.ia").then(() => alert("Alias copiado: quiniela.ia"))}
-                style={{cursor: "pointer"}}
-              >
-                📋 TOCAR PARA COPIAR ALIAS
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)", marginBottom: 14 }}>
-                Alias: <strong style={{color: "#6366f1"}}>quiniela.ia</strong>
-              </div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: "#f59e0b", marginBottom: 16 }}>
-                TOTAL: $10.000 ARS
-              </div>
-              <a 
-                href={WA} 
-                target="_blank" 
-                rel="noopener noreferrer" 
+
+              <a
+                href={WA}
+                target="_blank"
+                rel="noopener noreferrer"
                 onClick={(e) => {
                   e.preventDefault();
-                  navigator.clipboard.writeText("quiniela.ia").then(() => {
-                    window.open(WA, "_blank");
-                  });
+                  navigator.clipboard.writeText("quiniela.ia").then(() => { window.open(WA, "_blank"); });
                 }}
                 style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "12px 20px",
-                  background: "#25D366",
-                  color: "#fff",
-                  borderRadius: 12,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  textDecoration: "none",
-                  cursor: "pointer",
-                  boxShadow: "0 4px 12px rgba(37, 211, 102, 0.3)"
+                  display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+                  width:"100%",padding:"12px",borderRadius:12,
+                  background:"linear-gradient(135deg,#25D366,#128C7E)",color:"#fff",
+                  fontSize:13,fontWeight:700,textDecoration:"none",cursor:"pointer",
+                  boxShadow:"0 4px 12px rgba(37,211,102,.3)"
                 }}
               >
-                📱 Enviar comprobante por WhatsApp
+                📲 Enviar comprobante por WhatsApp
               </a>
-              <div style={{fontSize:10,color:"#475569",marginTop:12}}>Paga desde cualquier billetera virtual (Mercado Pago, Ualá, etc.)</div>
             </div>
           )}
           <div className="shr">
@@ -1850,15 +1913,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             </div>
           </div>
           <div className="ft">
-            <p>
-              Soporte: <a href={"mailto:" + CONTACT}>{CONTACT}</a>
-            </p>
-            <div className="credit">
-              Desarrollado por <strong>EstudioWebPin</strong> · Autor: <strong>Adrian Hugo Lopez</strong>
-            </div>
             <div className="dc">
-              <strong style={{color:"#94a3b8"}}>Aviso Legal:</strong> Quiniela IA es una herramienta de análisis estadístico y entretenimiento. Los resultados mostrados son análisis basados en datos históricos y <strong style={{color:"#f87171"}}>no garantizan resultados futuros</strong>. La Quiniela Nacional es un juego de azar. Juegá responsablemente. Esta aplicación no está afiliada a la Lotería Nacional ni a ninguna entidad oficial de lotería. Los datos se obtienen de fuentes públicas con fines informativos y educativos.
-              El juego en exceso puede causar adicción. Línea gratuita: 0800-333-0062. Solo mayores de 18 años.
+              Quiniela IA es una herramienta de análisis estadístico con fines de entretenimiento. No garantiza resultados. No es un sitio de apuestas. Línea de ayuda: <strong style={{color:"#94a3b8"}}>0800-333-0062</strong>. Solo mayores de 18 años.
+            </div>
+            <div className="credit">
+               © 2026 Quiniela IA · Desarrollado por <strong>EstudioWebPin</strong>
             </div>
           </div>
         </div>
@@ -1925,13 +1984,18 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       <PaywallModal
         open={showPaywall}
         onClose={() => setShowPaywall(false)}
-        onWhatsApp={() => {
-          window.open("https://whatsapp.com/channel/0029VbB7O9B9cDDUtBY9GU1F", "_blank")
-          setShowPaywall(false)
-        }}
+        userId={userId}
       />
       <WhatsAppFAB />
       <FooterDisclaimer />
     </>
+  );
+}
+
+export default function Page() {
+  return (
+    <ToastProvider>
+      <PageInner />
+    </ToastProvider>
   );
 }

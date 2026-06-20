@@ -37,8 +37,7 @@ export default function AdminPage() {
   const [tab, setTab] = useState<"dashboard" | "users" | "pending" | "scraper">("dashboard")
 
   useEffect(() => {
-    const proj = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").split("//")[1]?.split(".")[0] || "project"
-    const raw = localStorage.getItem("sb-" + proj + "-auth-token")
+    const raw = localStorage.getItem("quiniela-ia-auth")
     if (!raw) { window.location.href = "/login"; return }
     try {
       const s = JSON.parse(raw)

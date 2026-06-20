@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({
-      isPremium, role: profile?.role ?? "free", email: user.email,
+      isPremium, role: profile?.role ?? "free", email: user.email, userId: user.id,
       premium_until: profile?.premium_until || null, daysRemaining
     });
 

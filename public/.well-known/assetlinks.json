@@ -3,6 +3,6 @@
   "target": {
     "namespace": "android_app",
     "package_name": "app.vercel.quiniela_ia_two.twa",
-    "sha256_cert_fingerprints": ["E3:EE:68:AE:60:C5:B7:E1:28:64:FA:7A:19:D5:6D:E6:64:6A:CA:44:96:64:69:E7:3C:AF:A2:1E:6A:74:62:5B"]
+    "sha256_cert_fingerprints": ["4C:25:53:66:2A:4E:06:24:AC:2F:4C:84:A5:02:B9:DE:70:D9:FC:73:C3:CD:BB:24:E1:F4:CC:44:79:DC:6E:12"]
   }
 }]

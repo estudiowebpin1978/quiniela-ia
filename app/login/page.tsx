@@ -1,7 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-
-const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+import { getAuth, saveAuth, isLoggedIn } from "@/lib/auth"
 
 export default function LoginPage() {
   const [tab, setTab] = useState("in")
@@ -12,14 +11,7 @@ export default function LoginPage() {
   const [ok, setOk] = useState("")
 
   useEffect(() => {
-    const proj = SB_URL.split("//")[1]?.split(".")[0] || "project"
-    const raw = localStorage.getItem("sb-" + proj + "-auth-token")
-    if (raw) {
-      try {
-        const s = JSON.parse(raw)
-        if (s?.access_token) { window.location.href = "/predictions"; return }
-      } catch {}
-    }
+    if (isLoggedIn()) window.location.href = "/predictions"
   }, [])
 
   async function submit() {
@@ -34,14 +26,13 @@ export default function LoginPage() {
       const data = await res.json()
       if (!res.ok) { setErr(data.error || "Error"); return }
       if (data.needsConfirmation) { setOk("Cuenta creada! Ahora iniciá sesión."); setTab("in"); setPass(""); return }
-      const proj = SB_URL.split("//")[1]?.split(".")[0] || "project"
-      localStorage.setItem("sb-" + proj + "-auth-token", JSON.stringify({
+      saveAuth({
         access_token: data.access_token,
         refresh_token: data.refresh_token || "",
         expires_at: Math.floor(Date.now() / 1000) + (data.expires_in || 3600),
         token_type: "bearer",
         user: data.user
-      }))
+      })
       setOk("Bienvenido!")
       setTimeout(() => { window.location.href = "/predictions" }, 400)
     } catch { setErr("Error de conexión") }
@@ -64,7 +55,7 @@ export default function LoginPage() {
       input{width:100%;background:rgba(0,0,0,0.3);border:2px solid rgba(255,255,255,.08);border-radius:12px;color:#fff;font-size:15px;padding:14px 16px;outline:none;transition:all .2s;font-family:inherit}
       input:focus{border-color:#ff3366;background:rgba(255,51,102,0.08);box-shadow:0 0 20px rgba(255,51,102,0.15)}
       input::placeholder{color:#475569}
-      .btn{width:100%;border:none;border-radius:14px;font-size:16px;font-weight:900;padding:16px;cursor:pointer;margin-top:20px;background:linear-gradient(135deg,#ff3366,#cc0033);color:#fff;box-shadow:0 6px 0 #990033,0 8px 24px rgba(255,51,102,0.4),inset 0 2px 0 rgba(255,255,255,0.2);transition:all .15s}
+      .btn{width:100%;border:none;border-radius:14px;font-size:16px;font-weight:900;padding:16px;cursor:pointer;margin-top:20px;background:linear-gradient(135deg,#ff3366,#cc0033);color:#fff;box-shadow:0 6px 0 #990033,0 8px 24px rgba(255,51,102,0.4),inset 0 2px 0 rgba(255,255,255,0.2);transition:all .15s;touch-action:manipulation}
       .btn:active{transform:translateY(3px);box-shadow:0 3px 0 #990033,0 4px 12px rgba(255,51,102,0.3)}
       .btn-up{background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 6px 0 #166534,0 8px 24px rgba(34,197,94,0.3),inset 0 2px 0 rgba(255,255,255,0.2)}
       .btn:disabled{opacity:.5;cursor:not-allowed}
@@ -102,7 +93,7 @@ export default function LoginPage() {
       </div>
 
       <div style={{ marginTop: 24, fontSize: 11, color: "#475569", textAlign: "center" }}>
-        Al continuar aceptás nuestros <a href="/privacidad" style={{ color: "#ff6b81" }}>términos y privacidad</a>
+        Al continuar aceptás nuestros <a href="/terminos" style={{ color: "#ff6b81" }}>términos</a> y <a href="/privacidad" style={{ color: "#ff6b81" }}>privacidad</a>
       </div>
     </div>
   </>)

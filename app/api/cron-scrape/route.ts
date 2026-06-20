@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { esDiaSinSorteo } from "@/lib/feriados"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
@@ -17,23 +18,22 @@ function fechaArgentina(): { fechaStr: string; diaSemana: number; fUrl: string }
   return { fechaStr: p, diaSemana: new Date(`${p}T12:00:00Z`).getDay(), fUrl: `${dd}-${mm}-${yyyy.slice(-2)}` }
 }
 
-const FERIADOS = ["01-01","02-16","02-17","03-24","04-02","04-03","05-01","05-25","06-20","07-09","08-17","10-12","11-23","12-08","12-25"]
-
-function esDiaSinSorteo(diaSemana: number, fechaStr: string): boolean {
-  if (diaSemana === 0) return true
-  if (FERIADOS.includes(fechaStr.slice(5))) return true
-  return false
-}
-
 async function scrapeTurnoOficial(fechaISO: string, turno: string): Promise<number[]> {
   // Lotería de la Ciudad - API oficial
-  // Reference: 2026-06-08 (Mon) = sorteo 52492, each day +5
+  // Reference: 2026-06-08 (Mon) = sorteo 52492, each weekday +5 sorteos
+  // Sundays and holidays have no sorteos
   const refDate = new Date("2026-06-08T12:00:00Z")
   const targetDate = new Date(fechaISO + "T12:00:00Z")
   const daysDiff = Math.round((targetDate.getTime() - refDate.getTime()) / (86400000))
+  // Count only weekdays (Mon-Sat), skip Sundays
+  let weekdays = 0
+  for (let i = 1; i <= daysDiff; i++) {
+    const d = new Date(refDate.getTime() + i * 86400000)
+    if (d.getDay() !== 0) weekdays++ // skip Sunday
+  }
   const turnoIdx = TURNOS.indexOf(turno)
   if (turnoIdx < 0) return []
-  const sorteoCode = 52492 + daysDiff * 5 + turnoIdx
+  const sorteoCode = 52492 + weekdays * 5 + turnoIdx
 
   try {
     const r = await fetch("https://quiniela.loteriadelaciudad.gob.ar/resultadosQuiniela/consultaResultados.php", {
@@ -158,7 +158,7 @@ export async function GET(req: NextRequest) {
     fUrl = f.fUrl
   }
 
-  if (!overrideDate && esDiaSinSorteo(diaSemana, fechaISO)) {
+  if (!overrideDate && esDiaSinSorteo(fechaISO, diaSemana)) {
     return NextResponse.json({ ok: true, message: "Sin sorteos", fecha: fechaISO })
   }
 

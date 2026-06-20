@@ -1,21 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
+import { esDiaSinSorteo } from "@/lib/feriados"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wazkylxgqckjfkcmfotl.supabase.co").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
-
-const FERIADOS_2026 = [
-  "2026-01-01","2026-02-16","2026-02-17","2026-03-24",
-  "2026-04-02","2026-04-03","2026-05-01","2026-05-25",
-  "2026-06-20","2026-07-09","2026-08-17","2026-10-12",
-  "2026-11-23","2026-12-08","2026-12-25",
-]
-
-function isDiaSinSorteo(dateStr: string): boolean {
-  const d = new Date(dateStr + "T12:00:00-03:00")
-  if (d.getDay() === 0) return true
-  if (FERIADOS_2026.includes(dateStr)) return true
-  return false
-}
 
 export async function GET(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
@@ -44,7 +31,7 @@ export async function GET(req: NextRequest) {
       const d = (p.date || "").trim()
       const tn = t.charAt(0).toUpperCase() + t.slice(1)
       return { date: d, turno: t, turnoNormalized: tn, pred: p }
-    }).filter((td: any) => td.date && td.turno && !isDiaSinSorteo(td.date))
+    }).filter((td: any) => td.date && td.turno && !esDiaSinSorteo(td.date, new Date(td.date + "T12:00:00Z").getDay()))
 
     // Build OR filter: (date=eq.X AND turno=eq.Y) OR ...
     const orFilters = turnoDates
@@ -211,7 +198,6 @@ export async function POST(req: NextRequest) {
     })
 
     const responseText = await r.text()
-    console.log("Insert result:", r.status, responseText)
 
     if (!r.ok) {
       return NextResponse.json({ error: "Error guardando. Status: " + r.status + ". Response: " + responseText }, { status: 500 })
@@ -220,7 +206,6 @@ export async function POST(req: NextRequest) {
     let inserted = null
     try { inserted = JSON.parse(responseText) } catch {}
 
-    console.log("Inserted record:", inserted)
     return NextResponse.json({ ok: true, inserted })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })

@@ -444,10 +444,6 @@ export async function GET(req: NextRequest) {
       ? Math.round((scores.slice(0, 10).reduce((sum, s) => sum + ((s as any).bayesianConfidence || s.confianza), 0) / 10))
       : Math.round((scores.slice(0, 10).reduce((sum, s) => sum + s.confianza, 0) / 10))
 
-    console.log(`[30 FACTORES] Total números: ${terminaciones2.length}, Sorteos: ${sequences.length}`)
-    console.log(`[30 FACTORES] Top 3: ${scores.slice(0, 3).map(s => `${s.num}:${s.score.toFixed(2)}`).join(', ')}`)
-    console.log(`[MONTE CARLO] Simulaciones: 5000, Top MC: ${monteCarloTop.slice(0, 3).map(r => `${r.number}:${r.probability.toFixed(3)}`).join(', ')}`)
-
     return NextResponse.json({
       ok: true,
       turno: turnoQuery,
