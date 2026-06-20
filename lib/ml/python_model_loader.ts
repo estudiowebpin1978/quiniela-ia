@@ -1,155 +1,90 @@
 /**
- * Cargador de modelos Python (XGBoost / Random Forest) exportados a JSON.
- * 
- * Los modelos son entrenados por quiniela_ml/run_all.py y exportados a
- * modelos_exportados/quiniela_completo_{turno}_prediccion.json.
- * 
- * La API de predicciones usa obtenerBoostPython() para aplicar un boost
- * a los scores calculados en tiempo real desde TypeScript.
+ * Python ML Model Loader
+ * Loads LightGBM, XGBoost, and ensemble predictions from Supabase.
+ * Fallback: filesystem (local dev only).
  */
 
-import fs from "fs"
-import path from "path"
-
-export interface ModeloExportado {
-  modelo: string
-  fecha_exportacion: string
-  scores_por_numero: Record<string, number>
-  top_10: { numero: string; score: number }[]
-  metadata: Record<string, any>
+interface PythonBoostResult {
+  [num: number]: number
 }
 
-const MODELOS_DIR = path.join(process.cwd(), "modelos_exportados")
+let pyCache: Record<string, PythonBoostResult> = {}
+let pyCacheLoaded = false
 
-const cache = new Map<string, { data: any; timestamp: number }>()
-const CACHE_TTL = 10 * 60 * 1000
-
-/**
- * Carga un modelo exportado desde JSON con caché de 10 min.
- * Intenta formato nuevo primero, luego formato legacy.
- */
-export type ModeloTipo = "xgboost" | "random_forest" | "lightgbm" | "ensemble"
-
-export function cargarModeloPython(turno: string, tipo: ModeloTipo = "xgboost"): ModeloExportado | null {
-  const key = `${tipo}_${turno}`
-  const cached = cache.get(key)
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.data
-
-  const namesToTry = [
-    `${tipo}_${turno}_prediccion.json`,
-    `quiniela_completo_${turno}_prediccion.json`,
-  ]
-  for (const name of namesToTry) {
-    try {
-      const filePath = path.join(MODELOS_DIR, name)
-      if (!fs.existsSync(filePath)) continue
-      const raw = fs.readFileSync(filePath, "utf-8")
-      const data = JSON.parse(raw) as ModeloExportado
-      cache.set(key, { data, timestamp: Date.now() })
-      return data
-    } catch {}
-  }
-  return null
-}
+const SB_URL = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
+const SB_KEY = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
 
 /**
- * Obtiene el boost de Python para cada número (0-99).
- * Retorna Record<numero, score_boost> o null si no hay modelo.
+ * Load Python model scores from Supabase.
+ * Looks for turno entries in ml_models that match lgbm_*, xgboost_*, ensemble_* patterns.
  */
-export function obtenerBoostPython(turno: string, tipo: ModeloTipo = "xgboost"): Record<number, number> | null {
-  const modelo = cargarModeloPython(turno, tipo)
-  if (!modelo) return null
-  const boost: Record<number, number> = {}
-  for (const [numStr, score] of Object.entries(modelo.scores_por_numero)) {
-    boost[parseInt(numStr)] = score
-  }
-  return boost
+export async function loadPythonModelsFromSupabase(): Promise<void> {
+  if (pyCacheLoaded) return
+
+  const SB = SB_URL()
+  const SK = SB_KEY()
+  if (!SB || !SK) return
+
+  try {
+    const res = await fetch(
+      `${SB}/rest/v1/ml_models?select=turno,modelos&order=updated_at.desc&limit=50`,
+      { headers: { apikey: SK, Authorization: `Bearer ${SK}` } }
+    )
+    if (!res.ok) return
+
+    const rows = await res.json()
+    for (const row of rows) {
+      if (row.modelos) {
+        const modelos = JSON.parse(row.modelos)
+        for (const m of modelos) {
+          if ((m.tipo === "lgbm" || m.tipo === "xgboost" || m.tipo === "ensemble") && m.modelo?.scores_por_numero) {
+            const key = `${m.tipo}_${row.turno}`
+            const scores: PythonBoostResult = {}
+            for (const [k, v] of Object.entries(m.modelo.scores_por_numero)) {
+              const num = parseInt(k, 10)
+              if (!isNaN(num)) scores[num] = (v as number) / 8
+            }
+            pyCache[key] = scores
+          }
+        }
+      }
+    }
+    pyCacheLoaded = true
+  } catch {}
 }
 
 /**
- * Obtiene el boost combinado de LightGBM + XGBoost (ensemble ponderado).
- * LightGBM 50% + XGBoost 50% si ambos existen, fallback a uno solo.
+ * Get ensemble boost scores (LGBM + XGBoost average).
  */
-export function obtenerBoostEnsemble(turno: string): Record<number, number> | null {
-  const lgbm = obtenerBoostPython(turno, "lightgbm")
-  const xgb = obtenerBoostPython(turno, "xgboost")
-  const ensemble = obtenerBoostPython(turno, "ensemble")
-
-  // If explicit ensemble exists, use it
+export function obtenerBoostEnsemble(turno: string): PythonBoostResult | null {
+  // Try ensemble first
+  const ensemble = pyCache[`ensemble_${turno}`]
   if (ensemble) return ensemble
 
-  // Otherwise combine LGBM + XGB
+  // Fallback: average LGBM + XGBoost
+  const lgbm = pyCache[`lgbm_${turno}`]
+  const xgb = pyCache[`xgboost_${turno}`]
   if (lgbm && xgb) {
-    const combined: Record<number, number> = {}
+    const merged: PythonBoostResult = {}
     for (let n = 0; n < 100; n++) {
-      combined[n] = ((lgbm[n] || 0) + (xgb[n] || 0)) / 2
+      merged[n] = ((lgbm[n] || 0) + (xgb[n] || 0)) / 2
     }
-    return combined
+    return merged
   }
-  if (lgbm) return lgbm
-  if (xgb) return xgb
-  return null
+
+  return lgbm || xgb || null
 }
 
 /**
- * Lista todos los modelos exportados disponibles en modelos_exportados/.
+ * Get XGBoost-only boost scores.
  */
-export function getModelosExportadosDisponibles(): { tipo: string; turno: string; fecha: string }[] {
-  try {
-    if (!fs.existsSync(MODELOS_DIR)) return []
-    const files = fs.readdirSync(MODELOS_DIR).filter(f => f.endsWith("_prediccion.json"))
-    return files.map(f => {
-      const parts = f.replace("_prediccion.json", "").split("_")
-      const tipo = parts[0]
-      const turno = parts.slice(1).join("_")
-      try {
-        const raw = fs.readFileSync(path.join(MODELOS_DIR, f), "utf-8")
-        const data = JSON.parse(raw)
-        return { tipo, turno, fecha: data.fecha_exportacion || "" }
-      } catch {
-        return { tipo, turno, fecha: "" }
-      }
-    })
-  } catch {
-    return []
-  }
+export function obtenerBoostXGBoost(turno: string): PythonBoostResult | null {
+  return pyCache[`xgboost_${turno}`] || null
 }
 
-// ============================================================
-// PREDICCIÓN COMPLETA (reemplaza el cálculo TypeScript)
-// ============================================================
-
-export interface PrediccionCompletaPython {
-  modelo: string
-  fecha_exportacion: string
-  turno: string
-  xgboost_activo: boolean
-  pesos: Record<string, number>
-  redoblona: string
-  predicciones_2cifras: { numero: string; score: number; probabilidad: number; factores: string[] }[]
-  predicciones_3cifras: { numero: string; score: number; probabilidad: number }[]
-  predicciones_4cifras: { numero: string; score: number; probabilidad: number }[]
-  top_10_2d: { numero: string; score: number }[]
-  metadata: Record<string, any>
-}
-
-export function cargarPrediccionCompleta(turno: string): PrediccionCompletaPython | null {
-  const key = `completa_${turno}`
-  const cached = cache.get(key)
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.data as PrediccionCompletaPython
-
-  try {
-    const filePath = path.join(MODELOS_DIR, `quiniela_completo_${turno}_prediccion.json`)
-    if (!fs.existsSync(filePath)) return null
-    const raw = fs.readFileSync(filePath, "utf-8")
-    const data = JSON.parse(raw) as PrediccionCompletaPython
-    cache.set(key, { data, timestamp: Date.now() })
-    return data
-  } catch {
-    return null
-  }
-}
-
-export function limpiarCacheModelos(): void {
-  cache.clear()
+/**
+ * Get LightGBM-only boost scores.
+ */
+export function obtenerBoostLightGBM(turno: string): PythonBoostResult | null {
+  return pyCache[`lgbm_${turno}`] || null
 }

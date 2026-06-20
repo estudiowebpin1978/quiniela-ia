@@ -94,6 +94,9 @@ export async function GET(req: NextRequest) {
   // Load deep learning models from Supabase (async, cached)
   import("@/lib/ml/deep-learning-loader").then(m => m.loadDeepLearningFromSupabase()).catch(() => {})
 
+  // Load Python ML models from Supabase (async, cached)
+  import("@/lib/ml/python_model_loader").then(m => m.loadPythonModelsFromSupabase()).catch(() => {})
+
   const ctrl = new AbortController()
   const to = setTimeout(() => ctrl.abort(), 25000)
 

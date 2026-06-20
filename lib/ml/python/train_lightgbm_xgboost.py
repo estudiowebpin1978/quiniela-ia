@@ -371,7 +371,7 @@ def main():
             })
 
         # Ensemble (average of both)
-        if lgbm_model and xgbm_model:
+        if lgbm_model and xgb_model:
             print(f" 5. Creando ensemble LGBM+XGB...")
             scores_ensemble = {}
             for n in range(100):
