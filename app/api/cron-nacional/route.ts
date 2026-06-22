@@ -103,6 +103,7 @@ async function scrapeTurno(fechaUrl: string, turno: string): Promise<number[]> {
       const ciudadMark = '<p class="h3">Ciudad</p>'
       let sectionIdx = html.indexOf(nacionalMark)
       if (sectionIdx < 0) sectionIdx = html.indexOf(ciudadMark)
+      if (sectionIdx < 0) sectionIdx = html.indexOf('class="veintena"')
       if (sectionIdx < 0) {
         if (intento < 2) continue
         return await scrapeFallback(turno)
