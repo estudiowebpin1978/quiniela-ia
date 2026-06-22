@@ -215,13 +215,12 @@ function PageInner() {
 
   const tkRef = useRef("");
   useEffect(() => {
-    // Guest mode: no auth required
-    if (isGuest()) {
+    // Guest mode: no auth required (but only if not logged in)
+    const auth = getAuth();
+    if (isGuest() && !auth) {
       setGuestMode(true);
       return;
     }
-
-    const auth = getAuth();
     if (!auth) {
       window.location.href = "/login";
       return;

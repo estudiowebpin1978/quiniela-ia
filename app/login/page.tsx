@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
-import { getAuth, saveAuth, isLoggedIn } from "@/lib/auth"
+import { getAuth, saveAuth, isLoggedIn, clearGuest } from "@/lib/auth"
 
 export default function LoginPage() {
   const [tab, setTab] = useState("in")
@@ -33,6 +33,7 @@ export default function LoginPage() {
         token_type: "bearer",
         user: data.user
       })
+      clearGuest()
       setOk("Bienvenido!")
       setTimeout(() => { window.location.href = "/predictions" }, 400)
     } catch { setErr("Error de conexión") }
