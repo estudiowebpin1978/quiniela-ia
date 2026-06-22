@@ -26,7 +26,7 @@ function esDiaSinSorteo(diaSemana: number, fechaStr: string): boolean {
 function extraerNumeros(html: string, startIdx: number): number[] {
   const chunk = html.slice(startIdx, startIdx + 4000)
   const nums: number[] = []
-  const rx = /class="numero">(\d{4})<\/div>/g
+  const rx = /class="numero">(\d{3,4})<\/div>/g
   let mx: RegExpExecArray | null
   while ((mx = rx.exec(chunk)) !== null) {
     const n = parseInt(mx[1])
@@ -71,7 +71,7 @@ async function scrapeFallback(turno: string): Promise<number[]> {
     if (ciudadIdx < 0) return []
     const afterCiudad = afterTurno.slice(ciudadIdx)
     const nums: number[] = []
-    const rx = /<div class="numero">(\d{4})<\/div>/g
+    const rx = /<div class="numero">(\d{3,4})<\/div>/g
     let mx: RegExpExecArray | null
     while ((mx = rx.exec(afterCiudad)) !== null) {
       const n = parseInt(mx[1])

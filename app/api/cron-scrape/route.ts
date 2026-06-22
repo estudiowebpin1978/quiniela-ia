@@ -80,7 +80,7 @@ async function scrapeTurnoFast(fechaUrl: string, turno: string): Promise<number[
 
       const chunk = afterSection.slice(veintenaIdx, veintenaIdx + 4000)
       const nums: number[] = []
-      const rx = /class="numero">(\d{4})<\/div>/g
+      const rx = /class="numero">(\d{3,4})<\/div>/g
       let mx: RegExpExecArray | null
       while ((mx = rx.exec(chunk)) !== null) {
         const n = parseInt(mx[1])
