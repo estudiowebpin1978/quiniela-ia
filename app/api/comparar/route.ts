@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const fecha = req.nextUrl.searchParams.get("fecha")
   const turno = req.nextUrl.searchParams.get("turno")
   
-  if (!secret || secret !== "quiniela_ia_cron_2024_seguro") {
+  if (!secret || !process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || "https://wazkylxgqckjfkcmfotl.supabase.co";
 const SK = process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || "";
-const CRON_SECRET = "quiniela_ia_cron_2024_seguro";
+const CRON_SECRET = process.env.CRON_SECRET || "";
 
 export const dynamic = 'force-dynamic';
 

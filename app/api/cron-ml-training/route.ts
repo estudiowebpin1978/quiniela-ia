@@ -13,8 +13,8 @@ export const dynamic = "force-dynamic"
 export async function POST(req: NextRequest) {
   // Verify cron secret
   const auth = req.headers.get("authorization")
-  const secret = process.env.CRON_SECRET || ""
-  if (auth !== `Bearer ${secret}` && auth !== `Bearer quiniela_ia_cron_2024_seguro`) {
+  const secret = process.env.CRON_SECRET
+  if (!secret || auth !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

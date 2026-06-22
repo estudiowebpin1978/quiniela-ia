@@ -4,7 +4,8 @@ const SK=()=>(process.env.SUPABASE_SERVICE_ROLE_KEY||"").replace(/"/g,"").trim()
 
 export async function GET(req:NextRequest){
   const secret=req.nextUrl.searchParams.get("secret")
-  if(secret!=="quiniela2024cron")return NextResponse.json({error:"No autorizado"},{status:401})
+  const expected=process.env.CRON_SECRET||""
+  if(!expected||secret!==expected)return NextResponse.json({error:"No autorizado"},{status:401})
   try{
     const r=await fetch(`${SB()}/rest/v1/draws?select=turno,numbers&limit=5000`,{
       headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`}

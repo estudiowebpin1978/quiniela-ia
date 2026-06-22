@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import * as cheerio from "cheerio";
 
-const CRON_SECRET = process.env.CRON_SECRET || "quiniela_ia_cron_2024_seguro";
+const CRON_SECRET = process.env.CRON_SECRET || "";
 
 const BASE_URL = "https://quinieladelaciudad.ruta1000.com.ar";
 const SOURCE_NAME = "quiniela-ciudad-v1";

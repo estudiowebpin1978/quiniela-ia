@@ -192,7 +192,7 @@ function isAuthorizedCron(req: NextRequest): boolean {
 export async function GET(req: NextRequest) {
   if (!isAuthorizedCron(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const secret = req.nextUrl.searchParams.get("secret") || ""
-  const expected = process.env.CRON_SECRET || "quiniela_ia_cron_2024_seguro"
+  const expected = process.env.CRON_SECRET || ""
 
   const save = req.nextUrl.searchParams.get("save") === "true"
   const turnoParam = req.nextUrl.searchParams.get("turno") || ""
