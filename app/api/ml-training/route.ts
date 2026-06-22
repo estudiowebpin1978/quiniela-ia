@@ -3,6 +3,13 @@ import { NextRequest, NextResponse } from "next/server"
 export const dynamic = "force-dynamic"
 
 export async function POST(req: NextRequest) {
+  // Auth check
+  const auth = req.headers.get("authorization")
+  const cronSecret = process.env.CRON_SECRET || ""
+  if (cronSecret && auth !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
   const { searchParams } = new URL(req.url)
   const turno = searchParams.get("turno") || "todos"
   const incluirRF = searchParams.get("rf") !== "false"

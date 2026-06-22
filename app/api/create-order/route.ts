@@ -64,14 +64,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No se recibió access_token" }, { status: 502 })
     }
 
+    const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app").replace(/"/g, "").trim()
+
     // 2. Create checkout order
     const planData = PLANS[plan]
     const orderBody = {
-      amount: planData.amount, // STRING — Ualá v2 requires "3500.00" not 3500
+      amount: planData.amount,
       description: planData.description,
-      notification_url: "https://quiniela-ia-two.vercel.app/api/webhook-uala",
-      callback_success: "https://quiniela-ia-two.vercel.app/predictions?payment=success",
-      callback_fail: "https://quiniela-ia-two.vercel.app/predictions?payment=failed",
+      notification_url: `${baseUrl}/api/webhook-uala`,
+      callback_success: `${baseUrl}/predictions?payment=success`,
+      callback_fail: `${baseUrl}/predictions?payment=failed`,
       external_reference: userId,
     }
     console.log("[UALA CREATE] Order request: plan=" + plan + ", amount=" + planData.amount)
@@ -108,7 +110,7 @@ export async function POST(req: NextRequest) {
 
     if (!checkoutUrl) {
       console.error("[UALA CREATE] No checkout URL found. Full response:", JSON.stringify(orderData))
-      return NextResponse.json({ error: "No se encontró URL de pago en la respuesta", fullResponse: orderData }, { status: 502 })
+      return NextResponse.json({ error: "No se encontró URL de pago" }, { status: 502 })
     }
 
     return NextResponse.json({ checkoutUrl })

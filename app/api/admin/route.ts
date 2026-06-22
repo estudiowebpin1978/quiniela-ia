@@ -12,7 +12,8 @@ export async function GET(req:NextRequest){
 export async function POST(req:NextRequest){
   const token=req.headers.get("authorization")?.replace("Bearer ","")||""
   if(!await isAdmin(token))return NextResponse.json({error:"No autorizado"},{status:401})
-  const body=await req.json()
+  let body:any
+  try{body=await req.json()}catch{return NextResponse.json({error:"JSON inválido"},{status:400})}
   const{action,userId,days,email,password,role}=body
   if(action==="create"){
     if(!email||!password)return NextResponse.json({error:"Email y contrasena requeridos"},{status:400})

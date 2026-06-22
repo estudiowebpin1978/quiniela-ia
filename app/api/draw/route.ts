@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     }
 
     const draw = rows[0];
-    const numeros = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"));
+    const numeros = (draw.numbers || []).map((n: number) => String(Number(n) % 100).padStart(2, "0"));
 
     return NextResponse.json({
       found: true,

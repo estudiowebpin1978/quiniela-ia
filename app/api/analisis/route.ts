@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
     )
     const draws: Draw[] = await res.json()
     if (!draws?.length) {
-      return NextResponse.json({ error: "Sin datos" })
+      return NextResponse.json({ error: "Sin datos" }, { status: 404 })
     }
 
     const sequences = draws.map(d => d.numbers || [])

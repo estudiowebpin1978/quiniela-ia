@@ -5,7 +5,7 @@ export async function GET(req: NextRequest) {
   if (!token) return NextResponse.json({ isPremium: false, role: "free" });
 
   const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const SB_KEY = process.env.SUPABASE_SERVICE_KEY;
+  const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
   if (!SB_URL || !SB_KEY) return NextResponse.json({ isPremium: false, role: "free" });
 
   const controller = new AbortController();

@@ -32,7 +32,15 @@ export async function POST(req: NextRequest) {
 
   if (!SB_URL || !SB_ANON) return NextResponse.json({ error: "Variables no configuradas." }, { status: 500 });
 
-  const { email, password, action } = await req.json();
+  let email: string, password: string, action: string;
+  try {
+    const body = await req.json();
+    email = body.email;
+    password = body.password;
+    action = body.action;
+  } catch {
+    return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
+  }
   if (!email || !password) return NextResponse.json({ error: "Faltan campos." }, { status: 400 });
 
   const supabase = createClient(SB_URL, SB_ANON);

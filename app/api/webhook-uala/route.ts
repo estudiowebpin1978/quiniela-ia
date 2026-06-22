@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  console.log("[UALA WEBHOOK RAW]", JSON.stringify(rawBody, null, 2))
+  console.log("[UALA WEBHOOK] Received payment notification")
 
   // 2. Extract fields — handle multiple possible Ualá payload structures
   const body = rawBody?.data ? rawBody.data : rawBody // some APIs nest under .data
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   const amountRaw = body?.amount || body?.transaction_amount || body?.total_amount || "0"
   const amount = parseFloat(String(amountRaw).replace(",", "."))
 
-  console.log("[UALA WEBHOOK PARSED]", JSON.stringify({ orderId, status, userId, amount }, null, 2))
+  console.log("[UALA WEBHOOK PARSED]", JSON.stringify({ orderId, status, userId: userId ? "SET" : "MISSING", amount }, null, 2))
 
   // 3. Only process approved/completed payments
   if (status !== "APPROVED" && status !== "COMPLETED") {
@@ -48,14 +48,12 @@ export async function POST(req: NextRequest) {
   const days = PLAN_DAYS[plan] || 30
   const premiumUntil = new Date(Date.now() + days * 86400000).toISOString()
 
-  console.log(`[UALA WEBHOOK] userId=${userId}, amount=${amount}, plan=${plan}, days=${days}`)
+  console.log(`[UALA WEBHOOK] amount=${amount}, plan=${plan}, days=${days}`)
   console.log(`[UALA WEBHOOK] SB_URL=${SB_URL() ? "SET" : "MISSING"}, SB_KEY=${SB_KEY() ? "SET" : "MISSING"}`)
 
   // 5. Check if user exists and has active premium
-  // Don't encode UUIDs — Supabase expects raw UUID format
   const safeId = String(userId).replace(/[^a-zA-Z0-9_-]/g, "")
   const queryUrl = `${SB_URL()}/rest/v1/user_profiles?id=eq.${safeId}&select=id,role,premium_until&limit=1`
-  console.log(`[UALA WEBHOOK] Query URL: ${queryUrl}`)
 
   const profRes = await fetch(
     queryUrl,
@@ -70,8 +68,6 @@ export async function POST(req: NextRequest) {
   if (!profRes.ok) {
     const errText = await profRes.text()
     console.error("[UALA WEBHOOK] Failed to fetch user profile:", profRes.status, errText)
-    console.error("[UALA WEBHOOK] userId used:", JSON.stringify(userId), "type:", typeof userId)
-    // Store the failed webhook for manual inspection
     try {
       await fetch(`${SB_URL()}/rest/v1/webhook_logs`, {
         method: "POST",
@@ -81,8 +77,8 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({
           source: "uala",
-          payload: JSON.stringify(rawBody),
-          user_id: String(userId),
+          payload: JSON.stringify({ orderId, status, amount }),
+          user_id: safeId,
           error: `${profRes.status}: ${errText}`,
           created_at: new Date().toISOString(),
         }),
@@ -115,7 +111,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  console.log(`[UALA WEBHOOK] Found user: id=${profile.id}, role=${profile.role}, premium_until=${profile.premium_until}`)
+  console.log(`[UALA WEBHOOK] Found user profile: role=${profile.role}`)
 
   // Don't overwrite admin users
   if (profile.role === "admin") {
@@ -155,6 +151,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  console.log(`[UALA WEBHOOK] ✅ Premium activated for ${userId}: ${plan} until ${finalPremiumUntil}`)
+  console.log(`[UALA WEBHOOK] ✅ Premium activated: ${plan} until ${finalPremiumUntil}`)
   return NextResponse.json({ ok: true })
 }
