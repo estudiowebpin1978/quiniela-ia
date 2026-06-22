@@ -92,11 +92,27 @@ export async function POST(req: NextRequest) {
   }
 
   const profiles = await profRes.json()
-  const profile = profiles?.[0]
+  let profile = profiles?.[0]
 
   if (!profile) {
-    console.error(`[UALA WEBHOOK] No user_profiles row for id="${userId}"`)
-    return NextResponse.json({ ok: true, message: "User not found in user_profiles" })
+    console.log(`[UALA WEBHOOK] No user_profiles row for id="${userId}" — creating one`)
+    const createRes = await fetch(`${SB_URL()}/rest/v1/user_profiles`, {
+      method: "POST",
+      headers: {
+        "apikey": SB_KEY(), Authorization: `Bearer ${SB_KEY()}`,
+        "Content-Type": "application/json", Prefer: "return=representation",
+      },
+      body: JSON.stringify({ id: userId, email: "", role: "free" }),
+    })
+    if (createRes.ok) {
+      const created = await createRes.json()
+      profile = created?.[0]
+      console.log(`[UALA WEBHOOK] Created user_profiles row for ${userId}`)
+    } else {
+      const errText = await createRes.text()
+      console.error(`[UALA WEBHOOK] Failed to create user_profiles: ${createRes.status}`, errText)
+      return NextResponse.json({ ok: true, message: "Could not create profile" })
+    }
   }
 
   console.log(`[UALA WEBHOOK] Found user: id=${profile.id}, role=${profile.role}, premium_until=${profile.premium_until}`)

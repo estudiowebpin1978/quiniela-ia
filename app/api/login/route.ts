@@ -1,6 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+const SB_URL = () => (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/"/g, "").trim();
+const SB_KEY = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim();
+
+async function ensureUserProfile(userId: string, email: string) {
+  const sb = SB_URL();
+  const sk = SB_KEY();
+  if (!sb || !sk) return;
+  try {
+    const r = await fetch(`${sb}/rest/v1/user_profiles?id=eq.${userId}&select=id&limit=1`, {
+      headers: { "apikey": sk, Authorization: `Bearer ${sk}` },
+    });
+    const rows = await r.json();
+    if (!rows?.length) {
+      await fetch(`${sb}/rest/v1/user_profiles`, {
+        method: "POST",
+        headers: {
+          "apikey": sk, Authorization: `Bearer ${sk}`,
+          "Content-Type": "application/json", Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ id: userId, email, role: "free" }),
+      });
+    }
+  } catch {}
+}
+
 export async function POST(req: NextRequest) {
   const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/"/g, "").trim();
   const SB_ANON = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").replace(/"/g, "").trim();
@@ -20,6 +45,7 @@ export async function POST(req: NextRequest) {
         if (msg.includes("already registered")) msg = "Email ya registrado. Iniciá sesión.";
         return NextResponse.json({ error: msg }, { status: 400 });
       }
+      if (data.user?.id) await ensureUserProfile(data.user.id, email);
       return NextResponse.json({
         access_token: data.session?.access_token ?? null,
         refresh_token: data.session?.refresh_token ?? null,
@@ -35,6 +61,8 @@ export async function POST(req: NextRequest) {
       if (msg.includes("Invalid login")) msg = "Email o contraseña incorrectos.";
       return NextResponse.json({ error: msg }, { status: 400 });
     }
+
+    if (data.user?.id) await ensureUserProfile(data.user.id, email);
 
     const payload = JSON.parse(Buffer.from(data.session.access_token.split(".")[1], "base64").toString());
     return NextResponse.json({

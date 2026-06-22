@@ -32,6 +32,19 @@ export async function GET(req: NextRequest) {
     const profiles = await profRes.json()
     const profile = profiles?.[0]
 
+    if (!profile) {
+      // Create profile if missing
+      await fetch(`${SB_URL()}/rest/v1/user_profiles`, {
+        method: "POST",
+        headers: {
+          "apikey": SB_KEY(), Authorization: `Bearer ${SB_KEY()}`,
+          "Content-Type": "application/json", Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ id: user.id, email: user.email || "", role: "free" }),
+      });
+      return NextResponse.json({ isPremium: false, role: "free", premium_until: null, daysRemaining: null });
+    }
+
     const isPremium =
       profile?.role === "admin" ||
       (profile?.role === "premium" &&

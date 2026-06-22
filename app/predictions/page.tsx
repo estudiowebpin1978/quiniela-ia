@@ -243,6 +243,24 @@ function PageInner() {
     if (paymentStatus === "success") {
       setTimeout(() => { toast("¡Pago acreditado! Tu acceso premium se activó automáticamente."); }, 1000);
       window.history.replaceState({}, "", "/predictions");
+      // Poll for premium activation (webhook may take a few seconds)
+      let attempts = 0;
+      const pollPremium = setInterval(async () => {
+        attempts++;
+        try {
+          const r = await fetch("/api/payment-status", { headers: { Authorization: "Bearer " + auth.access_token } });
+          const d = await r.json();
+          if (d.isPremium) {
+            setPr(true);
+            if (d.premium_until) setPremExpiry({ premium_until: d.premium_until, daysRemaining: d.daysRemaining });
+            clearInterval(pollPremium);
+            toast("Premium activado. ¡Bienvenido!");
+          } else if (attempts >= 6) {
+            clearInterval(pollPremium);
+            toast("Si tu pago fue acreditado, el acceso se activará en unos minutos. Refrescá la página si persiste.");
+          }
+        } catch {}
+      }, 3000);
     } else if (paymentStatus === "failed") {
       setTimeout(() => { toast("El pago no se completó. Intentá de nuevo."); }, 1000);
       window.history.replaceState({}, "", "/predictions");

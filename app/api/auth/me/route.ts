@@ -30,7 +30,18 @@ export async function GET(req: NextRequest) {
     );
     clearTimeout(timeout2);
 
-    if (!profRes.ok) return NextResponse.json({ isPremium: false, role: "free", email: user.email });
+    if (!profRes.ok) {
+      // Profile doesn't exist — create it
+      await fetch(`${SB_URL}/rest/v1/user_profiles`, {
+        method: "POST",
+        headers: {
+          "apikey": SB_KEY, Authorization: `Bearer ${SB_KEY}`,
+          "Content-Type": "application/json", Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ id: user.id, email: user.email, role: "free" }),
+      });
+      return NextResponse.json({ isPremium: false, role: "free", email: user.email, userId: user.id });
+    }
     const profiles = await profRes.json();
     const profile = profiles?.[0];
 
