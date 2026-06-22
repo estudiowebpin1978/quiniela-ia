@@ -876,7 +876,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             {!isOnline && <span style={{ background: "#ef4444", color: "#fff", padding: "4px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700 }}>📴 Offline</span>}
             {(pr || userRole === "admin") && <span className="pp">{userRole === "admin" ? "👑 ADMIN" : "⭐ PREMIUM"}</span>}
             {em && <span className="ne">{em.split("@")[0]}</span>}
-            {(pr || userRole === "admin") && <a href="/admin" className="nav-admin">⚙️ Admin</a>}
+            {userRole === "admin" && <a href="/admin" className="nav-admin">⚙️ Admin</a>}
             <button
               onClick={pedirNotificaciones}
               disabled={pushLoading}

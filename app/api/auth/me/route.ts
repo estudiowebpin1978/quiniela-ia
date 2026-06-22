@@ -45,17 +45,24 @@ export async function GET(req: NextRequest) {
     const profiles = await profRes.json();
     const profile = profiles?.[0];
 
-    const isPremium = profile?.role === "admin" ||
-      (profile?.role === "premium" && profile?.premium_until && new Date(profile.premium_until) > new Date());
-
     let daysRemaining = null
     if (profile?.premium_until) {
       daysRemaining = Math.ceil((new Date(profile.premium_until).getTime() - Date.now()) / 86400000)
       if (daysRemaining < 0) daysRemaining = 0
     }
 
+    // Admin role is ONLY for estudiowebpin@gmail.com — hardcode check
+    const adminEmails = ["estudiowebpin@gmail.com"];
+    const isAdmin = adminEmails.includes(user.email);
+    const dbRole = profile?.role ?? "free";
+    // If DB has "admin" but email doesn't match, downgrade to "free"
+    const role = isAdmin ? "admin" : (dbRole === "admin" ? "free" : dbRole);
+
+    const isPremium = role === "admin" ||
+      (role === "premium" && profile?.premium_until && new Date(profile.premium_until) > new Date());
+
     return NextResponse.json({
-      isPremium, role: profile?.role ?? "free", email: user.email, userId: user.id,
+      isPremium, role, email: user.email, userId: user.id,
       premium_until: profile?.premium_until || null, daysRemaining
     });
 
