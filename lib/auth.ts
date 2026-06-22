@@ -45,3 +45,22 @@ export function clearAuth(): void {
 export function isLoggedIn(): boolean {
   return getAccessToken() !== null;
 }
+
+// Guest mode
+const GUEST_KEY = "quiniela-ia-guest";
+
+export function setGuest(): void {
+  localStorage.setItem(GUEST_KEY, "1");
+}
+
+export function isGuest(): boolean {
+  try {
+    return localStorage.getItem(GUEST_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function clearGuest(): void {
+  localStorage.removeItem(GUEST_KEY);
+}

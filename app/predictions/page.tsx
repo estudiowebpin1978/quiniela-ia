@@ -22,7 +22,7 @@ import HistorialAciertos from "@/components/HistorialAciertos";
 import ExpiryBanner from "@/components/ExpiryBanner";
 import AgeGate from "@/components/AgeGate";
 import { ToastProvider, useToast } from "@/components/Toast";
-import { saveAuth, getAccessToken, clearAuth, getAuth } from "@/lib/auth";
+import { saveAuth, getAccessToken, clearAuth, getAuth, isGuest, clearGuest } from "@/lib/auth";
 import { esFeriado, esDiaSinSorteo, motivoDiaSinSorteo, todosLosFeriados } from "@/lib/feriados";
 
 const EMOJIS: Record<string, string> = {
@@ -141,6 +141,7 @@ function PageInner() {
   const [userId, setUserId] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [premExpiry, setPremExpiry] = useState<{ premium_until: string | null; daysRemaining: number | null }>({ premium_until: null, daysRemaining: null });
+  const [guestMode, setGuestMode] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstall, setShowInstall] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -214,6 +215,12 @@ function PageInner() {
 
   const tkRef = useRef("");
   useEffect(() => {
+    // Guest mode: no auth required
+    if (isGuest()) {
+      setGuestMode(true);
+      return;
+    }
+
     const auth = getAuth();
     if (!auth) {
       window.location.href = "/login";
@@ -525,6 +532,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   }
 
   async function guardarPrediccion(silent = false) {
+    if (guestMode) {
+      toast("Creá una cuenta gratis para guardar tus análisis", "info");
+      return;
+    }
     if (!cur?.length) {
       return;
     }
@@ -1133,7 +1144,27 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   Copiar
                 </button>
               </div>
-              
+
+              {guestMode && (
+                <div style={{
+                  background: "linear-gradient(135deg,rgba(99,102,241,.12),rgba(139,92,246,.08))",
+                  border: "1.5px solid rgba(99,102,241,.3)",
+                  borderRadius: 14, padding: "12px 16px", marginBottom: 12,
+                  display: "flex", alignItems: "center", gap: 10
+                }}>
+                  <div style={{ fontSize: 20 }}>👤</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: "#c4b5fd" }}>Modo invitado — Solo 2 cifras</div>
+                    <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>Creá una cuenta gratis para guardar análisis y ver historial</div>
+                  </div>
+                  <a href="/login" style={{
+                    background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+                    color: "#fff", fontSize: 11, fontWeight: 800, padding: "8px 14px",
+                    borderRadius: 10, textDecoration: "none", whiteSpace: "nowrap"
+                  }}>Crear cuenta</a>
+                </div>
+              )}
+
               <div className="tbs">
                 <button className={"tb tb-pred" + (tab === "pred" ? " on" : "")} onClick={() => setTab("pred")}>
                   <span className="tb-ico">🎯</span>
@@ -1151,12 +1182,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   <span className="tb-ico">📈</span>
                   <span className="tb-lbl">Tendencias</span>
                 </button>
-                <button className={"tb tb-mis" + (tab === "mis" ? " on" : "")} onClick={() => setTab("mis")}>
-                  <span className="tb-ico">📋</span>
+                <button className={"tb tb-mis" + (tab === "mis" ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para guardar y ver tus análisis", "info"); return; } setTab("mis") }}>
+                  <span className="tb-ico">{guestMode ? "🔒" : "📋"}</span>
                   <span className="tb-lbl">Mis Análisis</span>
                 </button>
-                <button className={"tb tb-acc" + (tab === "acc" ? " on" : "")} onClick={() => setTab("acc")}>
-                  <span className="tb-ico">🎯</span>
+                <button className={"tb tb-acc" + (tab === "acc" ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para ver tu precisión", "info"); return; } setTab("acc") }}>
+                  <span className="tb-ico">{guestMode ? "🔒" : "🎯"}</span>
                   <span className="tb-lbl">Precisión</span>
                 </button>
                 <button className={"tb" + (tab === "hist" ? " on" : "")} onClick={() => setTab("hist")} style={tab === "hist" ? { background: "linear-gradient(135deg,#3b82f6,#2563eb)", color: "#fff", boxShadow: "0 4px 12px rgba(59,130,246,0.4)" } : {}}>
@@ -1171,18 +1202,18 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     <button className={"dk dk-2" + (dg === 2 ? " on" : "")} onClick={() => setDg(2)}>
                       2 cifras
                     </button>
-                    <button className={"dk dk-3" + (dg === 3 ? " on" : "")} onClick={() => setDg(3)}>
-                      <span className="pbdg">PRO</span>3 cifras
+                    <button className={"dk dk-3" + (dg === 3 ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para acceder a 3 cifras", "info"); return; } setDg(3) }}>
+                      <span className="pbdg">{guestMode ? "🔒" : "PRO"}</span>3 cifras
                     </button>
-                    <button className={"dk dk-4" + (dg === 4 ? " on" : "")} onClick={() => setDg(4)}>
-                      <span className="pbdg">PRO</span>4 cifras
+                    <button className={"dk dk-4" + (dg === 4 ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para acceder a 4 cifras", "info"); return; } setDg(4) }}>
+                      <span className="pbdg">{guestMode ? "🔒" : "PRO"}</span>4 cifras
                     </button>
                   </div>
                   <div className={dg > 2 && !pr ? "lk" : ""}>
                     <div style={{ position: "relative" }}>
                       <div
                         className="g5"
-                        style={userRole === "free" && dg > 2 ? { filter: "blur(8px)", userSelect: "none", pointerEvents: "none" } : {}}
+                        style={(guestMode || (userRole === "free" && dg > 2)) ? { filter: "blur(8px)", userSelect: "none", pointerEvents: "none" } : {}}
                       >
                         {cur.slice(0, 10).map((p: any, i: number) => {
                           const r = ranking?.find((r: any) => r.numero === p.numero);
@@ -1222,18 +1253,18 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                             background: "rgba(0,0,0,0.4)", borderRadius: 14,
                             cursor: "pointer", zIndex: 10
                           }}
-                          onClick={() => setShowPaywall(true)}
+                          onClick={() => guestMode ? window.location.href = "/login" : setShowPaywall(true)}
                         >
-                          <div style={{ fontSize: 32, marginBottom: 8 }}>🧠</div>
-                          <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginBottom: 4 }}>La IA ya calculó las probabilidades</div>
-                          <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 12 }}>Desbloqueá el análisis completo con Machine Learning</div>
+                          <div style={{ fontSize: 32, marginBottom: 8 }}>{guestMode ? "👤" : "🧠"}</div>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginBottom: 4 }}>{guestMode ? "Creá una cuenta para acceder" : "La IA ya calculó las probabilidades"}</div>
+                          <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 12 }}>{guestMode ? "Es gratis y toma 30 segundos" : "Desbloqueá el análisis completo con Machine Learning"}</div>
                           <div style={{
-                            background: "linear-gradient(135deg,#a855f7,#7c3aed)",
+                            background: guestMode ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "linear-gradient(135deg,#a855f7,#7c3aed)",
                             color: "#fff", fontSize: 13, fontWeight: 800,
                             padding: "10px 24px", borderRadius: 12,
-                            boxShadow: "0 4px 16px rgba(168,85,247,0.4)"
+                            boxShadow: guestMode ? "0 4px 16px rgba(99,102,241,0.4)" : "0 4px 16px rgba(168,85,247,0.4)"
                           }}>
-                            🔓 Desbloquear Análisis
+                            {guestMode ? "✨ Crear cuenta gratis" : "🔓 Desbloquear Análisis"}
                           </div>
                           <div style={{ fontSize: 10, color: "#64748b", marginTop: 8 }}>Desde $3.500 ARS · Sin suscripción</div>
                         </div>
@@ -1263,9 +1294,15 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   )}
 
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                    <button className="btn3d btn-save" style={{ marginBottom: 0 }} onClick={() => guardarPrediccion()} disabled={guardando}>
-                      {guardando ? "Guardando..." : guardadoOk ? "Guardado!" : "Guardar para comparar"}
-                    </button>
+                    {guestMode ? (
+                      <a href="/login" className="btn3d btn-save" style={{ marginBottom: 0, textDecoration: "none", textAlign: "center" }}>
+                        🔐 Crear cuenta gratis
+                      </a>
+                    ) : (
+                      <button className="btn3d btn-save" style={{ marginBottom: 0 }} onClick={() => guardarPrediccion()} disabled={guardando}>
+                        {guardando ? "Guardando..." : guardadoOk ? "Guardado!" : "Guardar para comparar"}
+                      </button>
+                    )}
                     <button className="btn3d btn-copy" style={{ marginBottom: 0 }} onClick={copiar}>
                       Copiar
                     </button>
