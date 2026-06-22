@@ -9,7 +9,16 @@ const PLAN_DAYS: Record<string, number> = {
 }
 
 export async function POST(req: NextRequest) {
-  // 1. Log raw body IMMEDIATELY — this is what Ualá actually sends
+  // Shared secret check
+  const webhookSecret = process.env.UALA_WEBHOOK_SECRET || ""
+  if (webhookSecret) {
+    const incomingSecret = req.headers.get("x-webhook-secret") || req.headers.get("authorization")?.replace("Bearer ", "") || ""
+    if (incomingSecret !== webhookSecret) {
+      return NextResponse.json({ ok: true, message: "Invalid secret" }, { status: 401 })
+    }
+  }
+
+  // 1. Parse body
   let rawBody: any
   try {
     rawBody = await req.json()
