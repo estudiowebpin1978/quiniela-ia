@@ -57,7 +57,10 @@ export async function GET(req: NextRequest) {
   const history = req.nextUrl.searchParams.get("history") === "true";
   const daysParam = parseInt(req.nextUrl.searchParams.get("days") || "1");
 
-  if (CRON_SECRET && secret !== CRON_SECRET) {
+  if (!CRON_SECRET) {
+    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
+  }
+  if (secret !== CRON_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

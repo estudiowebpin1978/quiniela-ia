@@ -7,8 +7,11 @@ const CRON_SECRET = process.env.CRON_SECRET || "";
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  if (!CRON_SECRET) {
+    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
+  }
   const secret = req.nextUrl.searchParams.get("secret");
-  if (CRON_SECRET && secret !== CRON_SECRET) {
+  if (secret !== CRON_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

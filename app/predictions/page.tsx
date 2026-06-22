@@ -336,11 +336,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       const esSabadoPrevia = diaSemana === 6 && so === "Previa";
       const noHaySorteoHoy = esFeriadoHoy || esDomingo || esSabadoPrevia;
 
-      if (noHaySorteoHoy && predDate !== hoy) {
+      if (noHaySorteoHoy && predDate === hoy) {
         const motivo = esFeriadoHoy ? "feriado" : esDomingo ? "domingo" : "sábado (no hay Previa)";
-        const prox = predDate;
-        const label = new Date(prox + "T12:00:00-03:00").toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
-        setEr(`Hoy es ${motivo}, no hay sorteo ${so.toLowerCase()}. El próximo sorteo es el ${label}.`);
+        setEr(`Hoy es ${motivo}, no hay sorteo ${so.toLowerCase()}. Elegí otro turno o esperá al próximo sorteo.`);
         setLd(false);
         return;
       }

@@ -14,7 +14,10 @@ export async function GET(req: NextRequest) {
   const turno = req.nextUrl.searchParams.get("turno")
   
   const cronSecret = process.env.CRON_SECRET || ""
-  if (cronSecret && secret !== cronSecret) {
+  if (!cronSecret) {
+    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 })
+  }
+  if (secret !== cronSecret) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
