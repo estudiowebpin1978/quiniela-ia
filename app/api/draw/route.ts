@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret");
-  if (secret !== CRON_SECRET) {
+  if (CRON_SECRET && secret !== CRON_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
