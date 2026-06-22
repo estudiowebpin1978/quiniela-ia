@@ -105,16 +105,15 @@ function factorFrecuenciaHistorica(sequences: number[][]): Record<number, number
 }
 
 // ============================================
-// FACTOR 2: Frecuencia histórica (mismo que factor 1, peso distinto)
+// FACTOR 2: Frecuencia últimos 100 sorteos
 // ============================================
 function factorFrecuencia100(sequences: number[][]): Record<number, number> {
+  const last100 = sequences.slice(0, Math.min(100, sequences.length))
   const freq: Record<number, number> = {}
-  let total = 0
-  for (const seq of sequences) {
+  for (const seq of last100) {
     for (const n of seq) {
       const t = n % 100
       freq[t] = (freq[t] || 0) + 1
-      total++
     }
   }
   const maxFreq = Math.max(...Object.values(freq), 1)
@@ -126,11 +125,12 @@ function factorFrecuencia100(sequences: number[][]): Record<number, number> {
 }
 
 // ============================================
-// FACTOR 3: Frecuencia histórica (mismo que factor 1, peso distinto)
+// FACTOR 3: Frecuencia últimos 20 sorteos
 // ============================================
 function factorFrecuencia20(sequences: number[][]): Record<number, number> {
+  const last20 = sequences.slice(0, Math.min(20, sequences.length))
   const freq: Record<number, number> = {}
-  for (const seq of sequences) {
+  for (const seq of last20) {
     for (const n of seq) {
       const t = n % 100
       freq[t] = (freq[t] || 0) + 1
@@ -451,20 +451,22 @@ function factorSumaDigitos(sequences: number[][]): Record<number, number> {
 }
 
 // ============================================
-// FACTOR 18: Terminaciones
+// FACTOR 18: Terminaciones (último dígito)
 // ============================================
 function factorTerminaciones(sequences: number[][]): Record<number, number> {
   const freq: Record<number, number> = {}
   for (const seq of sequences) {
     for (const n of seq) {
       const t = n % 100
-      freq[t] = (freq[t] || 0) + 1
+      const lastDigit = t % 10
+      freq[lastDigit] = (freq[lastDigit] || 0) + 1
     }
   }
   const maxFreq = Math.max(...Object.values(freq), 1)
   const scores: Record<number, number> = {}
   for (let i = 0; i < 100; i++) {
-    scores[i] = (freq[i] || 0) / maxFreq
+    const lastDigit = i % 10
+    scores[i] = (freq[lastDigit] || 0) / maxFreq
   }
   return scores
 }

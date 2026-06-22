@@ -161,12 +161,19 @@ export async function entrenarModelos(
     const ordenados = [...sorteos].sort((a, b) =>
       new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
     );
+    // Use ALL numbers from each draw, not just the first one
     const numerosDraws = ordenados
       .filter(s => Array.isArray(s.numbers) && s.numbers.length > 0)
-      .map(s => s.numbers[0] % 100);
+      .map(s => s.numbers.map(n => n % 100).filter(n => n >= 0 && n <= 99));
     const secuencias: number[][] = [];
     for (let i = 0; i < numerosDraws.length - 2; i++) {
-      secuencias.push([numerosDraws[i], numerosDraws[i + 1], numerosDraws[i + 2]]);
+      // Use first 5 numbers from each of 3 consecutive draws as Markov state
+      const state = [
+        ...numerosDraws[i].slice(0, 5),
+        ...numerosDraws[i + 1].slice(0, 5),
+        ...numerosDraws[i + 2].slice(0, 5)
+      ];
+      secuencias.push(state);
     }
 
     const markovEntrenado = entrenarCadenaMarkov(markov, secuencias);

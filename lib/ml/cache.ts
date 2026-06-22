@@ -7,6 +7,13 @@ interface CacheEntry {
   turno: string
 }
 
+/**
+ * In-memory cache for ML models.
+ * NOTE: In serverless (Vercel), globalThis does NOT persist across invocations.
+ * Each cold start gets a fresh globalThis. This cache only helps during
+ * warm invocations (same process handles multiple requests).
+ * For cold starts, models are loaded from Supabase every time.
+ */
 function getStore(): Record<string, CacheEntry> {
   const g = globalThis as any
   if (!g[KEY]) g[KEY] = {}
@@ -14,15 +21,29 @@ function getStore(): Record<string, CacheEntry> {
 }
 
 export function getModelos(turno: string): any[] | null {
-  const entry = getStore()[turno]
-  if (!entry) return null
-  if (Date.now() - entry.timestamp > TTL) {
-    delete getStore()[turno]
+  try {
+    const entry = getStore()[turno]
+    if (!entry) return null
+    if (Date.now() - entry.timestamp > TTL) {
+      delete getStore()[turno]
+      return null
+    }
+    return entry.modelos
+  } catch {
     return null
   }
-  return entry.modelos
 }
 
 export function setModelos(turno: string, modelos: any[]): void {
-  getStore()[turno] = { modelos, timestamp: Date.now(), turno }
+  try {
+    getStore()[turno] = { modelos, timestamp: Date.now(), turno }
+  } catch {}
+}
+
+/** Clear all cached models */
+export function clearCache(): void {
+  try {
+    const g = globalThis as any
+    if (g[KEY]) g[KEY] = {}
+  } catch {}
 }

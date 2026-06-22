@@ -136,7 +136,7 @@ export async function analisisCrossTurno(turno: string, diasAtras: number = 3, t
           if (numPrevio % 100 === n) {
             scoreExtra += 6
           }
-          if (Math.floor(numPrevio / 10) % 10 === Math.floor(n / 10) || numPrevio % 10 === n % 10) {
+          if (Math.floor((numPrevio % 100) / 10) === Math.floor(n / 10) || numPrevio % 10 === n % 10) {
             scoreExtra += 2
           }
         }
