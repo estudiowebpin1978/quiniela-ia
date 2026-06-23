@@ -23,7 +23,7 @@ const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"] as co
 type Turno = (typeof TURNOS)[number]
 
 const SCRAPE_WINDOWS: [Turno, number][] = [
-  ["Previa", 10 * 60 + 30],
+  ["Previa", 10 * 60 + 15],
   ["Primera", 12 * 60 + 15],
   ["Matutina", 15 * 60 + 15],
   ["Vespertina", 18 * 60 + 15],
@@ -78,7 +78,7 @@ function nowArgentinaMinutes(): number {
 function detectTurno(): Turno | null {
   const current = nowArgentinaMinutes()
   for (const [turno, start] of SCRAPE_WINDOWS) {
-    if (current >= start && current < start + 15) return turno
+    if (current >= start && current < start + 60) return turno
   }
   return null
 }
