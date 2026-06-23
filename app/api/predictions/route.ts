@@ -31,6 +31,7 @@ import { computeAdvancedMarkov } from "@/lib/analisis/markov-advanced"
 import { analyzePositions } from "@/lib/analisis/positions"
 import { trainEnsemble, predictEnsemble } from "@/lib/analisis/ensemble-advanced"
 import { createInitialWeights, adjustWeights } from "@/lib/analisis/auto-adjust"
+import { syncBeforePrediction } from "@/lib/scraper/sync"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -94,6 +95,12 @@ export async function GET(req: NextRequest) {
   if (!turnosValidos.includes(turnoQuery)) {
     return NextResponse.json({ error: `Sorteo inválido. Válidos: ${turnosValidos.join(", ")}` }, { status: 400 })
   }
+
+  // === PRE-PREDICTION SYNC: Ensure DB is up-to-date before any calculation ===
+  let syncStatus: any = null
+  try {
+    syncStatus = await syncBeforePrediction(targetDate || undefined)
+  } catch {}
 
   // Recalibrar curva de confianza desde datos reales
   recalibrar().catch(() => {})
@@ -674,6 +681,13 @@ export async function GET(req: NextRequest) {
         numeros_unicos: Object.keys(freq).length,
         sorteos_analizados: sequences.length,
         fechas_unicas: uniqueDates.length,
+        sync: syncStatus ? {
+          sincronizado: syncStatus.synced,
+          nuevos_sorteos: syncStatus.newDraws,
+          validado: syncStatus.validated,
+          duracion_ms: syncStatus.duration,
+          detalles: syncStatus.details
+        } : null,
         factores_detalle: factores30.detail[scores[0]?.num || 0] || {},
         numeros_calientes: calientes.map(n => pad(n)),
         numeros_atrasados: atrasados.map(n => pad(n)),
