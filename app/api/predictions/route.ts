@@ -98,8 +98,9 @@ export async function GET(req: NextRequest) {
 
   // === IN-MEMORY CACHE: same turno+date returns cached result for 10 min ===
   const cacheKey = `pred:${turnoQuery}:${targetDate}`
-  if (!globalThis.__predCache) globalThis.__predCache = {} as Record<string, { result: any; expiresAt: number }>
-  const cached = globalThis.__predCache[cacheKey]
+  const gc = globalThis as any
+  if (!gc.__predCache) gc.__predCache = {}
+  const cached = gc.__predCache[cacheKey]
   if (cached && Date.now() < cached.expiresAt) {
     return NextResponse.json(cached.result)
   }
@@ -764,8 +765,9 @@ export async function GET(req: NextRequest) {
     }
 
     // Cache response for 10 min
-    if (!globalThis.__predCache) globalThis.__predCache = {}
-    globalThis.__predCache[cacheKey] = { result: responsePayload, expiresAt: Date.now() + 600_000 }
+    const gc2 = globalThis as any
+    if (!gc2.__predCache) gc2.__predCache = {}
+    gc2.__predCache[cacheKey] = { result: responsePayload, expiresAt: Date.now() + 600_000 }
 
     return NextResponse.json(responsePayload)
   } catch (e: unknown) {
