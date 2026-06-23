@@ -191,12 +191,8 @@ export async function GET(req: NextRequest) {
     if (crossResult.status === 'fulfilled') crossTurnoScore = crossResult.value.crossTurnoScore
     if (pesosResult.status === 'fulfilled') pesosDinamicos = pesosResult.value
 
-    // === HEAVY ENGINES: limit to 300 draws for speed (was 780+) ===
+    // === HEAVY ENGINES: limit to 300 draws for speed (quality preserved) ===
     const heavySeqs = sequences.slice(0, Math.min(300, sequences.length))
-    const engineStart = Date.now()
-    const ENGINE_BUDGET_MS = 12000 // 12s total for all sync engines
-    const engineElapsed = () => Date.now() - engineStart
-    const hasTime = () => engineElapsed() < ENGINE_BUDGET_MS
 
     // === MONTE CARLO SIMULATION ===
     let monteCarloTop = runMonteCarlo(heavySeqs, { simulations: 5000, topN: 100 })
@@ -204,7 +200,7 @@ export async function GET(req: NextRequest) {
     // === CORRELATION ANALYSIS ===
     let correlationScores = new Array(100).fill(0.5)
     let correlationResult: ReturnType<typeof analyzeCorrelations> | null = null
-    if (hasTime()) try {
+    try {
       correlationResult = analyzeCorrelations(heavySeqs)
       correlationScores = correlationResult.numberScores
     } catch {}
@@ -212,7 +208,7 @@ export async function GET(req: NextRequest) {
     // === HIGHER-ORDER MARKOV ===
     let markovSuperScores = new Array(100).fill(0.5)
     let markovSuperResult: ReturnType<typeof higherOrderMarkov> | null = null
-    if (hasTime()) try {
+    try {
       markovSuperResult = higherOrderMarkov(heavySeqs, 4)
       markovSuperScores = markovSuperResult.scores
     } catch {}
@@ -220,7 +216,7 @@ export async function GET(req: NextRequest) {
     // === CYCLIC PATTERNS ===
     let cyclicScores = new Array(100).fill(0.5)
     let cyclicResult: ReturnType<typeof detectCyclicPatterns> | null = null
-    if (hasTime()) try {
+    try {
       cyclicResult = detectCyclicPatterns(heavySeqs)
       cyclicScores = cyclicResult.scores
     } catch {}
@@ -228,7 +224,7 @@ export async function GET(req: NextRequest) {
     // === GRAPH ANALYSIS ===
     let graphScores = new Array(100).fill(0.5)
     let graphResult: ReturnType<typeof analyzeGraph> | null = null
-    if (hasTime()) try {
+    try {
       graphResult = analyzeGraph(heavySeqs)
       graphScores = graphResult.scores
     } catch {}
@@ -236,7 +232,7 @@ export async function GET(req: NextRequest) {
     // === FEATURE ENGINEERING (100+ variables) ===
     let featureScores = new Array(100).fill(0.5)
     let featureMatrix: ReturnType<typeof computeFeatureMatrix> | null = null
-    if (hasTime()) try {
+    try {
       featureMatrix = computeFeatureMatrix(heavySeqs)
       for (let n = 0; n < 100; n++) {
         const vec = featureMatrix.vectors.find(v => v.number === n)
@@ -250,7 +246,7 @@ export async function GET(req: NextRequest) {
     // === MULTI-LEVEL SCORING (4D, 3D, 2D, positions) ===
     let multilevelScores = new Array(100).fill(0.5)
     let multilevelResult: ReturnType<typeof computeMultiLevelScores> | null = null
-    if (hasTime()) try {
+    try {
       multilevelResult = computeMultiLevelScores(heavySeqs)
       for (const ml of multilevelResult) {
         multilevelScores[ml.number] = ml.combined
@@ -260,7 +256,7 @@ export async function GET(req: NextRequest) {
     // === PMI & CO-OCCURRENCE ===
     let pmiScores = new Array(100).fill(0.5)
     let pmiResult: ReturnType<typeof computeCooccurrence> | null = null
-    if (hasTime()) try {
+    try {
       pmiResult = computeCooccurrence(heavySeqs)
       pmiScores = pmiResult.scores
     } catch {}
@@ -268,7 +264,7 @@ export async function GET(req: NextRequest) {
     // === ADVANCED MARKOV (100x100 + 1000x1000 + pair transitions) ===
     let advMarkovScores = new Array(100).fill(0.5)
     let advMarkovResult: ReturnType<typeof computeAdvancedMarkov> | null = null
-    if (hasTime()) try {
+    try {
       advMarkovResult = computeAdvancedMarkov(heavySeqs)
       advMarkovScores = advMarkovResult.scores
     } catch {}
@@ -276,20 +272,19 @@ export async function GET(req: NextRequest) {
     // === POSITION ANALYSIS ===
     let positionScores = new Array(100).fill(0.5)
     let positionResult: ReturnType<typeof analyzePositions> | null = null
-    if (hasTime()) try {
+    try {
       positionResult = analyzePositions(heavySeqs)
       positionScores = positionResult.scores
     } catch {}
 
-    // === ADVANCED ENSEMBLE ML: time-limited, max 200 draws ===
+    // === ADVANCED ENSEMBLE ML: max 200 draws ===
     let ensembleMLScores = new Array(100).fill(0.5)
     let ensembleMLActive = false
-    if (hasTime()) try {
+    try {
       const trainSlice = sequences.slice(0, Math.min(200, sequences.length))
       const trainFeatures: number[][] = []
       const trainLabels: number[] = []
       for (let i = 5; i < trainSlice.length; i++) {
-        if (engineElapsed() > 8000) break // bail early if slow
         const window = trainSlice.slice(i - 5, i)
         const freqs = new Array(100).fill(0)
         for (const seq of window) {
@@ -326,9 +321,9 @@ export async function GET(req: NextRequest) {
     const freq: Record<number, number> = {}
     for (const t of terminaciones2) { freq[t] = (freq[t] || 0) + 1 }
 
-    // === META-LEARNER: time-limited, sampled expanding window ===
+    // === META-LEARNER: sampled expanding window ===
     let metaWeights: MetaWeights | null = null
-    if (hasTime()) try {
+    try {
       const nSeq = sequences.length
       const sampleStep = Math.max(1, Math.floor(nSeq / 40)) // sample every ~20th draw
       const factorScoreArr: number[][] = []
@@ -340,7 +335,6 @@ export async function GET(req: NextRequest) {
       const cyclicScoreArr: number[][] = []
 
       for (let i = 0; i < nSeq; i += sampleStep) {
-        if (engineElapsed() > 10000) break
         // Sliding window last 50 draws (not expanding from 0)
         const winStart = Math.max(0, i - 50)
         const windowFreq: Record<number, number> = {}
