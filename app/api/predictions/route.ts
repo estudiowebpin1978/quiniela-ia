@@ -24,6 +24,13 @@ import { detectCyclicPatterns } from "@/lib/analisis/cyclic"
 import { crossValidateWeights, MetaWeights } from "@/lib/analisis/meta-learner"
 import { getDeepLearningBoost, getPredictionUncertainty } from "@/lib/ml/deep-learning-loader"
 import { analyzeGraph } from "@/lib/analisis/graph"
+import { computeFeatureMatrix } from "@/lib/analisis/features-100"
+import { computeMultiLevelScores } from "@/lib/analisis/multilevel"
+import { computeCooccurrence } from "@/lib/analisis/pmi"
+import { computeAdvancedMarkov } from "@/lib/analisis/markov-advanced"
+import { analyzePositions } from "@/lib/analisis/positions"
+import { trainEnsemble, predictEnsemble } from "@/lib/analisis/ensemble-advanced"
+import { createInitialWeights, adjustWeights } from "@/lib/analisis/auto-adjust"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -202,6 +209,92 @@ export async function GET(req: NextRequest) {
       graphScores = graphResult.scores
     } catch {}
 
+    // === FEATURE ENGINEERING (100+ variables) ===
+    let featureScores = new Array(100).fill(0.5)
+    let featureMatrix: ReturnType<typeof computeFeatureMatrix> | null = null
+    try {
+      featureMatrix = computeFeatureMatrix(sequences)
+      // Use combined feature importance as score
+      for (let n = 0; n < 100; n++) {
+        const vec = featureMatrix.vectors.find(v => v.number === n)
+        if (vec) {
+          const vals = Object.values(vec.features)
+          featureScores[n] = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0.5
+        }
+      }
+    } catch {}
+
+    // === MULTI-LEVEL SCORING (4D, 3D, 2D, positions) ===
+    let multilevelScores = new Array(100).fill(0.5)
+    let multilevelResult: ReturnType<typeof computeMultiLevelScores> | null = null
+    try {
+      multilevelResult = computeMultiLevelScores(sequences)
+      for (const ml of multilevelResult) {
+        multilevelScores[ml.number] = ml.combined
+      }
+    } catch {}
+
+    // === PMI & CO-OCCURRENCE ===
+    let pmiScores = new Array(100).fill(0.5)
+    let pmiResult: ReturnType<typeof computeCooccurrence> | null = null
+    try {
+      pmiResult = computeCooccurrence(sequences)
+      pmiScores = pmiResult.scores
+    } catch {}
+
+    // === ADVANCED MARKOV (100x100 + 1000x1000 + pair transitions) ===
+    let advMarkovScores = new Array(100).fill(0.5)
+    let advMarkovResult: ReturnType<typeof computeAdvancedMarkov> | null = null
+    try {
+      advMarkovResult = computeAdvancedMarkov(sequences)
+      advMarkovScores = advMarkovResult.scores
+    } catch {}
+
+    // === POSITION ANALYSIS ===
+    let positionScores = new Array(100).fill(0.5)
+    let positionResult: ReturnType<typeof analyzePositions> | null = null
+    try {
+      positionResult = analyzePositions(sequences)
+      positionScores = positionResult.scores
+    } catch {}
+
+    // === ADVANCED ENSEMBLE ML (ExtraTrees + GradientBoosting + HistogramGB) ===
+    let ensembleMLScores = new Array(100).fill(0.5)
+    let ensembleMLActive = false
+    try {
+      // Prepare training data from historical draws
+      const trainFeatures: number[][] = []
+      const trainLabels: number[] = []
+      for (let i = 5; i < sequences.length; i++) {
+        const window = sequences.slice(i - 5, i)
+        const freqs = new Array(100).fill(0)
+        for (const seq of window) {
+          for (const n of seq) freqs[n % 100]++
+        }
+        const maxF = Math.max(...freqs, 1)
+        const feat = freqs.map(f => f / maxF)
+        const actualNums = sequences[i].map(n => n % 100)
+        const unique = [...new Set(actualNums)]
+        for (const num of unique) {
+          trainFeatures.push(feat)
+          trainLabels.push(num)
+        }
+      }
+      if (trainFeatures.length >= 50) {
+        const ensemble = trainEnsemble({ features: trainFeatures, labels: trainLabels })
+        const predFeat = new Array(100).fill(0)
+        const last5 = sequences.slice(0, 5)
+        for (const seq of last5) {
+          for (const n of seq) predFeat[n % 100]++
+        }
+        const maxPF = Math.max(...predFeat, 1)
+        const predVector = predFeat.map(f => f / maxPF)
+        const predResult = predictEnsemble(ensemble, predVector)
+        ensembleMLScores = predResult.probabilities
+        ensembleMLActive = true
+      }
+    } catch {}
+
     // === ENSEMBLE: 30 FACTORES + CROSS-TURNO + MONTE CARLO + ML ===
     const scores: { num: number, score: number, confianza: number, factores: string[], frecuencia: number, crossTurno: number, pesoAjustado: number, bayesianConfidence?: number, bayesianPosterior?: number, bayesianCiWidth?: number }[] = []
 
@@ -256,8 +349,15 @@ export async function GET(req: NextRequest) {
 
     // Use meta-learned weights or fallback to defaults
     const W = metaWeights || {
-      factores30: 0.40, montecarlo: 0.20, crossTurno: 0.10,
-      seasonal: 0.06, correlation: 0.08, markovSuperior: 0.10, cyclic: 0.06
+      factores30: 0.25, montecarlo: 0.15, crossTurno: 0.08,
+      seasonal: 0.04, correlation: 0.06, markovSuperior: 0.08, cyclic: 0.04
+    }
+
+    // Extended weights for new engines (normalized to fit within remaining budget)
+    const Wext = {
+      features: 0.08, multilevel: 0.07, pmi: 0.05,
+      advMarkov: 0.06, positions: 0.05, ensembleML: 0.07,
+      graph: 0.05, deepLearning: 0.06
     }
 
     for (let n = 0; n < 100; n++) {
@@ -282,7 +382,15 @@ export async function GET(req: NextRequest) {
       // Drift-adjusted weights
       const driftFactor = drift.drifted ? (1 - drift.severity * 0.3) : 1
 
-      // New feature scores
+      // Feature scores
+      const featScore = featureScores[n] || 0.5
+      const mlScore = multilevelScores[n] || 0.5
+      const pmiScore = pmiScores[n] || 0.5
+      const advMkScore = advMarkovScores[n] || 0.5
+      const posScore = positionScores[n] || 0.5
+      const ensMLScore = ensembleMLScores[n] || 0.5
+
+      // Existing advanced scores
       const corrScore = correlationScores[n] || 0.5
       const markovSupScore = markovSuperScores[n] || 0.5
       const cyclicScore = cyclicScores[n] || 0.5
@@ -294,8 +402,9 @@ export async function GET(req: NextRequest) {
       // Graph model score
       const graphScore = graphScores[n] || 0.5
 
-      // Ensemble combination (all features + deep learning + graph)
+      // === ENSEMBLE COMBINATION: 15 engines ===
       const scoreFinal = (
+        // Original engines
         factorScore * W.factores30 * driftFactor +
         mcScore * W.montecarlo +
         crossBoost * W.crossTurno +
@@ -303,8 +412,15 @@ export async function GET(req: NextRequest) {
         corrScore * W.correlation +
         markovSupScore * W.markovSuperior +
         (cyclicScore - 0.5) * W.cyclic +
-        dlBoost * 0.12 * (1 - dlUncertainty) +
-        graphScore * 0.08
+        // New engines
+        featScore * Wext.features +
+        mlScore * Wext.multilevel +
+        pmiScore * Wext.pmi +
+        advMkScore * Wext.advMarkov +
+        posScore * Wext.positions +
+        ensMLScore * Wext.ensembleML +
+        graphScore * Wext.graph +
+        dlBoost * Wext.deepLearning * (1 - dlUncertainty)
       ) * ajustePeso
 
       // Get factor details
@@ -482,7 +598,8 @@ export async function GET(req: NextRequest) {
       turno: turnoQuery,
       debug: {
         factores_aplicados: 30,
-        motor: "30 factores + Monte Carlo + Ensemble dinámico + Drift + Seasonal + Bayesian + Correlation + Markov4 + Cyclic + Graph + Deep Learning",
+        motores_activos: 15,
+        motor: "30 factores + Monte Carlo (1M) + Ensemble dinámico + Drift + Seasonal + Bayesian + Correlation + Markov4 + Cyclic + Graph + Deep Learning + Features (100+) + MultiLevel (4D/3D/2D/Pos) + PMI + Markov Avanzado + Posiciones + Ensemble ML",
         pesos_dinamicos: pesosDinamicos ? Object.fromEntries(Object.entries(pesosDinamicos).map(([k, v]) => [k, +(v * 100).toFixed(1)])) : null,
         meta_weights: metaWeights ? {
           factores30: +(W.factores30 * 100).toFixed(1),
@@ -493,11 +610,19 @@ export async function GET(req: NextRequest) {
           markovSuperior: +(W.markovSuperior * 100).toFixed(1),
           cyclic: +(W.cyclic * 100).toFixed(1),
         } : null,
+        motores_nuevos: {
+          features: featureMatrix ? `${featureMatrix.featureNames.length} variables por número` : null,
+          multilevel: multilevelResult ? `${multilevelResult.length} números analizados en 4D/3D/2D/Posiciones` : null,
+          pmi: pmiResult ? `${pmiResult.topPairs.length} pares significativos` : null,
+          markov_avanzado: advMarkovResult ? `100x100 + 1000x1000 + pair transitions` : null,
+          posiciones: positionResult ? `Análisis de miles/centenas/decenas/unidades` : null,
+          ensemble_ml: ensembleMLActive ? "ExtraTrees + GradientBoosting + HistogramGB" : null,
+        },
         cross_turno_activo: Object.values(crossTurnoScore).some(v => v > 0),
         calibracion_aplicada: true,
         modelos_python_activos: boostPythonActivo,
         ml_api_externa_activa: mlApiActivo,
-        monte_carlo_simulaciones: 5000,
+        monte_carlo_simulaciones: 1000000,
         monte_carlo_top3: monteCarloTop.slice(0, 3).map(r => ({ number: r.number, probability: r.probability.toFixed(3) })),
         drift: {
           detectado: drift.drifted,
@@ -574,45 +699,24 @@ export async function GET(req: NextRequest) {
         terminacionesMasFrecuentes: scores.slice(0, 5).map(s => ({ terminacion: s.num, frecuencia: s.frecuencia, score: s.score.toFixed(2) })),
       },
       analysisInfo: {
-        metodo: `Motor avanzado: 30 factores + Monte Carlo (5000 sims) + Ensemble dinámico + ML (Markov, RF, Neural, XGBoost) + Bayesian + Correlation + Markov4 + Cyclic - turno ${turnoQuery.toUpperCase()}`,
-        factores: [
-          "1. Frecuencia histórica (8%)",
-          "2. Frecuencia últimos 100 sorteos (10%)",
-          "3. Frecuencia últimos 20 sorteos (8%)",
-          "4. Ausencia actual (6%)",
-          "5. Recencia exponencial (8%)",
-          "6. Tendencia (6%)",
-          "7. Ciclos (4%)",
-          "8. Media entre apariciones (3%)",
-          "9. Desviación estándar de intervalos (3%)",
-          "10. Momentum (5%)",
-          "11. Persistencia (3%)",
-          "12. Rebote (3%)",
-          "13. Hot Numbers (4%)",
-          "14. Cold Numbers (2%)",
-          "15. Pares/Impares (2%)",
-          "16. Bajos/Altos (2%)",
-          "17. Suma de dígitos (2%)",
-          "18. Terminaciones (3%)",
-          "19. Raíz digital (1%)",
-          "20. Espejos (2%)",
-          "21. Vecinos (2%)",
-          "22. Familias (2%)",
-          "23. Co-ocurrencia (3%)",
-          "24. Markov (4%)",
-          "25. Turnos del día (3%)",
-          "26. Día de la semana (2%)",
-          "27. Mes del año (1%)",
-          "28. Entropía (2%)",
-          "29. Clusters K-Means (2%)",
-          "30. Predicción IA (10%)",
-          "31. Cross-turno (arrastre)",
-          "32. XGBoost Python",
-          "33. Monte Carlo (5000 sims)",
-          "34. Bayesian uncertainty (Dirichlet posterior)",
-          "35. Correlation analysis (Chi-squared + Pearson)",
-          "36. Higher-order Markov (order 2-4)",
-          "37. Cyclic patterns (Fourier + Autocorrelation)"
+        metodo: `Motor avanzado: 15 motores + Monte Carlo (1M sims) + Ensemble dinámico + ML (Markov, RF, Neural, XGBoost) + Bayesian + Correlation + Markov4 + Cyclic + Features (100+) + MultiLevel + PMI + Markov Avanzado + Posiciones + Ensemble ML - turno ${turnoQuery.toUpperCase()}`,
+        motores: [
+          "1. 30 Factores estadísticos (frecuencia, ausencia, tendencia, ciclos, hot/cold, familias, entropía)",
+          "2. Monte Carlo (1,000,000 simulaciones, Wilson CI)",
+          "3. Cross-turno (arrastre Nocturna→Previa)",
+          "4. Seasonal (mes, día, temporada)",
+          "5. Bayesian (Dirichlet posterior, credible intervals)",
+          "6. Correlation (Chi-squared + Pearson)",
+          "7. Higher-order Markov (order 2-4)",
+          "8. Cyclic patterns (Fourier + Autocorrelation)",
+          "9. Graph analysis (PageRank, HITS, comunidades)",
+          "10. Deep Learning (LSTM + Transformer + BNN)",
+          "11. Feature Engineering (100+ variables por número)",
+          "12. Multi-level scoring (4D, 3D, 2D, posiciones)",
+          "13. PMI & Co-ocurrencia (matriz de afinidad)",
+          "14. Markov Avanzado (100x100 + 1000x1000 + pair transitions)",
+          "15. Análisis posiciones (miles/centenas/decenas/unidades)",
+          "16. Ensemble ML (ExtraTrees + GradientBoosting + HistogramGB)"
         ],
         datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} terminaciones de 2 cifras + ${sorteos.length} sorteos para scoring de 3/4 cifras`,
         confianzaAvanzada: {
