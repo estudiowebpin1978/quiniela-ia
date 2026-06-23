@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
   try {
     // Filter by target date: only use draws BEFORE the prediction date
     const dateFilter = targetDate ? `&date=lt.${targetDate}` : ""
-    const url = `${SB}/rest/v1/draws?select=date,turno,numbers&turno=ilike.*${turnoQuery}*&order=date.desc&limit=10000${dateFilter}`
+    const url = `${SB}/rest/v1/draws?select=date,turno,numbers&turno=ilike.*${turnoQuery}*&order=date.desc&limit=1000${dateFilter}`
     const res = await fetch(url, { 
       headers: { "apikey": SK, "Authorization": `Bearer ${SK}` }, 
       signal: ctrl.signal 
@@ -191,60 +191,53 @@ export async function GET(req: NextRequest) {
     if (crossResult.status === 'fulfilled') crossTurnoScore = crossResult.value.crossTurnoScore
     if (pesosResult.status === 'fulfilled') pesosDinamicos = pesosResult.value
 
-    // === ALL SYNC ENGINES: run in parallel for speed ===
-    const [mcResult, corrResult2, markovResult2, cyclicResult2, graphResult2, featureResult2, mlResult2, pmiResult2, advMkResult2, posResult2] = await Promise.allSettled([
-      Promise.resolve().then(() => runMonteCarlo(sequences, { simulations: 5000, topN: 100 })),
-      Promise.resolve().then(() => analyzeCorrelations(sequences)),
-      Promise.resolve().then(() => higherOrderMarkov(sequences, 4)),
-      Promise.resolve().then(() => detectCyclicPatterns(sequences)),
-      Promise.resolve().then(() => analyzeGraph(sequences)),
-      Promise.resolve().then(() => computeFeatureMatrix(sequences)),
-      Promise.resolve().then(() => computeMultiLevelScores(sequences)),
-      Promise.resolve().then(() => computeCooccurrence(sequences)),
-      Promise.resolve().then(() => computeAdvancedMarkov(sequences)),
-      Promise.resolve().then(() => analyzePositions(sequences)),
-    ])
+    // === HEAVY ENGINES: limit to 300 draws for speed (was 780+) ===
+    const heavySeqs = sequences.slice(0, Math.min(300, sequences.length))
+    const engineStart = Date.now()
+    const ENGINE_BUDGET_MS = 12000 // 12s total for all sync engines
+    const engineElapsed = () => Date.now() - engineStart
+    const hasTime = () => engineElapsed() < ENGINE_BUDGET_MS
 
     // === MONTE CARLO SIMULATION ===
-    const monteCarloTop = mcResult.status === 'fulfilled' ? mcResult.value : runMonteCarlo(sequences, { simulations: 5000, topN: 100 })
+    let monteCarloTop = runMonteCarlo(heavySeqs, { simulations: 5000, topN: 100 })
 
     // === CORRELATION ANALYSIS ===
     let correlationScores = new Array(100).fill(0.5)
     let correlationResult: ReturnType<typeof analyzeCorrelations> | null = null
-    if (corrResult2.status === 'fulfilled') {
-      correlationResult = corrResult2.value
+    if (hasTime()) try {
+      correlationResult = analyzeCorrelations(heavySeqs)
       correlationScores = correlationResult.numberScores
-    }
+    } catch {}
 
     // === HIGHER-ORDER MARKOV ===
     let markovSuperScores = new Array(100).fill(0.5)
     let markovSuperResult: ReturnType<typeof higherOrderMarkov> | null = null
-    if (markovResult2.status === 'fulfilled') {
-      markovSuperResult = markovResult2.value
+    if (hasTime()) try {
+      markovSuperResult = higherOrderMarkov(heavySeqs, 4)
       markovSuperScores = markovSuperResult.scores
-    }
+    } catch {}
 
     // === CYCLIC PATTERNS ===
     let cyclicScores = new Array(100).fill(0.5)
     let cyclicResult: ReturnType<typeof detectCyclicPatterns> | null = null
-    if (cyclicResult2.status === 'fulfilled') {
-      cyclicResult = cyclicResult2.value
+    if (hasTime()) try {
+      cyclicResult = detectCyclicPatterns(heavySeqs)
       cyclicScores = cyclicResult.scores
-    }
+    } catch {}
 
     // === GRAPH ANALYSIS ===
     let graphScores = new Array(100).fill(0.5)
     let graphResult: ReturnType<typeof analyzeGraph> | null = null
-    if (graphResult2.status === 'fulfilled') {
-      graphResult = graphResult2.value
+    if (hasTime()) try {
+      graphResult = analyzeGraph(heavySeqs)
       graphScores = graphResult.scores
-    }
+    } catch {}
 
     // === FEATURE ENGINEERING (100+ variables) ===
     let featureScores = new Array(100).fill(0.5)
     let featureMatrix: ReturnType<typeof computeFeatureMatrix> | null = null
-    if (featureResult2.status === 'fulfilled') {
-      featureMatrix = featureResult2.value
+    if (hasTime()) try {
+      featureMatrix = computeFeatureMatrix(heavySeqs)
       for (let n = 0; n < 100; n++) {
         const vec = featureMatrix.vectors.find(v => v.number === n)
         if (vec) {
@@ -252,58 +245,59 @@ export async function GET(req: NextRequest) {
           featureScores[n] = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0.5
         }
       }
-    }
+    } catch {}
 
     // === MULTI-LEVEL SCORING (4D, 3D, 2D, positions) ===
     let multilevelScores = new Array(100).fill(0.5)
     let multilevelResult: ReturnType<typeof computeMultiLevelScores> | null = null
-    if (mlResult2.status === 'fulfilled') {
-      multilevelResult = mlResult2.value
+    if (hasTime()) try {
+      multilevelResult = computeMultiLevelScores(heavySeqs)
       for (const ml of multilevelResult) {
         multilevelScores[ml.number] = ml.combined
       }
-    }
+    } catch {}
 
     // === PMI & CO-OCCURRENCE ===
     let pmiScores = new Array(100).fill(0.5)
     let pmiResult: ReturnType<typeof computeCooccurrence> | null = null
-    if (pmiResult2.status === 'fulfilled') {
-      pmiResult = pmiResult2.value
+    if (hasTime()) try {
+      pmiResult = computeCooccurrence(heavySeqs)
       pmiScores = pmiResult.scores
-    }
+    } catch {}
 
     // === ADVANCED MARKOV (100x100 + 1000x1000 + pair transitions) ===
     let advMarkovScores = new Array(100).fill(0.5)
     let advMarkovResult: ReturnType<typeof computeAdvancedMarkov> | null = null
-    if (advMkResult2.status === 'fulfilled') {
-      advMarkovResult = advMkResult2.value
+    if (hasTime()) try {
+      advMarkovResult = computeAdvancedMarkov(heavySeqs)
       advMarkovScores = advMarkovResult.scores
-    }
+    } catch {}
 
     // === POSITION ANALYSIS ===
     let positionScores = new Array(100).fill(0.5)
     let positionResult: ReturnType<typeof analyzePositions> | null = null
-    if (posResult2.status === 'fulfilled') {
-      positionResult = posResult2.value
+    if (hasTime()) try {
+      positionResult = analyzePositions(heavySeqs)
       positionScores = positionResult.scores
-    }
+    } catch {}
 
-    // === ADVANCED ENSEMBLE ML (ExtraTrees + GradientBoosting + HistogramGB) ===
+    // === ADVANCED ENSEMBLE ML: time-limited, max 200 draws ===
     let ensembleMLScores = new Array(100).fill(0.5)
     let ensembleMLActive = false
-    try {
-      // Prepare training data from historical draws
+    if (hasTime()) try {
+      const trainSlice = sequences.slice(0, Math.min(200, sequences.length))
       const trainFeatures: number[][] = []
       const trainLabels: number[] = []
-      for (let i = 5; i < sequences.length; i++) {
-        const window = sequences.slice(i - 5, i)
+      for (let i = 5; i < trainSlice.length; i++) {
+        if (engineElapsed() > 8000) break // bail early if slow
+        const window = trainSlice.slice(i - 5, i)
         const freqs = new Array(100).fill(0)
         for (const seq of window) {
           for (const n of seq) freqs[n % 100]++
         }
         const maxF = Math.max(...freqs, 1)
         const feat = freqs.map(f => f / maxF)
-        const actualNums = sequences[i].map(n => n % 100)
+        const actualNums = trainSlice[i].map(n => n % 100)
         const unique = [...new Set(actualNums)]
         for (const num of unique) {
           trainFeatures.push(feat)
@@ -332,11 +326,11 @@ export async function GET(req: NextRequest) {
     const freq: Record<number, number> = {}
     for (const t of terminaciones2) { freq[t] = (freq[t] || 0) + 1 }
 
-    // === META-LEARNER: Cross-validated weights ===
+    // === META-LEARNER: time-limited, sampled expanding window ===
     let metaWeights: MetaWeights | null = null
-    try {
-      // Build score arrays for cross-validation
+    if (hasTime()) try {
       const nSeq = sequences.length
+      const sampleStep = Math.max(1, Math.floor(nSeq / 40)) // sample every ~20th draw
       const factorScoreArr: number[][] = []
       const mcScoreArr: number[][] = []
       const crossScoreArr: number[][] = []
@@ -345,15 +339,15 @@ export async function GET(req: NextRequest) {
       const markovScoreArr: number[][] = []
       const cyclicScoreArr: number[][] = []
 
-      for (let i = 0; i < nSeq; i++) {
-        // Expanding window: compute frequency-based scores up to draw i
+      for (let i = 0; i < nSeq; i += sampleStep) {
+        if (engineElapsed() > 10000) break
+        // Sliding window last 50 draws (not expanding from 0)
+        const winStart = Math.max(0, i - 50)
         const windowFreq: Record<number, number> = {}
-        let windowTotal = 0
-        for (let w = 0; w <= i; w++) {
+        for (let w = winStart; w <= i; w++) {
           for (const n of sequences[w]) {
             const t = n % 100
             windowFreq[t] = (windowFreq[t] || 0) + 1
-            windowTotal++
           }
         }
         const windowMax = Math.max(...Object.values(windowFreq), 1)
