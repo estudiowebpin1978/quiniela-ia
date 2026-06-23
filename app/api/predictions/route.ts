@@ -96,11 +96,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: `Sorteo inválido. Válidos: ${turnosValidos.join(", ")}` }, { status: 400 })
   }
 
-  // === PRE-PREDICTION SYNC: Ensure DB is up-to-date before any calculation ===
+  // === IN-MEMORY CACHE: same turno+date returns cached result for 10 min ===
+  const cacheKey = `pred:${turnoQuery}:${targetDate}`
+  if (!globalThis.__predCache) globalThis.__predCache = {} as Record<string, { result: any; expiresAt: number }>
+  const cached = globalThis.__predCache[cacheKey]
+  if (cached && Date.now() < cached.expiresAt) {
+    return NextResponse.json(cached.result)
+  }
+
+  // === PRE-PREDICTION SYNC: non-blocking, cached 5 min ===
+  // First call may be slow; subsequent calls return instantly from cache
   let syncStatus: any = null
-  try {
-    syncStatus = await syncBeforePrediction(targetDate || undefined)
-  } catch {}
+  const syncPromise = syncBeforePrediction(targetDate || undefined).then(s => { syncStatus = s }).catch(() => {})
 
   // Recalibrar curva de confianza desde datos reales
   recalibrar().catch(() => {})
@@ -173,55 +180,70 @@ export async function GET(req: NextRequest) {
       dates,
     )
 
-    // === CROSS-TURNO ===
+    // === CROSS-TURNO + PESOS DINÁMICOS: run in parallel ===
     let crossTurnoScore: Record<number, number> = {}
-    try { crossTurnoScore = (await analisisCrossTurno(turno, 3, targetDate || undefined)).crossTurnoScore } catch {}
-
-    // === PESOS DINÁMICOS ===
     let pesosDinamicos: PesosDinamicos | null = null
-    try { pesosDinamicos = await calcularPesosDinamicos(turnoQuery) } catch {}
+    const [crossResult, pesosResult] = await Promise.allSettled([
+      analisisCrossTurno(turno, 3, targetDate || undefined),
+      calcularPesosDinamicos(turnoQuery)
+    ])
+    if (crossResult.status === 'fulfilled') crossTurnoScore = crossResult.value.crossTurnoScore
+    if (pesosResult.status === 'fulfilled') pesosDinamicos = pesosResult.value
+
+    // === ALL SYNC ENGINES: run in parallel for speed ===
+    const [mcResult, corrResult2, markovResult2, cyclicResult2, graphResult2, featureResult2, mlResult2, pmiResult2, advMkResult2, posResult2] = await Promise.allSettled([
+      Promise.resolve().then(() => runMonteCarlo(sequences, { simulations: 5000, topN: 100 })),
+      Promise.resolve().then(() => analyzeCorrelations(sequences)),
+      Promise.resolve().then(() => higherOrderMarkov(sequences, 4)),
+      Promise.resolve().then(() => detectCyclicPatterns(sequences)),
+      Promise.resolve().then(() => analyzeGraph(sequences)),
+      Promise.resolve().then(() => computeFeatureMatrix(sequences)),
+      Promise.resolve().then(() => computeMultiLevelScores(sequences)),
+      Promise.resolve().then(() => computeCooccurrence(sequences)),
+      Promise.resolve().then(() => computeAdvancedMarkov(sequences)),
+      Promise.resolve().then(() => analyzePositions(sequences)),
+    ])
 
     // === MONTE CARLO SIMULATION ===
-    const monteCarloTop = runMonteCarlo(sequences, { simulations: 5000, topN: 100 })
+    const monteCarloTop = mcResult.status === 'fulfilled' ? mcResult.value : runMonteCarlo(sequences, { simulations: 5000, topN: 100 })
 
     // === CORRELATION ANALYSIS ===
     let correlationScores = new Array(100).fill(0.5)
     let correlationResult: ReturnType<typeof analyzeCorrelations> | null = null
-    try {
-      correlationResult = analyzeCorrelations(sequences)
+    if (corrResult2.status === 'fulfilled') {
+      correlationResult = corrResult2.value
       correlationScores = correlationResult.numberScores
-    } catch {}
+    }
 
     // === HIGHER-ORDER MARKOV ===
     let markovSuperScores = new Array(100).fill(0.5)
     let markovSuperResult: ReturnType<typeof higherOrderMarkov> | null = null
-    try {
-      markovSuperResult = higherOrderMarkov(sequences, 4)
+    if (markovResult2.status === 'fulfilled') {
+      markovSuperResult = markovResult2.value
       markovSuperScores = markovSuperResult.scores
-    } catch {}
+    }
 
     // === CYCLIC PATTERNS ===
     let cyclicScores = new Array(100).fill(0.5)
     let cyclicResult: ReturnType<typeof detectCyclicPatterns> | null = null
-    try {
-      cyclicResult = detectCyclicPatterns(sequences)
+    if (cyclicResult2.status === 'fulfilled') {
+      cyclicResult = cyclicResult2.value
       cyclicScores = cyclicResult.scores
-    } catch {}
+    }
 
     // === GRAPH ANALYSIS ===
     let graphScores = new Array(100).fill(0.5)
     let graphResult: ReturnType<typeof analyzeGraph> | null = null
-    try {
-      graphResult = analyzeGraph(sequences)
+    if (graphResult2.status === 'fulfilled') {
+      graphResult = graphResult2.value
       graphScores = graphResult.scores
-    } catch {}
+    }
 
     // === FEATURE ENGINEERING (100+ variables) ===
     let featureScores = new Array(100).fill(0.5)
     let featureMatrix: ReturnType<typeof computeFeatureMatrix> | null = null
-    try {
-      featureMatrix = computeFeatureMatrix(sequences)
-      // Use combined feature importance as score
+    if (featureResult2.status === 'fulfilled') {
+      featureMatrix = featureResult2.value
       for (let n = 0; n < 100; n++) {
         const vec = featureMatrix.vectors.find(v => v.number === n)
         if (vec) {
@@ -229,41 +251,41 @@ export async function GET(req: NextRequest) {
           featureScores[n] = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0.5
         }
       }
-    } catch {}
+    }
 
     // === MULTI-LEVEL SCORING (4D, 3D, 2D, positions) ===
     let multilevelScores = new Array(100).fill(0.5)
     let multilevelResult: ReturnType<typeof computeMultiLevelScores> | null = null
-    try {
-      multilevelResult = computeMultiLevelScores(sequences)
+    if (mlResult2.status === 'fulfilled') {
+      multilevelResult = mlResult2.value
       for (const ml of multilevelResult) {
         multilevelScores[ml.number] = ml.combined
       }
-    } catch {}
+    }
 
     // === PMI & CO-OCCURRENCE ===
     let pmiScores = new Array(100).fill(0.5)
     let pmiResult: ReturnType<typeof computeCooccurrence> | null = null
-    try {
-      pmiResult = computeCooccurrence(sequences)
+    if (pmiResult2.status === 'fulfilled') {
+      pmiResult = pmiResult2.value
       pmiScores = pmiResult.scores
-    } catch {}
+    }
 
     // === ADVANCED MARKOV (100x100 + 1000x1000 + pair transitions) ===
     let advMarkovScores = new Array(100).fill(0.5)
     let advMarkovResult: ReturnType<typeof computeAdvancedMarkov> | null = null
-    try {
-      advMarkovResult = computeAdvancedMarkov(sequences)
+    if (advMkResult2.status === 'fulfilled') {
+      advMarkovResult = advMkResult2.value
       advMarkovScores = advMarkovResult.scores
-    } catch {}
+    }
 
     // === POSITION ANALYSIS ===
     let positionScores = new Array(100).fill(0.5)
     let positionResult: ReturnType<typeof analyzePositions> | null = null
-    try {
-      positionResult = analyzePositions(sequences)
+    if (posResult2.status === 'fulfilled') {
+      positionResult = posResult2.value
       positionScores = positionResult.scores
-    } catch {}
+    }
 
     // === ADVANCED ENSEMBLE ML (ExtraTrees + GradientBoosting + HistogramGB) ===
     let ensembleMLScores = new Array(100).fill(0.5)
@@ -600,7 +622,7 @@ export async function GET(req: NextRequest) {
       ? Math.round((scores.slice(0, 10).reduce((sum, s) => sum + ((s as any).bayesianConfidence || s.confianza), 0) / 10))
       : Math.round((scores.slice(0, 10).reduce((sum, s) => sum + s.confianza, 0) / 10))
 
-    return NextResponse.json({
+    const responsePayload = {
       ok: true,
       turno: turnoQuery,
       debug: {
@@ -739,7 +761,13 @@ export async function GET(req: NextRequest) {
           evitar: analisisAv.recomendaciones.evitar.slice(0, 10).map(n => pad(n))
         }
       }
-    })
+    }
+
+    // Cache response for 10 min
+    if (!globalThis.__predCache) globalThis.__predCache = {}
+    globalThis.__predCache[cacheKey] = { result: responsePayload, expiresAt: Date.now() + 600_000 }
+
+    return NextResponse.json(responsePayload)
   } catch (e: unknown) {
     clearTimeout(to)
     const err = e as { name?: string; message?: string }
