@@ -172,7 +172,52 @@ async function source3(_fechaISO: string, _turno: string): Promise<ScrapeResult>
   throw lastError ?? new Error("Source 3: no URLs returned data");
 }
 
-const SOURCES = [source1, source2, source3];
+function htmlExtractNumbersNacional(html: string): string[] {
+  const matches: string[] = [];
+  const re = /<div class="numero">(\d{3,4})<\/div>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) matches.push(m[1]);
+  return matches;
+}
+
+async function source4(fechaISO: string, turno: string): Promise<ScrapeResult> {
+  const t0 = Date.now();
+  const d = new Date(fechaISO + "T12:00:00Z");
+  const dd = pad(d.getUTCDate(), 2);
+  const mm = pad(d.getUTCMonth() + 1, 2);
+  const yy = String(d.getUTCFullYear()).slice(2);
+  const turnoPath = turno.charAt(0).toUpperCase() + turno.slice(1);
+
+  const urls = [
+    `https://quiniela-nacional.com/${dd}-${mm}-${yy}/${turnoPath}`,
+    `https://quiniela-nacional.com/${turnoPath}`,
+  ];
+
+  let lastError: Error | null = null;
+  for (const url of urls) {
+    try {
+      const res = await fetchWithTimeout(url, {}, 15_000);
+      if (!res.ok) continue;
+      const html = await res.text();
+      const raw = htmlExtractNumbersNacional(html);
+      if (raw.length >= 4) {
+        const numbers = parseNumbers(raw, "quiniela-nacional.com", 0);
+        return {
+          numbers,
+          source: "quiniela-nacional.com",
+          timestamp: new Date().toISOString(),
+          attempts: 1,
+          duration: Date.now() - t0,
+        };
+      }
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+    }
+  }
+  throw lastError ?? new Error("Source 4: quiniela-nacional.com returned no data");
+}
+
+const SOURCES = [source1, source2, source3, source4];
 
 async function attemptWithRetry(
   fechaISO: string,
