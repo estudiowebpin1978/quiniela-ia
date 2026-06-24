@@ -33,8 +33,23 @@ export default function HistorialAciertos() {
 
   if (loading) {
     return (
-      <div style={{ padding: 20, textAlign: "center", color: "#64748b" }}>
-        <div style={{ fontSize: 13 }}>Cargando historial...</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {[1,2,3,4,5].map(i=>(
+          <div key={i} style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.08)",borderRadius:12,padding:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <div className="skeleton" style={{width:60,height:14,borderRadius:4}}/>
+                <div className="skeleton" style={{width:80,height:12,borderRadius:4}}/>
+              </div>
+              <div className="skeleton" style={{width:40,height:10,borderRadius:4}}/>
+            </div>
+            <div style={{display:"flex",gap:4}}>
+              {[1,2,3,4,5,6,7,8,9,10].map(j=>(
+                <div key={j} className="skeleton" style={{width:28,height:22,borderRadius:6}}/>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     )
   }

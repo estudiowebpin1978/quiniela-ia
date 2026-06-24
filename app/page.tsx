@@ -52,10 +52,10 @@ export default function Home() {
       <div className="logo">📊</div>
       <div className="title">Quiniela IA</div>
       <div className="subtitle">
-        Motor de análisis estadístico con <strong style={{color:"#a855f7"}}>30 factores</strong>, <strong style={{color:"#a855f7"}}>Machine Learning</strong> y <strong style={{color:"#a855f7"}}>Monte Carlo</strong> para la Quiniela Nacional.
+        <strong style={{color:"#e2e8f0"}}>Analizá los sorteos</strong> de la Quiniela Nacional con datos reales. Frecuencias, tendencias, correlaciones y simulaciones Monte Carlo.
       </div>
 
-      <div className="badge">✅ 100% GRATIS · DATOS REALES</div>
+      <div className="badge">📊 780+ SORTEOS ANALIZADOS · 30 FACTORES</div>
 
       {/* 3D Button - Ingresar sin cuenta */}
       <button className="btn-3d btn-3d-guest" onClick={() => {
@@ -74,25 +74,30 @@ export default function Home() {
 
       <div className="features">
         <div className="feat">
+          <div className="feat-icon">🎯</div>
+          <div className="feat-title">Top 10 Números</div>
+          <div className="feat-desc">Ranking por score combinado</div>
+        </div>
+        <div className="feat">
+          <div className="feat-icon">🔥</div>
+          <div className="feat-title">Mapa de Calor</div>
+          <div className="feat-desc">Frecuencias 10x10 visual</div>
+        </div>
+        <div className="feat">
+          <div className="feat-icon">🔗</div>
+          <div className="feat-title">Correlaciones</div>
+          <div className="feat-desc">Pares que salen juntos</div>
+        </div>
+        <div className="feat">
           <div className="feat-icon">📈</div>
-          <div className="feat-title">30 Factores</div>
-          <div className="feat-desc">Motor estadístico completo</div>
+          <div className="feat-title">Tendencias</div>
+          <div className="feat-desc">Fríos, calientes y retrasos</div>
         </div>
-        <div className="feat">
-          <div className="feat-icon">🎰</div>
-          <div className="feat-title">Monte Carlo</div>
-          <div className="feat-desc">5.000 simulaciones</div>
-        </div>
-        <div className="feat">
-          <div className="feat-icon">🧠</div>
-          <div className="feat-title">ML Ensemble</div>
-          <div className="feat-desc">LightGBM + XGBoost + LSTM</div>
-        </div>
-        <div className="feat">
-          <div className="feat-icon">📊</div>
-          <div className="feat-title">Datos Reales</div>
-          <div className="feat-desc">780+ sorteos históricos</div>
-        </div>
+      </div>
+
+      <div style={{background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.15)",borderRadius:8,padding:"8px 12px",marginTop:20,maxWidth:340,textAlign:"center"}}>
+        <div style={{fontSize:10,color:"#a5b4fc",fontWeight:700,marginBottom:2}}>⚠️ Análisis, no predicción</div>
+        <div style={{fontSize:9,color:"#64748b",lineHeight:1.4}}>Los sorteos son eventos aleatorios e independientes. Las tendencias históricas no garantizan resultados futuros.</div>
       </div>
 
       <div className="footer-link">

@@ -1116,9 +1116,22 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             </div>
           )}
           {ld && (
-            <div className="ld-box">
-              <div className="sp" />
-              <div>Ejecutando motor...</div>
+            <div style={{padding:"16px 0"}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:16}}>
+                {[1,2,3,4,5].map(i=>(
+                  <div key={i} style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.06)",borderRadius:14,padding:14,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+                    <div className="skeleton" style={{width:20,height:12,borderRadius:4}}/>
+                    <div className="skeleton" style={{width:40,height:32,borderRadius:8}}/>
+                    <div className="skeleton" style={{width:50,height:10,borderRadius:4}}/>
+                    <div className="skeleton" style={{width:"80%",height:4,borderRadius:2}}/>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+                <div className="sp" />
+                <div style={{fontSize:12,color:"#94a3b8",fontWeight:600}}>Analizando datos históricos...</div>
+                <div style={{fontSize:10,color:"#475569"}}>15 motores · 30 factores · Monte Carlo</div>
+              </div>
             </div>
           )}
           {dn && !ld && (
@@ -1210,6 +1223,14 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   <span className="tb-lbl">Historial</span>
                 </button>
               </div>
+
+              <div style={{background:"rgba(99,102,241,0.06)",border:"1px solid rgba(99,102,241,0.12)",borderRadius:8,padding:"6px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
+                <span style={{fontSize:12}}>ℹ️</span>
+                <span style={{fontSize:10,color:"#94a3b8",lineHeight:1.4}}>
+                  <strong style={{color:"#a5b4fc"}}>Análisis estadístico</strong>, no predicción garantizada. Los sorteos son aleatorios e independientes.
+                </span>
+              </div>
+
               {tab === "pred" && (
                 <>
                   <div className="sec">Motor de 30 factores + Bayesian uncertainty</div>
@@ -1498,7 +1519,16 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 <>
                   <div className="sec">Análisis por Turno</div>
                   {analisisLoading ? (
-                    <div style={{ textAlign: "center", padding: 30, color: "#64748b" }}>Cargando análisis...</div>
+                    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:16}}>
+                        {[1,2,3,4,5].map(i=>(
+                          <div key={i} className="skeleton" style={{height:48,borderRadius:12}}/>
+                        ))}
+                      </div>
+                      {[1,2,3,4,5].map(i=>(
+                        <div key={i} className="skeleton" style={{height:60,borderRadius:12}}/>
+                      ))}
+                    </div>
                   ) : analisisData ? (
                     <>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 16 }}>
@@ -1582,7 +1612,16 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 </button>
               </div>
               {misLoading ? (
-                <div style={{ textAlign: "center", padding: "30px", color: "#64748b", fontSize: 12 }}>Cargando historial de análisis...</div>
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  <div className="saved-summary">
+                    {[1,2,3,4].map(i=>(
+                      <div key={i} className="skeleton" style={{height:64,borderRadius:16}}/>
+                    ))}
+                  </div>
+                  {[1,2,3].map(i=>(
+                    <div key={i} className="skeleton" style={{height:80,borderRadius:14}}/>
+                  ))}
+                </div>
               ) : misPreds.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "30px", color: "#64748b", fontSize: 12 }}>
                   Aún no guardaste análisis.<br />Generá un análisis y apretá Guardar para comparar.
