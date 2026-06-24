@@ -9,7 +9,12 @@ const PLANS: Record<string, { amount: string; description: string }> = {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
+  let body: any
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Body inválido" }, { status: 400 })
+  }
   const { plan, userId } = body
 
   if (!plan || !PLANS[plan]) {
@@ -23,25 +28,17 @@ export async function POST(req: NextRequest) {
   const clientId = (process.env.UALA_CLIENT_ID || "").trim()
   const clientSecret = (process.env.UALA_CLIENT_SECRET || "").trim()
 
-  console.log("[UALA CREATE] Env vars:", {
-    username: username ? "SET" : "MISSING",
-    clientId: clientId ? "SET" : "MISSING",
-    clientSecret: clientSecret ? "SET" : "MISSING",
-  })
-
   if (!username || !clientId || !clientSecret) {
     return NextResponse.json({ error: "Variables UALA_* no configuradas" }, { status: 500 })
   }
 
   try {
-    // 1. Authenticate with Ualá v2
     const authBody = {
       username,
       client_id: clientId,
       client_secret_id: clientSecret,
       grant_type: "client_credentials",
     }
-    console.log("[UALA CREATE] Auth request: { grant_type: client_credentials }")
 
     const authRes = await fetch("https://auth.developers.ar.ua.la/v2/api/auth/token", {
       method: "POST",
@@ -50,11 +47,10 @@ export async function POST(req: NextRequest) {
     })
 
     const authText = await authRes.text()
-    console.log("[UALA CREATE] Auth response:", authRes.status, authRes.ok ? "OK" : "FAILED")
 
     if (!authRes.ok) {
-      console.error("[UALA CREATE] Auth failed:", authRes.status, authText)
-      return NextResponse.json({ error: `Error autenticando: ${authText}` }, { status: 502 })
+      console.error("[create-order] Auth failed:", authRes.status)
+      return NextResponse.json({ error: "Error autenticando" }, { status: 502 })
     }
 
     const authData = JSON.parse(authText)
@@ -76,7 +72,6 @@ export async function POST(req: NextRequest) {
       callback_fail: `${baseUrl}/predictions?payment=failed`,
       external_reference: userId,
     }
-    console.log("[UALA CREATE] Order request: plan=" + plan + ", amount=" + planData.amount)
 
     const orderRes = await fetch("https://checkout.developers.ar.ua.la/v2/api/checkout", {
       method: "POST",
@@ -88,15 +83,13 @@ export async function POST(req: NextRequest) {
     })
 
     const orderText = await orderRes.text()
-    console.log("[UALA CREATE] Order response:", orderRes.status, orderRes.ok ? "OK" : "FAILED")
 
     if (!orderRes.ok) {
-      console.error("[UALA CREATE] Order failed:", orderRes.status, orderText)
-      return NextResponse.json({ error: `Error creando orden: ${orderText}` }, { status: 502 })
+      console.error("[create-order] Order failed:", orderRes.status)
+      return NextResponse.json({ error: "Error creando orden" }, { status: 502 })
     }
 
     const orderData = JSON.parse(orderText)
-    console.log("[UALA CREATE] Order data keys:", Object.keys(orderData))
 
     // Try multiple possible field names for checkout URL (Ualá v2 uses snake_case)
     const checkoutUrl =
@@ -106,10 +99,8 @@ export async function POST(req: NextRequest) {
       orderData.payment_url ||
       orderData.url
 
-    console.log("[UALA CREATE] Extracted checkout URL:", checkoutUrl)
-
     if (!checkoutUrl) {
-      console.error("[UALA CREATE] No checkout URL found. Full response:", JSON.stringify(orderData))
+      console.error("[create-order] No checkout URL in response")
       return NextResponse.json({ error: "No se encontró URL de pago" }, { status: 502 })
     }
 

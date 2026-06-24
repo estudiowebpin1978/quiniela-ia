@@ -9,10 +9,10 @@ const PLAN_DAYS: Record<string, number> = {
 }
 
 export async function POST(req: NextRequest) {
-  // Shared secret check
+  // Shared secret check — reject if secret is configured but not provided
   const webhookSecret = process.env.UALA_WEBHOOK_SECRET || ""
   if (webhookSecret) {
-    const incomingSecret = req.headers.get("x-webhook-secret") || req.headers.get("authorization")?.replace("Bearer ", "") || ""
+    const incomingSecret = req.headers.get("x-webhook-secret") || ""
     if (incomingSecret !== webhookSecret) {
       return NextResponse.json({ ok: true, message: "Invalid secret" }, { status: 401 })
     }
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  console.log("[UALA WEBHOOK] Received payment notification")
+  console.log("[webhook-uala] Received payment notification")
 
   // 2. Extract fields — handle multiple possible Ualá payload structures
   const body = rawBody?.data ? rawBody.data : rawBody // some APIs nest under .data
@@ -38,16 +38,12 @@ export async function POST(req: NextRequest) {
   const amountRaw = body?.amount || body?.transaction_amount || body?.total_amount || "0"
   const amount = parseFloat(String(amountRaw).replace(",", "."))
 
-  console.log("[UALA WEBHOOK PARSED]", JSON.stringify({ orderId, status, userId: userId ? "SET" : "MISSING", amount }, null, 2))
-
   // 3. Only process approved/completed payments
   if (status !== "APPROVED" && status !== "COMPLETED") {
-    console.log(`[UALA WEBHOOK] Ignoring status="${status}" — not approved`)
     return NextResponse.json({ ok: true, message: `Status ${status} ignored` })
   }
 
   if (!userId) {
-    console.error("[UALA WEBHOOK] No userId found in payload. Keys:", Object.keys(body || {}))
     return NextResponse.json({ ok: true, message: "No userId" })
   }
 
@@ -56,9 +52,6 @@ export async function POST(req: NextRequest) {
   if (amount > 0 && amount <= 3600) plan = "semanal"
   const days = PLAN_DAYS[plan] || 30
   const premiumUntil = new Date(Date.now() + days * 86400000).toISOString()
-
-  console.log(`[UALA WEBHOOK] amount=${amount}, plan=${plan}, days=${days}`)
-  console.log(`[UALA WEBHOOK] SB_URL=${SB_URL() ? "SET" : "MISSING"}, SB_KEY=${SB_KEY() ? "SET" : "MISSING"}`)
 
   // 5. Check if user exists and has active premium
   const safeId = String(userId).replace(/[^a-zA-Z0-9_-]/g, "")
@@ -100,7 +93,6 @@ export async function POST(req: NextRequest) {
   let profile = profiles?.[0]
 
   if (!profile) {
-    console.log(`[UALA WEBHOOK] No user_profiles row for id="${userId}" — creating one`)
     const createRes = await fetch(`${SB_URL()}/rest/v1/user_profiles`, {
       method: "POST",
       headers: {
@@ -112,7 +104,6 @@ export async function POST(req: NextRequest) {
     if (createRes.ok) {
       const created = await createRes.json()
       profile = created?.[0]
-      console.log(`[UALA WEBHOOK] Created user_profiles row for ${userId}`)
     } else {
       const errText = await createRes.text()
       console.error(`[UALA WEBHOOK] Failed to create user_profiles: ${createRes.status}`, errText)
@@ -124,7 +115,6 @@ export async function POST(req: NextRequest) {
 
   // Don't overwrite admin users
   if (profile.role === "admin") {
-    console.log(`[UALA WEBHOOK] User is admin — skipping role change`)
     return NextResponse.json({ ok: true, message: "Admin user, skipped" })
   }
 
@@ -133,7 +123,6 @@ export async function POST(req: NextRequest) {
   if (profile.premium_until && new Date(profile.premium_until) > new Date()) {
     const currentExpiry = new Date(profile.premium_until)
     finalPremiumUntil = new Date(currentExpiry.getTime() + days * 86400000).toISOString()
-    console.log(`[UALA WEBHOOK] Extending active premium: ${profile.premium_until} → ${finalPremiumUntil}`)
   }
 
   // 7. Update user profile
@@ -160,6 +149,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  console.log(`[UALA WEBHOOK] ✅ Premium activated: ${plan} until ${finalPremiumUntil}`)
+  console.log(`[webhook-uala] Premium activated: ${plan} until ${finalPremiumUntil}`)
   return NextResponse.json({ ok: true })
 }

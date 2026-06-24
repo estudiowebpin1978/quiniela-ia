@@ -14,8 +14,7 @@ import { calcularPesosDinamicos, PesosDinamicos } from "@/lib/analisis/weights"
 import { calibrarConfianza, recalibrar } from "@/lib/analisis/calibration"
 import { calcularFactores30 } from "@/lib/analisis/factores30"
 import { runMonteCarlo } from "@/lib/analisis/montecarlo"
-import { detectDrift, adjustWeightsForDrift } from "@/lib/analisis/drift"
-import { stackingEnsemble } from "@/lib/analisis/stacking"
+import { detectDrift } from "@/lib/analisis/drift"
 import { calculateSeasonalScores } from "@/lib/analisis/seasonal"
 import { bayesianAnalysis, bayesianConfidence, bayesianCredibleSet } from "@/lib/analisis/bayesian"
 import { analyzeCorrelations } from "@/lib/analisis/correlation"
@@ -30,7 +29,6 @@ import { computeCooccurrence } from "@/lib/analisis/pmi"
 import { computeAdvancedMarkov } from "@/lib/analisis/markov-advanced"
 import { analyzePositions } from "@/lib/analisis/positions"
 import { trainEnsemble, predictEnsemble } from "@/lib/analisis/ensemble-advanced"
-import { createInitialWeights, adjustWeights } from "@/lib/analisis/auto-adjust"
 import { syncBeforePrediction } from "@/lib/scraper/sync"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
@@ -617,92 +615,9 @@ export async function GET(req: NextRequest) {
       debug: {
         factores_aplicados: 30,
         motores_activos: 15,
-        motor: "30 factores + Monte Carlo (1M) + Ensemble dinámico + Drift + Seasonal + Bayesian + Correlation + Markov4 + Cyclic + Graph + Deep Learning + Features (100+) + MultiLevel (4D/3D/2D/Pos) + PMI + Markov Avanzado + Posiciones + Ensemble ML",
-        pesos_dinamicos: pesosDinamicos ? Object.fromEntries(Object.entries(pesosDinamicos).map(([k, v]) => [k, +(v * 100).toFixed(1)])) : null,
-        meta_weights: metaWeights ? {
-          factores30: +(W.factores30 * 100).toFixed(1),
-          montecarlo: +(W.montecarlo * 100).toFixed(1),
-          crossTurno: +(W.crossTurno * 100).toFixed(1),
-          seasonal: +(W.seasonal * 100).toFixed(1),
-          correlation: +(W.correlation * 100).toFixed(1),
-          markovSuperior: +(W.markovSuperior * 100).toFixed(1),
-          cyclic: +(W.cyclic * 100).toFixed(1),
-        } : null,
-        motores_nuevos: {
-          features: featureMatrix ? `${featureMatrix.featureNames.length} variables por número` : null,
-          multilevel: multilevelResult ? `${multilevelResult.length} números analizados en 4D/3D/2D/Posiciones` : null,
-          pmi: pmiResult ? `${pmiResult.topPairs.length} pares significativos` : null,
-          markov_avanzado: advMarkovResult ? `100x100 + 1000x1000 + pair transitions` : null,
-          posiciones: positionResult ? `Análisis de miles/centenas/decenas/unidades` : null,
-          ensemble_ml: ensembleMLActive ? "ExtraTrees + GradientBoosting + HistogramGB" : null,
-        },
-        cross_turno_activo: Object.values(crossTurnoScore).some(v => v > 0),
-        calibracion_aplicada: true,
-        modelos_python_activos: boostPythonActivo,
-        ml_api_externa_activa: mlApiActivo,
-        monte_carlo_simulaciones: 1000000,
-        monte_carlo_top3: monteCarloTop.slice(0, 3).map(r => ({ number: r.number, probability: r.probability.toFixed(3) })),
-        drift: {
-          detectado: drift.drifted,
-          severidad: Math.round(drift.severity * 100) + "%",
-          factores_afectados: drift.affectedFactors,
-          descripcion: drift.description,
-          recomendacion: drift.recommendation
-        },
-        seasonal: {
-          activo: true,
-          mes: new Date().getMonth() + 1,
-          dia: new Date().getDate()
-        },
-        bayesian: bayesian ? {
-          activo: true,
-          effectiveSampleSize: bayesian.effectiveSampleSize,
-          entropy: Math.round(bayesian.entropy * 100) / 100,
-          posteriorMassTopN: Math.round(bayesian.posteriorMassTopN * 10000) / 100,
-          topCredible: bayesianCredibleSet(bayesian.posterior, bayesian.credibleIntervals, 10).slice(0, 5).map(c => ({
-            numero: pad(c.num), posterior: (c.posterior * 100).toFixed(2) + "%", ciWidth: (c.ciWidth * 100).toFixed(2) + "%"
-          }))
-        } : null,
-        correlation: correlationResult ? {
-          activo: true,
-          topPairs: correlationResult.pairs.slice(0, 5).map(p => ({
-            pair: `${pad(p.a)}-${pad(p.b)}`, lift: p.lift.toFixed(2), chiSquared: p.chiSquared.toFixed(1)
-          }))
-        } : null,
-        markovSuperior: markovSuperResult ? {
-          activo: true,
-          order: markovSuperResult.orderUsed,
-          entropy: markovSuperResult.transitionEntropy.toFixed(2),
-          mixingTime: markovSuperResult.mixingTime
-        } : null,
-        cyclic: cyclicResult ? {
-          activo: true,
-          topPatterns: cyclicResult.dominantFrequencies.slice(0, 5).map(f => ({
-            numero: pad(f.num), period: f.period, strength: (f.strength * 100).toFixed(1) + "%"
-          }))
-        } : null,
-        graph: graphResult ? {
-          activo: true,
-          topPageRank: graphResult.pagerank.map((p, i) => ({ n: i, p }))
-            .sort((a, b) => b.p - a.p).slice(0, 5)
-            .map(x => ({ numero: pad(x.n), score: (x.p * 100).toFixed(1) + "%" })),
-          communities: new Set(graphResult.communities).size
-        } : null,
         total_numeros: terminaciones2.length,
-        numeros_unicos: Object.keys(freq).length,
         sorteos_analizados: sequences.length,
-        fechas_unicas: uniqueDates.length,
-        sync: syncStatus ? {
-          sincronizado: syncStatus.synced,
-          nuevos_sorteos: syncStatus.newDraws,
-          validado: syncStatus.validated,
-          duracion_ms: syncStatus.duration,
-          detalles: syncStatus.details
-        } : null,
-        factores_detalle: factores30.detail[scores[0]?.num || 0] || {},
-        numeros_calientes: calientes.map(n => pad(n)),
-        numeros_atrasados: atrasados.map(n => pad(n)),
-        paridad: paridad
+        sync: syncStatus ? { sincronizado: syncStatus.synced, nuevos_sorteos: syncStatus.newDraws } : null,
       },
       numeros: top20,
       totalSorteos: sequences.length,
