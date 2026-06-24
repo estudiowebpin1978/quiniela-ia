@@ -278,7 +278,8 @@ async function fillGaps(
   let filled = 0
   const errors: string[] = []
 
-  for (let d = 1; d <= maxDays; d++) {
+  // Also check TODAY (d=0) — scraper might have failed earlier when site wasn't ready yet
+  for (let d = 0; d <= maxDays; d++) {
     const f = new Date()
     f.setDate(f.getDate() - d)
     const fechaStr = f.toISOString().split("T")[0]
@@ -289,6 +290,15 @@ async function fillGaps(
     for (const turno of TURNOS) {
       if (turno === "Previa" && esSabadoSinPrevia(diaSemana, turno)) continue
       if (await hasDraw(fechaStr, turno)) continue
+
+      // For today, only scrape turnos that already started (current time > draw time)
+      if (d === 0) {
+        const nowMin = nowArgentinaMinutes()
+        const turnoMinutes: Record<string, number> = {
+          Previa: 10 * 60, Primera: 12 * 60, Matutina: 15 * 60, Vespertina: 18 * 60, Nocturna: 21 * 60
+        }
+        if (nowMin < (turnoMinutes[turno] || 0) + 90) continue // wait 90 min after draw time
+      }
 
       const result = await syncTurno(fechaStr, fUrl, turno)
       if (result.newDraw) filled++
