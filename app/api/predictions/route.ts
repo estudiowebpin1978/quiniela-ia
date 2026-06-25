@@ -21,6 +21,8 @@ import { analyzeCorrelations } from "@/lib/analisis/correlation"
 import { higherOrderMarkov } from "@/lib/analisis/markov-superior"
 import { detectCyclicPatterns } from "@/lib/analisis/cyclic"
 import { crossValidateWeights, MetaWeights } from "@/lib/analisis/meta-learner"
+import { computeCDM, multiWindowCDM } from "@/lib/analisis/cdm-model"
+import { computePredictionMetadata } from "@/lib/analisis/prediction-tracker"
 import { getDeepLearningBoost, getPredictionUncertainty } from "@/lib/ml/deep-learning-loader"
 import { analyzeGraph } from "@/lib/analisis/graph"
 import { computeFeatureMatrix } from "@/lib/analisis/features-100"
@@ -376,6 +378,12 @@ export async function GET(req: NextRequest) {
       graph: 0.05, deepLearning: 0.06
     }
 
+    // === CDM MODEL (Compound-Dirichlet-Multinomial) ===
+    const cdmScores = multiWindowCDM(sequences, [10, 30, 50], 0.02)
+    const cdmMap: Record<number, number> = {}
+    for (const s of cdmScores) cdmMap[s.number] = s.posterior * 100 // normalize to ~0-1 scale
+    const cdmWeight = 0.08 // 8% weight for CDM
+
     for (let n = 0; n < 100; n++) {
       // 30-factor score
       const factorScore = factores30.scores[n] || 0
@@ -418,7 +426,7 @@ export async function GET(req: NextRequest) {
       // Graph model score
       const graphScore = graphScores[n] || 0.5
 
-      // === ENSEMBLE COMBINATION: 15 engines ===
+      // === ENSEMBLE COMBINATION: 16 engines ===
       const scoreFinal = (
         // Original engines
         factorScore * W.factores30 * driftFactor +
@@ -436,7 +444,9 @@ export async function GET(req: NextRequest) {
         posScore * Wext.positions +
         ensMLScore * Wext.ensembleML +
         graphScore * Wext.graph +
-        dlBoost * Wext.deepLearning * (1 - dlUncertainty)
+        dlBoost * Wext.deepLearning * (1 - dlUncertainty) +
+        // CDM Bayesian model
+        (cdmMap[n] || 0) * cdmWeight
       ) * ajustePeso
 
       // Get factor details
@@ -618,6 +628,13 @@ export async function GET(req: NextRequest) {
         total_numeros: terminaciones2.length,
         sorteos_analizados: sequences.length,
         sync: syncStatus ? { sincronizado: syncStatus.synced, nuevos_sorteos: syncStatus.newDraws } : null,
+        cdm_model: {
+          activo: true,
+          topNumeros: cdmScores.slice(0, 5).map(s => ({
+            numero: pad(s.number),
+            posterior: (s.posterior * 100).toFixed(2) + "%"
+          })),
+        },
       },
       numeros: top20,
       totalSorteos: sequences.length,
