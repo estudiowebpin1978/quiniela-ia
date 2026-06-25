@@ -24,6 +24,12 @@ import AgeGate from "@/components/AgeGate";
 import { ToastProvider, useToast } from "@/components/Toast";
 import { saveAuth, getAccessToken, clearAuth, getAuth, isGuest, clearGuest } from "@/lib/auth";
 import { esFeriado, esDiaSinSorteo, motivoDiaSinSorteo, todosLosFeriados } from "@/lib/feriados";
+import NumberGrid from "@/components/predictions/NumberGrid";
+import HeatmapGrid from "@/components/predictions/HeatmapGrid";
+import TrendBars from "@/components/predictions/TrendBars";
+import ShareButtons from "@/components/predictions/ShareButtons";
+import ReviewsCarousel from "@/components/predictions/ReviewsCarousel";
+import PayCTA from "@/components/predictions/PayCTA";
 
 const EMOJIS: Record<string, string> = {
   "00": "🥚", "01": "💧", "02": "🧒", "03": "⛪", "04": "🛏️", "05": "🐱", "06": "🐶", "07": "🔫", "08": "🔥", "09": "🏞️",
@@ -54,29 +60,6 @@ const HORAS: Record<string, string> = {
   Vespertina: "18:00",
   Nocturna: "21:00",
 };
-const REVIEWS = [
-  { n: "Carlos M.", c: "Buenos Aires", t: "El motor estadístico es muy completo y detallado.", s: 5 },
-  { n: "Laura G.", c: "Rosario", t: "Los datos se actualizan rápido y son confiables.", s: 5 },
-  { n: "Roberto P.", c: "Cordoba", t: "El análisis de pares correlacionados es muy útil.", s: 5 },
-  { n: "Marcela S.", c: "Mendoza", t: "Fácil de usar. Muy intuitiva.", s: 4 },
-  { n: "Diego F.", c: "Mar del Plata", t: "El mapa de calor es muy profesional.", s: 5 },
-  { n: "Ana B.", c: "Tucuman", t: "Excelente app. Los gráficos son claros.", s: 5 },
-  { n: "Jorge R.", c: "Salta", t: "Me ayudo a entender los patrones de datos.", s: 4 },
-  { n: "Patricia L.", c: "La Plata", t: "Muy buena app, la recomiendo.", s: 5 },
-  { n: "Miguel A.", c: "Bahia Blanca", t: "Los análisis de 4 cifras son muy detallados.", s: 5 },
-  { n: "Sandra V.", c: "Santa Fe", t: "El análisis de frecuencia cambió mi forma de ver los datos.", s: 5 },
-  { n: "Oscar T.", c: "Neuquen", t: "Muy completa y fácil de usar.", s: 4 },
-  { n: "Claudia H.", c: "Posadas", t: "La interfaz es muy clara y moderna.", s: 5 },
-  { n: "Fernando N.", c: "Corrientes", t: "El motor Monte Carlo es impresionante.", s: 5 },
-  { n: "Beatriz O.", c: "Resistencia", t: "La mejor herramienta de análisis estadístico que probé.", s: 5 },
-  { n: "Raul K.", c: "San Juan", t: "Increíble la precisión de los datos.", s: 4 },
-  { n: "Monica E.", c: "San Luis", t: "El análisis de correlaciones es muy completo.", s: 5 },
-  { n: "Hector Q.", c: "Rio Gallegos", t: "Excelente herramienta estadística.", s: 5 },
-  { n: "Viviana C.", c: "Ushuaia", t: "Los análisis son basados en datos reales.", s: 4 },
-  { n: "Alberto D.", c: "Mendoza", t: "El análisis de ciclos es único.", s: 5 },
-  { n: "Norma I.", c: "Cordoba", t: "Muy completa. El premium vale la pena.", s: 5 },
-];
-
 type RankingItem = {
   numero: string;
   score: number;
@@ -1995,28 +1978,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             </div>
           )}
           <div className="ft">
-            <div style={{ textAlign: "center", marginBottom: 14 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 800, background: "linear-gradient(135deg,#ff6b81,#ff2d55)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                Lo que dicen los usuarios
-              </h2>
-              <p style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>Miles de usuarios confían en Quiniela IA</p>
-            </div>
-            <div className="rev-o">
-              <div className="rev-tr" ref={scrollRef}>
-                {[...REVIEWS, ...REVIEWS].map((r, i) => (
-                  <div className="rev-c" key={i}>
-                    <div className="rev-s">
-                      {"★".repeat(r.s)}
-                      {"☆".repeat(5 - r.s)}
-                    </div>
-                    <div className="rev-t">{r.t}</div>
-                    <div className="rev-a">
-                      <strong>{r.n}</strong> · {r.c}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ReviewsCarousel />
           </div>
           <div className="ft">
             <div className="dc">
