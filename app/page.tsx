@@ -56,11 +56,11 @@ function CommunityTrends() {
 }
 
 const SCREENSHOTS = [
-  { src: "/screenshots/IMG_5971.png", label: "Análisis con 30 factores + IA" },
-  { src: "/screenshots/IMG_5972.png", label: "Tendencias y correlaciones" },
-  { src: "/screenshots/IMG_5973.png", label: "Mis Análisis guardados" },
-  { src: "/screenshots/IMG_5974.png", label: "Elegí tu sorteo" },
-  { src: "/screenshots/IMG_5975.png", label: "Planes Premium" },
+  { src: "/screenshots/IMG_6097.png", label: "Análisis con 30 factores + IA" },
+  { src: "/screenshots/IMG_6098.png", label: "Tendencias y correlaciones" },
+  { src: "/screenshots/IMG_6099.png", label: "Mis Análisis guardados" },
+  { src: "/screenshots/IMG_6100.png", label: "Elegí tu sorteo" },
+  { src: "/screenshots/IMG_6101.png", label: "Planes Premium" },
 ]
 
 export default function Home() {

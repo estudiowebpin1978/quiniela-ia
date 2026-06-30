@@ -34,7 +34,14 @@ CREATE TABLE IF NOT EXISTS community_trends (
   PRIMARY KEY (date, turno)
 );
 
--- RLS policies (service-role only, like other tables)
+-- RLS: drop old policies if they exist, then recreate
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Service role all user_gamification" ON user_gamification;
+  DROP POLICY IF EXISTS "Service role all user_achievements" ON user_achievements;
+  DROP POLICY IF EXISTS "Service role all community_trends" ON community_trends;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
 ALTER TABLE user_gamification ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_achievements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE community_trends ENABLE ROW LEVEL SECURITY;
