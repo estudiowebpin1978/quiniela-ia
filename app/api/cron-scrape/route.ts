@@ -28,8 +28,6 @@ async function scrapeTurnoOficial(fechaISO: string, turno: string): Promise<numb
     if (d.getDay() !== 0) weekdays++
   }
   const sorteoCode = 52492 + weekdays
-  const turnoIdx = TURNOS.indexOf(turno)
-  if (turnoIdx < 0) return []
 
   try {
     const r = await fetch("https://quiniela.loteriadelaciudad.gob.ar/resultadosQuiniela/consultaResultados.php", {
@@ -42,23 +40,13 @@ async function scrapeTurnoOficial(fechaISO: string, turno: string): Promise<numb
     const html = await r.text()
     if (html.includes("No hay Sorteo")) return []
 
-    // Grid layout: each <tr> has up to 4 <td> columns (one per turno group)
-    // Turno mapping: Previa=col0, Primera=col1, Matutina=col2, Vespertina=col3, Nocturna=col4
-    // But rows only have 4 columns, so Nocturna wraps. Parse all <td> in each row.
+    // Extract all unique 4-digit numbers from the grid
     const nums: number[] = []
-    const rows = html.split(/<tr>/gi)
-    for (const row of rows) {
-      const cells = row.split(/<td>/gi)
-      // cells[0] is before first td, cells[1+] are actual cells
-      // Each cell: <div class="pos">NN</div><div>N000</div></td>
-      if (cells.length > turnoIdx + 1) {
-        const cell = cells[turnoIdx + 1]
-        const numMatch = cell.match(/<div>(\d{4})<\/div>/)
-        if (numMatch) {
-          const n = parseInt(numMatch[1])
-          if (n >= 0 && n <= 9999 && !nums.includes(n)) nums.push(n)
-        }
-      }
+    const rx = /<div class="pos">\d{2}<\/div>\s*<div>(\d{4})<\/div>/g
+    let mx: RegExpExecArray | null
+    while ((mx = rx.exec(html)) !== null) {
+      const n = parseInt(mx[1])
+      if (n >= 0 && n <= 9999 && !nums.includes(n)) nums.push(n)
       if (nums.length >= 20) break
     }
     return nums
