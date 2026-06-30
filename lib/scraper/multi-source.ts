@@ -3,6 +3,8 @@
  * Tries 3 sources in priority order with exponential backoff retry logic.
  */
 
+import { esFeriado } from "@/lib/feriados"
+
 export interface ScrapeResult {
   numbers: number[];
   source: string;
@@ -21,6 +23,7 @@ export interface TurnoResult {
 const RETRY_DELAYS_MS = [0, 60_000, 300_000, 900_000, 1_800_000];
 const MAX_RETRIES = 5;
 const TURNOS = ["matutina", "vespertina", "nocturna", "previa", "primera"];
+const TURNO_IDX: Record<string, number> = { previa: 0, primera: 1, matutina: 2, vespertina: 3, nocturna: 4 };
 const NUMBERS_PER_DRAW = 20;
 const MAX_NUMBER = 9999;
 
@@ -85,9 +88,14 @@ function computeSorteoCode(fechaISO: string, turno: string): number {
   let weekdays = 0;
   for (let i = 1; i <= diffDays; i++) {
     const d = new Date(refDate.getTime() + i * 86_400_000);
-    if (d.getUTCDay() !== 0) weekdays++;
+    if (d.getUTCDay() === 0) continue;
+    const ds = d.toISOString().slice(0, 10);
+    if (esFeriado(ds)) continue;
+    weekdays++;
   }
-  return refCode + weekdays;
+  const turnoKey = turno.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  const turnoIdx = TURNO_IDX[turnoKey] ?? 0
+  return refCode + weekdays * 5 + turnoIdx;
 }
 
 async function fetchWithTimeout(url: string, opts: RequestInit = {}, ms = 30_000): Promise<Response> {

@@ -4,7 +4,7 @@
  * Designed to complete within 15 seconds (Vercel timeout).
  */
 
-import { esDiaSinSorteo, esSabadoSinPrevia } from "@/lib/feriados"
+import { esDiaSinSorteo, esSabadoSinPrevia, esFeriado } from "@/lib/feriados"
 import { logScrape, logScrape as logSync } from "./logger"
 
 export interface SyncResult {
@@ -148,7 +148,10 @@ async function scrapeTurnoOficial(fechaISO: string, turno: string): Promise<numb
   let weekdays = 0
   for (let i = 1; i <= daysDiff; i++) {
     const d = new Date(refDate.getTime() + i * 86400000)
-    if (d.getDay() !== 0) weekdays++
+    if (d.getDay() === 0) continue
+    const ds = d.toISOString().slice(0, 10)
+    if (esFeriado(ds)) continue
+    weekdays++
   }
   const turnoIdx = TURNO_ORDER.indexOf(turno)
   if (turnoIdx < 0) return []

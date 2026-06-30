@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { esDiaSinSorteo } from "@/lib/feriados"
+import { esDiaSinSorteo, esFeriado } from "@/lib/feriados"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
@@ -25,9 +25,13 @@ async function scrapeTurnoOficial(fechaISO: string, turno: string): Promise<numb
   let weekdays = 0
   for (let i = 1; i <= daysDiff; i++) {
     const d = new Date(refDate.getTime() + i * 86400000)
-    if (d.getDay() !== 0) weekdays++
+    if (d.getDay() === 0) continue
+    const ds = d.toISOString().slice(0, 10)
+    if (esFeriado(ds)) continue
+    weekdays++
   }
-  const sorteoCode = 52492 + weekdays
+  const turnoIdx = TURNOS.indexOf(turno)
+  const sorteoCode = 52492 + weekdays * 5 + turnoIdx
 
   try {
     const r = await fetch("https://quiniela.loteriadelaciudad.gob.ar/resultadosQuiniela/consultaResultados.php", {
