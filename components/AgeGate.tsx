@@ -55,7 +55,7 @@ export default function AgeGate() {
           No tengo 18 años
         </a>
         <div style={{ fontSize: 10, color: "#475569", marginTop: 16, lineHeight: 1.5 }}>
-          Si o alguien que conocés tiene problemas con el juego, comunicate al
+          Si o alguien que conocés tiene problemas con los juegos de azar, comunicate al
           <br /><strong style={{ color: "#ef4444" }}>0800-333-0062</strong> (Línea de Ayuda)
         </div>
       </div>

@@ -297,7 +297,7 @@ async function fillGaps(
         const turnoMinutes: Record<string, number> = {
           Previa: 10 * 60, Primera: 12 * 60, Matutina: 15 * 60, Vespertina: 18 * 60, Nocturna: 21 * 60
         }
-        if (nowMin < (turnoMinutes[turno] || 0) + 90) continue // wait 90 min after draw time
+        if (nowMin < (turnoMinutes[turno] || 0) + 15) continue // wait 15 min after draw time
       }
 
       const result = await syncTurno(fechaStr, fUrl, turno)
@@ -359,15 +359,12 @@ export async function GET(req: NextRequest) {
     turnosToSync = [found]
   } else {
     const detected = detectTurno()
-    if (!detected) {
-      return NextResponse.json({
-        ok: true,
-        message: "No turno to scrape at this time",
-        fecha: fechaISO,
-        nextScrape: getNextScrapeTime(),
-      })
+    if (detected) {
+      turnosToSync = [detected]
+    } else {
+      // No turno in window — still run fillGaps below to catch missing draws
+      turnosToSync = []
     }
-    turnosToSync = [detected]
   }
 
   // Filter out inapplicable turnos
@@ -376,16 +373,7 @@ export async function GET(req: NextRequest) {
     return true
   })
 
-  if (turnosToSync.length === 0) {
-    return NextResponse.json({
-      ok: true,
-      message: "No applicable turnos",
-      fecha: fechaISO,
-      duration: Date.now() - start,
-    })
-  }
-
-  // ── Sync each turno ──
+  // ── Sync each turno (skip if empty — fillGaps will handle missing draws) ──
   const results: Record<string, SyncOutcome> = {}
   let totalNewDraws = 0
   let allValidated = true

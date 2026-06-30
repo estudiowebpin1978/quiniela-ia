@@ -18,6 +18,7 @@ import { usePushNotifications } from "@/components/PushNotifications";
 import PaywallModal from "@/components/PaywallModal";
 import WhatsAppFAB from "@/components/WhatsAppFAB";
 import FooterDisclaimer from "@/components/FooterDisclaimer";
+import GamificationBadge from "@/components/GamificationBadge";
 import HistorialAciertos from "@/components/HistorialAciertos";
 import ExpiryBanner from "@/components/ExpiryBanner";
 import AgeGate from "@/components/AgeGate";
@@ -35,7 +36,7 @@ const EMOJIS: Record<string, string> = {
   "00": "🥚", "01": "💧", "02": "🧒", "03": "⛪", "04": "🛏️", "05": "🐱", "06": "🐶", "07": "🔫", "08": "🔥", "09": "🏞️",
   "10": "🥛", "11": "🏏", "12": "💂", "13": "🍀", "14": "🥴", "15": "👧", "16": "💍", "17": "😭", "18": "🩸", "19": "🐟",
   "20": "🥳", "21": "👩", "22": "🤪", "23": "🦋", "24": "🐴", "25": "🐔", "26": "⛪", "27": "🪮", "28": "⛰️", "29": "🧔",
-  "30": "🌹", "31": "💡", "32": "💰", "33": "✝️", "34": "👤", "35": "🐦", "36": "🌰", "37": "🌳", "38": "🪨", "39": "🌧️",
+  "30": "🌹", "31": "💡", "32": "💎", "33": "✝️", "34": "👤", "35": "🐦", "36": "🌰", "37": "🌳", "38": "🪨", "39": "🌧️",
   "40": "👨‍⚖️", "41": "🔪", "42": "👟", "43": "🐸", "44": "🚓", "45": "🍷", "46": "🍅", "47": "⚰️", "48": "🗣️", "49": "🥩",
   "50": "🍞", "51": "🪚", "52": "🤱", "53": "⛵", "54": "🐄", "55": "🎶", "56": "📉", "57": "🧙‍♂️", "58": "🌊", "59": "🪴",
   "60": "🇻🇦", "61": "🔫", "62": "🌊", "63": "👰", "64": "😭", "65": "🥘", "66": "🕸️", "67": "🐍", "68": "🧒", "69": "👺",
@@ -375,6 +376,22 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       const predData = d.pred || d;
       setDt({ ...predData, heatmap: d.heatmap, ranking: d.numeros });
       setDn(true);
+      // Gamification: record analysis + community trend
+      if (tkRef.current) {
+        fetch("/api/gamification", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
+          body: JSON.stringify({ action: "analysis", turno: so }),
+        }).catch(() => {})
+        fetch("/api/community", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            turno: so,
+            topNumbers: (d.numeros || []).slice(0, 10).map((n: any) => n.num || n.numero),
+          }),
+        }).catch(() => {})
+      }
       if (d.confidence) setConfianzaTurnos(p => ({ ...p, [so]: d.confidence }));
       if (d.aiInsight) setAiInsight(d.aiInsight);
     } catch (e: any) {
@@ -601,6 +618,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         }
         if (res.ok) {
           cloudSaved = true
+          // Gamification: record save
+          fetch("/api/gamification", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
+            body: JSON.stringify({ action: "save", turno: so }),
+          }).catch(() => {})
         }
       } catch (e) {
       }
@@ -873,6 +896,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             {newDraws && <span style={{ background: "#22c55e", color: "#fff", padding: "4px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, animation: "pulse 2s infinite" }}>🆕 Resultados nuevos</span>}
             {!isOnline && <span style={{ background: "#ef4444", color: "#fff", padding: "4px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700 }}>📴 Offline</span>}
             {(pr || userRole === "admin") && <span className="pp">{userRole === "admin" ? "👑 ADMIN" : "⭐ PREMIUM"}</span>}
+            {!guestMode && <GamificationBadge compact />}
             {em && <span className="ne">{em.split("@")[0]}</span>}
             {userRole === "admin" && <a href="/admin" className="nav-admin">⚙️ Admin</a>}
             <button
@@ -1197,7 +1221,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   <span className="tb-lbl">Análisis</span>
                 </button>
                 <button className={"tb tb-rdbl" + (tab === "rdbl" ? " on" : "")} onClick={() => setTab("rdbl")}>
-                  <span className="tb-ico">🎲</span>
+                  <span className="tb-ico">📊</span>
                   <span className="tb-lbl">Correlación</span>
                 </button>
                 <button className={"tb tb-freq" + (tab === "freq" ? " on" : "")} onClick={() => setTab("freq")}>
@@ -1290,7 +1314,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                           onClick={() => guestMode ? window.location.href = "/login" : setShowPaywall(true)}
                         >
                           <div style={{ fontSize: 32, marginBottom: 8 }}>{guestMode ? "👤" : "🧠"}</div>
-                          <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginBottom: 4 }}>{guestMode ? "Creá una cuenta para acceder" : "La IA ya calculó las probabilidades"}</div>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginBottom: 4 }}>{guestMode ? "Creá una cuenta para acceder" : "La IA ya procesó el análisis completo"}</div>
                           <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 12 }}>{guestMode ? "Es gratis y toma 30 segundos" : "Desbloqueá el análisis completo con Machine Learning"}</div>
                           <div style={{
                             background: guestMode ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "linear-gradient(135deg,#a855f7,#7c3aed)",
@@ -1360,7 +1384,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                           <div className="rc" key={i}>
                             <div className="rn">{r.numero}</div>
                             <div className="rk">{r.significado || ""}</div>
-                            <div className="rv">Prob {r.score?.toFixed(2) || "0"}%</div>
+                            <div className="rv">Score {r.score?.toFixed(2) || "0"}%</div>
                           </div>
                         ))}
                       </>
@@ -1982,7 +2006,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           </div>
           <div className="ft">
             <div className="dc">
-              Quiniela IA es una herramienta de análisis estadístico con fines de entretenimiento. No garantiza resultados. No es un sitio de apuestas. Línea de ayuda: <strong style={{color:"#94a3b8"}}>0800-333-0062</strong>. Solo mayores de 18 años.
+              Quiniela IA es una herramienta de análisis estadístico con fines de entretenimiento. No garantiza resultados. No vende boletos ni procesa apuestas. Línea de ayuda: <strong style={{color:"#94a3b8"}}>0800-333-0062</strong>. Solo mayores de 18 años.
             </div>
             <div className="credit">
                © 2026 Quiniela IA · Desarrollado por <strong>EstudioWebPin</strong>

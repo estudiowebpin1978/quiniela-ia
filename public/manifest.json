@@ -31,21 +31,35 @@
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Pantalla principal - Predicciones"
+      "label": "Análisis con 30 factores + IA"
     },
     {
       "src": "/screenshots/IMG_5972.png",
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Análisis detallado con 30 factores"
+      "label": "Tendencias y correlaciones"
     },
     {
       "src": "/screenshots/IMG_5973.png",
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Membresía Premium y estadísticas"
+      "label": "Mis Análisis guardados"
+    },
+    {
+      "src": "/screenshots/IMG_5974.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Elegí tu sorteo"
+    },
+    {
+      "src": "/screenshots/IMG_5975.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Planes Premium"
     }
   ],
   "related_applications": [],

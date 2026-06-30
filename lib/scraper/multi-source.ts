@@ -81,8 +81,13 @@ function computeSorteoCode(fechaISO: string, turno: string): number {
   const target = new Date(fechaISO + "T12:00:00Z");
   const diffMs = target.getTime() - refDate.getTime();
   const diffDays = Math.round(diffMs / 86_400_000);
-  const turnoIdx = TURNOS.indexOf(turno);
-  return refCode + diffDays * 5 + turnoIdx;
+  // Count weekdays only (skip Sundays — no draws), +1 per weekday (not per turno)
+  let weekdays = 0;
+  for (let i = 1; i <= diffDays; i++) {
+    const d = new Date(refDate.getTime() + i * 86_400_000);
+    if (d.getUTCDay() !== 0) weekdays++;
+  }
+  return refCode + weekdays;
 }
 
 async function fetchWithTimeout(url: string, opts: RequestInit = {}, ms = 30_000): Promise<Response> {

@@ -294,7 +294,7 @@ export default function AdminPage() {
                 <div className="st" style={{ color: "#c4b5fd" }}>⏳ Pagos pendientes ({pending.length})</div>
                 {pending.map((p, i) => (
                   <div className="row" key={i}>
-                    <div className="avatar" style={{ background: "rgba(168,85,247,.2)" }}>💰</div>
+                    <div className="avatar" style={{ background: "rgba(168,85,247,.2)" }}>💳</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 600 }}>{p.email}</div>
                       <div style={{ fontSize: 11, color: "#94a3b8" }}>{p.plan} · ${p.amount.toLocaleString("es-AR")} · {new Date(p.timestamp).toLocaleDateString("es-AR")}</div>
