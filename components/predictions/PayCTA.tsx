@@ -35,7 +35,7 @@ export default function PayCTA({ guestMode, onPaywall, onLogin }: PayCTAProps) {
       >
         {guestMode ? "🔑 Crear cuenta gratis" : "⭐ Activar Premium"}
       </button>
-      <div style={{ fontSize: 9, color: "#475569", marginTop: 8 }}>Desde $3.500/mes · Cancelá cuando quieras</div>
+      <div style={{ fontSize: 9, color: "#475569", marginTop: 8 }}>Planes desde $3.500 · Cancelá cuando quieras</div>
     </div>
   )
 }

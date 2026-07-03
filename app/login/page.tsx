@@ -9,6 +9,8 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState("")
   const [ok, setOk] = useState("")
+  const [showReset, setShowReset] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
 
   useEffect(() => {
     if (isLoggedIn()) window.location.href = "/predictions"
@@ -40,9 +42,25 @@ export default function LoginPage() {
     finally { setBusy(false) }
   }
 
+  async function resetPassword() {
+    if (!email) { setErr("Ingresá tu email primero"); return }
+    setBusy(true); setErr(""); setOk("")
+    try {
+      const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
+      const SB_KEY = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").replace(/"/g, "").trim()
+      const r = await fetch(`${SB_URL}/auth/v1/magiclink`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": SB_KEY },
+        body: JSON.stringify({ email: email.trim(), redirect_to: `${window.location.origin}/login` })
+      })
+      if (!r.ok) { const d = await r.json(); setErr(d.msg || "Error al enviar email"); return }
+      setResetSent(true)
+    } catch { setErr("Error de conexión") }
+    finally { setBusy(false) }
+  }
+
   return (<>
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
       *{box-sizing:border-box;margin:0;padding:0}
       body{min-height:100vh;background:#050510;font-family:'Inter',sans-serif}
       .page{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:radial-gradient(ellipse 100% 80% at 50% -20%,rgba(120,0,255,0.15),transparent 50%),radial-gradient(ellipse 80% 60% at 80% 100%,rgba(255,0,100,0.1),transparent 50%),#050510}
@@ -84,6 +102,38 @@ export default function LoginPage() {
 
         <span className="lbl">Contraseña</span>
         <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="••••••••" onKeyDown={e => e.key === "Enter" && !busy && submit()} />
+
+        {tab === "in" && !showReset && (
+          <div style={{ textAlign: "right", marginTop: 8 }}>
+            <button onClick={() => { setShowReset(true); setErr(""); setOk("") }} style={{ background: "none", border: "none", color: "#ff6b81", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+              Olvidé mi contraseña
+            </button>
+          </div>
+        )}
+
+        {showReset && !resetSent && (
+          <div style={{ marginTop: 12, padding: 14, background: "rgba(255,107,129,0.08)", borderRadius: 12, border: "1px solid rgba(255,107,129,0.15)" }}>
+            <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 10 }}>
+              Te enviaremos un email con un enlace para restablecer tu contraseña.
+            </div>
+            <button onClick={resetPassword} disabled={busy} className="btn" style={{ marginTop: 0, padding: "10px 16px", fontSize: 13 }}>
+              {busy ? "⏳ Enviando..." : "📧 Enviar enlace de recuperación"}
+            </button>
+            <button onClick={() => { setShowReset(false); setErr("") }} style={{ background: "none", border: "none", color: "#64748b", fontSize: 11, cursor: "pointer", marginTop: 6, width: "100%" }}>
+              Cancelar
+            </button>
+          </div>
+        )}
+
+        {resetSent && (
+          <div style={{ marginTop: 12, padding: 14, background: "rgba(34,197,94,0.08)", borderRadius: 12, border: "1px solid rgba(34,197,94,0.15)" }}>
+            <div style={{ fontSize: 13, color: "#86efac", fontWeight: 600 }}>Email enviado!</div>
+            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Revisá tu casilla de correo. El enlace expira en 1 hora.</div>
+            <button onClick={() => { setShowReset(false); setResetSent(false) }} style={{ background: "none", border: "none", color: "#ff6b81", fontSize: 11, cursor: "pointer", marginTop: 6 }}>
+              Volver al login
+            </button>
+          </div>
+        )}
 
         <button className={"btn " + (tab === "up" ? "btn-up" : "")} onClick={submit} disabled={busy}>
           {busy ? "⏳ Procesando..." : tab === "in" ? "🚀 Entrar al sistema" : "🎯 Crear mi cuenta"}

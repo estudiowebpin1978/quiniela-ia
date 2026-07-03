@@ -18,7 +18,7 @@ export default function FooterDisclaimer() {
           <a href="mailto:estudiowebpin@gmail.com" style={{ fontSize: 9, color: "#6366f1", textDecoration: "none" }}>Soporte</a>
         </div>
         <div style={{ fontSize: 8, color: "#334155", marginTop: 4 }}>
-          © 2026 Quiniela IA · Desarrollado por EstudioWebPin
+          © {new Date().getFullYear()} Quiniela IA · Desarrollado por EstudioWebPin
         </div>
       </div>
     </footer>

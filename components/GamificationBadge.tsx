@@ -1,27 +1,43 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { isLoggedIn, getAccessToken } from "@/lib/auth"
 import { xpForNextLevel, xpForCurrentLevel, ACHIEVEMENTS } from "@/lib/gamification"
 
 interface Props {
   compact?: boolean
+  onNewAchievement?: (ach: any) => void
 }
 
-export default function GamificationBadge({ compact = false }: Props) {
+export default function GamificationBadge({ compact = false, onNewAchievement }: Props) {
   const [data, setData] = useState<any>(null)
   const [showDetails, setShowDetails] = useState(false)
   const [newAchievement, setNewAchievement] = useState<any>(null)
 
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     if (!isLoggedIn()) return
     const token = getAccessToken()
     if (!token) return
 
     fetch("/api/gamification", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(setData)
+      .then(d => {
+        setData(d)
+        if (d.newAchievements?.length > 0) {
+          const ach = d.newAchievements[0]
+          setNewAchievement(ach)
+          onNewAchievement?.(ach)
+          setTimeout(() => setNewAchievement(null), 4000)
+        }
+      })
       .catch(() => {})
-  }, [])
+  }, [onNewAchievement])
+
+  useEffect(() => {
+    fetchData()
+    const handler = () => fetchData()
+    window.addEventListener("gamification-update", handler)
+    return () => window.removeEventListener("gamification-update", handler)
+  }, [fetchData])
 
   if (!data || !isLoggedIn()) return null
 

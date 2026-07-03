@@ -87,7 +87,7 @@ function PageInner() {
   const toast = useToast();
   const [pr, setPr] = useState(false);
   const [em, setEm] = useState("");
-  const [tab, setTab] = useState<"pred" | "rdbl" | "freq" | "trend" | "mis" | "acc" | "hist" | "analisis">("pred");
+  const [tab, setTab] = useState<"pred" | "rdbl" | "freq" | "trend" | "mis" | "acc" | "hist">("pred");
   const [so, setSo] = useState("Nocturna");
   const [dg, setDg] = useState(2);
   const [ld, setLd] = useState(false);
@@ -382,7 +382,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
           body: JSON.stringify({ action: "analysis", turno: so }),
-        }).catch(() => {})
+        }).then(() => { window.dispatchEvent(new Event("gamification-update")) }).catch(() => {})
         fetch("/api/community", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -623,7 +623,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
             body: JSON.stringify({ action: "save", turno: so }),
-          }).catch(() => {})
+          }).then(() => { window.dispatchEvent(new Event("gamification-update")) }).catch(() => {})
         }
       } catch (e) {
       }
@@ -698,7 +698,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     <>
       <AgeGate />
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
         :root{--red:#FE2C55;--cyan:#25F4EE;--green:#22c55e;--bg:#010101;--bg2:#0d0d0d;--bg3:#141b2f;--card:#0d0d0d;--surface:rgba(13,13,13,.9);--text:#FFFFFF;--dim:#94a3b8;--border:rgba(255,255,255,.08);--nav-bg:rgba(6,8,15,.98);--panel-bg:rgba(255,255,255,.04);--panel-border:rgba(255,255,255,.08);--shadow:rgba(0,0,0,.32)}
         body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
@@ -1535,80 +1534,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                       </div>
                     </div>
                   </div>
-                </>
-              )}
-              {tab === "analisis" && (
-                <>
-                  <div className="sec">Análisis por Turno</div>
-                  {analisisLoading ? (
-                    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:16}}>
-                        {[1,2,3,4,5].map(i=>(
-                          <div key={i} className="skeleton" style={{height:48,borderRadius:12}}/>
-                        ))}
-                      </div>
-                      {[1,2,3,4,5].map(i=>(
-                        <div key={i} className="skeleton" style={{height:60,borderRadius:12}}/>
-                      ))}
-                    </div>
-                  ) : analisisData ? (
-                    <>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 16 }}>
-                        {["previa", "primera", "matutina", "vespertina", "nocturna"].map(t => (
-                          <div key={t} style={{ 
-                            background: so === t ? "rgba(59,130,246,.15)" : "rgba(255,255,255,.03)", 
-                            border: so === t ? "1px solid rgba(59,130,246,.4)" : "1px solid rgba(255,255,255,.08)", 
-                            borderRadius: 10, padding: 12, cursor: "pointer", textAlign: "center"
-                          }} onClick={() => setSo(t.charAt(0).toUpperCase() + t.slice(1))}>
-                            <div style={{ fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>{t}</div>
-                          </div>
-                        ))}
-                      </div>
-                      {(() => {
-                        const d = analisisData.porTurno?.[so.toLowerCase()];
-                        if (!d) return <div style={{ color: "#64748b", textAlign: "center" }}>Selecciona un turno</div>;
-                        return (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                            <div style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.2)", borderRadius: 12, padding: 14 }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: "#60a5fa", marginBottom: 8 }}>🔥 Números más frecuentes ({so})</div>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                {d.frecuencia?.slice(0, 15).map((f: any, i: number) => (
-                                  <span key={i} style={{ 
-                                    background: "rgba(59,130,246,.15)", borderRadius: 6, padding: "4px 10px", fontSize: 13, fontWeight: 600, color: "#93c5fd" }}>
-                                    {String(f.numero).padStart(2, "0")} <span style={{ color: "#64748b", fontSize: 10 }}>({f.conteo})</span>
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            <div style={{ background: "rgba(34,197,94,.08)", border: "1px solid rgba(34,197,94,.2)", borderRadius: 12, padding: 14 }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: "#4ade80", marginBottom: 8 }}>👥 Parejas frecuentes ({so})</div>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                {d.pares?.slice(0, 10).map((p: any, i: number) => (
-                                  <span key={i} style={{ 
-                                    background: "rgba(34,197,94,.15)", borderRadius: 6, padding: "4px 10px", fontSize: 12, color: "#86efac" }}>
-                                    {String(p.numeros[0]).padStart(2, "0")}-{String(p.numeros[1]).padStart(2, "0")} <span style={{ color: "#64748b", fontSize: 10 }}>({p.conteo})</span>
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                            <div style={{ background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.2)", borderRadius: 12, padding: 14 }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: "#fcd34d", marginBottom: 8 }}>❄️ Números fríos (ausentes por {so})</div>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                {d.numerosCalientes?.filter((n: any) => n.diasAusente > 5).slice(0, 10).map((n: any, i: number) => (
-                                  <span key={i} style={{ 
-                                    background: "rgba(251,191,36,.15)", borderRadius: 6, padding: "4px 10px", fontSize: 12, color: "#fde68a" }}>
-                                    {String(n.numero).padStart(2, "0")} <span style={{ color: "#64748b", fontSize: 10 }}>{n.diasAusente}d</span>
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </>
-                  ) : (
-                    <div style={{ color: "#64748b", textAlign: "center" }}>Sin datos disponibles</div>
-                  )}
                 </>
               )}
             </>

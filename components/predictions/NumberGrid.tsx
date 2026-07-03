@@ -1,5 +1,4 @@
 "use client"
-import { useState, useEffect } from "react"
 
 const EMOJIS: Record<string, string> = {
   "00": "🥚", "01": "💧", "02": "🧒", "03": "⛪", "04": "🛏️", "05": "🐱", "06": "🐶", "07": "🔫", "08": "🔥", "09": "🏞️",
@@ -35,6 +34,7 @@ export default function NumberGrid({
   onNumberClick, onPaywall, onLogin
 }: NumberGridProps) {
   const isBlurred = guestMode || (userRole === "free" && dg > 2)
+  const showOverlay = guestMode || (userRole === "free" && dg > 2)
 
   return (
     <div style={{ position: "relative" }}>
@@ -68,7 +68,7 @@ export default function NumberGrid({
           )
         })}
       </div>
-      {userRole === "free" && dg > 2 && (
+      {showOverlay && (
         <div
           style={{
             position: "absolute", inset: 0,

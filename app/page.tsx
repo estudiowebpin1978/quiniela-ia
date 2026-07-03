@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useState, useRef } from "react"
 import { isLoggedIn, isGuest } from "@/lib/auth"
+import AgeGate from "@/components/AgeGate"
 
 function CommunityTrends() {
   const [data, setData] = useState<{ trends: any[]; totalToday: number }>({ trends: [], totalToday: 0 })
@@ -88,8 +89,8 @@ export default function Home() {
   if (!ready) return null
 
   return (<>
+    <AgeGate />
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
       *{box-sizing:border-box;margin:0;padding:0}
       body{min-height:100vh;background:#050510;font-family:'Inter',sans-serif;overflow-x:hidden}
 

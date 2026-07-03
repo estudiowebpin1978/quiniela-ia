@@ -75,9 +75,27 @@ function pad(n: number, l = 2): string {
 }
 
 // ============================================
+// RATE LIMITER
+// ============================================
+const rateMap = new Map<string, { count: number; reset: number }>()
+function checkRate(ip: string, max = 20, windowMs = 300000): boolean {
+  const now = Date.now()
+  const entry = rateMap.get(ip)
+  if (!entry || now > entry.reset) { rateMap.set(ip, { count: 1, reset: now + windowMs }); return true }
+  if (entry.count >= max) return false
+  entry.count++
+  return true
+}
+
+// ============================================
 // MAIN API
 // ============================================
 export async function GET(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown"
+  if (!checkRate(ip)) {
+    return NextResponse.json({ error: "Demasiadas peticiones. Esperá unos minutos." }, { status: 429 })
+  }
+
   const { searchParams } = new URL(req.url)
   const turno = searchParams.get("sorteo") || "previa"
   const targetDate = searchParams.get("date") || ""

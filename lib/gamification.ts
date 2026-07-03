@@ -49,12 +49,12 @@ export function xpForCurrentLevel(level: number): number {
 
 /** Calculate streak from last_active_date */
 export function calcStreak(currentStreak: number, lastActiveDate: string | null): { streak: number; isNewDay: boolean } {
-  const today = new Date().toISOString().split("T")[0]
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
   if (!lastActiveDate) return { streak: 1, isNewDay: true }
   if (lastActiveDate === today) return { streak: currentStreak, isNewDay: false }
 
-  const last = new Date(lastActiveDate + "T00:00:00Z")
-  const now = new Date(today + "T00:00:00Z")
+  const last = new Date(lastActiveDate + "T12:00:00Z")
+  const now = new Date(today + "T12:00:00Z")
   const diffDays = Math.floor((now.getTime() - last.getTime()) / 86400000)
 
   if (diffDays === 1) return { streak: currentStreak + 1, isNewDay: true }
@@ -66,7 +66,8 @@ export function calcStreak(currentStreak: number, lastActiveDate: string | null)
 export function checkAchievements(
   data: GamificationData,
   unlockedIds: Set<string>,
-  turnosUsed: Set<string> = new Set()
+  turnosUsed: Set<string> = new Set(),
+  isPremium: boolean = false
 ): { id: AchievementId; xp: number }[] {
   const newUnlocks: { id: AchievementId; xp: number }[] = []
   const checks: [AchievementId, boolean][] = [
@@ -81,6 +82,7 @@ export function checkAchievements(
     ["50_analyses", data.total_analyses >= 50],
     ["100_analyses", data.total_analyses >= 100],
     ["all_turnos", turnosUsed.size >= 5],
+    ["premium_user", isPremium],
   ]
 
   for (const [id, condition] of checks) {
