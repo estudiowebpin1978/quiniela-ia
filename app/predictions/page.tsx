@@ -1820,63 +1820,89 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               </div>
 
               {/* Plan Semanal */}
-              <div style={{border:"1px solid rgba(168,85,247,.3)",borderRadius:14,overflow:"hidden",marginBottom:12}}>
-                <div style={{background:"linear-gradient(135deg,rgba(168,85,247,.15),rgba(99,102,241,.08))",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{borderRadius:14,overflow:"hidden",marginBottom:14,background:"linear-gradient(135deg,rgba(168,85,247,.1),rgba(99,102,241,.06))",border:"1px solid rgba(168,85,247,.25)",boxShadow:"0 4px 16px rgba(168,85,247,.15)"}}>
+                <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div>
                     <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase Semanal</div>
-                    <div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>7 días de acceso</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>7 días de acceso</div>
                   </div>
                   <div style={{fontSize:22,fontWeight:900,color:"#a855f7"}}>$3.500</div>
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0}}>
-                  <div
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,padding:"0 10px 10px"}}>
+                  <button
                     onClick={() => setShowPaywall(true)}
-                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",borderRight:"1px solid rgba(255,255,255,.06)",background:"rgba(255,255,255,.02)",transition:"background .2s"}}
+                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",border:"none",borderRadius:12,
+                      background:"linear-gradient(135deg,#6366f1,#8b5cf6)",
+                      boxShadow:"0 4px 0 #4338ca,0 6px 16px rgba(99,102,241,.3),inset 0 1px 0 rgba(255,255,255,.2)",
+                      transition:"all .15s",color:"#fff"}}
+                    onMouseDown={e=>{e.currentTarget.style.transform="translateY(2px)";e.currentTarget.style.boxShadow="0 2px 0 #4338ca,0 3px 8px rgba(99,102,241,.2)"}}
+                    onMouseUp={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #4338ca,0 6px 16px rgba(99,102,241,.3),inset 0 1px 0 rgba(255,255,255,.2)"}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #4338ca,0 6px 16px rgba(99,102,241,.3),inset 0 1px 0 rgba(255,255,255,.2)"}}
                   >
                     <div style={{fontSize:20,marginBottom:4}}>💳</div>
-                    <div style={{fontSize:11,fontWeight:700,color:"#fff"}}>Tarjeta</div>
-                    <div style={{fontSize:10,color:"#4ade80",marginTop:1}}>Inmediato</div>
-                  </div>
-                  <div
+                    <div style={{fontSize:12,fontWeight:800}}>Tocá aquí para pagar</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,.8)",marginTop:2}}>Crédito o débito</div>
+                    <div style={{fontSize:10,color:"#4ade80",marginTop:1,fontWeight:600}}>Inmediato</div>
+                  </button>
+                  <button
                     onClick={() => {navigator.clipboard.writeText("quiniela.ia").then(() => toast("Alias copiado","success"))}}
-                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",background:"rgba(255,255,255,.02)",transition:"background .2s"}}
+                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",border:"none",borderRadius:12,
+                      background:"linear-gradient(135deg,#f59e0b,#d97706)",
+                      boxShadow:"0 4px 0 #92400e,0 6px 16px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.15)",
+                      transition:"all .15s",color:"#fff"}}
+                    onMouseDown={e=>{e.currentTarget.style.transform="translateY(2px)";e.currentTarget.style.boxShadow="0 2px 0 #92400e,0 3px 8px rgba(245,158,11,.15)"}}
+                    onMouseUp={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #92400e,0 6px 16px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.15)"}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #92400e,0 6px 16px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.15)"}}
                   >
                     <div style={{fontSize:20,marginBottom:4}}>🏦</div>
-                    <div style={{fontSize:11,fontWeight:700,color:"#fff"}}>Transferencia</div>
-                    <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>Tocá aquí para copiar Alias</div>
-                    <div style={{fontSize:10,color:"#f59e0b",marginTop:1}}>En 24hs</div>
-                  </div>
+                    <div style={{fontSize:12,fontWeight:800}}>Transferencia</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,.8)",marginTop:1}}>Tocá para copiar alias</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,.7)",marginTop:1}}>En 24hs</div>
+                  </button>
                 </div>
               </div>
 
               {/* Plan Mensual */}
-              <div style={{border:"1.5px solid rgba(34,197,94,.4)",borderRadius:14,overflow:"hidden",marginBottom:16,position:"relative"}}>
-                <div style={{position:"absolute",top:0,right:0,background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",fontSize:9,fontWeight:800,padding:"4px 10px",borderRadius:"0 14px 0 8px",letterSpacing:0.5}}>AHORRÁ 40%</div>
-                <div style={{background:"linear-gradient(135deg,rgba(34,197,94,.12),rgba(16,163,74,.06))",padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{borderRadius:14,overflow:"hidden",marginBottom:16,position:"relative",background:"linear-gradient(135deg,rgba(34,197,94,.08),rgba(16,163,74,.04))",border:"1px solid rgba(34,197,94,.3)",boxShadow:"0 4px 16px rgba(34,197,94,.12)"}}>
+                <div style={{position:"absolute",top:0,right:0,background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",fontSize:9,fontWeight:800,padding:"4px 10px",borderRadius:"0 14px 0 8px",letterSpacing:0.5,boxShadow:"0 2px 8px rgba(34,197,94,.4)"}}>AHORRÁ 40%</div>
+                <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div>
                     <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase Mensual</div>
-                    <div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>30 días de acceso</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>30 días de acceso</div>
                   </div>
                   <div style={{fontSize:22,fontWeight:900,color:"#22c55e"}}>$10.000</div>
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0}}>
-                  <div
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,padding:"0 10px 10px"}}>
+                  <button
                     onClick={() => setShowPaywall(true)}
-                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",borderRight:"1px solid rgba(255,255,255,.06)",background:"rgba(255,255,255,.02)",transition:"background .2s"}}
+                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",border:"none",borderRadius:12,
+                      background:"linear-gradient(135deg,#6366f1,#8b5cf6)",
+                      boxShadow:"0 4px 0 #4338ca,0 6px 16px rgba(99,102,241,.3),inset 0 1px 0 rgba(255,255,255,.2)",
+                      transition:"all .15s",color:"#fff"}}
+                    onMouseDown={e=>{e.currentTarget.style.transform="translateY(2px)";e.currentTarget.style.boxShadow="0 2px 0 #4338ca,0 3px 8px rgba(99,102,241,.2)"}}
+                    onMouseUp={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #4338ca,0 6px 16px rgba(99,102,241,.3),inset 0 1px 0 rgba(255,255,255,.2)"}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #4338ca,0 6px 16px rgba(99,102,241,.3),inset 0 1px 0 rgba(255,255,255,.2)"}}
                   >
                     <div style={{fontSize:20,marginBottom:4}}>💳</div>
-                    <div style={{fontSize:11,fontWeight:700,color:"#fff"}}>Tarjeta</div>
-                    <div style={{fontSize:10,color:"#4ade80",marginTop:1}}>Inmediato</div>
-                  </div>
-                  <div
+                    <div style={{fontSize:12,fontWeight:800}}>Tocá aquí para pagar</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,.8)",marginTop:2}}>Crédito o débito</div>
+                    <div style={{fontSize:10,color:"#4ade80",marginTop:1,fontWeight:600}}>Inmediato</div>
+                  </button>
+                  <button
                     onClick={() => {navigator.clipboard.writeText("quiniela.ia").then(() => toast("Alias copiado","success"))}}
-                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",background:"rgba(255,255,255,.02)",transition:"background .2s"}}
+                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",border:"none",borderRadius:12,
+                      background:"linear-gradient(135deg,#f59e0b,#d97706)",
+                      boxShadow:"0 4px 0 #92400e,0 6px 16px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.15)",
+                      transition:"all .15s",color:"#fff"}}
+                    onMouseDown={e=>{e.currentTarget.style.transform="translateY(2px)";e.currentTarget.style.boxShadow="0 2px 0 #92400e,0 3px 8px rgba(245,158,11,.15)"}}
+                    onMouseUp={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #92400e,0 6px 16px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.15)"}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #92400e,0 6px 16px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.15)"}}
                   >
                     <div style={{fontSize:20,marginBottom:4}}>🏦</div>
-                    <div style={{fontSize:11,fontWeight:700,color:"#fff"}}>Transferencia</div>
-                    <div style={{fontSize:10,color:"#94a3b8",marginTop:1}}>Tocá aquí para copiar Alias</div>
-                    <div style={{fontSize:10,color:"#f59e0b",marginTop:1}}>En 24hs</div>
-                  </div>
+                    <div style={{fontSize:12,fontWeight:800}}>Transferencia</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,.8)",marginTop:1}}>Tocá para copiar alias</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,.7)",marginTop:1}}>En 24hs</div>
+                  </button>
                 </div>
               </div>
 
@@ -1886,24 +1912,21 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 <div style={{flex:1,height:1,background:"rgba(255,255,255,.08)"}}/>
               </div>
 
-              <a
-                href={WA}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigator.clipboard.writeText("quiniela.ia").then(() => { window.open(WA, "_blank"); });
-                }}
+              <button
+                onClick={() => {navigator.clipboard.writeText("quiniela.ia").then(() => { window.open(WA, "_blank"); })}}
                 style={{
-                  display:"flex",alignItems:"center",justifyContent:"center",gap:8,
-                  width:"100%",padding:"12px",borderRadius:12,
-                  background:"linear-gradient(135deg,#25D366,#128C7E)",color:"#fff",
-                  fontSize:13,fontWeight:700,textDecoration:"none",cursor:"pointer",
-                  boxShadow:"0 4px 12px rgba(37,211,102,.3)"
+                  width:"100%",padding:"14px",borderRadius:14,border:"none",
+                  background:"linear-gradient(135deg,#25D366,#128C7E,#075E54)",color:"#fff",
+                  fontSize:14,fontWeight:900,cursor:"pointer",
+                  boxShadow:"0 6px 0 #064E3B,0 8px 24px rgba(37,211,102,.35),inset 0 2px 0 rgba(255,255,255,.15)",
+                  transition:"all .15s"
                 }}
+                onMouseDown={e=>{e.currentTarget.style.transform="translateY(3px)";e.currentTarget.style.boxShadow="0 2px 0 #064E3B,0 3px 8px rgba(37,211,102,.2)"}}
+                onMouseUp={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 6px 0 #064E3B,0 8px 24px rgba(37,211,102,.35),inset 0 2px 0 rgba(255,255,255,.15)"}}
+                onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 6px 0 #064E3B,0 8px 24px rgba(37,211,102,.35),inset 0 2px 0 rgba(255,255,255,.15)"}}
               >
                 📲 Enviar comprobante por WhatsApp
-              </a>
+              </button>
             </div>
           )}
           <div className="shr">
