@@ -95,24 +95,30 @@ export default function PaywallModal({ open, onClose, userId }: Props) {
             </div>
 
             {PLANS.map(p => (
-              <div
+              <button
                 key={p.key}
-                style={{
-                  border: p.badge ? "2px solid #a855f7" : "1px solid rgba(255,255,255,.1)",
-                  borderRadius: 16, padding: 16, marginBottom: 12,
-                  background: p.badge
-                    ? "linear-gradient(135deg,rgba(168,85,247,.12),rgba(99,102,241,.08))"
-                    : "rgba(255,255,255,.03)",
-                  position: "relative", cursor: "pointer", transition: "all .2s",
-                }}
                 onClick={() => { setSelectedPlan(p.key); setStep("method"); }}
+                style={{
+                  width: "100%", border: "none", borderRadius: 16, padding: 16, marginBottom: 12,
+                  background: p.badge
+                    ? "linear-gradient(135deg,#7c3aed,#6366f1,#4f46e5)"
+                    : "linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.04))",
+                  cursor: "pointer", transition: "all .15s", textAlign: "left", position: "relative",
+                  boxShadow: p.badge
+                    ? "0 6px 0 #4338ca, 0 8px 24px rgba(99,102,241,0.4), inset 0 2px 0 rgba(255,255,255,0.2)"
+                    : "0 4px 0 rgba(255,255,255,.08), 0 6px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,.06)",
+                }}
+                onMouseDown={e => { e.currentTarget.style.transform = "translateY(3px)" }}
+                onMouseUp={e => { e.currentTarget.style.transform = "translateY(0)" }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)" }}
               >
                 {p.badge && (
                   <div style={{
                     position: "absolute", top: -10, right: 12,
-                    background: "linear-gradient(135deg,#a855f7,#7c3aed)",
+                    background: "linear-gradient(135deg,#f59e0b,#d97706)",
                     color: "#fff", fontSize: 10, fontWeight: 800, padding: "4px 10px",
-                    borderRadius: 8, letterSpacing: 0.5
+                    borderRadius: 8, letterSpacing: 0.5,
+                    boxShadow: "0 2px 8px rgba(245,158,11,0.4)"
                   }}>
                     {p.badge}
                   </div>
@@ -120,14 +126,14 @@ export default function PaywallModal({ open, onClose, userId }: Props) {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>{p.label}</div>
-                    <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2 }}>{p.days}</div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>{p.days}</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: p.color }}>{p.price}</div>
-                    <div style={{ fontSize: 11, color: "#64748b" }}>ARS</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: p.badge ? "#fbbf24" : "#a5b4fc" }}>{p.price}</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>ARS</div>
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
 
             <button
@@ -159,52 +165,61 @@ export default function PaywallModal({ open, onClose, userId }: Props) {
               <div style={{ fontSize: 12, color: "#94a3b8" }}>{currentPlan.days}</div>
             </div>
 
-            {/* Card option */}
-            <div
-              style={{
-                border: "2px solid rgba(99,102,241,.4)", borderRadius: 16, padding: 16, marginBottom: 10,
-                background: "linear-gradient(135deg,rgba(99,102,241,.1),rgba(139,92,246,.08))",
-                cursor: "pointer", transition: "all .2s",
-                opacity: loading ? 0.5 : 1, position: "relative",
-              }}
+            {/* Card option — primary 3D button */}
+            <button
+              disabled={!!loading}
               onClick={() => handleCardPay(currentPlan.key)}
+              style={{
+                width: "100%", border: "none", borderRadius: 16, padding: "18px 16px", marginBottom: 12,
+                background: "linear-gradient(135deg,#6366f1,#8b5cf6,#a855f7)",
+                cursor: loading ? "wait" : "pointer", transition: "all .15s", position: "relative",
+                opacity: loading ? 0.6 : 1,
+                boxShadow: "0 6px 0 #4338ca, 0 8px 24px rgba(99,102,241,0.4), inset 0 2px 0 rgba(255,255,255,0.2)",
+                transform: loading ? "none" : "translateY(0)",
+              }}
+              onMouseDown={e => { if (!loading) (e.currentTarget.style.transform = "translateY(3px)") }}
+              onMouseUp={e => { (e.currentTarget.style.transform = "translateY(0)") }}
+              onMouseLeave={e => { (e.currentTarget.style.transform = "translateY(0)") }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ fontSize: 28 }}>💳</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>Tarjeta de crédito o débito</div>
-                  <div style={{ fontSize: 12, color: "#4ade80", marginTop: 2, fontWeight: 600 }}>✓ Activación inmediata</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "center" }}>
+                <div style={{ fontSize: 26 }}>💳</div>
+                <div style={{ textAlign: "left" }}>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: "#fff" }}>Tocá aquí para pagar con tarjeta</div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.8)", marginTop: 2, fontWeight: 600 }}>Crédito o débito · Activación inmediata</div>
                 </div>
-                <div style={{ fontSize: 18, color: "#64748b" }}>→</div>
               </div>
               {loading === currentPlan.key && (
                 <div style={{
                   position: "absolute", inset: 0, borderRadius: 16,
-                  background: "rgba(0,0,0,.6)", display: "flex",
+                  background: "rgba(0,0,0,.5)", display: "flex",
                   alignItems: "center", justifyContent: "center"
                 }}>
-                  <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>Procesando...</div>
+                  <div style={{ color: "#fff", fontSize: 13, fontWeight: 700 }}>Procesando...</div>
                 </div>
               )}
-            </div>
+            </button>
 
-            {/* Alias option */}
-            <div
-              style={{
-                border: "1px solid rgba(255,255,255,.1)", borderRadius: 16, padding: 16, marginBottom: 16,
-                background: "rgba(255,255,255,.03)", cursor: "pointer", transition: "all .2s",
-              }}
+            {/* Transfer option — secondary 3D button */}
+            <button
               onClick={() => setStep("alias")}
+              style={{
+                width: "100%", border: "none", borderRadius: 16, padding: "18px 16px", marginBottom: 16,
+                background: "linear-gradient(135deg,#f59e0b,#d97706,#b45309)",
+                cursor: "pointer", transition: "all .15s",
+                boxShadow: "0 6px 0 #92400e, 0 8px 24px rgba(245,158,11,0.3), inset 0 2px 0 rgba(255,255,255,0.15)",
+              }}
+              onMouseDown={e => { e.currentTarget.style.transform = "translateY(3px)" }}
+              onMouseUp={e => { e.currentTarget.style.transform = "translateY(0)" }}
+              onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)" }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ fontSize: 28 }}>🏦</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#fff" }}>Transferencia</div>
-                  <div style={{ fontSize: 12, color: "#f59e0b", marginTop: 2, fontWeight: 600 }}>⏳ En 24hs</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "center" }}>
+                <div style={{ fontSize: 26 }}>🏦</div>
+                <div style={{ textAlign: "left" }}>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: "#fff" }}>Transferencia bancaria</div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.8)", marginTop: 2, fontWeight: 600 }}>Alias · Activación en 24hs</div>
                 </div>
-                <div style={{ fontSize: 18, color: "#64748b" }}>→</div>
               </div>
-            </div>
+            </button>
 
             {error && (
               <div style={{
@@ -280,25 +295,23 @@ export default function PaywallModal({ open, onClose, userId }: Props) {
               </div>
             </div>
 
-            <a
-              href={WA_LINK}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
               onClick={(e) => {
-                e.preventDefault()
                 copyAlias()
                 window.open(WA_LINK, "_blank")
               }}
               style={{
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                width: "100%", border: "none", borderRadius: 14, padding: "14px",
-                background: "linear-gradient(135deg,#25D366,#128C7E)", color: "#fff",
-                fontSize: 14, fontWeight: 800, cursor: "pointer", textDecoration: "none",
-                boxShadow: "0 6px 0 #075E54,0 8px 24px rgba(37,211,102,0.3)"
+                width: "100%", border: "none", borderRadius: 14, padding: "16px",
+                background: "linear-gradient(135deg,#25D366,#128C7E,#075E54)", color: "#fff",
+                fontSize: 15, fontWeight: 900, cursor: "pointer",
+                boxShadow: "0 6px 0 #064E3B, 0 8px 24px rgba(37,211,102,0.35), inset 0 2px 0 rgba(255,255,255,0.15)",
               }}
+              onMouseDown={e => { e.currentTarget.style.transform = "translateY(3px)" }}
+              onMouseUp={e => { e.currentTarget.style.transform = "translateY(0)" }}
+              onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)" }}
             >
               📲 Enviar comprobante por WhatsApp
-            </a>
+            </button>
 
             <div style={{ fontSize: 10, color: "#475569", textAlign: "center", marginTop: 12, lineHeight: 1.5 }}>
               La activación puede tardar hasta 24hs háiles tras confirmar el pago
