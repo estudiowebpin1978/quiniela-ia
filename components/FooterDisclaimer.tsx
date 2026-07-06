@@ -33,29 +33,24 @@ export default function FooterDisclaimer() {
           </a>
         </div>
 
-        <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6, marginBottom: 8, padding: "10px 12px", background: "rgba(99,102,241,0.06)", borderRadius: 8, border: "1px solid rgba(99,102,241,0.12)" }}>
-          <strong style={{ color: "#a5b4fc" }}>Herramienta de análisis estadístico.</strong> Los sorteos son eventos aleatorios e independientes. Los análisis muestran tendencias históricas que <strong>no garantizan resultados futuros</strong>. No vende boletos ni procesa apuestas.
-        </div>
+      <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.6, marginBottom: 8, padding: "10px 12px", background: "rgba(99,102,241,0.06)", borderRadius: 8, border: "1px solid rgba(99,102,241,0.12)" }}>
+        <strong style={{ color: "#a5b4fc" }}>Herramienta de análisis estadístico.</strong> Los sorteos son eventos aleatorios e independientes. Los análisis muestran tendencias históricas que <strong>no garantizan resultados futuros</strong>. No vende boletos ni procesa apuestas.
+      </div>
 
-        <div style={{ fontSize: 10, color: "#64748b", lineHeight: 1.5, marginBottom: 8 }}>
-          Al registrarte en esta plataforma, aceptás que el servicio es exclusivo para mayores de 18 años. Quiniela IA promueve el Juego Responsable. Si vos o alguien que conocés tiene problemas con las apuestas, recordá que la línea nacional <strong style={{ color: "#a5b4fc" }}>0800-666-6006</strong> ofrece orientación gratuita y confidencial las 24 horas en todo el territorio argentino.
-        </div>
+      <div style={{ fontSize: 10, color: "#64748b", lineHeight: 1.5, marginBottom: 8 }}>
+        Al registrarte en esta plataforma, aceptás que el servicio es exclusivo para mayores de 18 años. Quiniela IA promueve el Juego Responsable. Si vos o alguien que conocés tiene problemas con las apuestas, la línea nacional <strong style={{ color: "#a5b4fc" }}>0800-666-6006</strong> ofrece orientación gratuita y confidencial las 24 hs en todo el territorio argentino. Servicios gratuitos disponibles en <a href="https://saberjugar.gob.ar" target="_blank" rel="noopener noreferrer" style={{ color: "#6366f1", textDecoration: "none" }}>saberjugar.gob.ar</a>.
+      </div>
 
-        <div style={{ fontSize: 10, color: "#475569", marginBottom: 6 }}>
-          Servicios gratuitos, confidenciales y disponibles en toda la República Argentina. Para más información visitá{" "}
-          <a href="https://saberjugar.gob.ar" target="_blank" rel="noopener noreferrer" style={{ color: "#6366f1", textDecoration: "none" }}>saberjugar.gob.ar</a>
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 6, flexWrap: "wrap" }}>
-          <a href="/privacidad" style={{ fontSize: 9, color: "#6366f1", textDecoration: "none" }}>Privacidad</a>
-          <span style={{ fontSize: 9, color: "#334155" }}>·</span>
-          <a href="/terminos" style={{ fontSize: 9, color: "#6366f1", textDecoration: "none" }}>Términos</a>
-          <span style={{ fontSize: 9, color: "#334155" }}>·</span>
-          <a href="mailto:estudiowebpin@gmail.com" style={{ fontSize: 9, color: "#6366f1", textDecoration: "none" }}>Soporte</a>
-        </div>
-        <div style={{ fontSize: 8, color: "#334155", marginTop: 4 }}>
-          © {new Date().getFullYear()} Quiniela IA · Desarrollado por EstudioWebPin
-        </div>
+      <div style={{ display: "flex", justifyContent: "center", gap: 10, marginTop: 6, flexWrap: "wrap" }}>
+        <a href="/privacidad" style={{ fontSize: 9, color: "#6366f1", textDecoration: "none" }}>Privacidad</a>
+        <span style={{ fontSize: 9, color: "#334155" }}>·</span>
+        <a href="/terminos" style={{ fontSize: 9, color: "#6366f1", textDecoration: "none" }}>Términos</a>
+        <span style={{ fontSize: 9, color: "#334155" }}>·</span>
+        <a href="mailto:estudiowebpin@gmail.com" style={{ fontSize: 9, color: "#6366f1", textDecoration: "none" }}>Soporte</a>
+      </div>
+      <div style={{ fontSize: 8, color: "#334155", marginTop: 4 }}>
+        © {new Date().getFullYear()} Quiniela IA · Desarrollado por EstudioWebPin
+      </div>
       </div>
     </footer>
   )
