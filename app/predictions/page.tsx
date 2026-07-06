@@ -1954,7 +1954,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           </div>
           <div className="ft">
             <div className="dc">
-              Quiniela IA es una herramienta de análisis estadístico con fines de entretenimiento. No garantiza resultados. No vende boletos ni procesa apuestas. Línea de ayuda: <strong style={{color:"#94a3b8"}}>0800-333-0062</strong>. Solo mayores de 18 años.
+              Quiniela IA es una herramienta de análisis estadístico con fines de entretenimiento. No garantiza resultados. No vende boletos ni procesa apuestas. Línea de ayuda: <strong style={{color:"#a5b4fc"}}>0800-666-6006</strong>. Solo mayores de 18 años.
             </div>
             <div className="credit">
                © 2026 Quiniela IA · Desarrollado por <strong>EstudioWebPin</strong>

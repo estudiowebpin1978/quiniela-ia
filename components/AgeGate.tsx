@@ -55,8 +55,8 @@ export default function AgeGate() {
           No tengo 18 años
         </a>
         <div style={{ fontSize: 10, color: "#475569", marginTop: 16, lineHeight: 1.5 }}>
-          Si o alguien que conocés tiene problemas con los juegos de azar, comunicate al
-          <br /><strong style={{ color: "#ef4444" }}>0800-333-0062</strong> (Línea de Ayuda)
+          Si vos o alguien que conocés tiene problemas con las apuestas, recordá que la línea nacional
+          <br /><strong style={{ color: "#ef4444" }}>0800-666-6006</strong> ofrece orientación gratuita y confidencial las 24 horas.
         </div>
       </div>
     </div>

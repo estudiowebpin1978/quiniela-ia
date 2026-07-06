@@ -329,7 +329,7 @@ export default function Home() {
       </div>
 
       <div className="footer-link">
-        Solo mayores de 18 años. Línea de ayuda: <strong>0800-333-0062</strong>
+        Solo mayores de 18 años. Línea de ayuda: <strong>0800-666-6006</strong>
       </div>
       <div className="credit">© 2026 Quiniela IA · Desarrollado por EstudioWebPin</div>
     </div>
