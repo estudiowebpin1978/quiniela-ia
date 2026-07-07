@@ -1,42 +1,34 @@
-/**
- * Auto-verification system.
- * After each scrape, automatically verifies pending predictions against actual results.
- * Stores results in Supabase prediction_history table.
- */
-
 import { createClient } from "@supabase/supabase-js"
 
 const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
 
-interface PredictionToVerify {
-  id: string
-  user_id: string
-  fecha: string
-  turno: string
+interface ParsedNumeros {
   numeros_2: string[]
-  numeros_3?: string[]
-  numeros_4?: string[]
-  verified?: boolean
+  numeros_3: string[]
+  numeros_4: string[]
 }
 
-interface VerificationResult {
-  id: string
-  fecha: string
-  turno: string
-  aciertos_2: { numero: string; puesto: number }[]
-  aciertos_3: { numero: string; puesto: number }[]
-  aciertos_4: { numero: string; puesto: number }[]
-  total_aciertos: number
-  resultado_oficial: number[]
+function parseNumeros(numeros: any): ParsedNumeros {
+  let data = numeros
+  if (Array.isArray(data) && data.length === 1 && typeof data[0] === "string") {
+    try { data = JSON.parse(data[0]) } catch {}
+  }
+  if (Array.isArray(data)) {
+    return { numeros_2: data, numeros_3: [], numeros_4: [] }
+  }
+  return {
+    numeros_2: data?.["2"] || [],
+    numeros_3: data?.["3"] || [],
+    numeros_4: data?.["4"] || [],
+  }
 }
 
-export async function autoVerifyPredictions(fecha: string, turno: string): Promise<VerificationResult[]> {
+export async function autoVerifyPredictions(fecha: string, turno: string): Promise<any[]> {
   if (!SB_URL || !SK_KEY) return []
 
   const supabase = createClient(SB_URL, SK_KEY)
 
-  // 1. Get actual draw numbers
   const { data: draw } = await supabase
     .from("draws")
     .select("numbers")
@@ -50,48 +42,60 @@ export async function autoVerifyPredictions(fecha: string, turno: string): Promi
   const nums3 = draw.numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
   const nums4 = draw.numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
 
-  // 2. Get unverified predictions for this turno+fecha
   const { data: predictions } = await supabase
-    .from("prediction_history")
-    .select("*")
-    .eq("fecha", fecha)
+    .from("user_predictions")
+    .select("id, user_id, date, turno, numeros")
+    .eq("date", fecha)
     .eq("turno", turno)
-    .eq("verified", false)
 
   if (!predictions?.length) return []
 
-  const results: VerificationResult[] = []
+  const predIds = predictions.map(p => p.id).filter(Boolean)
+  const { data: existing } = await supabase
+    .from("prediction_history")
+    .select("prediction_id")
+    .in("prediction_id", predIds)
+
+  const verifiedSet = new Set((existing || []).map(e => e.prediction_id))
+
+  const results: any[] = []
 
   for (const pred of predictions) {
-    const aciertos2 = (pred.numeros_2 || [])
+    if (verifiedSet.has(pred.id)) continue
+
+    const { numeros_2, numeros_3, numeros_4 } = parseNumeros(pred.numeros)
+
+    const aciertos2 = numeros_2
       .filter((n: string) => nums2.includes(n))
       .map((n: string) => ({ numero: n, puesto: nums2.indexOf(n) + 1 }))
 
-    const aciertos3 = (pred.numeros_3 || [])
+    const aciertos3 = numeros_3
       .filter((n: string) => nums3.includes(n))
       .map((n: string) => ({ numero: n, puesto: nums3.indexOf(n) + 1 }))
 
-    const aciertos4 = (pred.numeros_4 || [])
+    const aciertos4 = numeros_4
       .filter((n: string) => nums4.includes(n))
       .map((n: string) => ({ numero: n, puesto: nums4.indexOf(n) + 1 }))
 
     const totalAciertos = aciertos2.length + aciertos3.length + aciertos4.length
 
-    // 3. Update prediction with results
-    await supabase
-      .from("prediction_history")
-      .update({
-        verified: true,
-        verified_at: new Date().toISOString(),
-        aciertos_2: aciertos2,
-        aciertos_3: aciertos3,
-        aciertos_4: aciertos4,
-        total_aciertos: totalAciertos,
-        resultado_oficial: draw.numbers,
-      })
-      .eq("id", pred.id)
+    await supabase.from("prediction_history").insert({
+      prediction_id: pred.id,
+      user_id: pred.user_id,
+      fecha: pred.date,
+      turno: pred.turno,
+      numeros_2,
+      numeros_3,
+      numeros_4,
+      resultado_oficial: draw.numbers,
+      aciertos_2: aciertos2,
+      aciertos_3: aciertos3,
+      aciertos_4: aciertos4,
+      total_aciertos: totalAciertos,
+      verified: true,
+      verified_at: new Date().toISOString(),
+    })
 
-    // 4. Update user stats
     if (pred.user_id) {
       const { data: existing } = await supabase
         .from("user_stats")

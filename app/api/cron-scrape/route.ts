@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { esDiaSinSorteo, esFeriado } from "@/lib/feriados"
+import { autoVerifyPredictions } from "@/lib/verificacion/auto-verify"
 import logger from "@/lib/logger"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
@@ -202,6 +203,9 @@ export async function GET(req: NextRequest) {
           guardados++
           resultados[turno] = nums
           logger.info("cron-scrape: guardado", { fecha: fechaISO, turno, cantidad: nums.length, source })
+          autoVerifyPredictions(fechaISO, turno).catch(e => {
+            logger.error("cron-scrape: error auto-verify", { fecha: fechaISO, turno, error: String(e) })
+          })
         } else {
           logger.warn("cron-scrape: fallo al guardar", { fecha: fechaISO, turno })
           errores++
