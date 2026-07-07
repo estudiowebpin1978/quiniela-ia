@@ -1,0 +1,20 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "logs\\.debfaa71c535aebd2e6db87b6da773a485a16d12-audit.json",
+    "files": [
+        {
+            "date": 1783352614780,
+            "name": "logs\\quiniela-ia-2026-07-06.log",
+            "hash": "cd8aeaab0151c05327974c9dd7fe67cf3124db33c9957c43a93ff7c8f0d01b3f"
+        },
+        {
+            "date": 1783396919311,
+            "name": "logs\\quiniela-ia-2026-07-07.log",
+            "hash": "be8576c9311284ec28fd6a064747e05c9fe88734e40d1ac97309d9e795158c98"
+        }
+    ],
+    "hashType": "sha256"
+}

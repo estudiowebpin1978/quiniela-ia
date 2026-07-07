@@ -34,7 +34,16 @@ export default function AdminPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [pending, setPending] = useState<PendingRequest[]>([])
   const [quickEmail, setQuickEmail] = useState("")
-  const [tab, setTab] = useState<"dashboard" | "users" | "pending" | "scraper">("dashboard")
+  const [tab, setTab] = useState<"dashboard" | "users" | "pending" | "scraper" | "ml" | "verificar" | "push">("dashboard")
+  const [mlData, setMlData] = useState<any>(null)
+  const [mlLoading, setMlLoading] = useState(false)
+  const [verifStats, setVerifStats] = useState<any>(null)
+  const [verifLoading, setVerifLoading] = useState(false)
+  const [pushCount, setPushCount] = useState(0)
+  const [pushMsg, setPushMsg] = useState("")
+  const [pushTitle, setPushTitle] = useState("Quiniela IA")
+  const [pushBody, setPushBody] = useState("")
+  const [pushBusy, setPushBusy] = useState(false)
 
   useEffect(() => {
     const raw = localStorage.getItem("quiniela-ia-auth")
@@ -45,6 +54,9 @@ export default function AdminPage() {
       setToken(s.access_token)
       load(s.access_token)
       loadPending()
+      loadMlMetrics(s.access_token)
+      loadVerifStats(s.access_token)
+      loadPushCount(s.access_token)
     } catch { window.location.href = "/login" }
   }, [])
 
@@ -69,6 +81,61 @@ export default function AdminPage() {
       if (!r.ok) { setErr(r.status === 401 ? "No tenes permisos de admin" : d.error); setLoading(false); return }
       setUsers(d.users || [])
     } catch (e: any) { setErr(e.message) } finally { setLoading(false) }
+  }
+
+  async function loadMlMetrics(tk: string) {
+    setMlLoading(true)
+    try {
+      const r = await fetch("/api/motor-metrics", { headers: { Authorization: "Bearer " + tk } })
+      const d = await r.json()
+      if (d.ok) setMlData(d)
+    } catch {} finally { setMlLoading(false) }
+  }
+
+  async function loadVerifStats(tk: string) {
+    setVerifLoading(true)
+    try {
+      const r = await fetch("/api/verificar-auto", { headers: { Authorization: "Bearer " + tk } })
+      const d = await r.json()
+      if (d.ok) setVerifStats(d.stats)
+    } catch {} finally { setVerifLoading(false) }
+  }
+
+  async function loadPushCount(tk: string) {
+    try {
+      const r = await fetch("/api/push/send", { headers: { Authorization: "Bearer " + tk } })
+      const d = await r.json()
+      if (d.ok) setPushCount(d.subscribers)
+    } catch {}
+  }
+
+  async function sendPush() {
+    if (!pushBody || !token) return
+    setPushBusy(true); setPushMsg(""); setErr("")
+    try {
+      const r = await fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ title: pushTitle, body: pushBody })
+      })
+      const d = await r.json()
+      if (d.ok) setPushMsg(`Enviado a ${d.sent} usuarios (${d.failed} fallos)`)
+      else setErr(d.error)
+    } catch (e: any) { setErr(e.message) } finally { setPushBusy(false) }
+  }
+
+  async function runAutoVerify(fecha: string, turno: string) {
+    setVerifLoading(true); setMsg(""); setErr("")
+    try {
+      const r = await fetch("/api/verificar-auto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ fecha, turno })
+      })
+      const d = await r.json()
+      if (d.ok) setMsg(`Verificadas ${d.verified} predicciones para ${turno} del ${fecha}`)
+      else setErr(d.error)
+    } catch (e: any) { setErr(e.message) } finally { setVerifLoading(false) }
   }
 
   async function activatePremium(userId: string, email: string, days: number, plan: string) {
@@ -227,6 +294,9 @@ export default function AdminPage() {
           <button className={"tab" + (tab === "pending" ? " active" : "")} onClick={() => setTab("pending")}>⏳ Pagos {pending.length > 0 && `(${pending.length})`}</button>
           <button className={"tab" + (tab === "users" ? " active" : "")} onClick={() => setTab("users")}>👥 Usuarios</button>
           <button className={"tab" + (tab === "scraper" ? " active" : "")} onClick={() => setTab("scraper")}>🔄 Scraper</button>
+          <button className={"tab" + (tab === "ml" ? " active" : "")} onClick={() => setTab("ml")}>🧠 ML Metrics</button>
+          <button className={"tab" + (tab === "verificar" ? " active" : "")} onClick={() => setTab("verificar")}>✅ Verificar</button>
+          <button className={"tab" + (tab === "push" ? " active" : "")} onClick={() => setTab("push")}>🔔 Push {pushCount > 0 && `(${pushCount})`}</button>
         </div>
 
         {tab === "dashboard" && (
@@ -414,6 +484,137 @@ export default function AdminPage() {
 
         {tab === "scraper" && (
           <ScraperSection token={token} />
+        )}
+
+        {tab === "ml" && (
+          <div className="sec">
+            <div className="st">🧠 Métricas de Motores ML</div>
+            {mlLoading ? (
+              <div style={{ textAlign: "center", padding: 30, color: "#64748b" }}><span className="sp" /> Cargando métricas...</div>
+            ) : !mlData ? (
+              <div style={{ textAlign: "center", padding: 30, color: "#475569" }}>No hay datos disponibles</div>
+            ) : (
+              <>
+                <div className="sg" style={{ marginBottom: 16 }}>
+                  <div className="sc"><div className="sv">{mlData.summary?.totalEngines || 0}</div><div className="sl">Total Motores</div></div>
+                  <div className="sc"><div className="sv g">{mlData.summary?.activeEngines || 0}</div><div className="sl">Activos</div></div>
+                  <div className="sc"><div className="sv b">{mlData.summary?.avgAccuracy || 0}%</div><div className="sl">Accuracy Prom.</div></div>
+                  <div className="sc"><div className="sv r">{mlData.summary?.weakEngines || 0}</div><div className="sl">Débiles</div></div>
+                </div>
+                <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 12 }}>
+                  Top motor: <strong style={{ color: "#86efac" }}>{mlData.summary?.topEngine}</strong> · Últimos {mlData.days} días
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,.1)", color: "#94a3b8" }}>
+                        <th style={{ padding: "8px 6px", textAlign: "left" }}>#</th>
+                        <th style={{ padding: "8px 6px", textAlign: "left" }}>Motor</th>
+                        <th style={{ padding: "8px 6px", textAlign: "right" }}>Accuracy</th>
+                        <th style={{ padding: "8px 6px", textAlign: "center" }}>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(mlData.rankedEngines || []).map((e: any) => (
+                        <tr key={e.motor} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
+                          <td style={{ padding: "8px 6px", color: "#64748b" }}>{e.rank}</td>
+                          <td style={{ padding: "8px 6px", fontWeight: 600 }}>{e.motor}</td>
+                          <td style={{ padding: "8px 6px", textAlign: "right", fontFamily: "monospace" }}>{e.accuracy}%</td>
+                          <td style={{ padding: "8px 6px", textAlign: "center" }}>
+                            <span className={`badge ${e.status === "excellent" ? "badge-g" : e.status === "good" ? "badge-y" : e.status === "fair" ? "badge-o" : "badge-r"}`}>
+                              {e.status === "excellent" ? "EXCELENTE" : e.status === "good" ? "BUENO" : e.status === "fair" ? "REGULAR" : "DÉBIL"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <button className="btn btn-o" style={{ marginTop: 12 }} onClick={() => loadMlMetrics(token)}>↻ Actualizar</button>
+              </>
+            )}
+          </div>
+        )}
+
+        {tab === "verificar" && (
+          <div className="sec">
+            <div className="st">✅ Verificación de Predicciones</div>
+            {verifLoading ? (
+              <div style={{ textAlign: "center", padding: 30, color: "#64748b" }}><span className="sp" /> Cargando...</div>
+            ) : verifStats ? (
+              <>
+                <div className="sg">
+                  <div className="sc"><div className="sv">{verifStats.totalPredictions}</div><div className="sl">Predicciones</div></div>
+                  <div className="sc"><div className="sv g">{verifStats.hitRate2}%</div><div className="sl">Hit Rate 2 cifras</div></div>
+                  <div className="sc"><div className="sv b">{verifStats.bestStreak}</div><div className="sl">Mejor Racha</div></div>
+                  <div className="sc"><div className="sv r">{verifStats.currentStreak}</div><div className="sl">Racha Actual</div></div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 16 }}>
+                  <div className="card" style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: "#86efac" }}>{verifStats.totalHits2}</div>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>Aciertos 2 cifras</div>
+                  </div>
+                  <div className="card" style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: "#60a5fa" }}>{verifStats.totalHits3}</div>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>Aciertos 3 cifras</div>
+                  </div>
+                  <div className="card" style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: "#c4b5fd" }}>{verifStats.totalHits4}</div>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>Aciertos 4 cifras</div>
+                  </div>
+                </div>
+                {Object.keys(verifStats.byTurno || {}).length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Por Turno:</div>
+                    {Object.entries(verifStats.byTurno).map(([t, v]: [string, any]) => (
+                      <div key={t} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,.04)", fontSize: 12 }}>
+                        <span style={{ textTransform: "capitalize" }}>{t}</span>
+                        <span style={{ color: "#94a3b8" }}>{v.preds} preds · {v.hits} hits</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button className="btn btn-o" style={{ marginTop: 12 }} onClick={() => loadVerifStats(token)}>↻ Actualizar</button>
+              </>
+            ) : (
+              <div style={{ textAlign: "center", padding: 30, color: "#475569" }}>No hay estadísticas de verificación</div>
+            )}
+            <div style={{ marginTop: 16, borderTop: "1px solid rgba(255,255,255,.06)", paddingTop: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Verificar Manualmente:</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"].map(t => (
+                  <button key={t} className="btn btn-o" disabled={verifLoading} onClick={() => runAutoVerify(new Date().toISOString().split("T")[0], t)}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === "push" && (
+          <div className="sec">
+            <div className="st">🔔 Notificaciones Push</div>
+            <div className="sg" style={{ marginBottom: 16 }}>
+              <div className="sc"><div className="sv">{pushCount}</div><div className="sl">Suscriptores</div></div>
+              <div className="sc"><div className="sv g">Activo</div><div className="sl">Estado SW</div></div>
+            </div>
+            {pushMsg && <div className="msg">{pushMsg}</div>}
+            {err && <div className="err">{err}</div>}
+            <div style={{ marginBottom: 16 }}>
+              <input className="input" placeholder="Título de la notificación..." value={pushTitle} onChange={e => setPushTitle(e.target.value)} style={{ marginBottom: 8 }} />
+              <textarea className="input" placeholder="Escribí el mensaje de la notificación..." value={pushBody} onChange={e => setPushBody(e.target.value)} rows={3} style={{ resize: "vertical" }} />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-g" onClick={sendPush} disabled={pushBusy || !pushBody}>
+                {pushBusy ? <span className="sp" /> : "📤 Enviar a todos"}
+              </button>
+              <button className="btn btn-o" onClick={() => loadPushCount(token)}>↻ Actualizar</button>
+            </div>
+            <div style={{ fontSize: 11, color: "#475569", marginTop: 12 }}>
+              Enviar notificación push a todos los suscriptores. Las notificaciones se envían cuando hay nuevos resultados de sorteos.
+            </div>
+          </div>
         )}
       </div>
     </div>

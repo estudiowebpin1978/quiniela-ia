@@ -1,89 +1,80 @@
-const CACHE_NAME = "quiniela-ia-v1"
-const PRECACHE = [
-  "/",
-  "/predictions",
-  "/login",
-  "/icon-192.png",
-  "/icon-512.png",
-  "/favicon.png"
-]
+// Quiniela IA - Service Worker for Push Notifications
+const CACHE_NAME = "quiniela-v1"
+const OFFLINE_URL = "/offline.html"
 
-self.addEventListener("install", e => {
-  e.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(c => c.addAll(PRECACHE))
-      .then(() => self.skipWaiting())
-  )
+self.addEventListener("install", (event) => {
+  self.skipWaiting()
 })
 
-self.addEventListener("activate", e => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    ).then(() => clients.claim())
-  )
+self.addEventListener("activate", (event) => {
+  event.waitUntil(clients.claim())
 })
 
-self.addEventListener("fetch", e => {
-  if (e.request.method !== "GET") return
-  if (e.request.url.includes("/api/")) {
-    e.respondWith(
-      fetch(e.request).catch(() =>
-        new Response(JSON.stringify({ error: "Sin conexión" }), {
-          headers: { "Content-Type": "application/json" }
-        })
-      )
-    )
-    return
+self.addEventListener("push", (event) => {
+  let data = { title: "Quiniela IA", body: "Nuevo resultado disponible", url: "/predictions" }
+
+  try {
+    if (event.data) {
+      const payload = event.data.json()
+      data = { ...data, ...payload }
+    }
+  } catch {}
+
+  const options = {
+    body: data.body,
+    icon: data.icon || "/icon-192.png",
+    badge: data.badge || "/badge-72.png",
+    vibrate: [200, 100, 200],
+    tag: "quiniela-notification",
+    renotify: true,
+    data: { url: data.url || "/predictions", ...data.data },
+    actions: [
+      { action: "open", title: "Ver resultados", icon: "/icon-192.png" },
+      { action: "dismiss", title: "Cerrar", icon: "/icon-192.png" },
+    ],
   }
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) {
-        fetch(e.request).then(resp => {
-          if (resp && resp.status === 200) {
-            caches.open(CACHE_NAME).then(c => c.put(e.request, resp))
-          }
-        }).catch(() => {})
-        return cached
-      }
-      return fetch(e.request).then(resp => {
-        if (!resp || resp.status !== 200) return resp
-        const clone = resp.clone()
-        caches.open(CACHE_NAME).then(c => c.put(e.request, clone))
-        return resp
-      }).catch(() => {
-        if (e.request.destination === "document") {
-          return caches.match("/")
-        }
-        return new Response("", { status: 503 })
-      })
-    })
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
   )
 })
 
-self.addEventListener("push", function(e) {
-  let data = {}
-  try { data = e.data ? e.data.json() : {} } catch {}
-  e.waitUntil(
-    self.registration.showNotification(data.title || "Quiniela IA", {
-      body: data.body || "Nuevos análisis disponibles",
-      icon: "/icon-192.png",
-      badge: "/icon-192.png",
-      vibrate: [200, 100, 200],
-      data: { url: data.url || "/predictions" },
-      requireInteraction: true
-    })
-  )
-})
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close()
 
-self.addEventListener("notificationclick", function(e) {
-  e.notification.close()
-  e.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then(function(clientList) {
+  if (event.action === "dismiss") return
+
+  const url = event.notification.data?.url || "/predictions"
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if (client.url.includes("/predictions") && "focus" in client) return client.focus()
+        if (client.url.includes(self.location.origin) && "focus" in client) {
+          client.navigate(url)
+          return client.focus()
+        }
       }
-      return clients.openWindow(e.notification.data.url || "/predictions")
+      return clients.openWindow(url)
+    })
+  )
+})
+
+self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return
+
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      return cached || fetch(event.request).then((response) => {
+        if (response.status === 200) {
+          const clone = response.clone()
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
+        }
+        return response
+      }).catch(() => {
+        if (event.request.destination === "document") {
+          return caches.match(OFFLINE_URL)
+        }
+      })
     })
   )
 })
