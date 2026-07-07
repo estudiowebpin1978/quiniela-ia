@@ -1714,9 +1714,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                                 );
                               })}
                             </div>
-                            {p.resultado_3?.length > 0 && (
-                              <div style={{fontSize:9,color:"#64748b",marginTop:4}}>Oficiales 3 cifras: {p.resultado_3.join(", ")}</div>
-                            )}
                           </div>
                         )}
                         {(pr || userRole === "admin") && p.numeros_4?.length > 0 && (
@@ -1733,53 +1730,50 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                                 );
                               })}
                             </div>
-                            {p.resultado_4?.length > 0 && (
-                              <div style={{fontSize:9,color:"#64748b",marginTop:4}}>Oficiales 4 cifras: {p.resultado_4.join(", ")}</div>
-                            )}
                           </div>
                         )}
-                        {p.resultado && p.resultado.length > 0 && (
+                        {p.resultado_original && p.resultado_original.length > 0 && (
                           <div className="saved-results" style={{marginTop:8}}>
-                            <div style={{fontSize:10,color:"#64748b",marginBottom:4}}>RESULTADOS OFICIALES ({p.resultado.length} números):</div>
-                            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                              {p.resultado.map((n:string,idx:number) => {
-                                const acertado = p.aciertos?.some((a:any) => a.numero === n);
+                            <div style={{fontSize:10,color:"#64748b",marginBottom:4}}>RESULTADOS OFICIALES ({p.resultado_original.length} números):</div>
+                            <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+                              {p.resultado_original.map((n:any,idx:number) => {
+                                const n4 = String(Number(n) % 10000).padStart(4, "0")
+                                const n3 = String(Number(n) % 1000).padStart(3, "0")
+                                const n2 = String(Number(n) % 100).padStart(2, "0")
+                                const hit4 = p.aciertos_4?.some((a:any) => a.numero === n4)
+                                const hit3 = p.aciertos_3?.some((a:any) => a.numero === n3)
+                                const hit2 = p.aciertos_2?.some((a:any) => a.numero === n2)
+                                const isHit = hit4 || hit3 || hit2
+                                const hitType = hit4 ? "4" : hit3 ? "3" : hit2 ? "2" : null
                                 return (
                                   <span key={idx} style={{
-                                    padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:700,
-                                    background: acertado ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.05)",
-                                    color: acertado ? "#22c55e" : "#94a3b8",
-                                    border: acertado ? "1px solid rgba(34,197,94,0.4)" : "1px solid rgba(255,255,255,0.1)"
+                                    padding:"4px 7px",borderRadius:6,fontSize:11,fontWeight:700,
+                                    background: isHit
+                                      ? hitType === "4" ? "rgba(34,197,94,0.25)"
+                                      : hitType === "3" ? "rgba(96,165,250,0.2)"
+                                      : "rgba(168,85,247,0.2)"
+                                      : "rgba(255,255,255,0.05)",
+                                    color: isHit
+                                      ? hitType === "4" ? "#22c55e"
+                                      : hitType === "3" ? "#60a5fa"
+                                      : "#c4b5fd"
+                                      : "#64748b",
+                                    border: isHit
+                                      ? hitType === "4" ? "1px solid rgba(34,197,94,0.5)"
+                                      : hitType === "3" ? "1px solid rgba(96,165,250,0.4)"
+                                      : "1px solid rgba(168,85,247,0.4)"
+                                      : "1px solid rgba(255,255,255,0.08)"
                                   }}>
-                                    {n}
+                                    {n4}
                                   </span>
                                 );
                               })}
                             </div>
-                            {p.resultado_original && p.resultado_original.length > 0 && (
-                              <div style={{marginTop:6}}>
-                                <div style={{fontSize:9,color:"#475569",marginBottom:3}}>4 CIFRAS OFICIALES:</div>
-                                <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
-                                  {p.resultado_original.map((n:any,idx:number) => {
-                                    const n4 = String(Number(n) % 10000).padStart(4, "0")
-                                    const n2 = String(Number(n) % 100).padStart(2, "0")
-                                    const acertado4 = p.aciertos_4?.some((a:any) => a.numero === n4)
-                                    const acertado2 = p.aciertos_2?.some((a:any) => a.numero === n2)
-                                    const isHit = acertado4 || acertado2
-                                    return (
-                                      <span key={idx} style={{
-                                        padding:"3px 6px",borderRadius:5,fontSize:10,fontWeight:600,
-                                        background: isHit ? "rgba(34,197,94,0.2)" : "rgba(168,85,247,0.08)",
-                                        color: isHit ? "#22c55e" : "#94a3b8",
-                                        border: isHit ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(168,85,247,0.15)"
-                                      }}>
-                                        {n4}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
+                            <div style={{display:"flex",gap:10,marginTop:6,fontSize:9,color:"#64748b"}}>
+                              <span><span style={{color:"#c4b5fd"}}>●</span> 2 cifras</span>
+                              <span><span style={{color:"#60a5fa"}}>●</span> 3 cifras</span>
+                              <span><span style={{color:"#22c55e"}}>●</span> 4 cifras</span>
+                            </div>
                           </div>
                         )}
                         {p.aciertos?.length > 0 && (
@@ -1787,6 +1781,24 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                             {p.aciertos.map((a: any) => (
                               <div key={a.numero} style={{color:"#22c55e",fontSize:11}}>
                                 🎉 {a.numero} → Puesto {a.puesto}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {p.aciertos_3?.length > 0 && (
+                          <div className="saved-results">
+                            {p.aciertos_3.map((a: any) => (
+                              <div key={a.numero} style={{color:"#60a5fa",fontSize:11}}>
+                                🎯 {a.numero} (3 cifras) → Puesto {a.puesto}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {p.aciertos_4?.length > 0 && (
+                          <div className="saved-results">
+                            {p.aciertos_4.map((a: any) => (
+                              <div key={a.numero} style={{color:"#22c55e",fontSize:11}}>
+                                💎 {a.numero} (4 cifras) → Puesto {a.puesto}
                               </div>
                             ))}
                           </div>
