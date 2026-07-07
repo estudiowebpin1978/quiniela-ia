@@ -1,38 +1,31 @@
-import winston from "winston";
-import DailyRotateFile from "winston-daily-rotate-file";
+const LOG_LEVELS = { error: 0, warn: 1, info: 2, debug: 3 } as const
+type Level = keyof typeof LOG_LEVELS
 
-const logFormat = winston.format.combine(
-  winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
-  winston.format.errors({ stack: true }),
-  winston.format.splat(),
-  winston.format.json()
-);
+const currentLevel: Level = (process.env.LOG_LEVEL as Level) || "info"
 
-const fileTransport = new DailyRotateFile({
-  filename: "logs/quiniela-ia-%DATE%.log",
-  datePattern: "YYYY-MM-DD",
-  zippedArchive: true,
-  maxSize: "20m",
-  maxFiles: "14d",
-});
+function shouldLog(level: Level): boolean {
+  return (LOG_LEVELS[level] ?? 2) <= (LOG_LEVELS[currentLevel] ?? 2)
+}
 
-const consoleTransport = new winston.transports.Console({
-  format: winston.format.combine(
-    winston.format.colorize(),
-    winston.format.printf(
-      ({ timestamp, level, message, ...meta }) => {
-        const msg = `${timestamp} [${level}]: ${message}`;
-        return Object.keys(meta).length ? `${msg} ${JSON.stringify(meta)}` : msg;
-      }
-    )
-  ),
-});
+function formatMsg(level: Level, msg: string, meta?: Record<string, any>): string {
+  const ts = new Date().toISOString()
+  const metaStr = meta ? " " + JSON.stringify(meta) : ""
+  return `${ts} [${level.toUpperCase()}]: ${msg}${metaStr}`
+}
 
-const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || "info",
-  format: logFormat,
-  transports: [fileTransport, consoleTransport],
-  exitOnError: false,
-});
+const logger = {
+  error(msg: string, meta?: Record<string, any>) {
+    if (shouldLog("error")) console.error(formatMsg("error", msg, meta))
+  },
+  warn(msg: string, meta?: Record<string, any>) {
+    if (shouldLog("warn")) console.warn(formatMsg("warn", msg, meta))
+  },
+  info(msg: string, meta?: Record<string, any>) {
+    if (shouldLog("info")) console.log(formatMsg("info", msg, meta))
+  },
+  debug(msg: string, meta?: Record<string, any>) {
+    if (shouldLog("debug")) console.log(formatMsg("debug", msg, meta))
+  },
+}
 
-export default logger;
+export default logger
