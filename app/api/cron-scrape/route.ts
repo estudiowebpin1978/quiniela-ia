@@ -236,6 +236,16 @@ export async function GET(req: NextRequest) {
     import("@/lib/ml/auto-train").then(m => m.autoTrainAll()).catch((e) => {
       logger.error("cron-scrape: error en auto-train", { error: String(e) })
     })
+
+    // Trigger ML training cron (async, fire-and-forget)
+    const cronUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-ml-training`
+    fetch(cronUrl, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${process.env.CRON_SECRET}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ trigger: "cron-scrape" }),
+    }).catch((e) => {
+      logger.warn("cron-scrape: failed to trigger cron-ml-training", { error: String(e) })
+    })
   }
 
   const duration = Date.now() - start

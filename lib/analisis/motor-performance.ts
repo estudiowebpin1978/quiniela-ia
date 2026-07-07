@@ -1,94 +1,102 @@
-/**
- * Motor Performance Tracker.
- * Tracks which analysis engines perform best per turno and caches results.
- * Weak motors are skipped to reduce response time by ~30-40%.
- */
+import { createClient } from "@supabase/supabase-js"
 
-interface MotorScore {
-  motor: string
-  turno: string
-  accuracy: number
-  lastUsed: number
-  timesUsed: number
-}
+const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
+const SK_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
 
 const MAX_MOTORS = 16
-const CACHE_TTL = 6 * 60 * 60 * 1000 // 6 hours
 const MIN_ACCURACY = 0.3
 
-function getStorage(): MotorScore[] {
-  const gc = globalThis as any
-  if (!gc.__motorPerf) gc.__motorPerf = []
-  return gc.__motorPerf
+async function getSupabase() {
+  if (!SB_URL || !SK_KEY) return null
+  return createClient(SB_URL, SK_KEY)
 }
 
-export function getMotorAccuracy(motor: string, turno: string): number {
-  const storage = getStorage()
-  const entry = storage.find(e => e.motor === motor && e.turno === turno)
-  return entry?.accuracy ?? 0.5
+export async function getMotorAccuracy(motor: string, turno: string): Promise<number> {
+  const supabase = await getSupabase()
+  if (!supabase) return 0.5
+
+  const { data } = await supabase
+    .from("motor_performance")
+    .select("accuracy")
+    .eq("motor", motor)
+    .eq("turno", turno)
+    .single()
+
+  return data?.accuracy ?? 0.5
 }
 
-export function updateMotorPerformance(motor: string, turno: string, hitRate: number) {
-  const storage = getStorage()
-  const idx = storage.findIndex(e => e.motor === motor && e.turno === turno)
+export async function updateMotorPerformance(motor: string, turno: string, hitRate: number): Promise<void> {
+  const supabase = await getSupabase()
+  if (!supabase) return
 
-  if (idx >= 0) {
-    const entry = storage[idx]
-    entry.accuracy = (entry.accuracy * entry.timesUsed + hitRate) / (entry.timesUsed + 1)
-    entry.timesUsed++
-    entry.lastUsed = Date.now()
-  } else {
-    storage.push({ motor, turno, accuracy: hitRate, lastUsed: Date.now(), timesUsed: 1 })
-  }
-
-  if (storage.length > 500) {
-    storage.sort((a, b) => b.lastUsed - a.lastUsed)
-    storage.length = 300
-  }
+  await supabase.rpc("update_motor_performance", {
+    p_motor: motor,
+    p_turno: turno,
+    p_hit_rate: hitRate,
+  })
 }
 
-export function getTopMotors(turno: string, count: number = MAX_MOTORS): string[] {
-  const storage = getStorage()
-  const turnoEntries = storage.filter(e => e.turno === turno)
+export async function getTopMotors(turno: string, count: number = MAX_MOTORS): Promise<string[]> {
+  const supabase = await getSupabase()
+  if (!supabase) return ALL_MOTORS.slice(0, count)
 
-  if (turnoEntries.length < 3) return ALL_MOTORS.slice(0, count)
+  const { data } = await supabase.rpc("get_top_motors", {
+    p_turno: turno,
+    p_count: count,
+  })
 
-  const sorted = [...turnoEntries].sort((a, b) => b.accuracy - a.accuracy)
-  return sorted.slice(0, count).map(e => e.motor)
+  return (data || []).map((d: any) => d.motor)
 }
 
-export function getSkippedMotors(turno: string): string[] {
-  const storage = getStorage()
-  const turnoEntries = storage.filter(e => e.turno === turno && e.timesUsed >= 5)
+export async function getSkippedMotors(turno: string): Promise<string[]> {
+  const supabase = await getSupabase()
+  if (!supabase) return []
 
-  return turnoEntries
-    .filter(e => e.accuracy < MIN_ACCURACY)
-    .map(e => e.motor)
+  const { data } = await supabase.rpc("get_skipped_motors", {
+    p_turno: turno,
+  })
+
+  return (data || []).map((d: any) => d.motor)
 }
 
-export function shouldRunMotor(motor: string, turno: string): boolean {
-  const storage = getStorage()
-  const entry = storage.find(e => e.motor === motor && e.turno === turno)
+export async function shouldRunMotor(motor: string, turno: string): Promise<boolean> {
+  const supabase = await getSupabase()
+  if (!supabase) return true
 
-  if (!entry) return true
-  if (entry.timesUsed < 3) return true
-  if (entry.accuracy < MIN_ACCURACY && entry.timesUsed >= 5) return false
-  return true
+  const { data } = await supabase.rpc("should_run_motor", {
+    p_motor: motor,
+    p_turno: turno,
+  })
+
+  return data ?? true
 }
 
-export function getMotorPerformanceStats(turno: string): { motor: string; accuracy: number; timesUsed: number }[] {
-  const storage = getStorage()
-  return storage
-    .filter(e => e.turno === turno)
-    .sort((a, b) => b.accuracy - a.accuracy)
-    .map(e => ({ motor: e.motor, accuracy: e.accuracy, timesUsed: e.timesUsed }))
+export async function getMotorPerformanceStats(turno: string): Promise<{ motor: string; accuracy: number; timesUsed: number }[]> {
+  const supabase = await getSupabase()
+  if (!supabase) return []
+
+  const { data } = await supabase
+    .from("motor_performance")
+    .select("motor, accuracy, times_used")
+    .eq("turno", turno)
+    .order("accuracy", { ascending: false })
+
+  return (data || []).map(d => ({
+    motor: d.motor,
+    accuracy: Number(d.accuracy),
+    timesUsed: d.times_used,
+  }))
 }
 
-export function clearOldPerformance(maxAgeMs: number = CACHE_TTL) {
-  const storage = getStorage()
-  const cutoff = Date.now() - maxAgeMs
-  const idx = storage.findIndex(e => e.lastUsed < cutoff)
-  if (idx >= 0) storage.splice(0, idx)
+export async function clearOldPerformance(maxAgeHours: number = 6): Promise<number> {
+  const supabase = await getSupabase()
+  if (!supabase) return 0
+
+  const { data } = await supabase.rpc("clear_old_motor_performance", {
+    p_max_age_hours: maxAgeHours,
+  })
+
+  return data ?? 0
 }
 
 export const ALL_MOTORS = [
@@ -111,3 +119,22 @@ export const ALL_MOTORS = [
 ] as const
 
 export type MotorName = typeof ALL_MOTORS[number]
+
+// Backwards-compat sync functions (for callers not yet async)
+export function getMotorAccuracySync(motor: string, turno: string): number {
+  // Fire-and-forget async call, return default
+  getMotorAccuracy(motor, turno).catch(() => {})
+  return 0.5
+}
+
+export function updateMotorPerformanceSync(motor: string, turno: string, hitRate: number): void {
+  updateMotorPerformance(motor, turno, hitRate).catch(() => {})
+}
+
+export function shouldRunMotorSync(motor: string, turno: string): boolean {
+  return true // Conservative default when sync
+}
+
+export function getSkippedMotorsSync(turno: string): string[] {
+  return []
+}

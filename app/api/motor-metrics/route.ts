@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
   const motorStats: Record<string, { motor: string; accuracy: number; timesUsed: number }[]> = {}
   for (const t of turnos) {
-    motorStats[t] = getMotorPerformanceStats(t)
+    motorStats[t] = await getMotorPerformanceStats(t)
   }
 
   // Fetch historical draws for accuracy calculation

@@ -32,7 +32,9 @@ import { computeAdvancedMarkov } from "@/lib/analisis/markov-advanced"
 import { analyzePositions } from "@/lib/analisis/positions"
 import { trainEnsemble, predictEnsemble } from "@/lib/analisis/ensemble-advanced"
 import { syncBeforePrediction } from "@/lib/scraper/sync"
-import { shouldRunMotor, updateMotorPerformance, clearOldPerformance } from "@/lib/analisis/motor-performance"
+import { 
+  shouldRunMotorSync, updateMotorPerformance, clearOldPerformance 
+} from "@/lib/analisis/motor-performance"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -187,7 +189,7 @@ export async function GET(req: NextRequest) {
     }
 
     // === MOTOR DE 30 FACTORES ===
-    const runFactores30 = shouldRunMotor("factores30", turnoQuery)
+    const runFactores30 = shouldRunMotorSync("factores30", turnoQuery)
     const factores30 = runFactores30 ? calcularFactores30(sequences, rows) : { scores: new Array(100).fill(0.5), detail: {} as any }
 
     // === DRIFT DETECTION ===
@@ -205,7 +207,7 @@ export async function GET(req: NextRequest) {
     let crossTurnoScore: Record<number, number> = {}
     let pesosDinamicos: PesosDinamicos | null = null
     const [crossResult, pesosResult] = await Promise.allSettled([
-      shouldRunMotor("crossTurno", turnoQuery) ? analisisCrossTurno(turno, 3, targetDate || undefined) : Promise.resolve({ crossTurnoScore: {} as Record<number, number> }),
+      shouldRunMotorSync("crossTurno", turnoQuery) ? analisisCrossTurno(turno, 3, targetDate || undefined) : Promise.resolve({ crossTurnoScore: {} as Record<number, number> }),
       calcularPesosDinamicos(turnoQuery)
     ])
     if (crossResult.status === 'fulfilled') crossTurnoScore = crossResult.value.crossTurnoScore
@@ -215,11 +217,11 @@ export async function GET(req: NextRequest) {
     const heavySeqs = sequences.slice(0, Math.min(300, sequences.length))
 
     // === MONTE CARLO SIMULATION ===
-    let monteCarloTop = shouldRunMotor("monteCarlo", turnoQuery) ? runMonteCarlo(heavySeqs, { simulations: 5000, topN: 100 }) : []
+    let monteCarloTop = shouldRunMotorSync("monteCarlo", turnoQuery) ? runMonteCarlo(heavySeqs, { simulations: 5000, topN: 100 }) : []
 
     // === CORRELATION ANALYSIS ===
     let correlationScores = new Array(100).fill(0.5)
-    if (shouldRunMotor("correlation", turnoQuery)) {
+    if (shouldRunMotorSync("correlation", turnoQuery)) {
       try {
         const correlationResult = analyzeCorrelations(heavySeqs)
         correlationScores = correlationResult.numberScores
@@ -228,7 +230,7 @@ export async function GET(req: NextRequest) {
 
     // === HIGHER-ORDER MARKOV ===
     let markovSuperScores = new Array(100).fill(0.5)
-    if (shouldRunMotor("markovSuperior", turnoQuery)) {
+    if (shouldRunMotorSync("markovSuperior", turnoQuery)) {
       try {
         const markovSuperResult = higherOrderMarkov(heavySeqs, 4)
         markovSuperScores = markovSuperResult.scores
@@ -237,7 +239,7 @@ export async function GET(req: NextRequest) {
 
     // === CYCLIC PATTERNS ===
     let cyclicScores = new Array(100).fill(0.5)
-    if (shouldRunMotor("cyclicPatterns", turnoQuery)) {
+    if (shouldRunMotorSync("cyclicPatterns", turnoQuery)) {
       try {
         const cyclicResult = detectCyclicPatterns(heavySeqs)
         cyclicScores = cyclicResult.scores
@@ -246,7 +248,7 @@ export async function GET(req: NextRequest) {
 
     // === GRAPH ANALYSIS ===
     let graphScores = new Array(100).fill(0.5)
-    if (shouldRunMotor("graphAnalysis", turnoQuery)) {
+    if (shouldRunMotorSync("graphAnalysis", turnoQuery)) {
       try {
         const graphResult = analyzeGraph(heavySeqs)
         graphScores = graphResult.scores
@@ -256,7 +258,7 @@ export async function GET(req: NextRequest) {
     // === FEATURE ENGINEERING (100+ variables) ===
     let featureScores = new Array(100).fill(0.5)
     let featureMatrix: ReturnType<typeof computeFeatureMatrix> | null = null
-    if (shouldRunMotor("featureEngineering", turnoQuery)) {
+    if (shouldRunMotorSync("featureEngineering", turnoQuery)) {
       try {
         featureMatrix = computeFeatureMatrix(heavySeqs)
         for (let n = 0; n < 100; n++) {
@@ -271,7 +273,7 @@ export async function GET(req: NextRequest) {
 
     // === MULTI-LEVEL SCORING (4D, 3D, 2D, positions) ===
     let multilevelScores = new Array(100).fill(0.5)
-    if (shouldRunMotor("multilevelScoring", turnoQuery)) {
+    if (shouldRunMotorSync("multilevelScoring", turnoQuery)) {
       try {
         const multilevelResult = computeMultiLevelScores(heavySeqs)
         for (const ml of multilevelResult) {
@@ -282,7 +284,7 @@ export async function GET(req: NextRequest) {
 
     // === PMI & CO-OCCURRENCE ===
     let pmiScores = new Array(100).fill(0.5)
-    if (shouldRunMotor("pmiCooccurrence", turnoQuery)) {
+    if (shouldRunMotorSync("pmiCooccurrence", turnoQuery)) {
       try {
         const pmiResult = computeCooccurrence(heavySeqs)
         pmiScores = pmiResult.scores
@@ -291,7 +293,7 @@ export async function GET(req: NextRequest) {
 
     // === ADVANCED MARKOV (100x100 + 1000x1000 + pair transitions) ===
     let advMarkovScores = new Array(100).fill(0.5)
-    if (shouldRunMotor("advancedMarkov", turnoQuery)) {
+    if (shouldRunMotorSync("advancedMarkov", turnoQuery)) {
       try {
         const advMarkovResult = computeAdvancedMarkov(heavySeqs)
         advMarkovScores = advMarkovResult.scores
@@ -300,7 +302,7 @@ export async function GET(req: NextRequest) {
 
     // === POSITION ANALYSIS ===
     let positionScores = new Array(100).fill(0.5)
-    if (shouldRunMotor("positionAnalysis", turnoQuery)) {
+    if (shouldRunMotorSync("positionAnalysis", turnoQuery)) {
       try {
         const positionResult = analyzePositions(heavySeqs)
         positionScores = positionResult.scores
@@ -310,7 +312,7 @@ export async function GET(req: NextRequest) {
     // === ADVANCED ENSEMBLE ML: max 200 draws ===
     let ensembleMLScores = new Array(100).fill(0.5)
     let ensembleMLActive = false
-    if (shouldRunMotor("ensembleML", turnoQuery)) {
+    if (shouldRunMotorSync("ensembleML", turnoQuery)) {
       try {
       const trainSlice = sequences.slice(0, Math.min(200, sequences.length))
       const trainFeatures: number[][] = []

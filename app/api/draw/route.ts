@@ -10,7 +10,11 @@ export async function GET(req: NextRequest) {
   if (!CRON_SECRET) {
     return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
   }
-  const secret = req.nextUrl.searchParams.get("secret");
+
+  // Accept secret via Authorization header (preferred) or query param (legacy)
+  const authHeader = req.headers.get("authorization")?.replace("Bearer ", "") || "";
+  const secret = authHeader || req.nextUrl.searchParams.get("secret") || "";
+
   if (secret !== CRON_SECRET) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -25,7 +29,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const res = await fetch(
-      `${SB}/rest/v1/draws?date=eq.${fecha}&turno=eq.${turno}&select=date,turno,numbers&limit=1`,
+      `${SB}/rest/v1/draws?date=eq.${fecha}&turno=eq.${turno}&select=date,date,turno,numbers&limit=1`,
       {
         headers: { "apikey": SK, "Authorization": `Bearer ${SK}` },
       }
