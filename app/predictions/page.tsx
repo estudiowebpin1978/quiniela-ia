@@ -1715,7 +1715,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                               })}
                             </div>
                             {p.resultado_3?.length > 0 && (
-                              <div style={{fontSize:9,color:"#64748b",marginTop:4}}>Oficiales: {p.resultado_3.slice(0,5).join(", ")}{p.resultado_3.length > 5 ? "..." : ""}</div>
+                              <div style={{fontSize:9,color:"#64748b",marginTop:4}}>Oficiales 3 cifras: {p.resultado_3.join(", ")}</div>
                             )}
                           </div>
                         )}
@@ -1734,7 +1734,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                               })}
                             </div>
                             {p.resultado_4?.length > 0 && (
-                              <div style={{fontSize:9,color:"#64748b",marginTop:4}}>Oficiales: {p.resultado_4.slice(0,5).join(", ")}{p.resultado_4.length > 5 ? "..." : ""}</div>
+                              <div style={{fontSize:9,color:"#64748b",marginTop:4}}>Oficiales 4 cifras: {p.resultado_4.join(", ")}</div>
                             )}
                           </div>
                         )}
@@ -1756,6 +1756,30 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                                 );
                               })}
                             </div>
+                            {p.resultado_original && p.resultado_original.length > 0 && (
+                              <div style={{marginTop:6}}>
+                                <div style={{fontSize:9,color:"#475569",marginBottom:3}}>4 CIFRAS OFICIALES:</div>
+                                <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+                                  {p.resultado_original.map((n:any,idx:number) => {
+                                    const n4 = String(Number(n) % 10000).padStart(4, "0")
+                                    const n2 = String(Number(n) % 100).padStart(2, "0")
+                                    const acertado4 = p.aciertos_4?.some((a:any) => a.numero === n4)
+                                    const acertado2 = p.aciertos_2?.some((a:any) => a.numero === n2)
+                                    const isHit = acertado4 || acertado2
+                                    return (
+                                      <span key={idx} style={{
+                                        padding:"3px 6px",borderRadius:5,fontSize:10,fontWeight:600,
+                                        background: isHit ? "rgba(34,197,94,0.2)" : "rgba(168,85,247,0.08)",
+                                        color: isHit ? "#22c55e" : "#94a3b8",
+                                        border: isHit ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(168,85,247,0.15)"
+                                      }}>
+                                        {n4}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                         {p.aciertos?.length > 0 && (

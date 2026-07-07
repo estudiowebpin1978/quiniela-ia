@@ -129,6 +129,7 @@ export async function GET(req: NextRequest) {
         resultado: disponible && numerosReales.length > 0 ? numerosReales : null,
         resultado_3: disponible && numerosReales3.length > 0 ? numerosReales3 : null,
         resultado_4: disponible && numerosReales4.length > 0 ? numerosReales4 : null,
+        resultado_original: disponible && draw?.numbers ? draw.numbers : null,
         aciertos: disponible ? allAciertos : [],
         aciertos_2: disponible ? aciertos : [],
         aciertos_3: disponible ? aciertos3 : [],
