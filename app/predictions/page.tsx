@@ -554,7 +554,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             const pred4 = !Array.isArray(p.numeros) ? (p.numeros?.["4"] || []) : (p.numeros_4 || [])
             const predichos = pred2.map((n: string) => String(n).padStart(2, "0"))
             const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }))
-            return { ...p, numeros: pred2, numeros_3: pred3, numeros_4: pred4, resultado: reales.slice(0, 10), aciertos, acerto: aciertos.length > 0 }
+            return { ...p, numeros: pred2, numeros_3: pred3, numeros_4: pred4, resultado: reales, aciertos, acerto: aciertos.length > 0 }
           }
         } catch (e) { }
         return p
@@ -1740,9 +1740,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                         )}
                         {p.resultado && p.resultado.length > 0 && (
                           <div className="saved-results" style={{marginTop:8}}>
-                            <div style={{fontSize:10,color:"#64748b",marginBottom:4}}>RESULTADOS OFICIALES:</div>
+                            <div style={{fontSize:10,color:"#64748b",marginBottom:4}}>RESULTADOS OFICIALES ({p.resultado.length} números):</div>
                             <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                              {p.resultado.slice(0,10).map((n:string,idx:number) => {
+                              {p.resultado.map((n:string,idx:number) => {
                                 const acertado = p.aciertos?.some((a:any) => a.numero === n);
                                 return (
                                   <span key={idx} style={{
