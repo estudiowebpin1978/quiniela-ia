@@ -44,6 +44,7 @@ export default function AdminPage() {
   const [pushTitle, setPushTitle] = useState("Quiniela IA")
   const [pushBody, setPushBody] = useState("")
   const [pushBusy, setPushBusy] = useState(false)
+  const [pushTestResult, setPushTestResult] = useState("")
 
   useEffect(() => {
     const raw = localStorage.getItem("quiniela-ia-auth")
@@ -120,6 +121,18 @@ export default function AdminPage() {
       })
       const d = await r.json()
       if (d.ok) setPushMsg(`Enviado a ${d.sent} usuarios (${d.failed} fallos)`)
+      else setErr(d.error)
+    } catch (e: any) { setErr(e.message) } finally { setPushBusy(false) }
+  }
+
+  async function testCronPush() {
+    setPushBusy(true); setPushTestResult(""); setErr("")
+    try {
+      const r = await fetch("/api/cron-push?secret=" + encodeURIComponent(token), {
+        headers: { Authorization: "Bearer " + token }
+      })
+      const d = await r.json()
+      if (d.ok) setPushTestResult(`[${d.action}] ${d.message || `${d.turno}: enviado a ${d.enviado} (${d.fallos} fallos)`}`)
       else setErr(d.error)
     } catch (e: any) { setErr(e.message) } finally { setPushBusy(false) }
   }
@@ -613,6 +626,18 @@ export default function AdminPage() {
             </div>
             <div style={{ fontSize: 11, color: "#475569", marginTop: 12 }}>
               Enviar notificación push a todos los suscriptores. Las notificaciones se envían cuando hay nuevos resultados de sorteos.
+            </div>
+            <div style={{ borderTop: "1px solid rgba(255,255,255,.06)", paddingTop: 16, marginTop: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>⏰ Recordatorio antes de sorteo</div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10, lineHeight: 1.5 }}>
+                Envía un recordatorio push 1 hora antes de cada sorteo a todos los suscriptores.<br/>
+                Horarios: Previa 9:15 · Primera 11:00 · Matutina 14:00 · Vespertina 17:00 · Nocturna 20:00<br/>
+                Configurar en cron-job.org: cada 15 min → GET /api/cron-push?secret=TU_SECRET
+              </div>
+              {pushTestResult && <div className="msg" style={{ marginBottom: 8 }}>{pushTestResult}</div>}
+              <button className="btn btn-p" onClick={testCronPush} disabled={pushBusy}>
+                {pushBusy ? <span className="sp" /> : "🧪 Probar ahora"}
+              </button>
             </div>
           </div>
         )}

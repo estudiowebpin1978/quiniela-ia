@@ -20,18 +20,26 @@ self.addEventListener("push", (event) => {
     }
   } catch {}
 
+  const isReminder = data.type === "sorteo_reminder"
+
   const options = {
     body: data.body,
     icon: data.icon || "/icon-192.png",
     badge: data.badge || "/badge-72.png",
-    vibrate: [200, 100, 200],
-    tag: "quiniela-notification",
+    vibrate: isReminder ? [300, 100, 300, 100, 300] : [200, 100, 200],
+    tag: isReminder ? `quiniela-reminder-${data.data?.turno || "x"}` : "quiniela-notification",
     renotify: true,
+    requireInteraction: isReminder,
     data: { url: data.url || "/predictions", ...data.data },
-    actions: [
-      { action: "open", title: "Ver resultados", icon: "/icon-192.png" },
-      { action: "dismiss", title: "Cerrar", icon: "/icon-192.png" },
-    ],
+    actions: isReminder
+      ? [
+          { action: "open", title: "Generar análisis", icon: "/icon-192.png" },
+          { action: "dismiss", title: "Cerrar", icon: "/icon-192.png" },
+        ]
+      : [
+          { action: "open", title: "Ver resultados", icon: "/icon-192.png" },
+          { action: "dismiss", title: "Cerrar", icon: "/icon-192.png" },
+        ],
   }
 
   event.waitUntil(
