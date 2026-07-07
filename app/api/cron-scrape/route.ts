@@ -228,7 +228,6 @@ export async function GET(req: NextRequest) {
     logger.warn("cron-scrape: error limpiando predicciones", { error: String(e) })
   }
 
-  // Auto-train ML models in background after scraping new draws
   if (guardados > 0) {
     import("@/lib/ml/auto-train").then(m => m.autoTrainAll()).catch((e) => {
       logger.error("cron-scrape: error en auto-train", { error: String(e) })
