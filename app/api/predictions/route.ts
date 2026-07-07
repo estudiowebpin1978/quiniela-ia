@@ -32,6 +32,7 @@ import { computeAdvancedMarkov } from "@/lib/analisis/markov-advanced"
 import { analyzePositions } from "@/lib/analisis/positions"
 import { trainEnsemble, predictEnsemble } from "@/lib/analisis/ensemble-advanced"
 import { syncBeforePrediction } from "@/lib/scraper/sync"
+import { shouldRunMotor, updateMotorPerformance, clearOldPerformance } from "@/lib/analisis/motor-performance"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -186,7 +187,8 @@ export async function GET(req: NextRequest) {
     }
 
     // === MOTOR DE 30 FACTORES ===
-    const factores30 = calcularFactores30(sequences, rows)
+    const runFactores30 = shouldRunMotor("factores30", turnoQuery)
+    const factores30 = runFactores30 ? calcularFactores30(sequences, rows) : { scores: new Array(100).fill(0.5), detail: {} as any }
 
     // === DRIFT DETECTION ===
     const recentDraws = sequences.slice(0, 20).map(s => s.map(n => n % 100))
@@ -203,7 +205,7 @@ export async function GET(req: NextRequest) {
     let crossTurnoScore: Record<number, number> = {}
     let pesosDinamicos: PesosDinamicos | null = null
     const [crossResult, pesosResult] = await Promise.allSettled([
-      analisisCrossTurno(turno, 3, targetDate || undefined),
+      shouldRunMotor("crossTurno", turnoQuery) ? analisisCrossTurno(turno, 3, targetDate || undefined) : Promise.resolve({ crossTurnoScore: {} as Record<number, number> }),
       calcularPesosDinamicos(turnoQuery)
     ])
     if (crossResult.status === 'fulfilled') crossTurnoScore = crossResult.value.crossTurnoScore
@@ -213,92 +215,103 @@ export async function GET(req: NextRequest) {
     const heavySeqs = sequences.slice(0, Math.min(300, sequences.length))
 
     // === MONTE CARLO SIMULATION ===
-    let monteCarloTop = runMonteCarlo(heavySeqs, { simulations: 5000, topN: 100 })
+    let monteCarloTop = shouldRunMotor("monteCarlo", turnoQuery) ? runMonteCarlo(heavySeqs, { simulations: 5000, topN: 100 }) : []
 
     // === CORRELATION ANALYSIS ===
     let correlationScores = new Array(100).fill(0.5)
-    let correlationResult: ReturnType<typeof analyzeCorrelations> | null = null
-    try {
-      correlationResult = analyzeCorrelations(heavySeqs)
-      correlationScores = correlationResult.numberScores
-    } catch {}
+    if (shouldRunMotor("correlation", turnoQuery)) {
+      try {
+        const correlationResult = analyzeCorrelations(heavySeqs)
+        correlationScores = correlationResult.numberScores
+      } catch {}
+    }
 
     // === HIGHER-ORDER MARKOV ===
     let markovSuperScores = new Array(100).fill(0.5)
-    let markovSuperResult: ReturnType<typeof higherOrderMarkov> | null = null
-    try {
-      markovSuperResult = higherOrderMarkov(heavySeqs, 4)
-      markovSuperScores = markovSuperResult.scores
-    } catch {}
+    if (shouldRunMotor("markovSuperior", turnoQuery)) {
+      try {
+        const markovSuperResult = higherOrderMarkov(heavySeqs, 4)
+        markovSuperScores = markovSuperResult.scores
+      } catch {}
+    }
 
     // === CYCLIC PATTERNS ===
     let cyclicScores = new Array(100).fill(0.5)
-    let cyclicResult: ReturnType<typeof detectCyclicPatterns> | null = null
-    try {
-      cyclicResult = detectCyclicPatterns(heavySeqs)
-      cyclicScores = cyclicResult.scores
-    } catch {}
+    if (shouldRunMotor("cyclicPatterns", turnoQuery)) {
+      try {
+        const cyclicResult = detectCyclicPatterns(heavySeqs)
+        cyclicScores = cyclicResult.scores
+      } catch {}
+    }
 
     // === GRAPH ANALYSIS ===
     let graphScores = new Array(100).fill(0.5)
-    let graphResult: ReturnType<typeof analyzeGraph> | null = null
-    try {
-      graphResult = analyzeGraph(heavySeqs)
-      graphScores = graphResult.scores
-    } catch {}
+    if (shouldRunMotor("graphAnalysis", turnoQuery)) {
+      try {
+        const graphResult = analyzeGraph(heavySeqs)
+        graphScores = graphResult.scores
+      } catch {}
+    }
 
     // === FEATURE ENGINEERING (100+ variables) ===
     let featureScores = new Array(100).fill(0.5)
     let featureMatrix: ReturnType<typeof computeFeatureMatrix> | null = null
-    try {
-      featureMatrix = computeFeatureMatrix(heavySeqs)
-      for (let n = 0; n < 100; n++) {
-        const vec = featureMatrix.vectors.find(v => v.number === n)
-        if (vec) {
-          const vals = Object.values(vec.features)
-          featureScores[n] = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0.5
+    if (shouldRunMotor("featureEngineering", turnoQuery)) {
+      try {
+        featureMatrix = computeFeatureMatrix(heavySeqs)
+        for (let n = 0; n < 100; n++) {
+          const vec = featureMatrix.vectors.find(v => v.number === n)
+          if (vec) {
+            const vals = Object.values(vec.features)
+            featureScores[n] = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0.5
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     // === MULTI-LEVEL SCORING (4D, 3D, 2D, positions) ===
     let multilevelScores = new Array(100).fill(0.5)
-    let multilevelResult: ReturnType<typeof computeMultiLevelScores> | null = null
-    try {
-      multilevelResult = computeMultiLevelScores(heavySeqs)
-      for (const ml of multilevelResult) {
-        multilevelScores[ml.number] = ml.combined
-      }
-    } catch {}
+    if (shouldRunMotor("multilevelScoring", turnoQuery)) {
+      try {
+        const multilevelResult = computeMultiLevelScores(heavySeqs)
+        for (const ml of multilevelResult) {
+          multilevelScores[ml.number] = ml.combined
+        }
+      } catch {}
+    }
 
     // === PMI & CO-OCCURRENCE ===
     let pmiScores = new Array(100).fill(0.5)
-    let pmiResult: ReturnType<typeof computeCooccurrence> | null = null
-    try {
-      pmiResult = computeCooccurrence(heavySeqs)
-      pmiScores = pmiResult.scores
-    } catch {}
+    if (shouldRunMotor("pmiCooccurrence", turnoQuery)) {
+      try {
+        const pmiResult = computeCooccurrence(heavySeqs)
+        pmiScores = pmiResult.scores
+      } catch {}
+    }
 
     // === ADVANCED MARKOV (100x100 + 1000x1000 + pair transitions) ===
     let advMarkovScores = new Array(100).fill(0.5)
-    let advMarkovResult: ReturnType<typeof computeAdvancedMarkov> | null = null
-    try {
-      advMarkovResult = computeAdvancedMarkov(heavySeqs)
-      advMarkovScores = advMarkovResult.scores
-    } catch {}
+    if (shouldRunMotor("advancedMarkov", turnoQuery)) {
+      try {
+        const advMarkovResult = computeAdvancedMarkov(heavySeqs)
+        advMarkovScores = advMarkovResult.scores
+      } catch {}
+    }
 
     // === POSITION ANALYSIS ===
     let positionScores = new Array(100).fill(0.5)
-    let positionResult: ReturnType<typeof analyzePositions> | null = null
-    try {
-      positionResult = analyzePositions(heavySeqs)
-      positionScores = positionResult.scores
-    } catch {}
+    if (shouldRunMotor("positionAnalysis", turnoQuery)) {
+      try {
+        const positionResult = analyzePositions(heavySeqs)
+        positionScores = positionResult.scores
+      } catch {}
+    }
 
     // === ADVANCED ENSEMBLE ML: max 200 draws ===
     let ensembleMLScores = new Array(100).fill(0.5)
     let ensembleMLActive = false
-    try {
+    if (shouldRunMotor("ensembleML", turnoQuery)) {
+      try {
       const trainSlice = sequences.slice(0, Math.min(200, sequences.length))
       const trainFeatures: number[][] = []
       const trainLabels: number[] = []
@@ -330,7 +343,8 @@ export async function GET(req: NextRequest) {
         ensembleMLScores = predResult.probabilities
         ensembleMLActive = true
       }
-    } catch {}
+      } catch {}
+    }
 
     // === ENSEMBLE: 30 FACTORES + CROSS-TURNO + MONTE CARLO + ML ===
     const scores: { num: number, score: number, confianza: number, factores: string[], frecuencia: number, crossTurno: number, pesoAjustado: number, bayesianConfidence?: number, bayesianPosterior?: number, bayesianCiWidth?: number }[] = []
@@ -468,11 +482,11 @@ export async function GET(req: NextRequest) {
       ) * ajustePeso
 
       // Get factor details
-      const detail = factores30.detail[n] || {}
+      const detail: Record<string, number> = factores30.detail[n] || {}
       const topFactors = Object.entries(detail)
-        .sort(([, a], [, b]) => b - a)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
         .slice(0, 3)
-        .map(([name, val]) => `${name}: ${(val * 100).toFixed(0)}%`)
+        .map(([name, val]) => `${name}: ${((val as number) * 100).toFixed(0)}%`)
 
       scores.push({
         num: n,
@@ -706,6 +720,28 @@ export async function GET(req: NextRequest) {
     const gc2 = globalThis as any
     if (!gc2.__predCache) gc2.__predCache = {}
     gc2.__predCache[cacheKey] = { result: responsePayload, expiresAt: Date.now() + 600_000 }
+
+    // === MOTOR PERFORMANCE TRACKING ===
+    try {
+      clearOldPerformance()
+      const motorMap: Record<string, number> = {
+        factores30: W.factores30, monteCarlo: W.montecarlo, crossTurno: W.crossTurno,
+        correlation: W.correlation, markovSuperior: W.markovSuperior, cyclicPatterns: W.cyclic,
+        featureEngineering: Wext.features, multilevelScoring: Wext.multilevel,
+        pmiCooccurrence: Wext.pmi, advancedMarkov: Wext.advMarkov,
+        positionAnalysis: Wext.positions, ensembleML: Wext.ensembleML,
+        graphAnalysis: Wext.graph, bayesian: cdmWeight, metaLearner: 0.05,
+        pesosDinamicos: 0.03,
+      }
+      const topNums = scores.slice(0, 10).map(s => s.num)
+      const hitRate = topNums.filter(n => terminaciones2.includes(n)).length / 10
+      for (const [motor, weight] of Object.entries(motorMap)) {
+        if (weight > 0) {
+          const contrib = hitRate * (weight / 0.25)
+          updateMotorPerformance(motor, turnoQuery, Math.min(1, contrib))
+        }
+      }
+    } catch {}
 
     return NextResponse.json(responsePayload)
   } catch (e: unknown) {

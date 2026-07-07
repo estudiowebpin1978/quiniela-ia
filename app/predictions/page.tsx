@@ -274,23 +274,49 @@ function PageInner() {
       setShowHowItWorks(true);
       localStorage.setItem("quiniela-ia-tour-visto", "true");
     }
+    const HORARIOS_POLL: Record<string, number> = { Previa: 10, Primera: 12, Matutina: 15, Vespertina: 18, Nocturna: 21 }
+    const TURNOS_LIST = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
+
     const pollInterval = setInterval(async () => {
+      const artNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }))
+      const horaActual = artNow.getHours()
+      const hoy = hoyArgentina()
+
+      let turnoToCheck: string | null = null
+      for (const t of TURNOS_LIST) {
+        const horario = HORARIOS_POLL[t]
+        if (horaActual >= horario && horaActual < horario + 2) {
+          turnoToCheck = t
+          break
+        }
+      }
+
+      if (!turnoToCheck) {
+        const sorted = TURNOS_LIST.map(t => ({ t, h: HORARIOS_POLL[t] }))
+          turnoToCheck = sorted.find(s => s.h > horaActual)?.t || "Nocturna"
+      }
+
       try {
-        const r = await fetch(`/api/resultado?date=${hoyArgentina()}&turno=Nocturna&t=${Date.now()}`);
-        const d = await r.json();
+        const r = await fetch(`/api/resultado?date=${hoy}&turno=${turnoToCheck}&t=${Date.now()}`)
+        const d = await r.json()
         if (d?.found && d?.numbers?.length) {
-          const latestKey = hoyArgentina() + "-nocturna";
+          const latestKey = `${hoy}-${turnoToCheck.toLowerCase()}`
           setLastDrawDate(prev => {
-            if (prev && prev !== latestKey) setNewDraws(true);
-            return prev || latestKey;
-          });
-          if (!lastDrawDate) localStorage.setItem("quiniela-ia-ultimo-sorteo-visto", latestKey);
+            if (prev && prev !== latestKey) {
+              setNewDraws(true)
+              toast(`Nuevo sorteo ${turnoToCheck} cargado. Análisis actualizado.`, "success")
+              setTimeout(() => gen(), 500)
+            }
+            return prev || latestKey
+          })
+          if (!lastDrawDate) localStorage.setItem("quiniela-ia-ultimo-sorteo-visto", latestKey)
         }
       } catch {}
-      const tk = getAccessToken();
-      if (tk) cargarMisPreds(tk);
-    }, 300000);
-    return () => clearInterval(pollInterval);
+
+      const tk = getAccessToken()
+      if (tk) cargarMisPreds(tk)
+    }, 60000)
+    return () => clearInterval(pollInterval)
   }, []);
 
   useEffect(() => {
@@ -499,6 +525,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           if (!p.numeros_4?.length && local.numeros_4) p.numeros_4 = local.numeros_4
         }
       }
+      const prevAciertos = misPreds.reduce((sum: number, p: any) => sum + (p.aciertos?.length || 0), 0)
+      const newAciertos = apiPreds.reduce((sum: number, p: any) => sum + (p.aciertos?.length || 0), 0)
+      if (newAciertos > prevAciertos) {
+        const diff = newAciertos - prevAciertos
+        toast(`¡${diff} nuevo${diff > 1 ? "s" : ""} acierto${diff > 1 ? "s" : ""} detectado${diff > 1 ? "s" : ""}!`, "success")
+      }
       setMisPreds(apiPreds)
       localStorage.setItem("misPreds", JSON.stringify(apiPreds))
       setMisLoading(false)
@@ -527,7 +559,13 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         } catch (e) { }
         return p
       }))
-      setMisPreds(enriched);
+      setMisPreds(enriched)
+      const newHits = enriched.filter((p: any) => p.acerto).length
+      const prevHits = misPreds.filter((p: any) => p.acerto).length
+      if (newHits > prevHits) {
+        const diff = newHits - prevHits
+        toast(`¡${diff} predicción${diff > 1 ? "es" : ""} acertada${diff > 1 ? "s" : ""}!`, "success")
+      }
     } else {
       setMisPreds([]);
     }
@@ -1808,7 +1846,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 Todos los resultados mostrados son <strong style={{ color: "#fff" }}>datos oficiales</strong> de la Quiniela Nacional.
                 Podés verificar cada sorteo en las fuentes oficiales.
               </div>
-              <HistorialAciertos />
+              <HistorialAciertos predictions={misPreds} />
             </div>
           )}
           {!pr && (

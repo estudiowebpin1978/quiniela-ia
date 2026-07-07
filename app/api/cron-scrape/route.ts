@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { esDiaSinSorteo, esFeriado } from "@/lib/feriados"
+import logger from "@/lib/logger"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
@@ -44,7 +45,6 @@ async function scrapeTurnoOficial(fechaISO: string, turno: string): Promise<numb
     const html = await r.text()
     if (html.includes("No hay Sorteo")) return []
 
-    // Extract all unique 4-digit numbers from the grid
     const nums: number[] = []
     const rx = /<div class="pos">\d{2}<\/div>\s*<div>(\d{4})<\/div>/g
     let mx: RegExpExecArray | null
@@ -136,10 +136,12 @@ async function limpiarPrediccionesViejas(): Promise<number> {
 }
 
 export async function GET(req: NextRequest) {
+  const start = Date.now()
   const isVercelCron = req.headers.get("x-vercel-cron") === "1"
   const secret = req.nextUrl.searchParams.get("secret") || ""
   const expected = process.env.CRON_SECRET
   if (!isVercelCron && !(secret && expected && secret === expected)) {
+    logger.warn("cron-scrape: unauthorized attempt", { ip: req.headers.get("x-forwarded-for") })
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -159,45 +161,94 @@ export async function GET(req: NextRequest) {
   }
 
   if (!overrideDate && esDiaSinSorteo(fechaISO, diaSemana)) {
+    logger.info("cron-scrape: sin sorteos hoy", { fecha: fechaISO, diaSemana })
     return NextResponse.json({ ok: true, message: "Sin sorteos", fecha: fechaISO })
   }
+
+  logger.info("cron-scrape: iniciando", { fecha: fechaISO, overrideDate: overrideDate || "none" })
 
   // Solo scrapeamos turnos que NO tenemos en la DB
   const resultados: Record<string, number[]> = {}
   let guardados = 0
+  let errores = 0
 
   for (const turno of TURNOS) {
-    if (await tieneDraw(fechaISO, turno)) continue
-
-    let nums = await scrapeTurnoFast(fUrl, turno)
-    let source = "quiniela-nacional1.com.ar"
-    if (nums.length < 5) {
-      nums = await scrapeTurnoOficial(fechaISO, turno)
-      if (nums.length >= 5) source = "loteria-ciudad.gob.ar"
+    if (await tieneDraw(fechaISO, turno)) {
+      logger.debug("cron-scrape: ya existe", { fecha: fechaISO, turno })
+      continue
     }
-    if (nums.length >= 5) {
-      if (await guardarDraw(fechaISO, turno, nums, source)) {
-        guardados++
-        resultados[turno] = nums
+
+    let nums: number[] = []
+    let source = ""
+
+    try {
+      nums = await scrapeTurnoFast(fUrl, turno)
+      source = "quiniela-nacional1.com.ar"
+      if (nums.length < 5) {
+        logger.info("cron-scrape: fallback a fuente oficial", { fecha: fechaISO, turno })
+        nums = await scrapeTurnoOficial(fechaISO, turno)
+        if (nums.length >= 5) source = "loteria-ciudad.gob.ar"
       }
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e)
+      logger.error("cron-scrape: error scraping turno", { fecha: fechaISO, turno, error: errMsg })
+      errores++
+      continue
+    }
+
+    if (nums.length >= 5) {
+      try {
+        if (await guardarDraw(fechaISO, turno, nums, source)) {
+          guardados++
+          resultados[turno] = nums
+          logger.info("cron-scrape: guardado", { fecha: fechaISO, turno, cantidad: nums.length, source })
+        } else {
+          logger.warn("cron-scrape: fallo al guardar", { fecha: fechaISO, turno })
+          errores++
+        }
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : String(e)
+        logger.error("cron-scrape: error guardando draw", { fecha: fechaISO, turno, error: errMsg })
+        errores++
+      }
+    } else {
+      logger.warn("cron-scrape: pocos numeros scrapeados", { fecha: fechaISO, turno, count: nums.length })
+      errores++
     }
   }
 
   // Limpiar predicciones de usuarios mayores a 24hs
   let eliminadas = 0
-  try { eliminadas = await limpiarPrediccionesViejas() } catch {}
+  try {
+    eliminadas = await limpiarPrediccionesViejas()
+    if (eliminadas > 0) {
+      logger.info("cron-scrape: predicciones limpiadas", { cantidad: eliminadas })
+    }
+  } catch (e) {
+    logger.warn("cron-scrape: error limpiando predicciones", { error: String(e) })
+  }
 
   // Auto-train ML models in background after scraping new draws
   if (guardados > 0) {
-    import("@/lib/ml/auto-train").then(m => m.autoTrainAll()).catch(() => {})
+    import("@/lib/ml/auto-train").then(m => m.autoTrainAll()).catch((e) => {
+      logger.error("cron-scrape: error en auto-train", { error: String(e) })
+    })
   }
 
+  const duration = Date.now() - start
+
   return NextResponse.json({
-    ok: true,
+    ok: errores === 0,
     fecha: fechaISO,
     guardados,
+    errores,
     eliminadas,
+    duration,
     resultados,
-    message: guardados > 0 ? `${guardados} sorteos guardados` : "Sin nuevos sorteos"
+    message: guardados > 0
+      ? `${guardados} sorteos guardados${errores > 0 ? `, ${errores} errores` : ""}`
+      : errores > 0
+        ? `${errores} errores, sin sorteos nuevos`
+        : "Sin nuevos sorteos"
   })
 }
