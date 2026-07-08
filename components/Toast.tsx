@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect, useCallback, createContext, useContext } from "react"
 
-type ToastType = "success" | "error" | "info"
+type ToastType = "success" | "error" | "info" | "warning"
 interface ToastMsg { id: number; message: string; type: ToastType }
 
 const ToastContext = createContext<(message: string, type?: ToastType) => void>(() => {})
@@ -22,24 +22,26 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(t)
   }, [toasts])
 
-  const colors: Record<ToastType, string> = { success: "#22c55e", error: "#ef4444", info: "#3b82f6" }
-  const icons: Record<ToastType, string> = { success: "✅", error: "❌", info: "ℹ️" }
+  const colors: Record<ToastType, { bg: string; border: string; icon: string }> = {
+    success: { bg: "rgba(34,197,94,0.92)", border: "rgba(34,197,94,0.4)", icon: "✅" },
+    error: { bg: "rgba(239,68,68,0.92)", border: "rgba(239,68,68,0.4)", icon: "❌" },
+    info: { bg: "rgba(26,26,46,0.92)", border: "rgba(255,255,255,0.1)", icon: "ℹ️" },
+    warning: { bg: "rgba(249,115,22,0.92)", border: "rgba(249,115,22,0.4)", icon: "⚠️" },
+  }
 
   return (
     <ToastContext.Provider value={add}>
       {children}
-      <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 10000, display: "flex", flexDirection: "column", gap: 8, pointerEvents: "none" }}>
-        {toasts.map(t => (
-          <div key={t.id} style={{
-            background: colors[t.type], color: "#fff",
-            padding: "12px 24px", borderRadius: 12, fontSize: 13, fontWeight: 700,
-            boxShadow: `0 8px 24px ${colors[t.type]}40`,
-            animation: "toastIn .2s ease-out",
-            pointerEvents: "auto",
-          }}>
-            {icons[t.type]} {t.message}
-          </div>
-        ))}
+      <div className="toast-container">
+        {toasts.map(t => {
+          const c = colors[t.type]
+          return (
+            <div key={t.id} className={`toast toast-${t.type}`}>
+              <span style={{ fontSize: 16 }}>{c.icon}</span>
+              {t.message}
+            </div>
+          )
+        })}
       </div>
     </ToastContext.Provider>
   )

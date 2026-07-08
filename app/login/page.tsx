@@ -1,6 +1,11 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getAuth, saveAuth, isLoggedIn, clearGuest } from "@/lib/auth"
+import Button3D from "@/components/ui/Button3D"
+import { GlowOrbs, NeonBackground } from "@/components/ui/Effects"
+import { ArgentinaFlag, SunOfMay } from "@/components/ui/ArgentinaBranding"
+import { useSound } from "@/lib/sound/audio-manager"
+import { useSettings } from "@/components/ui/Settings"
 
 export default function LoginPage() {
   const [tab, setTab] = useState("in")
@@ -11,6 +16,8 @@ export default function LoginPage() {
   const [ok, setOk] = useState("")
   const [showReset, setShowReset] = useState(false)
   const [resetSent, setResetSent] = useState(false)
+  const sound = useSound()
+  const { settings } = useSettings()
 
   useEffect(() => {
     if (isLoggedIn()) window.location.href = "/predictions"
@@ -26,8 +33,8 @@ export default function LoginPage() {
         body: JSON.stringify({ email: email.trim(), password: pass, action: tab === "up" ? "signup" : "signin" })
       })
       const data = await res.json()
-      if (!res.ok) { setErr(data.error || "Error"); return }
-      if (data.needsConfirmation) { setOk("Cuenta creada! Ahora iniciá sesión."); setTab("in"); setPass(""); return }
+      if (!res.ok) { setErr(data.error || "Error"); sound.error(); return }
+      if (data.needsConfirmation) { setOk("Cuenta creada! Ahora iniciá sesión."); setTab("in"); setPass(""); sound.success(); return }
       saveAuth({
         access_token: data.access_token,
         refresh_token: data.refresh_token || "",
@@ -37,8 +44,9 @@ export default function LoginPage() {
       })
       clearGuest()
       setOk("Bienvenido!")
+      sound.win()
       setTimeout(() => { window.location.href = "/predictions" }, 400)
-    } catch { setErr("Error de conexión") }
+    } catch { setErr("Error de conexión"); sound.error() }
     finally { setBusy(false) }
   }
 
@@ -53,98 +61,162 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json", "apikey": SB_KEY },
         body: JSON.stringify({ email: email.trim(), redirect_to: `${window.location.origin}/login` })
       })
-      if (!r.ok) { const d = await r.json(); setErr(d.msg || "Error al enviar email"); return }
-      setResetSent(true)
-    } catch { setErr("Error de conexión") }
+      if (!r.ok) { const d = await r.json(); setErr(d.msg || "Error al enviar email"); sound.error(); return }
+      setResetSent(true); sound.success()
+    } catch { setErr("Error de conexión"); sound.error() }
     finally { setBusy(false) }
   }
 
   return (<>
-    <style>{`
-      *{box-sizing:border-box;margin:0;padding:0}
-      body{min-height:100vh;background:#050510;font-family:'Inter',sans-serif}
-      .page{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;background:radial-gradient(ellipse 100% 80% at 50% -20%,rgba(120,0,255,0.15),transparent 50%),radial-gradient(ellipse 80% 60% at 80% 100%,rgba(255,0,100,0.1),transparent 50%),#050510}
-      .logo{width:80px;height:80px;background:linear-gradient(135deg,#ff3366,#ff1a53,#cc0033);border-radius:24px;display:inline-flex;align-items:center;justify-content:center;font-size:42px;margin-bottom:14px;box-shadow:0 8px 0 #990033,0 12px 32px rgba(255,51,102,0.4),inset 0 2px 0 rgba(255,255,255,0.2);transform:translateY(-4px)}
-      .app-name{font-size:38px;font-weight:900;background:linear-gradient(135deg,#ff6699,#ff3366,#cc0033);-webkit-background-clip:text;-webkit-text-fill-color:transparent;display:block;letter-spacing:-1px;text-shadow:0 4px 20px rgba(255,51,102,0.4)}
-      .card{width:100%;max-width:360px;background:linear-gradient(180deg,rgba(20,20,40,0.95),rgba(10,10,25,0.98));border:1px solid rgba(255,255,255,.08);border-radius:28px;padding:28px 24px;box-shadow:0 25px 80px rgba(0,0,0,0.5),inset 0 1px 0 rgba(255,255,255,.05)}
-      .tabs{display:flex;background:rgba(0,0,0,0.3);border-radius:14px;padding:5px;margin-bottom:24px;gap:4px}
-      .tab{flex:1;padding:14px 10px;text-align:center;border-radius:10px;border:none;background:transparent;font-size:13px;font-weight:700;cursor:pointer;color:#64748b;transition:all .2s}
-      .tab.on{background:linear-gradient(135deg,#ff3366,#cc0033);color:#fff;box-shadow:0 4px 12px rgba(255,51,102,0.4)}
-      .lbl{display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin:14px 0 6px}
-      input{width:100%;background:rgba(0,0,0,0.3);border:2px solid rgba(255,255,255,.08);border-radius:12px;color:#fff;font-size:15px;padding:14px 16px;outline:none;transition:all .2s;font-family:inherit}
-      input:focus{border-color:#ff3366;background:rgba(255,51,102,0.08);box-shadow:0 0 20px rgba(255,51,102,0.15)}
-      input::placeholder{color:#475569}
-      .btn{width:100%;border:none;border-radius:14px;font-size:16px;font-weight:900;padding:16px;cursor:pointer;margin-top:20px;background:linear-gradient(135deg,#ff3366,#cc0033);color:#fff;box-shadow:0 6px 0 #990033,0 8px 24px rgba(255,51,102,0.4),inset 0 2px 0 rgba(255,255,255,0.2);transition:all .15s;touch-action:manipulation}
-      .btn:active{transform:translateY(3px);box-shadow:0 3px 0 #990033,0 4px 12px rgba(255,51,102,0.3)}
-      .btn-up{background:linear-gradient(135deg,#22c55e,#16a34a);box-shadow:0 6px 0 #166534,0 8px 24px rgba(34,197,94,0.3),inset 0 2px 0 rgba(255,255,255,0.2)}
-      .btn:disabled{opacity:.5;cursor:not-allowed}
-      .err{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:10px;padding:12px 14px;color:#fca5a5;font-size:13px;margin-top:14px}
-      .suc{background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:10px;padding:12px 14px;color:#86efac;font-size:13px;margin-top:14px}
-      .badge{background:linear-gradient(135deg,rgba(34,197,94,0.2),rgba(34,197,94,0.1));border:1px solid rgba(34,197,94,0.3);color:#4ade80;font-size:12px;font-weight:700;padding:10px 16px;border-radius:20px;margin-bottom:20px;display:inline-flex;align-items:center;gap:6px}
-    `}</style>
-    <div className="page">
+    <NeonBackground intensity={settings.particlesEnabled ? "low" : "off"} />
+    <GlowOrbs />
+    <div style={{
+      minHeight: "100vh", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", padding: "20px",
+      position: "relative", zIndex: 1,
+    }}>
+
+      {/* Logo */}
       <div style={{ textAlign: "center", marginBottom: 24 }}>
-        <div className="logo">📊</div>
-        <span className="app-name">Quiniela IA</span>
-        <div style={{ fontSize: 13, color: "#64748b", marginTop: 8, letterSpacing: 1 }}>ANÁLISIS ESTADÍSTICOS CON IA</div>
+        <div className="animate-float" style={{
+          width: 80, height: 80, borderRadius: 24,
+          background: "linear-gradient(135deg, #ff3366, #cc0033)",
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          fontSize: 42, marginBottom: 14,
+          boxShadow: "0 8px 0 #990033, 0 12px 32px rgba(255,51,102,0.4), inset 0 2px 0 rgba(255,255,255,0.2)",
+        }}>📊</div>
+        <span className="gradient-text" style={{
+          fontSize: 38, fontWeight: 900, display: "block", letterSpacing: "-1px",
+          fontFamily: "var(--font-display)",
+        }}>Quiniela IA</span>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8, letterSpacing: 2, textTransform: "uppercase", fontWeight: 700 }}>
+          ANÁLISIS ESTADÍSTICOS CON IA
+        </div>
       </div>
 
-      <div className="badge">✅ 100% GRATIS · SIN TARJETA</div>
+      <div className="badge badge-green" style={{ marginBottom: 20 }}>
+        <ArgentinaFlag size={14} /> 100% GRATIS · SIN TARJETA
+      </div>
 
-      <div className="card">
-        <div className="tabs">
-          <button className={"tab" + (tab === "in" ? " on" : "")} onClick={() => { setTab("in"); setErr(""); setOk("") }}>🔐 Entrar</button>
-          <button className={"tab" + (tab === "up" ? " on" : "")} onClick={() => { setTab("up"); setErr(""); setOk("") }}>✨ Crear cuenta</button>
+      {/* Card */}
+      <div className="glass-card" style={{
+        width: "100%", maxWidth: 360, padding: "28px 24px",
+      }}>
+        {/* Tabs */}
+        <div style={{
+          display: "flex", background: "rgba(0,0,0,0.3)", borderRadius: 14,
+          padding: 5, gap: 4, marginBottom: 24,
+        }}>
+          {[
+            { value: "in", label: "🔐 Entrar" },
+            { value: "up", label: "✨ Crear cuenta" },
+          ].map(t => (
+            <button key={t.value} onClick={() => { sound.pop(); setTab(t.value); setErr(""); setOk("") }} style={{
+              flex: 1, padding: "14px 10px", textAlign: "center", borderRadius: 10,
+              border: "none", background: tab === t.value
+                ? "linear-gradient(135deg, var(--brand-pink), var(--brand-pink-deep))" : "transparent",
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+              color: tab === t.value ? "#fff" : "var(--text-muted)",
+              boxShadow: tab === t.value ? "0 4px 12px rgba(255,51,102,0.4)" : "none",
+              transition: "all var(--transition-fast)",
+              fontFamily: "var(--font-display)",
+            }}>{t.label}</button>
+          ))}
         </div>
 
-        <span className="lbl">Email</span>
-        <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" autoComplete="email" />
+        {/* Email */}
+        <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, margin: "14px 0 6px" }}>Email</label>
+        <input
+          type="email" value={email} onChange={e => setEmail(e.target.value)}
+          placeholder="tu@email.com" autoComplete="email"
+          className="input-field"
+        />
 
-        <span className="lbl">Contraseña</span>
-        <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="••••••••" onKeyDown={e => e.key === "Enter" && !busy && submit()} />
+        {/* Password */}
+        <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1, margin: "14px 0 6px" }}>Contraseña</label>
+        <input
+          type="password" value={pass} onChange={e => setPass(e.target.value)}
+          placeholder="••••••••" onKeyDown={e => e.key === "Enter" && !busy && submit()}
+          className="input-field"
+        />
 
+        {/* Forgot password */}
         {tab === "in" && !showReset && (
           <div style={{ textAlign: "right", marginTop: 8 }}>
-            <button onClick={() => { setShowReset(true); setErr(""); setOk("") }} style={{ background: "none", border: "none", color: "#ff6b81", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
-              Olvidé mi contraseña
-            </button>
+            <button onClick={() => { sound.pop(); setShowReset(true); setErr(""); setOk("") }} style={{
+              background: "none", border: "none", color: "var(--brand-pink)",
+              fontSize: 12, cursor: "pointer", fontWeight: 600,
+            }}>Olvidé mi contraseña</button>
           </div>
         )}
 
+        {/* Reset form */}
         {showReset && !resetSent && (
-          <div style={{ marginTop: 12, padding: 14, background: "rgba(255,107,129,0.08)", borderRadius: 12, border: "1px solid rgba(255,107,129,0.15)" }}>
-            <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 10 }}>
+          <div style={{
+            marginTop: 12, padding: 14, borderRadius: 12,
+            background: "rgba(255,107,129,0.08)", border: "1px solid rgba(255,107,129,0.15)",
+          }}>
+            <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>
               Te enviaremos un email con un enlace para restablecer tu contraseña.
             </div>
-            <button onClick={resetPassword} disabled={busy} className="btn" style={{ marginTop: 0, padding: "10px 16px", fontSize: 13 }}>
-              {busy ? "⏳ Enviando..." : "📧 Enviar enlace de recuperación"}
-            </button>
-            <button onClick={() => { setShowReset(false); setErr("") }} style={{ background: "none", border: "none", color: "#64748b", fontSize: 11, cursor: "pointer", marginTop: 6, width: "100%" }}>
-              Cancelar
-            </button>
+            <Button3D variant="primary" size="sm" sound="click" onClick={resetPassword} loading={busy}>
+              📧 Enviar enlace de recuperación
+            </Button3D>
+            <button onClick={() => { setShowReset(false); setErr("") }} style={{
+              background: "none", border: "none", color: "var(--text-muted)",
+              fontSize: 11, cursor: "pointer", marginTop: 6, width: "100%",
+            }}>Cancelar</button>
           </div>
         )}
 
         {resetSent && (
-          <div style={{ marginTop: 12, padding: 14, background: "rgba(34,197,94,0.08)", borderRadius: 12, border: "1px solid rgba(34,197,94,0.15)" }}>
-            <div style={{ fontSize: 13, color: "#86efac", fontWeight: 600 }}>Email enviado!</div>
-            <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Revisá tu casilla de correo. El enlace expira en 1 hora.</div>
-            <button onClick={() => { setShowReset(false); setResetSent(false) }} style={{ background: "none", border: "none", color: "#ff6b81", fontSize: 11, cursor: "pointer", marginTop: 6 }}>
-              Volver al login
-            </button>
+          <div style={{
+            marginTop: 12, padding: 14, borderRadius: 12,
+            background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.15)",
+          }}>
+            <div style={{ fontSize: 13, color: "var(--brand-green)", fontWeight: 600 }}>Email enviado!</div>
+            <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 4 }}>Revisá tu casilla de correo. El enlace expira en 1 hora.</div>
+            <button onClick={() => { setShowReset(false); setResetSent(false) }} style={{
+              background: "none", border: "none", color: "var(--brand-pink)", fontSize: 11, cursor: "pointer", marginTop: 6,
+            }}>Volver al login</button>
           </div>
         )}
 
-        <button className={"btn " + (tab === "up" ? "btn-up" : "")} onClick={submit} disabled={busy}>
-          {busy ? "⏳ Procesando..." : tab === "in" ? "🚀 Entrar al sistema" : "🎯 Crear mi cuenta"}
-        </button>
+        {/* Submit */}
+        <div style={{ marginTop: 20 }}>
+          <Button3D
+            variant={tab === "up" ? "secondary" : "primary"}
+            size="lg"
+            glow
+            sound="click"
+            loading={busy}
+            onClick={submit}
+          >
+            {tab === "in" ? "🚀 Entrar al sistema" : "🎯 Crear mi cuenta"}
+          </Button3D>
+        </div>
 
-        {err && <div className="err">⚠️ {err}</div>}
-        {ok && <div className="suc">✅ {ok}</div>}
+        {/* Messages */}
+        {err && (
+          <div style={{
+            background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)",
+            borderRadius: 10, padding: "12px 14px", color: "#fca5a5", fontSize: 13, marginTop: 14,
+          }}>⚠️ {err}</div>
+        )}
+        {ok && (
+          <div style={{
+            background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)",
+            borderRadius: 10, padding: "12px 14px", color: "#86efac", fontSize: 13, marginTop: 14,
+          }}>✅ {ok}</div>
+        )}
       </div>
 
-      <div style={{ marginTop: 24, fontSize: 11, color: "#475569", textAlign: "center" }}>
-        Al continuar aceptás nuestros <a href="/terminos" style={{ color: "#ff6b81" }}>términos</a> y <a href="/privacidad" style={{ color: "#ff6b81" }}>privacidad</a>
+      {/* Footer */}
+      <div style={{ marginTop: 24, fontSize: 11, color: "var(--text-muted)", textAlign: "center" }}>
+        Al continuar aceptás nuestros{" "}
+        <a href="/terminos" style={{ color: "var(--brand-pink)", textDecoration: "none", fontWeight: 600 }}>términos</a>
+        {" "}y{" "}
+        <a href="/privacidad" style={{ color: "var(--brand-pink)", textDecoration: "none", fontWeight: 600 }}>privacidad</a>
       </div>
     </div>
   </>)
