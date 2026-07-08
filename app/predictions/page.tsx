@@ -31,6 +31,9 @@ import TrendBars from "@/components/predictions/TrendBars";
 import ShareButtons from "@/components/predictions/ShareButtons";
 import ReviewsCarousel from "@/components/predictions/ReviewsCarousel";
 import PayCTA from "@/components/predictions/PayCTA";
+import { useSound } from "@/lib/sound/audio-manager";
+import { useSettings } from "@/components/ui/Settings";
+import { ConfettiEffect, GlowOrbs, NeonBackground } from "@/components/ui/Effects";
 
 const EMOJIS: Record<string, string> = {
   "00": "🥚", "01": "💧", "02": "🧒", "03": "⛪", "04": "🛏️", "05": "🐱", "06": "🐶", "07": "🔫", "08": "🔥", "09": "🏞️",
@@ -85,6 +88,9 @@ type PredData = {
 
 function PageInner() {
   const toast = useToast();
+  const sound = useSound();
+  const { settings } = useSettings();
+  const [showConfetti, setShowConfetti] = useState(false);
   const [pr, setPr] = useState(false);
   const [em, setEm] = useState("");
   const [tab, setTab] = useState<"pred" | "rdbl" | "freq" | "trend" | "mis" | "acc" | "hist">("pred");
@@ -344,17 +350,9 @@ function PageInner() {
 
 function mostrarNotifResultado(turno: string, numeros: string[], aciertos: string[]) {
     if (aciertos && aciertos.length > 0) {
-      try {
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.frequency.value = 880;
-        gain.gain.value = 0.3;
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.3);
-      } catch {}
+      sound.win();
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
     }
     if (!("Notification" in window) || Notification.permission !== "granted") return;
     const body = aciertos && aciertos.length > 0
@@ -402,6 +400,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       const predData = d.pred || d;
       setDt({ ...predData, heatmap: d.heatmap, ranking: d.numeros });
       setDn(true);
+      sound.success();
       // Gamification: record analysis + community trend
       if (tkRef.current) {
         fetch("/api/gamification", {
@@ -530,6 +529,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       if (newAciertos > prevAciertos) {
         const diff = newAciertos - prevAciertos
         toast(`¡${diff} nuevo${diff > 1 ? "s" : ""} acierto${diff > 1 ? "s" : ""} detectado${diff > 1 ? "s" : ""}!`, "success")
+        sound.win();
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
       }
       setMisPreds(apiPreds)
       localStorage.setItem("misPreds", JSON.stringify(apiPreds))
@@ -674,6 +676,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
     if (!silent) {
       setGuardadoOk(true);
+      sound.coin();
       setTimeout(() => setGuardadoOk(false), 3000);
     }
     setGuardando(false);
@@ -735,6 +738,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   return (
     <>
       <AgeGate />
+      <NeonBackground intensity={settings.particlesEnabled ? "low" : "off"} />
+      <GlowOrbs />
+      <ConfettiEffect active={showConfetti} />
       <style>{`
         *{box-sizing:border-box;margin:0;padding:0}
         :root{--red:#FE2C55;--cyan:#25F4EE;--green:#22c55e;--bg:#010101;--bg2:#0d0d0d;--bg3:#141b2f;--card:#0d0d0d;--surface:rgba(13,13,13,.9);--text:#FFFFFF;--dim:#94a3b8;--border:rgba(255,255,255,.08);--nav-bg:rgba(6,8,15,.98);--panel-bg:rgba(255,255,255,.04);--panel-border:rgba(255,255,255,.08);--shadow:rgba(0,0,0,.32)}
@@ -1011,14 +1017,14 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 8, textAlign: "center" }}>🎯 Elegí el sorteo que querés analizar:</div>
           <div className="sorteo-btns">
             {SORTEOS.map((s) => (
-              <button key={s} className={"sb" + (so === s ? " on" : "")} onClick={() => setSo(s)}>
+              <button key={s} className={"sb" + (so === s ? " on" : "")} onClick={() => { sound.pop(); setSo(s); }}>
                 <span>{s === "Vespertina" ? "Vesp" : s === "Primera" ? "1era" : s === "Matutina" ? "Mat" : s === "Nocturna" ? "Noct" : s}</span>
                 <span className="sh">{HORAS[s]}</span>
                 {confianzaTurnos[s] != null && <span className="sc">{confianzaTurnos[s]}%</span>}
               </button>
             ))}
           </div>
-          <button className="btn3d btn-gen" onClick={gen} disabled={ld} style={{ opacity: ld ? 0.6 : 1 }}>
+          <button className="btn3d btn-gen" onClick={() => { sound.whoosh(); gen(); }} disabled={ld} style={{ opacity: ld ? 0.6 : 1 }}>
             {ld ? "⏳ Analizando datos..." : "⚡ Generar Análisis Ahora"}
           </button>
           <div style={{ display: "grid", gap: 10, margin: "16px 0 18px" }}>
@@ -1253,27 +1259,27 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               )}
 
               <div className="tbs">
-                <button className={"tb tb-pred" + (tab === "pred" ? " on" : "")} onClick={() => setTab("pred")}>
+                <button className={"tb tb-pred" + (tab === "pred" ? " on" : "")} onClick={() => { sound.pop(); setTab("pred"); }}>
                   <span className="tb-ico">🎯</span>
                   <span className="tb-lbl">Análisis</span>
                 </button>
-                <button className={"tb tb-rdbl" + (tab === "rdbl" ? " on" : "")} onClick={() => setTab("rdbl")}>
+                <button className={"tb tb-rdbl" + (tab === "rdbl" ? " on" : "")} onClick={() => { sound.pop(); setTab("rdbl"); }}>
                   <span className="tb-ico">📊</span>
                   <span className="tb-lbl">Correlación</span>
                 </button>
-                <button className={"tb tb-freq" + (tab === "freq" ? " on" : "")} onClick={() => setTab("freq")}>
+                <button className={"tb tb-freq" + (tab === "freq" ? " on" : "")} onClick={() => { sound.pop(); setTab("freq"); }}>
                   <span className="tb-ico">🔥</span>
                   <span className="tb-lbl">Frecuencias</span>
                 </button>
-                <button className={"tb tb-trend" + (tab === "trend" ? " on" : "")} onClick={() => setTab("trend")}>
+                <button className={"tb tb-trend" + (tab === "trend" ? " on" : "")} onClick={() => { sound.pop(); setTab("trend"); }}>
                   <span className="tb-ico">📈</span>
                   <span className="tb-lbl">Tendencias</span>
                 </button>
-                <button className={"tb tb-mis" + (tab === "mis" ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para guardar y ver tus análisis", "info"); return; } setTab("mis") }}>
+                <button className={"tb tb-mis" + (tab === "mis" ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para guardar y ver tus análisis", "info"); return; } sound.pop(); setTab("mis"); }}>
                   <span className="tb-ico">{guestMode ? "🔒" : "📋"}</span>
                   <span className="tb-lbl">Mis Análisis</span>
                 </button>
-                <button className={"tb tb-acc" + (tab === "acc" ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para ver tu precisión", "info"); return; } setTab("acc") }}>
+                <button className={"tb tb-acc" + (tab === "acc" ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para ver tu precisión", "info"); return; } sound.pop(); setTab("acc"); }}>
                   <span className="tb-ico">{guestMode ? "🔒" : "🎯"}</span>
                   <span className="tb-lbl">Precisión</span>
                 </button>
@@ -1390,15 +1396,15 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     {guestMode ? (
-                      <a href="/login" className="btn3d btn-save" style={{ marginBottom: 0, textDecoration: "none", textAlign: "center" }}>
+                      <a href="/login" className="btn3d btn-save" style={{ marginBottom: 0, textDecoration: "none", textAlign: "center" }} onClick={() => sound.click()}>
                         🔐 Crear cuenta gratis
                       </a>
                     ) : (
-                      <button className="btn3d btn-save" style={{ marginBottom: 0 }} onClick={() => guardarPrediccion()} disabled={guardando}>
+                      <button className="btn3d btn-save" style={{ marginBottom: 0 }} onClick={() => { sound.click(); guardarPrediccion(); }} disabled={guardando}>
                         {guardando ? "Guardando..." : guardadoOk ? "Guardado!" : "Guardar para comparar"}
                       </button>
                     )}
-                    <button className="btn3d btn-copy" style={{ marginBottom: 0 }} onClick={copiar}>
+                    <button className="btn3d btn-copy" style={{ marginBottom: 0 }} onClick={() => { sound.click(); copiar(); }}>
                       Copiar
                     </button>
                   </div>
