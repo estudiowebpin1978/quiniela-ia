@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
 
     // Admin role is ONLY for estudiowebpin@gmail.com — hardcode check
     const adminEmails = ["estudiowebpin@gmail.com"];
-    const isAdmin = adminEmails.includes(user.email);
+    const isAdmin = adminEmails.includes(user.email?.toLowerCase?.() || user.email);
     const dbRole = profile?.role ?? "free";
     // If DB has "admin" but email doesn't match, downgrade to "free"
     const role = isAdmin ? "admin" : (dbRole === "admin" ? "free" : dbRole);

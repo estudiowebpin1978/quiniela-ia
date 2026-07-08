@@ -232,6 +232,11 @@ function PageInner() {
     }
     tkRef.current = auth.access_token;
     setEm(auth.user?.email || "");
+    // Check admin from email directly (fallback for slow API)
+    if (auth.user?.email?.toLowerCase() === "estudiowebpin@gmail.com") {
+      setUserRole("admin");
+      setPr(true);
+    }
     fetch("/api/auth/me", { headers: { Authorization: "Bearer " + auth.access_token } })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {

@@ -13,8 +13,8 @@ function checkRate(ip:string,max=10,windowMs=60000):boolean{
 }
 
 async function isAdmin(token:string):Promise<boolean>{
-  const adminEmail=process.env.ADMIN_EMAIL||"estudiowebpin@gmail.com"
-  try{const r1=await fetch(`${SB()}/auth/v1/user`,{headers:{"apikey":SK(),"Authorization":`Bearer ${token}`}});if(!r1.ok)return false;const user=await r1.json();return user.email===adminEmail}catch{return false}
+  const adminEmail=(process.env.ADMIN_EMAIL||"estudiowebpin@gmail.com").toLowerCase()
+  try{const r1=await fetch(`${SB()}/auth/v1/user`,{headers:{"apikey":SK(),"Authorization":`Bearer ${token}`}});if(!r1.ok)return false;const user=await r1.json();return user.email?.toLowerCase()===adminEmail}catch{return false}
 }
 
 export async function GET(req:NextRequest){
