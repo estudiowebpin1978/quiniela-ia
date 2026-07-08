@@ -232,14 +232,17 @@ function PageInner() {
     }
     tkRef.current = auth.access_token;
     setEm(auth.user?.email || "");
+    console.log("[DEBUG] Auth email from token:", auth.user?.email);
     // Check admin from email directly (fallback for slow API)
     if (auth.user?.email?.toLowerCase() === "estudiowebpin@gmail.com") {
+      console.log("[DEBUG] Admin fallback triggered");
       setUserRole("admin");
       setPr(true);
     }
     fetch("/api/auth/me", { headers: { Authorization: "Bearer " + auth.access_token } })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
+        console.log("[DEBUG] auth/me response:", { email: d?.email, role: d?.role, isPremium: d?.isPremium, premium_until: d?.premium_until });
         if (d?.isPremium) setPr(true);
         if (d?.role) setUserRole(d.role as "free" | "premium" | "admin");
         if (d?.userId) setUserId(d.userId);
