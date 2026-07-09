@@ -219,13 +219,7 @@ function PageInner() {
   }
 
   const tkRef = useRef("");
-
-  function extractEmailFromJWT(token: string): string {
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      return payload.email || payload.sub || "";
-    } catch { return ""; }
-  }
+  const isAdminRef = useRef(false);
 
   useEffect(() => {
     const auth = getAuth();
@@ -238,18 +232,33 @@ function PageInner() {
       return;
     }
 
-    const email = auth.user?.email || extractEmailFromJWT(auth.access_token) || "";
-    const isAdmin = email.toLowerCase() === "estudiowebpin@gmail.com";
+    let email = auth.user?.email || "";
+    if (!email) {
+      try {
+        const payload = JSON.parse(atob(auth.access_token.split(".")[1]));
+        email = payload.email || "";
+      } catch {}
+    }
+
+    const adminEmails = ["estudiowebpin@gmail.com"];
+    const admin = adminEmails.includes(email.toLowerCase());
+    isAdminRef.current = admin;
 
     tkRef.current = auth.access_token;
     setEm(email);
-    if (isAdmin) { setUserRole("admin"); setPr(true); }
+
+    if (admin) {
+      setUserRole("admin");
+      setPr(true);
+    }
 
     fetch("/api/auth/me", { headers: { Authorization: "Bearer " + auth.access_token } })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.isPremium) setPr(true);
-        if (d?.role) setUserRole(isAdmin ? "admin" : d.role as "free" | "premium" | "admin");
+        if (d?.role) {
+          setUserRole(isAdminRef.current ? "admin" : d.role as "free" | "premium" | "admin");
+        }
         if (d?.userId) setUserId(d.userId);
         if (d?.premium_until) setPremExpiry({ premium_until: d.premium_until, daysRemaining: d.daysRemaining });
       })
