@@ -1,46 +1,24 @@
 "use client"
 import { useState, useEffect } from "react"
 
+const WA_CHANNEL = "https://whatsapp.com/channel/0029VbB7O9B9cDDUtBY9GU1F"
+
 export default function WhatsAppFAB() {
   const [showTooltip, setShowTooltip] = useState(false)
-  const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
-    const wasDismissed = localStorage.getItem("whatsapp-fab-dismissed")
-    if (wasDismissed) {
-      setDismissed(true)
-      return
-    }
-
-    const timer = setTimeout(() => {
-      setShowTooltip(true)
-    }, 5000)
-
+    const timer = setTimeout(() => setShowTooltip(true), 3000)
     return () => clearTimeout(timer)
   }, [])
 
-  function handleDismiss() {
-    setDismissed(true)
-    localStorage.setItem("whatsapp-fab-dismissed", "true")
-  }
-
-  function handleClick() {
-    window.open(
-      "https://whatsapp.com/channel/0029VbB7O9B9cDDUtBY9GU1F",
-      "_blank"
-    )
-    handleDismiss()
-  }
-
-  if (dismissed) return null
-
   return (
     <div
+      className="wa-fab-container"
       style={{
         position: "fixed",
-        bottom: 24,
-        right: 24,
-        zIndex: 9998,
+        bottom: 80,
+        right: 16,
+        zIndex: 9999,
         display: "flex",
         flexDirection: "column",
         alignItems: "flex-end",
@@ -61,7 +39,7 @@ export default function WhatsAppFAB() {
           }}
         >
           <button
-            onClick={handleDismiss}
+            onClick={() => setShowTooltip(false)}
             style={{
               position: "absolute",
               top: 6,
@@ -100,7 +78,7 @@ export default function WhatsAppFAB() {
       )}
 
       <button
-        onClick={handleClick}
+        onClick={() => window.open(WA_CHANNEL, "_blank")}
         style={{
           width: 56,
           height: 56,

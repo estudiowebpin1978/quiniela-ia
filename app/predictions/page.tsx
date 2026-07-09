@@ -256,9 +256,10 @@ function PageInner() {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.isPremium) setPr(true);
-        if (d?.role) {
-          setUserRole(isAdminRef.current ? "admin" : d.role as "free" | "premium" | "admin");
-        }
+        if (d?.email) setEm(d.email);
+        const apiIsAdmin = isAdminRef.current || ["estudiowebpin@gmail.com"].includes((d?.email || "").toLowerCase());
+        if (apiIsAdmin) { isAdminRef.current = true; setUserRole("admin"); setPr(true); }
+        else if (d?.role) { setUserRole(d.role as "free" | "premium" | "admin"); }
         if (d?.userId) setUserId(d.userId);
         if (d?.premium_until) setPremExpiry({ premium_until: d.premium_until, daysRemaining: d.daysRemaining });
       })
