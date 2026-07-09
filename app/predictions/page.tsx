@@ -219,8 +219,15 @@ function PageInner() {
   }
 
   const tkRef = useRef("");
+
+  function extractEmailFromJWT(token: string): string {
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      return payload.email || payload.sub || "";
+    } catch { return ""; }
+  }
+
   useEffect(() => {
-    // Guest mode: no auth required (but only if not logged in)
     const auth = getAuth();
     if (isGuest() && !auth) {
       setGuestMode(true);
@@ -230,21 +237,19 @@ function PageInner() {
       window.location.href = "/login";
       return;
     }
+
+    const email = auth.user?.email || extractEmailFromJWT(auth.access_token) || "";
+    const isAdmin = email.toLowerCase() === "estudiowebpin@gmail.com";
+
     tkRef.current = auth.access_token;
-    setEm(auth.user?.email || "");
-    console.log("[DEBUG] Auth email from token:", auth.user?.email);
-    // Check admin from email directly (fallback for slow API)
-    if (auth.user?.email?.toLowerCase() === "estudiowebpin@gmail.com") {
-      console.log("[DEBUG] Admin fallback triggered");
-      setUserRole("admin");
-      setPr(true);
-    }
+    setEm(email);
+    if (isAdmin) { setUserRole("admin"); setPr(true); }
+
     fetch("/api/auth/me", { headers: { Authorization: "Bearer " + auth.access_token } })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        console.log("[DEBUG] auth/me response:", { email: d?.email, role: d?.role, isPremium: d?.isPremium, premium_until: d?.premium_until });
         if (d?.isPremium) setPr(true);
-        if (d?.role) setUserRole(d.role as "free" | "premium" | "admin");
+        if (d?.role) setUserRole(isAdmin ? "admin" : d.role as "free" | "premium" | "admin");
         if (d?.userId) setUserId(d.userId);
         if (d?.premium_until) setPremExpiry({ premium_until: d.premium_until, daysRemaining: d.daysRemaining });
       })
