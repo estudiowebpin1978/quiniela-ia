@@ -4,16 +4,21 @@
  * Returns frequency, gaps, recent appearances, and trend data.
  */
 import { NextRequest, NextResponse } from "next/server"
-
-const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || ""
-const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
+import { getSupabaseUrl, getSupabaseKey } from "@/lib/config"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
+  const SB = getSupabaseUrl()
+  const SK = getSupabaseKey()
+
   if (!SB || !SK) {
     return NextResponse.json({ error: "Config" }, { status: 500 })
   }
+
+  // Require auth token
+  const token = req.headers.get("authorization")?.replace("Bearer ", "")
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const numStr = req.nextUrl.searchParams.get("number")
   const turno = req.nextUrl.searchParams.get("turno")

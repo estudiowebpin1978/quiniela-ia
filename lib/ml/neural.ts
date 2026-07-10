@@ -91,10 +91,6 @@ export function entrenarRedNeuronal(
     if (perdidaTotal < mejorPerdida) {
       mejorPerdida = perdidaTotal;
     }
-
-    if (epoch % 20 === 0) {
-      console.log(`[NN] Epoch ${epoch}: pérdida ${perdidaTotal.toFixed(4)}`);
-    }
   }
 
   const predictions = entradasNormalizadas.map(entrada => {
@@ -107,8 +103,6 @@ export function entrenarRedNeuronal(
   red.precision = correctas / numEntradas;
   red.perdida = mejorPerdida;
   red.entrenada = true;
-
-  console.log(`[NN] Entrenamiento completado. Precisión: ${(red.precision * 100).toFixed(1)}%`);
 
   return red;
 }

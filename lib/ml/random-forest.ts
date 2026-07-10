@@ -48,7 +48,6 @@ export function entrenarRandomForest(
   featureNames: string[]
 ): RandomForest {
   if (datos.length < 10) {
-    console.warn('[RF] Datos insuficientes para entrenamiento');
     return rf;
   }
 
@@ -69,8 +68,6 @@ export function entrenarRandomForest(
   const predictions = datos.map(d => predecirArbol(rf.arbres[0], d.features));
   const correctas = predictions.filter((p, i) => p === datos[i].etiqueta).length;
   rf.precision = correctas / datos.length;
-
-  console.log(`[RF] Entrenamiento completado. Precisión: ${(rf.precision * 100).toFixed(1)}%`);
 
   return rf;
 }

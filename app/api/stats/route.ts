@@ -1,11 +1,16 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { getSupabaseUrl, getSupabaseKey } from "@/lib/config"
 
 export const dynamic = "force-dynamic"
 
-export async function GET() {
-  const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-  const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
+export async function GET(req: NextRequest) {
+  const SB = getSupabaseUrl()
+  const SK = getSupabaseKey()
   if (!SB || !SK) return NextResponse.json({ error: "Configuración incompleta" }, { status: 500 })
+
+  // Require auth token
+  const token = req.headers.get("authorization")?.replace("Bearer ", "")
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
     const drawsRes = await fetch(`${SB}/rest/v1/draws?select=date,turno,numbers&order=date.desc&limit=50000`, {

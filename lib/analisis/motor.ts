@@ -75,9 +75,6 @@ export function ejecutarAnalisisCompleto(
   const totalSorteos = sorteosFiltrados.length;
   const totalNumeros = sorteosFiltrados.reduce((sum, s) => sum + (Array.isArray(s.numbers) ? s.numbers.length : 0), 0);
 
-  console.log(`[Motor] Analizando ${totalSorteos} sorteos con ${totalNumeros} números...`);
-
-  console.log('[Motor] 1/6 Calculando análisis de frecuencia...');
   const frecuencia = analizarFrecuencia(sorteosFiltrados, {
     incluir2Cifras: cfg.incluir2Cifras,
     incluir3Cifras: cfg.incluir3Cifras,
@@ -85,19 +82,14 @@ export function ejecutarAnalisisCompleto(
     diasAnalisis
   });
 
-  console.log('[Motor] 2/6 Calculando análisis de ausencias...');
   const ausencias = analizarAusencias(sorteosFiltrados, { diasAnalisis });
 
-  console.log('[Motor] 3/6 Calculando matrices de transición...');
   const transicion = analizarTransicion(sorteosFiltrados, { diasAnalisis });
 
-  console.log('[Motor] 4/6 Calculando análisis de posiciones...');
   const posiciones = analizarPosiciones(sorteosFiltrados, { diasAnalisis });
 
-  console.log('[Motor] 5/6 Calculando análisis de ciclos...');
   const ciclos = analizarCiclos(sorteosFiltrados, { diasAnalisis });
 
-  console.log('[Motor] 6/6 Generando ranking y scoring...');
   const ranking = generarRanking(
     sorteosFiltrados,
     frecuencia,

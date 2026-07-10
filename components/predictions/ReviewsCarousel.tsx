@@ -1,17 +1,17 @@
 "use client"
-import { useEffect, useRef, useCallback } from "react"
+import { useEffect, useRef } from "react"
 
-const REVIEWS = [
-  { n: "Usuario #1847", t: "El motor estadístico es muy completo y detallado.", s: 5 },
-  { n: "Usuario #2391", t: "Los datos se actualizan rápido y son confiables.", s: 5 },
-  { n: "Usuario #956", t: "El análisis de pares correlacionados es muy útil.", s: 5 },
-  { n: "Usuario #3102", t: "Fácil de usar. Muy intuitiva.", s: 4 },
-  { n: "Usuario #784", t: "El mapa de calor es muy profesional.", s: 5 },
-  { n: "Usuario #2615", t: "Excelente app. Los gráficos son claros.", s: 5 },
-  { n: "Usuario #1203", t: "Me ayudó a entender los patrones de datos.", s: 4 },
-  { n: "Usuario #4028", t: "Muy buena app, la recomiendo.", s: 5 },
-  { n: "Usuario #571", t: "Los análisis de 4 cifras son muy detallados.", s: 5 },
-  { n: "Usuario #3489", t: "El análisis de frecuencia cambió mi forma de ver los datos.", s: 5 },
+const FEATURES = [
+  { i: "📊", t: "Motor de 30 factores estadísticos", s: 5 },
+  { i: "🎲", t: "Simulación Monte Carlo en tiempo real", s: 5 },
+  { i: "🤖", t: "Machine Learning con Random Forest", s: 5 },
+  { i: "🔥", t: "Mapa de calor de frecuencias", s: 5 },
+  { i: "📈", t: "Análisis de tendencias por turno", s: 5 },
+  { i: "🧠", t: "Redes neuronales y Markov", s: 5 },
+  { i: "⚡", t: "Resultados actualizados automáticamente", s: 5 },
+  { i: "🏆", t: "Sistema de logros y gamificación", s: 5 },
+  { i: "📱", t: "App progresiva (PWA) instalable", s: 5 },
+  { i: "🔔", t: "Notificaciones push de resultados", s: 5 },
 ]
 
 export default function ReviewsCarousel() {
@@ -37,11 +37,11 @@ export default function ReviewsCarousel() {
     return () => cancelAnimationFrame(raf)
   }, [])
 
-  const items = [...REVIEWS, ...REVIEWS]
+  const items = [...FEATURES, ...FEATURES]
 
   return (
     <div style={{ marginTop: 24 }}>
-      <div className="sec" style={{ padding: "0 16px" }}>Lo que dicen nuestros usuarios</div>
+      <div className="sec" style={{ padding: "0 16px" }}>Nuestras funcionalidades</div>
       <div
         className="rev-o"
         style={{ overflow: "hidden", position: "relative" }}
@@ -56,15 +56,12 @@ export default function ReviewsCarousel() {
               borderRadius: 12, padding: 12, flexShrink: 0
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 14, background: "linear-gradient(135deg,#a855f7,#6366f1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#fff" }}>
-                  U
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#e2e8f0" }}>{r.n}</div>
+                <div style={{ width: 28, height: 28, borderRadius: 14, background: "linear-gradient(135deg,#a855f7,#6366f1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+                  {r.i}
                 </div>
               </div>
               <div style={{ fontSize: 10, color: "#94a3b8", lineHeight: 1.5 }}>{r.t}</div>
-              <div style={{ marginTop: 4, fontSize: 10, color: "#f59e0b" }}>{"★".repeat(r.s)}{"☆".repeat(5 - r.s)}</div>
+              <div style={{ marginTop: 4, fontSize: 10, color: "#f59e0b" }}>{"★".repeat(r.s)}</div>
             </div>
           ))}
         </div>

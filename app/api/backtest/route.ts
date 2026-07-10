@@ -10,18 +10,23 @@
 import { NextRequest, NextResponse } from "next/server"
 import { walkForwardBacktest } from "@/lib/analisis/backtest"
 import { calcularFactores30, DEFAULT_WEIGHTS } from "@/lib/analisis/factores30"
+import { getSupabaseUrl, getSupabaseKey } from "@/lib/config"
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const turno = searchParams.get("sorteo") || searchParams.get("turno") || "nocturna"
   const daysParam = parseInt(searchParams.get("days") || "90")
 
-  const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-  const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
+  const SB = getSupabaseUrl()
+  const SK = getSupabaseKey()
 
   if (!SB || !SK) {
     return NextResponse.json({ error: "Configuración incompleta" }, { status: 500 })
   }
+
+  // Require auth token
+  const token = req.headers.get("authorization")?.replace("Bearer ", "")
+  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const turnosValidos = ["previa", "primera", "matutina", "vespertina", "nocturna"]
   if (!turnosValidos.includes(turno.toLowerCase())) {

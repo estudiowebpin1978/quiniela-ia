@@ -31,15 +31,15 @@ export async function GET(req: NextRequest) {
       })
     }
     
-    const uniqueDates = [...new Set(rows.map((r: any) => r.date))]
+    const uniqueDates = [...new Set(rows.map((r: any) => r.date))].sort()
     const totalSorteos = rows.length
     
-    const dates = uniqueDates.slice(0, 10).sort().reverse()
+    const dates = uniqueDates
     let racha = 0
     let currentDate = new Date()
     currentDate.setHours(0, 0, 0, 0)
     
-    for (let i = 0; i < dates.length; i++) {
+    for (let i = 0; i < 120; i++) {
       const checkDate = new Date(currentDate)
       checkDate.setDate(checkDate.getDate() - i)
       const checkStr = checkDate.toISOString().split("T")[0]

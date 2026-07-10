@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSupabaseUrl, getSupabaseKey } from "@/lib/config";
 
-const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || "https://wazkylxgqckjfkcmfotl.supabase.co";
-const SK = process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || "";
+const SB = getSupabaseUrl();
+const SK = getSupabaseKey();
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,9 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   if (!CRON_SECRET) {
     return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
+  }
+  if (!SB || !SK) {
+    return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
   }
 
   // Accept secret via Authorization header (preferred) or query param (legacy)

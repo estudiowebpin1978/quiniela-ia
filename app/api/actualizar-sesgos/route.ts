@@ -80,11 +80,6 @@ export async function GET(req:NextRequest){
     headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`,"Content-Type":"application/json","Prefer":"return=minimal"},
     body:JSON.stringify({key:"sesgos_mensuales",value:JSON.stringify(sesgosMensuales),updated_at:new Date().toISOString()})
   })
-    await fetch(`${SB()}/rest/v1/config`,{
-      method:"POST",
-      headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`,"Content-Type":"application/json","Prefer":"return=minimal"},
-      body:JSON.stringify({key:"sesgos",value:JSON.stringify(sesgos),updated_at:new Date().toISOString()})
-    })
 
     return NextResponse.json({ok:true,sesgos,mensaje:"Sesgos actualizados correctamente"})
   }catch(e:any){return NextResponse.json({error:e.message},{status:500})}

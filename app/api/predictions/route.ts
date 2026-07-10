@@ -121,6 +121,15 @@ export async function GET(req: NextRequest) {
   const cacheKey = `pred:${turnoQuery}:${targetDate}`
   const gc = globalThis as any
   if (!gc.__predCache) gc.__predCache = {}
+  // Evict expired entries periodically (max 50 entries)
+  const keys = Object.keys(gc.__predCache)
+  if (keys.length > 50) {
+    for (const k of keys) {
+      if (gc.__predCache[k] && Date.now() >= gc.__predCache[k].expiresAt) {
+        delete gc.__predCache[k]
+      }
+    }
+  }
   const cached = gc.__predCache[cacheKey]
   if (cached && Date.now() < cached.expiresAt) {
     return NextResponse.json(cached.result)

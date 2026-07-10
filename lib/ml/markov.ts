@@ -69,9 +69,6 @@ export function entrenarCadenaMarkov(
   cadena.entropia = calcularEntropiaCadena(cadena.matrizTransicion);
   cadena.entrenada = true;
 
-  console.log(`[Markov] Cadena de orden ${orden} entrenada con ${secuencias.length} secuencias`);
-  console.log(`[Markov] Entropía: ${cadena.entropia.toFixed(3)}`);
-
   return cadena;
 }
 

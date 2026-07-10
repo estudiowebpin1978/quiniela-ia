@@ -9,13 +9,15 @@ const PLAN_DAYS: Record<string, number> = {
 }
 
 export async function POST(req: NextRequest) {
-  // Shared secret check — reject if secret is configured but not provided
-  const webhookSecret = process.env.UALA_WEBHOOK_SECRET || ""
-  if (webhookSecret) {
-    const incomingSecret = req.headers.get("x-webhook-secret") || ""
-    if (incomingSecret !== webhookSecret) {
-      return NextResponse.json({ ok: true, message: "Invalid secret" }, { status: 401 })
-    }
+  // Shared secret check — REJECT if secret not provided
+  const webhookSecret = process.env.UALA_WEBHOOK_SECRET || "";
+  if (!webhookSecret) {
+    console.error("[UALA WEBHOOK] UALA_WEBHOOK_SECRET not configured — rejecting");
+    return NextResponse.json({ ok: false, message: "Server misconfigured" }, { status: 500 });
+  }
+  const incomingSecret = req.headers.get("x-webhook-secret") || "";
+  if (incomingSecret !== webhookSecret) {
+    return NextResponse.json({ ok: false, message: "Invalid secret" }, { status: 401 });
   }
 
   // 1. Parse body

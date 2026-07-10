@@ -118,7 +118,6 @@ export async function entrenarModelos(
   const startTime = Date.now();
   const modelos: ModeloEntrenado[] = [];
 
-  console.log('[Trainer] Preparando datos...');
   const { features, etiquetas } = prepararFeatures(sorteos);
 
   if (features.length < 20) {
@@ -130,10 +129,7 @@ export async function entrenarModelos(
     0.7, 0.15, 0.15
   );
 
-  console.log(`[Trainer] Datos: ${entrenamiento.length} entrenamiento, ${validacion.length} validacion, ${test.length} test`);
-
   if (opciones.incluirRF !== false) {
-    console.log('[Trainer] Entrenando Random Forest...');
     const rf = crearRandomForest({ nArboles: 30, maxProfundidad: 6 });
     const datosEntrenamiento = entrenamiento.map(d => ({ features: d.features, etiqueta: d.etiqueta }));
     const rfEntrenado = entrenarRandomForest(rf, datosEntrenamiento, [
@@ -155,7 +151,6 @@ export async function entrenarModelos(
   }
 
   if (opciones.incluirMarkov !== false) {
-    console.log('[Trainer] Entrenando Cadena de Markov...');
     const markov = crearCadenaMarkov(2);
 
     const ordenados = [...sorteos].sort((a, b) =>
@@ -190,7 +185,6 @@ export async function entrenarModelos(
   }
 
   if (opciones.incluirNN !== false && features[0].length > 0) {
-    console.log('[Trainer] Entrenando Red Neuronal...');
     const nn = crearRedNeuronal({
       arquitectura: [features[0].length, 64, 32, 100],
       tasaAprendizaje: 0.001,
@@ -263,7 +257,6 @@ export function guardarModelos(modelos: ModeloEntrenado[], path: string): void {
     modelo: typeof m.modelo === 'string' ? m.modelo : JSON.stringify(m.modelo)
   }));
   
-  console.log(`[Trainer] Modelos guardados en ${path}`);
 }
 
 export function prepararPrediccion(sorteos: { fecha: string; turno: string; numbers: number[] }[]): number[] {
@@ -288,6 +281,5 @@ export function prepararPrediccion(sorteos: { fecha: string; turno: string; numb
 }
 
 export function cargarModelos(path: string): ModeloEntrenado[] {
-  console.log(`[Trainer] Modelos cargados desde ${path}`);
   return [];
 }

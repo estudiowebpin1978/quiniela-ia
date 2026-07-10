@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getSupabaseUrl, getSupabaseKey, sbHeaders } from "@/lib/config"
 
-const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY!
+const SB_URL = getSupabaseUrl();
+const SB_KEY = getSupabaseKey();
 
 // GET: fetch community trends for today
 export async function GET(req: NextRequest) {
   const today = new Date().toISOString().split("T")[0]
 
   try {
+    if (!SB_URL || !SB_KEY) return NextResponse.json({ trends: [], totalToday: 0 });
     const res = await fetch(
       `${SB_URL}/rest/v1/community_trends?date=eq.${today}&select=*&order=turno`,
-      { headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}` }, next: { revalidate: 60 } } as any
+      { headers: sbHeaders(), next: { revalidate: 60 } }
     )
     if (!res.ok) return NextResponse.json({ trends: [], totalToday: 0 })
     const rows = await res.json()
@@ -45,7 +47,7 @@ export async function POST(req: NextRequest) {
   try {
     const existing = await fetch(
       `${SB_URL}/rest/v1/community_trends?date=eq.${today}&turno=eq.${turno}&limit=1`,
-      { headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}` } }
+      { headers: sbHeaders() }
     )
     const rows = await existing.json()
 
@@ -68,7 +70,7 @@ export async function POST(req: NextRequest) {
       await fetch(`${SB_URL}/rest/v1/community_trends?date=eq.${today}&turno=eq.${turno}`, {
         method: "PATCH",
         headers: {
-          "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}`,
+          ...sbHeaders(),
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -82,7 +84,7 @@ export async function POST(req: NextRequest) {
       await fetch(`${SB_URL}/rest/v1/community_trends`, {
         method: "POST",
         headers: {
-          "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}`,
+          ...sbHeaders(),
           "Content-Type": "application/json", Prefer: "return=minimal",
         },
         body: JSON.stringify({
