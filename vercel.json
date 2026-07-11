@@ -4,10 +4,5 @@
       "path": "/api/cron-premium-expiry",
       "schedule": "0 12 * * *"
     }
-  ],
-  "functions": {
-    "api/predictions/**": {
-      "maxDuration": 60
-    }
-  }
+  ]
 }
