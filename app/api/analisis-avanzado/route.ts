@@ -48,8 +48,8 @@ export async function GET(req: NextRequest) {
   const dias = parseInt(searchParams.get('dias') || '90');
   const incluirML = searchParams.get('ml') === 'true';
 
-  const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wazkylxgqckjfkcmfotl.supabase.co').replace(/"/g, '').trim();
-  const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').replace(/"/g, '').trim();
+  const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/"/g, '').trim();
+  const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '').replace(/"/g, '').trim();
 
   if (!SB || !SK) {
     return NextResponse.json({ error: 'Configuración incompleta' }, { status: 500 });

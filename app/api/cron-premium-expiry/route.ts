@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { getSupabaseUrl, getSupabaseKey } from "@/lib/config"
 
 export async function GET(req: NextRequest) {
   const isVercelCron = req.headers.get("x-vercel-cron") === "1"
@@ -18,10 +19,11 @@ export async function GET(req: NextRequest) {
   try { webpush = await import("web-push") } catch { return NextResponse.json({ error: "Error al importar web-push" }, { status: 500 }) }
   try { webpush.setVapidDetails("mailto:estudiowebpin@gmail.com", vapidPublic, vapidPrivate) } catch { return NextResponse.json({ error: "Error al configurar VAPID" }, { status: 500 }) }
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const SB_URL = getSupabaseUrl()
+  const SB_KEY = getSupabaseKey()
+  if (!SB_URL || !SB_KEY) return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
+
+  const supabase = createClient(SB_URL, SB_KEY)
 
   const ahora = new Date()
   const enTresDias = new Date(ahora.getTime() + 3 * 86400000)

@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
 import { sendPushToAll, getSubscriptionCount } from "@/lib/push/send"
+import { getSupabaseUrl, getSupabaseKey, isAdminEmail } from "@/lib/config"
 
-const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
+const SB = getSupabaseUrl()
+const SK = getSupabaseKey()
 
 async function isAdmin(token: string): Promise<boolean> {
-  const adminEmail = process.env.ADMIN_EMAIL || "estudiowebpin@gmail.com"
+  if (!SB || !SK) return false
   try {
-    const r = await fetch(`${SB()}/auth/v1/user`, {
-      headers: { "apikey": SK(), "Authorization": `Bearer ${token}` }
+    const r = await fetch(`${SB}/auth/v1/user`, {
+      headers: { "apikey": SK, "Authorization": `Bearer ${token}` }
     })
     if (!r.ok) return false
     const user = await r.json()
-    return user.email === adminEmail
+    return isAdminEmail(user.email)
   } catch { return false }
 }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wazkylxgqckjfkcmfotl.supabase.co").replace(/"/g, "").trim()
+const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
 
 const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]

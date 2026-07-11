@@ -16,7 +16,7 @@ const CURVA_BASE: CalibracionCurva[] = [
 
 let curvaDinamica: CalibracionCurva[] | null = null;
 
-const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wazkylxgqckjfkcmfotl.supabase.co").replace(/"/g, "").trim()
+const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
 const CACHE_TTL = 30 * 60 * 1000
 let ultimaActualizacion = 0
