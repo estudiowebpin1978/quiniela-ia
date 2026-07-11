@@ -16,10 +16,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Config" }, { status: 500 })
   }
 
-  // Require auth token
-  const token = req.headers.get("authorization")?.replace("Bearer ", "")
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
   const numStr = req.nextUrl.searchParams.get("number")
   const turno = req.nextUrl.searchParams.get("turno")
   

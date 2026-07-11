@@ -24,10 +24,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Configuración incompleta" }, { status: 500 })
   }
 
-  // Require auth token
-  const token = req.headers.get("authorization")?.replace("Bearer ", "")
-  if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
   const turnosValidos = ["previa", "primera", "matutina", "vespertina", "nocturna"]
   if (!turnosValidos.includes(turno.toLowerCase())) {
     return NextResponse.json({ error: `Sorteo inválido. Válidos: ${turnosValidos.join(", ")}` }, { status: 400 })
