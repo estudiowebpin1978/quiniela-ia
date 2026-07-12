@@ -536,6 +536,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       for (const p of apiPreds) {
         const key = (p.date || p.fecha || "") + "|" + (p.turno || "")
         const local = localMap.get(key)
+        // Normalize numeros to always be an array
+        if (typeof p.numeros === "object" && !Array.isArray(p.numeros) && p.numeros?.["2"]) {
+          p.numeros_3 = p.numeros_3 || p.numeros["3"] || []
+          p.numeros_4 = p.numeros_4 || p.numeros["4"] || []
+          p.numeros = p.numeros["2"]
+        }
         // Extract 2-cifras from numeros (handles both flat array and structured object)
         if (Array.isArray(p.numeros)) {
           // flat array from free user — already correct
@@ -557,7 +563,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         setTimeout(() => setShowConfetti(false), 3000);
       }
       setMisPreds(apiPreds)
-      localStorage.setItem("misPreds", JSON.stringify(apiPreds))
+      localStorage.setItem("misPreds", JSON.stringify(apiPreds.map((p: any) => {
+        if (typeof p.numeros === "object" && !Array.isArray(p.numeros) && p.numeros?.["2"]) {
+          return { ...p, numeros: p.numeros["2"], numeros_3: p.numeros["3"] || [], numeros_4: p.numeros["4"] || [] };
+        }
+        return p;
+      })))
       setMisLoading(false)
       return
     }
@@ -1704,12 +1715,15 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     const fecha = p.date || p.fecha;
                     const fechaValida = fecha && !isNaN(Date.parse(fecha));
                     const titulo = fechaValida ? `${p.turno} — ${new Date(fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}` : `${p.turno} — ${fecha || "Sin fecha"}`;
+                    const nums2: string[] = Array.isArray(p.numeros) ? p.numeros : (typeof p.numeros === "object" && p.numeros?.["2"] ? p.numeros["2"] : []);
+                    const nums3: string[] = Array.isArray(p.numeros_3) ? p.numeros_3 : (typeof p.numeros === "object" && p.numeros?.["3"] ? p.numeros["3"] : []);
+                    const nums4: string[] = Array.isArray(p.numeros_4) ? p.numeros_4 : (typeof p.numeros === "object" && p.numeros?.["4"] ? p.numeros["4"] : []);
                     return (
                       <div key={i} className={`saved-card ${tieneAciertos ? "saved-card-success" : ""}`}>
                         <div className="saved-card-header">
                           <div className="saved-card-title">{titulo}</div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>{p.numeros?.length || 0} nums</span>
+                            <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>{nums2.length} nums</span>
                             {p.resultado && p.resultado.length > 0 ? (
                               <div className={`saved-card-status ${p.acerto ? "hit" : "miss"}`}>
                                 {p.acerto ? `📊 ${p.aciertos.length} coincidencia(s)` : "Sin coincidencias"}
@@ -1720,7 +1734,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                           </div>
                         </div>
                         <div className="saved-numbers">
-                          {p.numeros.map((n: string, j: number) => {
+                          {nums2.map((n: string, j: number) => {
                             const ac = p.aciertos?.some((a: any) => a.numero === n);
                             return (
                               <span key={j} className={`saved-number ${ac ? "hit" : ""}`}>
@@ -1729,11 +1743,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                             );
                           })}
                         </div>
-                        {(pr || userRole === "admin") && p.numeros_3?.length > 0 && (
+                        {(pr || userRole === "admin") && nums3.length > 0 && (
                           <div style={{ marginTop: 8, padding: "6px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}>
                             <div style={{ fontSize: 10, color: "#f59e0b", fontWeight: 700, marginBottom: 4 }}>🔢 3 CIFRAS {p.aciertos_3?.length > 0 && <span style={{color:"#22c55e"}}>✓ {p.aciertos_3.length} coincidencia{p.aciertos_3.length > 1 ? "s" : ""}</span>}</div>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                              {p.numeros_3.map((n: string, j: number) => {
+                              {nums3.map((n: string, j: number) => {
                                 const hit3 = p.aciertos_3?.some((a: any) => a.numero === n);
                                 return (
                                   <span key={j} style={{ padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 700,
@@ -1745,11 +1759,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                             </div>
                           </div>
                         )}
-                        {(pr || userRole === "admin") && p.numeros_4?.length > 0 && (
+                        {(pr || userRole === "admin") && nums4.length > 0 && (
                           <div style={{ marginTop: 8, padding: "6px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}>
                             <div style={{ fontSize: 10, color: "#a855f7", fontWeight: 700, marginBottom: 4 }}>🔢 4 CIFRAS {p.aciertos_4?.length > 0 && <span style={{color:"#22c55e"}}>✓ {p.aciertos_4.length} coincidencia{p.aciertos_4.length > 1 ? "s" : ""}</span>}</div>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                              {p.numeros_4.map((n: string, j: number) => {
+                              {nums4.map((n: string, j: number) => {
                                 const hit4 = p.aciertos_4?.some((a: any) => a.numero === n);
                                 return (
                                   <span key={j} style={{ padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 700,
