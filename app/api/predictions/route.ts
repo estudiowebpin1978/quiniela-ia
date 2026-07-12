@@ -38,6 +38,32 @@ import {
 
 export const maxDuration = 60;
 
+// Time budget: Vercel Hobby = 10s hard limit. Target 8s for safety.
+const TIME_BUDGET_MS = 8000
+function elapsed(t0: number) { return Date.now() - t0 }
+function hasBudget(t0: number, reserveMs = 2000) { return elapsed(t0) < TIME_BUDGET_MS - reserveMs }
+
+// Persistent in-memory cache for heavy historical computations (meta-learner, CDM, motor)
+// Key: "type:turno" — survives across requests in same serverless instance
+const COMP_TTL_MS = 1000 * 60 * 60 * 6 // 6 hours
+interface CompEntry<T> { value: T; expiresAt: number }
+const compCache = new Map<string, CompEntry<any>>()
+
+function getComp<T>(key: string): T | null {
+  const entry = compCache.get(key)
+  if (!entry) return null
+  if (Date.now() > entry.expiresAt) { compCache.delete(key); return null }
+  return entry.value as T
+}
+function setComp<T>(key: string, value: T): void {
+  compCache.set(key, { value, expiresAt: Date.now() + COMP_TTL_MS })
+  // Evict old entries if > 200
+  if (compCache.size > 200) {
+    const now = Date.now()
+    for (const [k, v] of compCache) { if (now > v.expiresAt) compCache.delete(k) }
+  }
+}
+
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
   3: { emoji: "🐰", nombre: "San Cono" }, 4: { emoji: "🛏️", nombre: "La cama" }, 5: { emoji: "🐱", nombre: "Gato" },
@@ -96,6 +122,7 @@ function checkRate(ip: string, max = 20, windowMs = 300000): boolean {
 // MAIN API
 // ============================================
 export async function GET(req: NextRequest) {
+  const t0 = Date.now()
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown"
   if (!checkRate(ip)) {
     return NextResponse.json({ error: "Demasiadas peticiones. Esperá unos minutos." }, { status: 429 })
@@ -152,12 +179,11 @@ export async function GET(req: NextRequest) {
   import("@/lib/ml/python_model_loader").then(m => m.loadPythonModelsFromSupabase()).catch(() => {})
 
   const ctrl = new AbortController()
-  const to = setTimeout(() => ctrl.abort(), 25000)
+  const to = setTimeout(() => ctrl.abort(), 8000)
 
   try {
-    // Filter by target date: only use draws BEFORE the prediction date
     const dateFilter = targetDate ? `&date=lt.${targetDate}` : ""
-    const url = `${SB}/rest/v1/draws?select=date,turno,numbers&turno=ilike.*${turnoQuery}*&order=date.desc&limit=1000${dateFilter}`
+    const url = `${SB}/rest/v1/draws?select=date,turno,numbers&turno=ilike.*${turnoQuery}*&order=date.desc&limit=150${dateFilter}`
     const res = await fetch(url, { 
       headers: { "apikey": SK, "Authorization": `Bearer ${SK}` }, 
       signal: ctrl.signal 
@@ -224,11 +250,109 @@ export async function GET(req: NextRequest) {
     if (crossResult.status === 'fulfilled') crossTurnoScore = crossResult.value.crossTurnoScore
     if (pesosResult.status === 'fulfilled') pesosDinamicos = pesosResult.value
 
-    // === HEAVY ENGINES: limit to 300 draws for speed (quality preserved) ===
-    const heavySeqs = sequences.slice(0, Math.min(300, sequences.length))
+    // === COLD START FAST PATH: if compCache empty, return ultra-fast (30 factors + seasonal + cross-turno) ===
+    if (compCache.size === 0) {
+      const scores: { num: number, score: number, confianza: number, factores: string[], frecuencia: number, crossTurno: number, pesoAjustado: number }[] = []
+      const freq: Record<number, number> = {}
+      for (const t of terminaciones2) { freq[t] = (freq[t] || 0) + 1 }
+      
+      for (let n = 0; n < 100; n++) {
+        const factorScore = factores30.scores[n] || 0
+        const crossBoost = crossTurnoScore[n] || 0
+        const seasonScore = seasonalScores[n] || 0.5
+        const driftFactor = drift.drifted ? (1 - drift.severity * 0.3) : 1
+        
+        const scoreFinal = (
+          factorScore * 0.5 +
+          crossBoost * 0.2 +
+          (seasonScore - 0.5) * 0.1
+        ) * driftFactor
+
+        const detail = factores30.detail[n] || {}
+        const topFactors = Object.entries(detail)
+          .sort(([, a], [, b]) => (b as number) - (a as number))
+          .slice(0, 3)
+          .map(([name, val]) => `${name}: ${((val as number) * 100).toFixed(0)}%`)
+
+        scores.push({
+          num: n,
+          score: scoreFinal,
+          confianza: calibrarConfianza(scoreFinal, factorScore),
+          factores: [...topFactors, ...(crossBoost > 0 ? [`Cross: +${crossBoost.toFixed(3)}`] : [])],
+          frecuencia: freq[n] || 0,
+          crossTurno: crossBoost,
+          pesoAjustado: 1
+        })
+      }
+      
+      scores.sort((a, b) => b.score - a.score)
+      
+      // Softmax normalization
+      const maxScore = Math.max(...scores.map(s => s.score))
+      const expScores = scores.map(s => Math.exp(Math.max(-20, Math.min(20, s.score - maxScore))))
+      const sumExp = expScores.reduce((a, b) => a + b, 0)
+      if (sumExp > 0 && isFinite(sumExp)) {
+        for (let i = 0; i < scores.length; i++) { scores[i].score = expScores[i] / sumExp }
+      }
+      scores.sort((a, b) => b.score - a.score)
+      
+      // Build minimal response for cold start
+      const pred2 = scores.slice(0, 10).map(s => pad(s.num))
+      const uniqueDates = [...new Set(dates)].sort().reverse()
+      const confidence = Math.round((scores.slice(0, 10).reduce((sum, s) => sum + s.confianza, 0) / 10))
+      
+      const responsePayload = {
+        ok: true,
+        turno: turnoQuery,
+        debug: {
+          elapsed_ms: elapsed(t0),
+          cold_start: true,
+          factores_aplicados: 30,
+          motores_activos: 1,
+          total_numeros: terminaciones2.length,
+          sorteos_analizados: sequences.length,
+          sync: syncStatus ? { sincronizado: syncStatus.synced, nuevos_sorteos: syncStatus.newDraws } : null,
+        },
+        numeros: scores.slice(0, 10).map((s, i) => ({
+          n: s.num, numero: pad(s.num),
+          emoji: SUENOS[s.num]?.emoji || "❓",
+          significado: SUENOS[s.num]?.nombre || "",
+          score: s.score, confianza: s.confianza, rank: i + 1,
+          frecuencia: s.frecuencia, factores: s.factores,
+        })),
+        totalSorteos: sequences.length,
+        fechasAnalizadas: uniqueDates.length,
+        generado: new Date().toISOString(),
+        confidence,
+        pred: { numeros_2: pred2, numeros_3: [], numeros_4: [], redoblona: scores.length >= 2 ? `${pad(scores[0].num)}-${pad(scores[1].num)}` : "00-00" },
+        redoblona: scores.length >= 2 ? `${pad(scores[0].num)}-${pad(scores[1].num)}` : "00-00",
+        heatmap: scores.slice(0, 10).map(s => ({ n: s.num, f: s.frecuencia, s: SUENOS[s.num] || { emoji: "❓", nombre: "" }, pct: Math.round((s.frecuencia / terminaciones2.length) * 10000) / 100 })),
+        stats: {
+          totalNumeros: terminaciones2.length,
+          promedioPorSorteo: (terminaciones2.length / sequences.length).toFixed(2),
+          numeroMasFrecuente: { numero: pad(scores[0]?.num || 0), frecuencia: scores[0]?.frecuencia || 0, significado: SUENOS[scores[0]?.num || 0]?.nombre || "" },
+          terminacionesMasFrecuentes: scores.slice(0, 5).map(s => ({ terminacion: s.num, frecuencia: s.frecuencia, score: s.score.toFixed(2) })),
+        },
+        analysisInfo: {
+          metodo: `Motor 30 factores (cold-start fast path) - turno ${turnoQuery.toUpperCase()}`,
+          motores: ["1. 30 Factores estadísticos (frecuencia, ausencia, tendencia, ciclos, hot/cold, familias, entropía)"],
+          datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} terminaciones de 2 cifras`,
+        }
+      }
+      
+      // Cache and return
+      const gc2 = globalThis as any
+      if (!gc2.__predCache) gc2.__predCache = {}
+      gc2.__predCache[cacheKey] = { result: responsePayload, expiresAt: Date.now() + 600_000 }
+      
+      return NextResponse.json(responsePayload)
+    }
+
+    // === HEAVY ENGINES: limit to 100 draws for speed ===
+    const heavySeqs = sequences.slice(0, Math.min(100, sequences.length))
 
     // === MONTE CARLO SIMULATION ===
-    let monteCarloTop = shouldRunMotorSync("monteCarlo", turnoQuery) ? runMonteCarlo(heavySeqs, { simulations: 5000, topN: 100 }) : []
+    let monteCarloTop = shouldRunMotorSync("monteCarlo", turnoQuery) ? runMonteCarlo(heavySeqs, { simulations: 500, topN: 100 }) : []
 
     // === CORRELATION ANALYSIS ===
     let correlationScores = new Array(100).fill(0.5)
@@ -515,6 +639,16 @@ export async function GET(req: NextRequest) {
     // Ordenar por score
     scores.sort((a, b) => b.score - a.score)
 
+    // === PROBABILITY NORMALIZATION: softmax to ensure fair distribution (no bias) ===
+    const maxScore = Math.max(...scores.map(s => s.score))
+    const expScores = scores.map(s => Math.exp(Math.max(-20, Math.min(20, s.score - maxScore))))
+    const sumExp = expScores.reduce((a, b) => a + b, 0)
+    if (sumExp > 0 && isFinite(sumExp)) {
+      for (let i = 0; i < scores.length; i++) { scores[i].score = expScores[i] / sumExp }
+    }
+    // Re-sort after normalization
+    scores.sort((a, b) => b.score - a.score)
+
     // Derivar calientes/atrasados/paridad de los scores 30 factores
     const calientes = scores.slice(0, 10).map(s => s.num)
     const atrasados = scores.slice(-10).map(s => s.num)
@@ -668,6 +802,7 @@ export async function GET(req: NextRequest) {
       ok: true,
       turno: turnoQuery,
       debug: {
+        elapsed_ms: elapsed(t0),
         factores_aplicados: 30,
         motores_activos: 15,
         total_numeros: terminaciones2.length,

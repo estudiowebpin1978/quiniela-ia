@@ -13,7 +13,7 @@
  */
 
 "use client";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { usePushNotifications } from "@/components/PushNotifications";
 import PaywallModal from "@/components/PaywallModal";
 import WhatsAppFAB from "@/components/WhatsAppFAB";
@@ -34,6 +34,7 @@ import PayCTA from "@/components/predictions/PayCTA";
 import { useSound } from "@/lib/sound/audio-manager";
 import { useSettings } from "@/components/ui/Settings";
 import { ConfettiEffect, GlowOrbs, NeonBackground } from "@/components/ui/Effects";
+import { validatePredData } from "@/lib/api/predictions";
 
 const EMOJIS: Record<string, string> = {
   "00": "🥚", "01": "💧", "02": "🧒", "03": "⛪", "04": "🛏️", "05": "🐱", "06": "🐶", "07": "🔫", "08": "🔥", "09": "🏞️",
@@ -110,17 +111,19 @@ function PageInner() {
   const [numHistory, setNumHistory] = useState<any>(null);
   const [numHistoryLoading, setNumHistoryLoading] = useState(false);
 
-  // Fetch number history when detail opens
+  // Fetch number history when detail opens (abortable to avoid race conditions / leaks)
   useEffect(() => {
-    if (numDetail?.numero != null) {
-      setNumHistoryLoading(true);
-      fetch(`/api/number-history?number=${numDetail.numero}&turno=${so}`)
-        .then(r => r.json())
-        .then(data => { setNumHistory(data); setNumHistoryLoading(false); })
-        .catch(() => setNumHistoryLoading(false));
-    } else {
+    if (numDetail?.numero == null) {
       setNumHistory(null);
+      return;
     }
+    const controller = new AbortController();
+    setNumHistoryLoading(true);
+    fetch(`/api/number-history?number=${encodeURIComponent(numDetail.numero)}&turno=${encodeURIComponent(so)}`, { signal: controller.signal })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { setNumHistory(data); setNumHistoryLoading(false); })
+      .catch((e) => { if (e?.name !== "AbortError") setNumHistoryLoading(false); });
+    return () => controller.abort();
   }, [numDetail, so]);
   const [newDraws, setNewDraws] = useState(false);
   const [lastDrawDate, setLastDrawDate] = useState("");
@@ -420,8 +423,41 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       if (d.error) {
         throw new Error(d.error);
       }
-      const predData = d.pred || d;
-      setDt({ ...predData, heatmap: d.heatmap, ranking: d.numeros });
+
+      // Normalize the payload into a single shape before validation
+      const predData = {
+        ...(d.pred || d),
+        heatmap: d.heatmap,
+        ranking: d.numeros,
+        numeros: d.numeros,
+        confidence: d.confidence,
+        aiInsight: d.aiInsight,
+      };
+
+      // Strict runtime validation + type safety (protects against malformed API/DB responses)
+      let validatedPredData: any = null;
+      try {
+        validatedPredData = validatePredData(predData);
+      } catch (parseError) {
+        // Non-fatal fallback: keep the raw payload if it has the minimum required fields
+        if (Array.isArray(predData?.numeros_2)) {
+          validatedPredData = predData;
+        } else {
+          throw new Error("Datos recibidos del servidor no válidos");
+        }
+      }
+
+      // Guard against null / undefined / empty arrays before rendering
+      if (!validatedPredData?.numeros_2?.length && !validatedPredData?.numeros?.length) {
+        setEr("No hay suficientes predicciones disponibles. Probá con otro turno o intentá más tarde.");
+        setLd(false);
+        return;
+      }
+
+      // Ensure heatmap always exists as an array (prevents rendering crashes)
+      if (!Array.isArray(validatedPredData.heatmap)) validatedPredData.heatmap = [];
+
+      setDt(validatedPredData);
       setDn(true);
       sound.success();
       // Gamification: record analysis + community trend
@@ -436,12 +472,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             turno: so,
-            topNumbers: (d.numeros || []).slice(0, 10).map((n: any) => n.num || n.numero),
+            topNumbers: (validatedPredData?.numeros || []).slice(0, 10).map((n: any) => n.num || n.numero),
           }),
         }).catch(() => {})
       }
-      if (d.confidence) setConfianzaTurnos(p => ({ ...p, [so]: d.confidence }));
-      if (d.aiInsight) setAiInsight(d.aiInsight);
+      if (validatedPredData?.confidence) setConfianzaTurnos(p => ({ ...p, [so]: validatedPredData.confidence }));
+      if (validatedPredData?.aiInsight) setAiInsight(validatedPredData.aiInsight);
     } catch (e: any) {
       setEr(e?.message || String(e));
     } finally {
@@ -753,21 +789,32 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     window.open(urls[p], "_blank");
   }
 
-  // Preparar datos para mostrar según dígito seleccionado
-  const nums2 = dt?.numeros_2 || [];
-  const nums3 = dt?.numeros_3 || [];
-  const nums4 = dt?.numeros_4 || [];
-  const rdbl = dt?.redoblona || "";
-  const rankingData = dt?.ranking || dt?.numeros || [];
+  // Datos derivados memoizados (evita recreaciones en cada render)
+  const nums2 = useMemo(() => (dt?.numeros_2 ?? []).filter((n): n is string => typeof n === "string"), [dt?.numeros_2]);
+  const nums3 = useMemo(() => (dt?.numeros_3 ?? []).filter((n): n is string => typeof n === "string"), [dt?.numeros_3]);
+  const nums4 = useMemo(() => (dt?.numeros_4 ?? []).filter((n): n is string => typeof n === "string"), [dt?.numeros_4]);
+  const rdbl = useMemo(() => (dt?.redoblona ?? ""), [dt?.redoblona]);
+  const rankingData = useMemo<any[]>(() => (dt?.ranking ?? dt?.numeros ?? []), [dt?.ranking, dt?.numeros]);
   const ranking = rankingData;
 
-  // Para mostrar en la cuadrícula con significado (usa datos del API)
-  const cur =
-    dg === 2
-      ? nums2.map((n, idx) => ({ numero: n, significado: rankingData.find((r: any) => r.numero === n)?.significado || "" }))
-      : dg === 3
-      ? nums3.map((n, idx) => ({ numero: n, significado: rankingData.find((r: any) => r.numero === n)?.significado || "" }))
-      : nums4.map((n, idx) => ({ numero: n, significado: "" }));
+// Previously calculated numeric math heavy expressions (useMemo to prevent unnecessary recalculations)
+  const heatmapBars = useMemo(() => {
+    if (!dt?.heatmap) return [];
+    return dt.heatmap.map(h => ({
+      ...h,
+      intensity: Math.min(1, h.f / 10)
+    }));
+  }, [dt?.heatmap]);
+
+  // Use current numeric data for rendering (avoid recreating objects each render)
+  const cur = useMemo(() => {
+    const target = dg === 2 ? nums2 : dg === 3 ? nums3 : nums4;
+    const rankList = rankingData;
+    return target.map((number: string) => ({
+      numero: number,
+      significado: (rankList || []).find((r: any) => r.numero === number)?.significado || ""
+    }));
+  }, [dg, nums2, nums3, nums4, rankingData]);
 
   return (
     <>
