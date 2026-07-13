@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import logger from "@/lib/logger"
 
 const SB_URL = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SB_KEY = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  console.log("[webhook-uala] Received payment notification")
+  logger.info("[webhook-uala] Received payment notification")
 
   // 2. Extract fields — handle multiple possible Ualá payload structures
   const body = rawBody?.data ? rawBody.data : rawBody // some APIs nest under .data
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  console.log(`[UALA WEBHOOK] Found user profile: role=${profile.role}`)
+  logger.info("[webhook-uala] Found user profile", { role: profile.role })
 
   // Don't overwrite admin users
   if (profile.role === "admin") {
@@ -149,6 +150,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  console.log(`[webhook-uala] Premium activated: ${plan} until ${finalPremiumUntil}`)
+  logger.info("[webhook-uala] Premium activated", { plan, until: finalPremiumUntil })
   return NextResponse.json({ ok: true })
 }

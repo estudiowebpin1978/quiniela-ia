@@ -13,6 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import logger from "@/lib/logger"
 import { sendPushToAll, getSubscriptionCount } from "@/lib/push/send"
 
 const CRON_SECRET = process.env.CRON_SECRET || ""
@@ -99,7 +100,7 @@ export async function GET(req: NextRequest) {
   })
 
   // Log para debugging
-  console.log(`[cron-push] ${now.toISOString()} → ${turnoActual.nombre}: sent=${result.sent}, failed=${result.failed}, subs=${subCount}`)
+  logger.info(`[cron-push] ${now.toISOString()} → ${turnoActual.nombre}: sent=${result.sent}, failed=${result.failed}, subs=${subCount}`)
 
   return NextResponse.json({
     ok: true,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ejecutarAnalisisCompleto, AnalisisCompleto } from "@/lib/analisis/motor";
+import logger from "@/lib/logger";
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -87,7 +88,7 @@ export async function GET(req: NextRequest) {
         numbers: row.numbers.map((n: any) => Number(n)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999)
       }));
 
-    console.log(`[AnalisisAvanzado] Procesando ${sorteos.length} sorteos para ${turno}`);
+    logger.info(`[AnalisisAvanzado] Procesando ${sorteos.length} sorteos para ${turno}`);
 
     const analisis = ejecutarAnalisisCompleto(sorteos, {
       diasAnalisis: dias,

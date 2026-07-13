@@ -21,7 +21,7 @@ DO $$ BEGIN
   DROP POLICY IF EXISTS "Service role only" ON motor_performance;
 EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
-CREATE POLICY "Service role only" ON motor_performance FOR ALL USING (true);
+CREATE POLICY "Service role only" ON motor_performance FOR ALL USING (auth.role() = 'service_role');
 
 -- Function to update accuracy (upsert with running average)
 -- Usage: SELECT update_motor_performance('factores30', 'previa', 0.42);

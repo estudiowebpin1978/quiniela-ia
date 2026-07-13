@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import logger from "@/lib/logger"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
@@ -168,7 +169,7 @@ async function backfillDiasFaltantes(hoy: string, expected: string, cronSecret: 
       if (nums.length >= 20) {
         await guardarDraw(fechaStr, turno, nums)
         backfilled++
-        console.log(`[BACKFILL] ${fechaStr} ${turno}: ${nums.length} numeros`)
+        logger.info(`[BACKFILL] ${fechaStr} ${turno}: ${nums.length} numeros`)
         fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-push?secret=${cronSecret}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -211,7 +212,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (esDiaSinSorteo(diaSemana, fechaISO)) {
-    console.log(`[CRON] Sin sorteos ${fechaISO} (${diaSemana === 0 ? "Domingo" : "Feriado"})`)
+    logger.info(`[CRON] Sin sorteos ${fechaISO} (${diaSemana === 0 ? "Domingo" : "Feriado"})`)
     return NextResponse.json({ ok: false, message: "Sin sorteos", guardados: 0 })
   }
 

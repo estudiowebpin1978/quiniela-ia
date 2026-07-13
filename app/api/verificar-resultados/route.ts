@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import logger from "@/lib/logger";
 
 const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || "";
 const SK = process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || "";
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
           return { ...p, resultado: nums, aciertos, acerto: aciertos.length > 0 };
         }
       } catch (e) {
-        console.log("Error verificando:", p.fecha, p.turno, e);
+        logger.error("Error verificando:", { fecha: p.fecha, turno: p.turno, error: String(e) });
       }
       return p;
     })

@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { autoTrainAll } from "@/lib/ml/auto-train"
+import logger from "@/lib/logger"
 
 export const dynamic = "force-dynamic"
 
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  console.log("[CRON ML] Starting auto-training for all turnos...")
+  logger.info("[CRON ML] Starting auto-training for all turnos...")
   const start = Date.now()
 
   try {
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     const totalModels = results.reduce((sum, r) => sum + r.modelos.length, 0)
 
-    console.log(`[CRON ML] Done: ${totalModels} models trained in ${elapsed}ms`)
+    logger.info(`[CRON ML] Done: ${totalModels} models trained in ${elapsed}ms`)
 
     return NextResponse.json({
       ok: true,

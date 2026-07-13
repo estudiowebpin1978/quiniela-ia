@@ -46,9 +46,9 @@ ALTER TABLE user_gamification ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_achievements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE community_trends ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Service role all user_gamification" ON user_gamification FOR ALL USING (true);
-CREATE POLICY "Service role all user_achievements" ON user_achievements FOR ALL USING (true);
-CREATE POLICY "Service role all community_trends" ON community_trends FOR ALL USING (true);
+CREATE POLICY "Service role all user_gamification" ON user_gamification FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role all user_achievements" ON user_achievements FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role all community_trends" ON community_trends FOR ALL USING (auth.role() = 'service_role');
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_user_gamification_xp ON user_gamification(xp DESC);

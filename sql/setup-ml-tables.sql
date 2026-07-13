@@ -25,5 +25,5 @@ CREATE INDEX IF NOT EXISTS idx_ml_dl_models_turno ON ml_dl_models(turno);
 ALTER TABLE ml_models ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ml_dl_models ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Service role only" ON ml_models FOR ALL USING (true);
-CREATE POLICY "Service role only" ON ml_dl_models FOR ALL USING (true);
+CREATE POLICY "Service role only" ON ml_models FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role only" ON ml_dl_models FOR ALL USING (auth.role() = 'service_role');

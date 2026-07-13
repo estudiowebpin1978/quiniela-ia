@@ -35,3 +35,16 @@ CREATE TABLE IF NOT EXISTS user_stats (
   last_verified TIMESTAMPTZ,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- RLS: service role only for prediction_history and user_stats
+ALTER TABLE prediction_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_stats ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Service role only prediction_history" ON prediction_history;
+  DROP POLICY IF EXISTS "Service role only user_stats" ON user_stats;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+CREATE POLICY "Service role only prediction_history" ON prediction_history FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role only user_stats" ON user_stats FOR ALL USING (auth.role() = 'service_role');
