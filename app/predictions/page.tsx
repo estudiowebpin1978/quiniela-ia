@@ -589,6 +589,18 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           if (!p.numeros_4?.length && local.numeros_4) p.numeros_4 = local.numeros_4
         }
       }
+      // Merge local-only predictions (recién guardadas o pendientes de sync en la nube)
+      // que aún no están en la respuesta de la API, para que un análisis recién
+      // guardado nunca desaparezca de "Mis Análisis".
+      const apiKeys = new Set(
+        apiPreds.map((p: any) => (p.date || p.fecha || "") + "|" + (p.turno || ""))
+      )
+      const localOnly = storedPreds.filter((p: any) => {
+        const key = (p.date || p.fecha || "") + "|" + (p.turno || "")
+        return key.trim() !== "|" && !apiKeys.has(key)
+      })
+      const merged = [...localOnly, ...apiPreds]
+
       const prevAciertos = misPreds.reduce((sum: number, p: any) => sum + (p.aciertos?.length || 0), 0)
       const newAciertos = apiPreds.reduce((sum: number, p: any) => sum + (p.aciertos?.length || 0), 0)
       if (newAciertos > prevAciertos) {
@@ -598,8 +610,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 3000);
       }
-      setMisPreds(apiPreds)
-      localStorage.setItem("misPreds", JSON.stringify(apiPreds.map((p: any) => {
+      setMisPreds(merged)
+      localStorage.setItem("misPreds", JSON.stringify(merged.map((p: any) => {
         if (typeof p.numeros === "object" && !Array.isArray(p.numeros) && p.numeros?.["2"]) {
           return { ...p, numeros: p.numeros["2"], numeros_3: p.numeros["3"] || [], numeros_4: p.numeros["4"] || [] };
         }
@@ -721,11 +733,16 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3Save, "4": nums4Save } : nums }),
         });
         const data = await res.json();
-        if (res.status === 409) {
-          setGuardando(false);
+      if (res.status === 409) {
+        const data = await res.json();
+        setGuardando(false);
+        if (data?.duplicate) {
           toast("Ya guardaste un análisis para este turno", "info");
-          return;
+        } else {
+          toast("Error guardando, intenta más tarde", "error");
         }
+        return;
+      }
         if (res.ok) {
           cloudSaved = true
           // Gamification: record save
@@ -743,6 +760,13 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     todas = [nuevaPred, ...todas].slice(0, 30);
     localStorage.setItem("misPreds", JSON.stringify(todas));
     setMisPreds(todas);
+
+    // Refrescar desde la nube para reconciliar el estado (aciertos, id real, etc.)
+    // El merge en cargarMisPreds preserva esta predicción local aunque el
+    // guardado en la nube todavía no se haya propagado.
+    if (cloudSaved && tkRef.current) {
+      cargarMisPreds(tkRef.current);
+    }
 
     if (!silent) {
       setGuardadoOk(true);
