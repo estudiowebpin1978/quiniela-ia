@@ -649,16 +649,20 @@ export default function AdminPage() {
 function ScraperSection({ token }: { token: string }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState("")
+  const [sourceStats, setSourceStats] = useState<Record<string, { ok: number; fail: number }>>({})
   const [scraperDate, setScraperDate] = useState(new Date().toISOString().split("T")[0])
 
-  async function runScraper(turno: string) {
-    setBusy(turno); setMsg("")
+  async function runScraper(turno?: string) {
+    setBusy(turno || "all"); setMsg("")
     try {
       const params = new URLSearchParams({ save: "true" })
       if (scraperDate) params.set("date", scraperDate)
       const r = await fetch(`/api/cron-scrape?${params}`, { headers: { Authorization: "Bearer " + token } })
       const d = await r.json()
-      if (d.ok || d.guardados !== undefined) { setMsg(`OK - ${d.guardados || 0} turnos guardados`) }
+      if (d.ok || d.guardados !== undefined) {
+        setMsg(`OK - ${d.guardados || 0} turnos guardados, ${d.errores || 0} errores`)
+        if (d.sourceStats) setSourceStats(d.sourceStats)
+      }
       else { setMsg("Error: " + JSON.stringify(d)) }
     } catch (e: any) { setMsg("Error: " + e.message) }
     setBusy(null)
@@ -670,8 +674,17 @@ function ScraperSection({ token }: { token: string }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
         <label style={{ fontSize: 12, color: "#94a3b8" }}>Fecha:</label>
         <input className="input" type="date" value={scraperDate} onChange={e => setScraperDate(e.target.value)} style={{ width: 160 }} />
+        <button className="btn btn-p" disabled={!!busy} onClick={() => runScraper()}
+          style={{ padding: "8px 16px", fontSize: 12 }}>
+          {busy === "all" ? <span className="sp" /> : "Scrape All"}
+        </button>
       </div>
       {msg && <div className="msg" style={{ marginBottom: 12 }}>{msg}</div>}
+      {Object.keys(sourceStats).length > 0 && (
+        <div style={{ marginBottom: 12, fontSize: 11, color: "#94a3b8" }}>
+          Fuentes: {Object.entries(sourceStats).map(([src, s]) => `${src}: ${s.ok}✓ ${s.fail}✗`).join(" | ")}
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
         {["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"].map(t => (
           <button key={t} className="btn btn-o" disabled={busy === t} onClick={() => runScraper(t)}

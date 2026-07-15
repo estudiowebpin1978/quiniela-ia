@@ -4,6 +4,22 @@ import { getSupabaseUrl, getSupabaseKey, sbHeaders } from "@/lib/config"
 const SB_URL = getSupabaseUrl();
 const SB_KEY = getSupabaseKey();
 
+const TURNOS_VALIDOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
+
+async function verifyUser(req: NextRequest): Promise<string | null> {
+  const token = req.headers.get("authorization")?.replace("Bearer ", "")
+  if (!token || !SB_URL || !SB_KEY) return null
+  try {
+    const res = await fetch(`${SB_URL}/auth/v1/user`, {
+      headers: { "apikey": SB_KEY, "Authorization": `Bearer ${token}` },
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!res.ok) return null
+    const user = await res.json()
+    return user?.id || null
+  } catch { return null }
+}
+
 // GET: fetch community trends for today
 export async function GET(req: NextRequest) {
   const today = new Date().toISOString().split("T")[0]
@@ -35,12 +51,15 @@ export async function GET(req: NextRequest) {
 
 // POST: increment analysis count for a turno
 export async function POST(req: NextRequest) {
+  const userId = await verifyUser(req)
+  if (!userId) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+
   const body = await req.json()
   const turno = body.turno as string
   const topNumbers = body.topNumbers as string[] | undefined
   const correlations = body.correlations as any[] | undefined
 
-  if (!turno) return NextResponse.json({ ok: true })
+  if (!turno || !TURNOS_VALIDOS.includes(turno)) return NextResponse.json({ ok: true })
 
   const today = new Date().toISOString().split("T")[0]
 

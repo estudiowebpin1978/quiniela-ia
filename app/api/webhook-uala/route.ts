@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { timingSafeEqual } from "crypto"
 import logger from "@/lib/logger"
 
 const SB_URL = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
@@ -9,29 +10,34 @@ const PLAN_DAYS: Record<string, number> = {
   mensual: 30,
 }
 
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b))
+}
+
 export async function POST(req: NextRequest) {
-  // Shared secret check
-  const webhookSecret = process.env.UALA_WEBHOOK_SECRET || "";
-  if (webhookSecret) {
-    const incomingSecret = req.headers.get("x-webhook-secret") || "";
-    if (incomingSecret !== webhookSecret) {
-      return NextResponse.json({ ok: false, message: "Invalid secret" }, { status: 401 });
-    }
+  const webhookSecret = process.env.UALA_WEBHOOK_SECRET
+  if (!webhookSecret) {
+    logger.error("[webhook-uala] UALA_WEBHOOK_SECRET is not configured")
+    return NextResponse.json({ ok: false }, { status: 500 })
   }
 
-  // 1. Parse body
+  const incomingSecret = req.headers.get("x-webhook-secret") || ""
+  if (!safeCompare(incomingSecret, webhookSecret)) {
+    return NextResponse.json({ ok: false, message: "Invalid secret" }, { status: 401 })
+  }
+
   let rawBody: any
   try {
     rawBody = await req.json()
   } catch {
-    console.error("[UALA WEBHOOK] Could not parse body as JSON")
+    logger.warn("[webhook-uala] Could not parse body as JSON")
     return NextResponse.json({ ok: true })
   }
 
   logger.info("[webhook-uala] Received payment notification")
 
-  // 2. Extract fields — handle multiple possible Ualá payload structures
-  const body = rawBody?.data ? rawBody.data : rawBody // some APIs nest under .data
+  const body = rawBody?.data ? rawBody.data : rawBody
 
   const orderId = body?.id || body?.order_id || body?.payment_id || null
   const status = (body?.status || body?.state || body?.payment_status || "").toString().toUpperCase()
@@ -39,7 +45,6 @@ export async function POST(req: NextRequest) {
   const amountRaw = body?.amount || body?.transaction_amount || body?.total_amount || "0"
   const amount = parseFloat(String(amountRaw).replace(",", "."))
 
-  // 3. Only process approved/completed payments
   if (status !== "APPROVED" && status !== "COMPLETED") {
     return NextResponse.json({ ok: true, message: `Status ${status} ignored` })
   }
@@ -48,42 +53,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, message: "No userId" })
   }
 
-  // 4. Determine plan from amount
   let plan = "mensual"
   if (amount > 0 && amount <= 3600) plan = "semanal"
   const days = PLAN_DAYS[plan] || 30
   const premiumUntil = new Date(Date.now() + days * 86400000).toISOString()
 
-  // 5. Check if user exists and has active premium
   const safeId = String(userId).replace(/[^a-zA-Z0-9_-]/g, "")
   const queryUrl = `${SB_URL()}/rest/v1/user_profiles?id=eq.${safeId}&select=id,role,premium_until&limit=1`
 
-  const profRes = await fetch(
-    queryUrl,
-    {
-      headers: {
-        "apikey": SB_KEY(),
-        Authorization: `Bearer ${SB_KEY()}`,
-      },
-    }
-  )
+  const profRes = await fetch(queryUrl, {
+    headers: { "apikey": SB_KEY(), Authorization: `Bearer ${SB_KEY()}` },
+  })
 
   if (!profRes.ok) {
     const errText = await profRes.text()
-    console.error("[UALA WEBHOOK] Failed to fetch user profile:", profRes.status, errText)
+    logger.error("[webhook-uala] Failed to fetch user profile", { status: profRes.status, error: errText })
     try {
       await fetch(`${SB_URL()}/rest/v1/webhook_logs`, {
         method: "POST",
-        headers: {
-          "apikey": SB_KEY(), Authorization: `Bearer ${SB_KEY()}`,
-          "Content-Type": "application/json", Prefer: "return=minimal",
-        },
+        headers: { "apikey": SB_KEY(), Authorization: `Bearer ${SB_KEY()}`, "Content-Type": "application/json", Prefer: "return=minimal" },
         body: JSON.stringify({
-          source: "uala",
-          payload: JSON.stringify({ orderId, status, amount }),
-          user_id: safeId,
-          error: `${profRes.status}: ${errText}`,
-          created_at: new Date().toISOString(),
+          source: "uala", payload: JSON.stringify({ orderId, status, amount }),
+          user_id: safeId, error: "Profile fetch failed", created_at: new Date().toISOString(),
         }),
       })
     } catch {}
@@ -96,57 +87,39 @@ export async function POST(req: NextRequest) {
   if (!profile) {
     const createRes = await fetch(`${SB_URL()}/rest/v1/user_profiles`, {
       method: "POST",
-      headers: {
-        "apikey": SB_KEY(), Authorization: `Bearer ${SB_KEY()}`,
-        "Content-Type": "application/json", Prefer: "return=representation",
-      },
+      headers: { "apikey": SB_KEY(), Authorization: `Bearer ${SB_KEY()}`, "Content-Type": "application/json", Prefer: "return=representation" },
       body: JSON.stringify({ id: userId, email: "", role: "free" }),
     })
     if (createRes.ok) {
       const created = await createRes.json()
       profile = created?.[0]
     } else {
-      const errText = await createRes.text()
-      console.error(`[UALA WEBHOOK] Failed to create user_profiles: ${createRes.status}`, errText)
+      logger.error("[webhook-uala] Failed to create user_profiles", { status: createRes.status })
       return NextResponse.json({ ok: true, message: "Could not create profile" })
     }
   }
 
   logger.info("[webhook-uala] Found user profile", { role: profile.role })
 
-  // Don't overwrite admin users
   if (profile.role === "admin") {
     return NextResponse.json({ ok: true, message: "Admin user, skipped" })
   }
 
-  // 6. Extend premium if already active, otherwise set fresh
   let finalPremiumUntil = premiumUntil
   if (profile.premium_until && new Date(profile.premium_until) > new Date()) {
     const currentExpiry = new Date(profile.premium_until)
     finalPremiumUntil = new Date(currentExpiry.getTime() + days * 86400000).toISOString()
   }
 
-  // 7. Update user profile
-  const updateRes = await fetch(
-    `${SB_URL()}/rest/v1/user_profiles?id=eq.${safeId}`,
-    {
-      method: "PATCH",
-      headers: {
-        "apikey": SB_KEY(),
-        Authorization: `Bearer ${SB_KEY()}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify({
-        role: "premium",
-        premium_until: finalPremiumUntil,
-      }),
-    }
-  )
+  const updateRes = await fetch(`${SB_URL()}/rest/v1/user_profiles?id=eq.${safeId}`, {
+    method: "PATCH",
+    headers: { "apikey": SB_KEY(), Authorization: `Bearer ${SB_KEY()}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify({ role: "premium", premium_until: finalPremiumUntil }),
+  })
 
   if (!updateRes.ok) {
     const errText = await updateRes.text()
-    console.error("[UALA WEBHOOK] Failed to update user profile:", updateRes.status, errText)
+    logger.error("[webhook-uala] Failed to update user profile", { status: updateRes.status, error: errText })
     return NextResponse.json({ ok: true })
   }
 

@@ -8,22 +8,17 @@ import requests
 from datetime import datetime, timedelta
 from typing import Optional
 
-SUPABASE_URL = os.environ.get(
-    "NEXT_PUBLIC_SUPABASE_URL",
-    "https://wazkylxgqckjfkcmfotl.supabase.co"
-)
-# Usa SUPABASE_SERVICE_ROLE_KEY primero (privilegiada),
-# luego SUPABASE_KEY (anon), luego la anon key hardcodeada como fallback
-_ANON_KEY = (
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
-    ".eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indhemt5bHhncWNramZrY21mb3RsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyNDc3NTUsImV4cCI6MjA4NzgyMzc1NX0"
-    ".t_P2iF1eqEo1cqBXt3R4GQV2_XzVQ0VIq_2f6VS_Q2Y"
-)
+SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_KEY = (
     os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     or os.environ.get("SUPABASE_KEY")
-    or _ANON_KEY
+    or ""
 )
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError(
+        "Faltan variables de entorno: NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY"
+    )
 
 
 def obtener_sorteos_supabase(

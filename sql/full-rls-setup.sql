@@ -214,3 +214,16 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- === DONE ===
 -- Todas las tablas creadas con RLS activo y policies restringidas a service_role.
 -- Las funciones SQL usan SECURITY DEFINER para ejecutarse con privilegios del owner.
+
+-- === PERFORMANCE: Indexes for draws table (most queried) ===
+CREATE INDEX IF NOT EXISTS idx_draws_turno_date ON draws(turno, date DESC);
+CREATE INDEX IF NOT EXISTS idx_draws_date ON draws(date DESC);
+CREATE INDEX IF NOT EXISTS idx_draws_date_turno ON draws(date, turno);
+
+-- === PERFORMANCE: Indexes for user_predictions ===
+CREATE INDEX IF NOT EXISTS idx_user_predictions_user_date ON user_predictions(user_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_user_predictions_date_turno ON user_predictions(date, turno);
+
+-- === PERFORMANCE: Indexes for prediction_history ===
+CREATE INDEX IF NOT EXISTS idx_prediction_history_prediction_id ON prediction_history(prediction_id);
+CREATE INDEX IF NOT EXISTS idx_prediction_history_user_fecha ON prediction_history(user_id, fecha DESC);

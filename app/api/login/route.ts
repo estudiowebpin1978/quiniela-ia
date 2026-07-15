@@ -14,13 +14,15 @@ async function ensureUserProfile(userId: string, email: string) {
     });
     const rows = await r.json();
     if (!rows?.length) {
+      // New user: 30-day free trial
+      const trialUntil = new Date(Date.now() + 30 * 86400000).toISOString();
       await fetch(`${sb}/rest/v1/user_profiles`, {
         method: "POST",
         headers: {
           "apikey": sk, Authorization: `Bearer ${sk}`,
           "Content-Type": "application/json", Prefer: "return=minimal",
         },
-        body: JSON.stringify({ id: userId, email, role: "free" }),
+        body: JSON.stringify({ id: userId, email, role: "free", premium_until: trialUntil }),
       });
     }
   } catch {}

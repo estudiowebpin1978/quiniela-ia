@@ -167,7 +167,7 @@ export async function GET(req: NextRequest) {
   } catch (e: any) {
     clearTimeout(to);
     const err = e as { name?: string; message?: string };
-    console.error('[AnalisisAvanzado] Error:', err?.message || String(e));
-    return NextResponse.json({ error: err?.message || 'Error en análisis' }, { status: 500 });
+    logger.error('[AnalisisAvanzado] Error:', { error: err?.message || String(e) });
+    return NextResponse.json({ error: 'Error en análisis' }, { status: 500 });
   }
 }

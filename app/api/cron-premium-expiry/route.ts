@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
   const ahora = new Date()
   const enTresDias = new Date(ahora.getTime() + 3 * 86400000)
 
+  // Premium users expiring soon
   const { data: expiringUsers, error } = await supabase
     .from("user_profiles")
     .select("id, email, premium_until, push_subscriptions(endpoint, p256dh, auth)")
@@ -35,19 +36,36 @@ export async function GET(req: NextRequest) {
     .lt("premium_until", enTresDias.toISOString())
     .not("premium_until", "is", null)
 
+  // Free users whose trial has expired
+  const { data: expiredTrials } = await supabase
+    .from("user_profiles")
+    .select("id, email, premium_until, push_subscriptions(endpoint, p256dh, auth)")
+    .eq("role", "free")
+    .lt("premium_until", ahora.toISOString())
+    .not("premium_until", "is", null)
+
   if (error) return NextResponse.json({ error: "DB error: " + error.message }, { status: 500 })
-  if (!expiringUsers?.length) return NextResponse.json({ ok: true, notificados: 0 })
+
+  // Combine both lists
+  const allUsers = [
+    ...(expiringUsers || []),
+    ...(expiredTrials || []).filter((u: any) => !(expiringUsers || []).some((e: any) => e.id === u.id))
+  ]
+  if (!allUsers.length) return NextResponse.json({ ok: true, notificados: 0 })
 
   let notificados = 0
-  for (const user of expiringUsers) {
+  for (const user of allUsers) {
     const daysLeft = Math.ceil((new Date(user.premium_until).getTime() - Date.now()) / 86400000)
     const expired = daysLeft <= 0
+    const isTrialExpired = (user as any).role === "free" && expired
     const subs = (user as any).push_subscriptions || []
     if (!Array.isArray(subs) || subs.length === 0) continue
 
-    const title = expired ? "⏰ Premium vencido" : "⚠️ Premium próximo a vencer"
+    const title = expired ? (isTrialExpired ? "⏰ Prueba gratuita vencida" : "⏰ Premium vencido") : "⚠️ Premium próximo a vencer"
     const body = expired
-      ? "Tu suscripción Premium ha vencido. Renová para seguir accediendo a análisis de 3 y 4 cifras."
+      ? (isTrialExpired
+        ? "Tu período de prueba gratuita ha vencido. Actualizá a Premium para seguir accediendo a análisis de 3 y 4 cifras."
+        : "Tu suscripción Premium ha vencido. Renová para seguir accediendo a análisis de 3 y 4 cifras.")
       : `Tu Premium vence en ${daysLeft} día${daysLeft === 1 ? "" : "s"}. Renová antes del vencimiento.`
 
     const payload = JSON.stringify({ title, body, url: "/predictions" })
@@ -62,5 +80,5 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  return NextResponse.json({ ok: true, notificados, totalUsers: expiringUsers.length })
+  return NextResponse.json({ ok: true, notificados, totalUsers: allUsers.length })
 }

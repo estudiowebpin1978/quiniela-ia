@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { calcLevel, calcStreak, checkAchievements, XP_REWARDS, ACHIEVEMENTS } from "@/lib/gamification"
 import { getSupabaseUrl, getSupabaseKey, sbHeaders, isAdminEmail } from "@/lib/config"
+import logger from "@/lib/logger"
 
 const SB_URL = getSupabaseUrl()
 const SB_KEY = getSupabaseKey()
-if (!SB_URL || !SB_KEY) console.error("[gamification] Missing Supabase env vars")
+if (!SB_URL || !SB_KEY) logger.error("[gamification] Missing Supabase env vars")
 
 async function verifyUser(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "")

@@ -82,5 +82,5 @@ export async function GET(req:NextRequest){
   })
 
     return NextResponse.json({ok:true,sesgos,mensaje:"Sesgos actualizados correctamente"})
-  }catch(e:any){return NextResponse.json({error:e.message},{status:500})}
+  }catch{return NextResponse.json({error:"Error procesando sesgos"},{status:500})}
 }

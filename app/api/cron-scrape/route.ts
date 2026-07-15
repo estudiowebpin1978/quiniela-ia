@@ -2,11 +2,19 @@
  * Fast scraper endpoint - solo scrapea turnos de HOY.
  * Diseñado para ser llamado cada 15 min por cron-job.org o Vercel Cron.
  * No hace backfill (para eso usar /api/cron-nacional?fill=deep).
+ *
+ * Orquestador de scraping con fallback en cascada:
+ *   1. quinielanacional1.com.ar (primaria rápida)
+ *   2. quinieleando.com.ar (fallback 1)
+ *   3. loteria-ciudad.gob.ar (fallback 2 - oficial)
+ *   Cross-validation: quiniela22.com (verificación de cabeza)
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { esDiaSinSorteo, esFeriado } from "@/lib/feriados"
+import { esDiaSinSorteo } from "@/lib/feriados"
 import { autoVerifyPredictions } from "@/lib/verificacion/auto-verify"
+import { fetchWithFallback } from "@/lib/scrapers/orchestrator"
+import { SourceStats } from "@/lib/scrapers/types"
 import logger from "@/lib/logger"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
@@ -20,80 +28,6 @@ function fechaArgentina(): { fechaStr: string; diaSemana: number; fUrl: string }
   return { fechaStr: p, diaSemana: new Date(`${p}T12:00:00Z`).getDay(), fUrl: `${dd}-${mm}-${yyyy.slice(-2)}` }
 }
 
-async function scrapeTurnoOficial(fechaISO: string, turno: string): Promise<number[]> {
-  const refDate = new Date("2026-06-08T12:00:00Z")
-  const targetDate = new Date(fechaISO + "T12:00:00Z")
-  const daysDiff = Math.round((targetDate.getTime() - refDate.getTime()) / (86400000))
-  let weekdays = 0
-  for (let i = 1; i <= daysDiff; i++) {
-    const d = new Date(refDate.getTime() + i * 86400000)
-    if (d.getDay() === 0) continue
-    const ds = d.toISOString().slice(0, 10)
-    if (esFeriado(ds)) continue
-    weekdays++
-  }
-  const turnoIdx = TURNOS.indexOf(turno)
-  const sorteoCode = 52492 + weekdays * 5 + turnoIdx
-
-  try {
-    const r = await fetch("https://quiniela.loteriadelaciudad.gob.ar/resultadosQuiniela/consultaResultados.php", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
-      body: `codigo=0080&juridiccion=51&sorteo=${sorteoCode}`,
-      signal: AbortSignal.timeout(15000)
-    })
-    if (!r.ok) return []
-    const html = await r.text()
-    if (html.includes("No hay Sorteo")) return []
-
-    const nums: number[] = []
-    const rx = /<div class="pos">\d{2}<\/div>\s*<div>(\d{4})<\/div>/g
-    let mx: RegExpExecArray | null
-    while ((mx = rx.exec(html)) !== null) {
-      const n = parseInt(mx[1])
-      if (n >= 0 && n <= 9999 && !nums.includes(n)) nums.push(n)
-      if (nums.length >= 20) break
-    }
-    return nums
-  } catch { return [] }
-}
-
-async function scrapeTurnoFast(fechaUrl: string, turno: string): Promise<number[]> {
-  const url = `https://quinielanacional1.com.ar/${fechaUrl}/${turno}`
-  for (let intento = 0; intento < 2; intento++) {
-    if (intento > 0) await new Promise(r => setTimeout(r, 3000))
-    try {
-      const html = await (await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0", "Accept": "text/html" },
-        signal: AbortSignal.timeout(15000)
-      })).text()
-
-      const nacionalMark = '<p class="h3">Nacional</p>'
-      const ciudadMark = '<p class="h3">Ciudad</p>'
-      let sectionIdx = html.indexOf(nacionalMark)
-      if (sectionIdx < 0) sectionIdx = html.indexOf(ciudadMark)
-      if (sectionIdx < 0) sectionIdx = html.indexOf('class="veintena"')
-      if (sectionIdx < 0) continue
-
-      const afterSection = html.slice(sectionIdx)
-      const veintenaIdx = afterSection.indexOf('class="veintena"')
-      if (veintenaIdx < 0) continue
-
-      const chunk = afterSection.slice(veintenaIdx, veintenaIdx + 4000)
-      const nums: number[] = []
-      const rx = /class="numero">(\d{3,4})<\/div>/g
-      let mx: RegExpExecArray | null
-      while ((mx = rx.exec(chunk)) !== null) {
-        const n = parseInt(mx[1])
-        if (n >= 0 && n <= 9999 && !nums.includes(n)) nums.push(n)
-        if (nums.length >= 20) break
-      }
-      if (nums.length >= 5) return nums
-    } catch {}
-  }
-  return []
-}
-
 async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
   try {
     const r = await fetch(`${SB()}/rest/v1/draws?date=eq.${fechaISO}&turno=eq.${turno}&select=id&limit=1`, {
@@ -105,7 +39,7 @@ async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
   } catch { return false }
 }
 
-async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string = "quiniela-nacional.com"): Promise<boolean> {
+async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string): Promise<boolean> {
   await fetch(`${SB()}/rest/v1/draws?date=eq.${fechaISO}&turno=eq.${turno}`, {
     method: "DELETE",
     headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}`, "Prefer": "return=minimal" }
@@ -128,12 +62,35 @@ async function limpiarPrediccionesViejas(): Promise<number> {
     const old = await r.json()
     if (!Array.isArray(old) || old.length === 0) return 0
     const ids = old.map((p: any) => p.id)
+
+    const verifiedRes = await fetch(
+      `${SB()}/rest/v1/prediction_history?prediction_id=in.(${ids.join(",")})&select=prediction_id`,
+      { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` }, signal: AbortSignal.timeout(8000) }
+    )
+    const verified = await verifiedRes.json()
+    const verifiedIds = new Set((verified || []).map((v: any) => v.prediction_id))
+
+    const deletableIds = ids.filter((id: string) => verifiedIds.has(id))
+    if (deletableIds.length === 0) return 0
+
     const d = await fetch(
-      `${SB()}/rest/v1/user_predictions?id=in.(${ids.join(",")})`,
+      `${SB()}/rest/v1/user_predictions?id=in.(${deletableIds.join(",")})`,
       { method: "DELETE", headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}`, "Prefer": "return=minimal" }, signal: AbortSignal.timeout(8000) }
     )
-    return d.ok ? ids.length : 0
+    return d.ok ? deletableIds.length : 0
   } catch { return 0 }
+}
+
+async function isAdminToken(token: string): Promise<boolean> {
+  try {
+    const adminEmail = (process.env.ADMIN_EMAIL || "estudiowebpin@gmail.com").toLowerCase()
+    const r = await fetch(`${SB()}/auth/v1/user`, {
+      headers: { "apikey": SK(), "Authorization": `Bearer ${token}` }
+    })
+    if (!r.ok) return false
+    const user = await r.json()
+    return user.email?.toLowerCase() === adminEmail
+  } catch { return false }
 }
 
 export async function GET(req: NextRequest) {
@@ -141,7 +98,10 @@ export async function GET(req: NextRequest) {
   const isVercelCron = req.headers.get("x-vercel-cron") === "1"
   const secret = req.nextUrl.searchParams.get("secret") || ""
   const expected = process.env.CRON_SECRET
-  if (!isVercelCron && !(secret && expected && secret === expected)) {
+  const authHeader = req.headers.get("authorization")?.replace("Bearer ", "") || ""
+  const isCronSecret = secret && expected && secret === expected
+  const isAdmin = authHeader && await isAdminToken(authHeader)
+  if (!isVercelCron && !isCronSecret && !isAdmin) {
     logger.warn("cron-scrape: unauthorized attempt", { ip: req.headers.get("x-forwarded-for") })
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
@@ -168,10 +128,10 @@ export async function GET(req: NextRequest) {
 
   logger.info("cron-scrape: iniciando", { fecha: fechaISO, overrideDate: overrideDate || "none" })
 
-  // Solo scrapeamos turnos que NO tenemos en la DB
   const resultados: Record<string, number[]> = {}
   let guardados = 0
   let errores = 0
+  const sourceStats: SourceStats = {}
 
   for (const turno of TURNOS) {
     if (await tieneDraw(fechaISO, turno)) {
@@ -179,30 +139,17 @@ export async function GET(req: NextRequest) {
       continue
     }
 
-    let nums: number[] = []
-    let source = ""
+    const result = await fetchWithFallback(fechaISO, fUrl, turno, sourceStats)
 
-    try {
-      nums = await scrapeTurnoFast(fUrl, turno)
-      source = "quiniela-nacional1.com.ar"
-      if (nums.length < 5) {
-        logger.info("cron-scrape: fallback a fuente oficial", { fecha: fechaISO, turno })
-        nums = await scrapeTurnoOficial(fechaISO, turno)
-        if (nums.length >= 5) source = "loteria-ciudad.gob.ar"
-      }
-    } catch (e) {
-      const errMsg = e instanceof Error ? e.message : String(e)
-      logger.error("cron-scrape: error scraping turno", { fecha: fechaISO, turno, error: errMsg })
-      errores++
-      continue
-    }
-
-    if (nums.length >= 5) {
+    if (result.numbers.length >= 5) {
       try {
-        if (await guardarDraw(fechaISO, turno, nums, source)) {
+        if (await guardarDraw(fechaISO, turno, result.numbers, result.source)) {
           guardados++
-          resultados[turno] = nums
-          logger.info("cron-scrape: guardado", { fecha: fechaISO, turno, cantidad: nums.length, source })
+          resultados[turno] = result.numbers
+          logger.info("cron-scrape: guardado", {
+            fecha: fechaISO, turno, cantidad: result.numbers.length,
+            source: result.source, cabezaMatch: result.cabezaMatch
+          })
           autoVerifyPredictions(fechaISO, turno).catch(e => {
             logger.error("cron-scrape: error auto-verify", { fecha: fechaISO, turno, error: String(e) })
           })
@@ -216,7 +163,7 @@ export async function GET(req: NextRequest) {
         errores++
       }
     } else {
-      logger.warn("cron-scrape: pocos numeros scrapeados", { fecha: fechaISO, turno, count: nums.length })
+      logger.warn("cron-scrape: todas las fuentes fallaron", { fecha: fechaISO, turno })
       errores++
     }
   }
@@ -237,7 +184,6 @@ export async function GET(req: NextRequest) {
       logger.error("cron-scrape: error en auto-train", { error: String(e) })
     })
 
-    // Trigger ML training cron (async, fire-and-forget)
     const cronUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-ml-training`
     fetch(cronUrl, {
       method: "POST",
@@ -257,6 +203,7 @@ export async function GET(req: NextRequest) {
     errores,
     eliminadas,
     duration,
+    sourceStats,
     resultados,
     message: guardados > 0
       ? `${guardados} sorteos guardados${errores > 0 ? `, ${errores} errores` : ""}`

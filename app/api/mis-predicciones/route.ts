@@ -25,29 +25,18 @@ export async function GET(req: NextRequest) {
     if (!Array.isArray(predictions)) return NextResponse.json({ predictions: [] })
     if (predictions.length === 0) return NextResponse.json({ predictions: [] })
 
-    // === BATCH: fetch all draws for needed dates in ONE query ===
-    const turnoDates = predictions.map((p: any) => {
-      const t = (p.turno || "").replace(/-\d+cifras?$/i, "").toLowerCase().trim()
-      const d = (p.date || "").trim()
-      const tn = t.charAt(0).toUpperCase() + t.slice(1)
-      return { date: d, turno: t, turnoNormalized: tn, pred: p }
-    }).filter((td: any) => td.date && td.turno && !esDiaSinSorteo(td.date, new Date(td.date + "T12:00:00Z").getDay()))
+    // === BATCH: fetch all draws for needed dates in ONE query (no turno filter — match in code) ===
+    const uniqueDates = [...new Set(predictions.map((p: any) => (p.date || "").trim()).filter(Boolean))]
 
-    // Build OR filter: (date=eq.X AND turno=eq.Y) OR ...
-    const orFilters = turnoDates
-      .filter((td: any) => td.date && td.turnoNormalized)
-      .map((td: any) => `and(date.eq.${td.date},turno.eq.${td.turnoNormalized})`)
-    
     let drawsMap: Record<string, any> = {}
-    if (orFilters.length > 0) {
-      // Supabase OR filter limit: batch in groups of 20
+    if (uniqueDates.length > 0) {
       const batchSize = 20
-      for (let i = 0; i < orFilters.length; i += batchSize) {
-        const batch = orFilters.slice(i, i + batchSize)
-        const orStr = batch.join(",")
+      for (let i = 0; i < uniqueDates.length; i += batchSize) {
+        const batch = uniqueDates.slice(i, i + batchSize)
+        const dateFilter = batch.map(d => `date.eq.${d}`).join(",")
         try {
           const drawsRes = await fetch(
-            `${SB()}/rest/v1/draws?or=(${orStr})&select=numbers,turno,date&limit=100`,
+            `${SB()}/rest/v1/draws?or=(${dateFilter})&select=numbers,turno,date&limit=200`,
             { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` }, signal: AbortSignal.timeout(8000) }
           )
           if (drawsRes.ok) {
@@ -65,7 +54,31 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // === Process predictions using drawsMap ===
+    // === FALLBACK: Also fetch prediction_history for already-verified results ===
+    const predIds = predictions.map((p: any) => p.id).filter(Boolean)
+    let historyMap: Record<string, any> = {}
+    if (predIds.length > 0) {
+      try {
+        const batchSize = 50
+        for (let i = 0; i < predIds.length; i += batchSize) {
+          const batch = predIds.slice(i, i + batchSize)
+          const histRes = await fetch(
+            `${SB()}/rest/v1/prediction_history?prediction_id=in.(${batch.join(",")})&select=prediction_id,aciertos_2,aciertos_3,aciertos_4,total_aciertos,resultado_oficial`,
+            { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` }, signal: AbortSignal.timeout(8000) }
+          )
+          if (histRes.ok) {
+            const hist = await histRes.json()
+            if (Array.isArray(hist)) {
+              for (const h of hist) {
+                if (h.prediction_id) historyMap[h.prediction_id] = h
+              }
+            }
+          }
+        }
+      } catch {}
+    }
+
+    // === Process predictions using drawsMap + historyMap fallback ===
     const results = []
     for (const pred of predictions) {
       const rawTurno = pred.turno || ""
@@ -73,6 +86,7 @@ export async function GET(req: NextRequest) {
       const predDate = (pred.date || "").trim()
       const drawKey = `${predDate}|${turnoLower}`
       const draw = drawsMap[drawKey] || null
+      const history = historyMap[pred.id] || null
       const disponible = !!draw
 
       let aciertos: any[] = []
@@ -94,7 +108,16 @@ export async function GET(req: NextRequest) {
         pred4 = numerosData?.["4"] || []
       }
 
-      if (draw?.numbers && Array.isArray(draw.numbers)) {
+      // Use verified history if available (most accurate)
+      if (history) {
+        aciertos = (history.aciertos_2 || []).map((a: any) => ({ ...a, tipo: 2 }))
+        aciertos3 = (history.aciertos_3 || []).map((a: any) => ({ ...a, tipo: 3 }))
+        aciertos4 = (history.aciertos_4 || []).map((a: any) => ({ ...a, tipo: 4 }))
+        const resultNums = history.resultado_oficial || []
+        numerosReales = resultNums.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
+        numerosReales3 = resultNums.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
+        numerosReales4 = resultNums.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
+      } else if (draw?.numbers && Array.isArray(draw.numbers)) {
         numerosReales = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
         numerosReales3 = draw.numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
         numerosReales4 = draw.numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
@@ -120,29 +143,30 @@ export async function GET(req: NextRequest) {
       }
 
       const allAciertos = [...aciertos, ...aciertos3, ...aciertos4]
+      const hasResult = !!history || disponible
 
       results.push({
         id: pred.id, fecha: pred.date, turno: pred.turno,
         numeros: pred2,
         numeros_3: pred3,
         numeros_4: pred4,
-        resultado: disponible && numerosReales.length > 0 ? numerosReales : null,
-        resultado_3: disponible && numerosReales3.length > 0 ? numerosReales3 : null,
-        resultado_4: disponible && numerosReales4.length > 0 ? numerosReales4 : null,
-        resultado_original: disponible && draw?.numbers ? draw.numbers : null,
-        aciertos: disponible ? allAciertos : [],
-        aciertos_2: disponible ? aciertos : [],
-        aciertos_3: disponible ? aciertos3 : [],
-        aciertos_4: disponible ? aciertos4 : [],
-        acerto: disponible ? allAciertos.length > 0 : false,
+        resultado: hasResult && numerosReales.length > 0 ? numerosReales : null,
+        resultado_3: hasResult && numerosReales3.length > 0 ? numerosReales3 : null,
+        resultado_4: hasResult && numerosReales4.length > 0 ? numerosReales4 : null,
+        resultado_original: hasResult && (history?.resultado_oficial || draw?.numbers) || null,
+        aciertos: hasResult ? allAciertos : [],
+        aciertos_2: hasResult ? aciertos : [],
+        aciertos_3: hasResult ? aciertos3 : [],
+        aciertos_4: hasResult ? aciertos4 : [],
+        acerto: hasResult ? allAciertos.length > 0 : false,
         created_at: pred.created_at,
-        sorteoRealizado: !!draw
+        sorteoRealizado: hasResult
       })
     }
 
     return NextResponse.json({ predictions: results })
-  } catch (e: any) {
-    return NextResponse.json({ predictions: [], error: e.message })
+  } catch {
+    return NextResponse.json({ predictions: [], error: "Error cargando predicciones" })
   }
 }
 
@@ -161,6 +185,24 @@ export async function POST(req: NextRequest) {
     const user = await userRes.json()
     if (!user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     const userId = user.id;
+
+    // Check if user's trial has expired
+    const profRes = await fetch(
+      `${SB}/rest/v1/user_profiles?id=eq.${userId}&select=role,premium_until&limit=1`,
+      { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
+    )
+    const profiles = await profRes.json()
+    const profile = profiles?.[0]
+    const adminEmails = ["estudiowebpin@gmail.com"]
+    const isAdmin = adminEmails.includes(user.email?.toLowerCase?.() || "")
+    const role = isAdmin ? "admin" : (profile?.role === "admin" ? "free" : (profile?.role || "free"))
+    const isActive = role === "admin" ||
+      (role === "premium" && profile?.premium_until && new Date(profile.premium_until) > new Date()) ||
+      (role === "free" && profile?.premium_until && new Date(profile.premium_until) > new Date())
+
+    if (!isActive) {
+      return NextResponse.json({ error: "Tu período de prueba ha expirado. Actualizá a Premium para continuar.", trialExpired: true }, { status: 403 })
+    }
 
     const { date, turno, numeros } = await req.json()
     const hasNumeros = Array.isArray(numeros) ? numeros.length > 0 : numeros && typeof numeros === "object" && Object.keys(numeros).length > 0
@@ -201,14 +243,14 @@ export async function POST(req: NextRequest) {
     const responseText = await r.text()
 
     if (!r.ok) {
-      return NextResponse.json({ error: "Error guardando. Status: " + r.status + ". Response: " + responseText }, { status: 500 })
+      return NextResponse.json({ error: "Error guardando predicción" }, { status: 500 })
     }
 
     let inserted = null
     try { inserted = JSON.parse(responseText) } catch {}
 
     return NextResponse.json({ ok: true, inserted })
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+  } catch {
+    return NextResponse.json({ error: "Error interno" }, { status: 500 })
   }
 }

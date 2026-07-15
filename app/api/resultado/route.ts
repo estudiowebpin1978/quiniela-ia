@@ -72,14 +72,8 @@ export async function GET(req:NextRequest){
 
   }catch(e:any){
     if(e?.name==="AbortError"){
-      return NextResponse.json({
-        found:false,
-        error:"Timeout al consultar resultados"
-      },{status:504})
+      return NextResponse.json({found:false,error:"Timeout al consultar resultados"},{status:504})
     }
-    return NextResponse.json({
-      found:false,
-      error:`Error: ${e?.message?.substring(0,80)||"desconocido"}`
-    },{status:500})
+    return NextResponse.json({found:false,error:"Error consultando resultados"},{status:500})
   }
 }

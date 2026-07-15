@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 
-const SB = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wazkylxgqckjfkomfotl.supabase.co"
+const SB = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const SK = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || ""
 
-const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFjayIsInJlZiI6Indhemt5bHhncWNramZrb21mb3RsIiwiaWF0IjoxNjMxMjM0Njc3fQ.f7LnMjjJ8Tio1M3rLgLWM6T1L2T1L2T1L2T1L2T1L2T"
+if (!SB || !SK) {
+  console.error("Faltan variables de entorno: NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY")
+  process.exit(1)
+}
 
 async function queryDatabase() {
   console.log("=== Verificando Base de Datos Supabase ===\n")
@@ -11,8 +14,8 @@ async function queryDatabase() {
   console.log("")
 
   const headers = {
-    "apikey": API_KEY,
-    "Authorization": `Bearer ${API_KEY}`
+    "apikey": SK,
+    "Authorization": `Bearer ${SK}`
   }
 
   try {

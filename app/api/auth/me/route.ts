@@ -31,16 +31,17 @@ export async function GET(req: NextRequest) {
     clearTimeout(timeout2);
 
     if (!profRes.ok) {
-      // Profile doesn't exist — create it
+      // Profile doesn't exist — create with 30-day trial
+      const trialUntil = new Date(Date.now() + 30 * 86400000).toISOString();
       await fetch(`${SB_URL}/rest/v1/user_profiles`, {
         method: "POST",
         headers: {
           "apikey": SB_KEY, Authorization: `Bearer ${SB_KEY}`,
           "Content-Type": "application/json", Prefer: "return=minimal",
         },
-        body: JSON.stringify({ id: user.id, email: user.email, role: "free" }),
+        body: JSON.stringify({ id: user.id, email: user.email, role: "free", premium_until: trialUntil }),
       });
-      return NextResponse.json({ isPremium: false, role: "free", email: user.email, userId: user.id });
+      return NextResponse.json({ isPremium: true, role: "free", email: user.email, userId: user.id, premium_until: trialUntil, daysRemaining: 30 });
     }
     const profiles = await profRes.json();
     const profile = profiles?.[0];
@@ -59,11 +60,15 @@ export async function GET(req: NextRequest) {
     const role = isAdmin ? "admin" : (dbRole === "admin" ? "free" : dbRole);
 
     const isPremium = role === "admin" ||
-      (role === "premium" && profile?.premium_until && new Date(profile.premium_until) > new Date());
+      (role === "premium" && profile?.premium_until && new Date(profile.premium_until) > new Date()) ||
+      (role === "free" && profile?.premium_until && new Date(profile.premium_until) > new Date());
+
+    const trialExpired = role === "free" && profile?.premium_until && new Date(profile.premium_until) <= new Date();
 
     return NextResponse.json({
       isPremium, role, email: user.email, userId: user.id,
-      premium_until: profile?.premium_until || null, daysRemaining
+      premium_until: profile?.premium_until || null, daysRemaining,
+      trialExpired: !!trialExpired
     });
 
   } catch {

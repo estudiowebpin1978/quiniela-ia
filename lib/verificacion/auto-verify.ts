@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js"
+import logger from "@/lib/logger"
 
 const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
@@ -24,31 +25,45 @@ function parseNumeros(numeros: any): ParsedNumeros {
   }
 }
 
+function normalizeTurno(t: string): string {
+  const base = t.replace(/-\d+cifras?$/i, "").toLowerCase().trim()
+  return base.charAt(0).toUpperCase() + base.slice(1)
+}
+
 export async function autoVerifyPredictions(fecha: string, turno: string): Promise<any[]> {
   if (!SB_URL || !SK_KEY) return []
 
   const supabase = createClient(SB_URL, SK_KEY)
+  const normalizedTurno = normalizeTurno(turno)
 
-  const { data: draw } = await supabase
+  // Fetch draw — use ilike for case-insensitive matching
+  const { data: draws } = await supabase
     .from("draws")
-    .select("numbers")
+    .select("numbers, turno")
     .eq("date", fecha)
-    .eq("turno", turno)
-    .single()
+    .ilike("turno", normalizedTurno)
 
-  if (!draw?.numbers?.length) return []
+  if (!draws?.length) return []
+  const draw = draws[0]
+
+  if (!draw.numbers?.length) return []
 
   const nums2 = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
   const nums3 = draw.numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
   const nums4 = draw.numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
 
-  const { data: predictions } = await supabase
+  // Fetch ALL predictions for this date (any turno variant), then filter by normalized match
+  const { data: allPredictions } = await supabase
     .from("user_predictions")
     .select("id, user_id, date, turno, numeros")
     .eq("date", fecha)
-    .eq("turno", turno)
 
-  if (!predictions?.length) return []
+  if (!allPredictions?.length) return []
+
+  // Filter predictions whose normalized turno matches
+  const predictions = allPredictions.filter(p => normalizeTurno(p.turno || "") === normalizedTurno)
+
+  if (!predictions.length) return []
 
   const predIds = predictions.map(p => p.id).filter(Boolean)
   const { data: existing } = await supabase
@@ -97,13 +112,13 @@ export async function autoVerifyPredictions(fecha: string, turno: string): Promi
     })
 
     if (pred.user_id) {
-      const { data: existing } = await supabase
+      const { data: existingStats } = await supabase
         .from("user_stats")
         .select("total_predictions, total_hits, best_streak, current_streak")
         .eq("user_id", pred.user_id)
         .single()
 
-      const prev = existing || { total_predictions: 0, total_hits: 0, best_streak: 0, current_streak: 0 }
+      const prev = existingStats || { total_predictions: 0, total_hits: 0, best_streak: 0, current_streak: 0 }
       const newStreak = totalAciertos > 0 ? prev.current_streak + 1 : 0
 
       await supabase.from("user_stats").upsert({
@@ -119,13 +134,17 @@ export async function autoVerifyPredictions(fecha: string, turno: string): Promi
     results.push({
       id: pred.id,
       fecha,
-      turno,
+      turno: pred.turno,
       aciertos_2: aciertos2,
       aciertos_3: aciertos3,
       aciertos_4: aciertos4,
       total_aciertos: totalAciertos,
       resultado_oficial: draw.numbers,
     })
+  }
+
+  if (results.length > 0) {
+    logger.info("[auto-verify] Verified predictions", { fecha, turno: normalizedTurno, count: results.length })
   }
 
   return results

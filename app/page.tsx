@@ -250,49 +250,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Premium */}
-      <div className="glass-card" style={{
-        width: "100%", maxWidth: 380, marginTop: 40, padding: "28px 20px", textAlign: "center",
-        background: "linear-gradient(180deg, rgba(168,85,247,0.08), rgba(99,102,241,0.05))",
-        borderColor: "rgba(168,85,247,0.2)",
-      }}>
-        <div className="animate-float" style={{ fontSize: 36, marginBottom: 8 }}>⭐</div>
-        <h3 style={{ fontSize: 20, fontWeight: 900, color: "#fff", marginBottom: 4, fontFamily: "var(--font-display)" }}>
-          Quiniela IA Premium
-        </h3>
-        <span className="badge badge-purple" style={{ marginBottom: 16 }}>ANÁLISIS COMPLETO</span>
-
-        <div style={{ textAlign: "left", margin: "16px 0" }}>
-          {[
-            "Top 10 con score detallado",
-            "Números de 3 y 4 cifras",
-            "Redoblona (combinación)",
-            "Análisis por turno específico",
-            "Historial de análisis ilimitado",
-            "Comparación con resultados reales",
-            "16 motores de IA + Monte Carlo",
-          ].map((feat, i) => (
-            <div key={i} style={{
-              display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
-              borderBottom: i < 6 ? "1px solid rgba(255,255,255,0.04)" : "none",
-            }}>
-              <span style={{ color: "var(--brand-green)", fontWeight: 900, fontSize: 14 }}>✅</span>
-              <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{feat}</span>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ margin: "20px 0 16px" }}>
-          <span className="gradient-text-gold" style={{ fontSize: 38, fontWeight: 900 }}>$10.000</span>
-          <span style={{ fontSize: 14, color: "var(--text-muted)", marginLeft: 6 }}>/mes</span>
-        </div>
-
-        <Button3D variant="gold" size="md" glow sound="coin" icon={<span>🔓</span>}
-          onClick={() => { sound.coin(); window.location.href = "/login" }}>
-          Empezar Premium
-        </Button3D>
-      </div>
-
       {/* Community Trends */}
       <CommunityTrends />
 

@@ -13,7 +13,7 @@
  */
 
 "use client";
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { usePushNotifications } from "@/components/PushNotifications";
 import PaywallModal from "@/components/PaywallModal";
 import WhatsAppFAB from "@/components/WhatsAppFAB";
@@ -104,7 +104,6 @@ function PageInner() {
   const [backtestData, setBacktestData] = useState<any>(null);
   const [backtestLoading, setBacktestLoading] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
-  const [retryCount, setRetryCount] = useState(0);
   const [dt, setDt] = useState<PredData | null>(null);
   const [misPreds, setMisPreds] = useState<any[]>([]);
   const [numDetail, setNumDetail] = useState<any>(null);
@@ -133,18 +132,11 @@ function PageInner() {
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [controlando, setControlando] = useState(false);
   const [showCalc, setShowCalc] = useState(false);
-  const [apCalc, setApCalc] = useState(250);
-  const [rdblCalc, setRdblCalc] = useState(1000);
-  const [totalBet, setTotalBet] = useState(5000);
-  const [analisisData, setAnalisisData] = useState<any>(null);
-  const [analisisLoading, setAnalisisLoading] = useState(false);
   const [resultadoControl, setResultadoControl] = useState<any>(null);
   const [aiInsight, setAiInsight] = useState("");
-  const [stats, setStats] = useState<any>(null);
   const [confianzaTurnos, setConfianzaTurnos] = useState<Record<string, number>>(() => {
     try { return JSON.parse(localStorage.getItem("confianzaTurnos") || "{}"); } catch { return {}; }
   });
-  const [statsLoading, setStatsLoading] = useState(true);
   const [userRole, setUserRole] = useState<"free" | "premium" | "admin">("free");
   const [userId, setUserId] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -298,8 +290,6 @@ function PageInner() {
     const savedLastDate = localStorage.getItem("quiniela-ia-ultimo-sorteo-visto");
     if (savedLastDate) setLastDrawDate(savedLastDate);
     cargarMisPreds(auth.access_token);
-    setStats({ totalSorteos: "--", pct: "--", racha: "--", mensaje: "Presiona 'Generar Análisis' para comenzar" }); 
-    setStatsLoading(false);
     const visited = localStorage.getItem("quiniela-ia-tour-visto");
     if (!visited) {
       setPrimerVisita(true);
@@ -822,14 +812,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   const ranking = rankingData;
 
 // Previously calculated numeric math heavy expressions (useMemo to prevent unnecessary recalculations)
-  const heatmapBars = useMemo(() => {
-    if (!dt?.heatmap) return [];
-    return dt.heatmap.map(h => ({
-      ...h,
-      intensity: Math.min(1, h.f / 10)
-    }));
-  }, [dt?.heatmap]);
-
   // Use current numeric data for rendering (avoid recreating objects each render)
   const cur = useMemo(() => {
     const target = dg === 2 ? nums2 : dg === 3 ? nums3 : nums4;
@@ -1271,7 +1253,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           {er && (
             <div className="eb" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
               <span>Error: {er}</span>
-              <button onClick={() => { setRetryCount(c => c + 1); gen(); }} style={{ padding: "8px 16px", borderRadius: 8, background: "#ff3366", color: "#fff", border: "none", fontWeight: 700, cursor: "pointer" }}>
+              <button onClick={() => { gen(); }} style={{ padding: "8px 16px", borderRadius: 8, background: "#ff3366", color: "#fff", border: "none", fontWeight: 700, cursor: "pointer" }}>
                 Reintentar
               </button>
             </div>

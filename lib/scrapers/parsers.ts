@@ -1,0 +1,153 @@
+import { ScrapeResult } from "./types"
+
+const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
+
+function extractNums(html: string, rx: RegExp, max = 20): number[] {
+  const nums: number[] = []
+  let mx: RegExpExecArray | null
+  while ((mx = rx.exec(html)) !== null) {
+    const n = parseInt(mx[1])
+    if (n >= 0 && n <= 9999 && !nums.includes(n)) nums.push(n)
+    if (nums.length >= max) break
+  }
+  return nums
+}
+
+// ─── Fuente 1: Lotería de la Ciudad (Oficial) ───────────────────────────────
+// POST a PHP endpoint, HTML con <div class="pos">NN</div> seguido de <div>NNNN</div>
+export async function parseLoteriaOficial(fechaISO: string, _fechaUrl: string, turno: string): Promise<ScrapeResult | null> {
+  const refDate = new Date("2026-06-08T12:00:00Z")
+  const targetDate = new Date(fechaISO + "T12:00:00Z")
+  const daysDiff = Math.round((targetDate.getTime() - refDate.getTime()) / 86400000)
+  let weekdays = 0
+  for (let i = 1; i <= daysDiff; i++) {
+    const d = new Date(refDate.getTime() + i * 86400000)
+    if (d.getDay() === 0) continue
+    const ds = d.toISOString().slice(0, 10)
+    const isHoliday = (await import("@/lib/feriados")).esFeriado(ds)
+    if (isHoliday) continue
+    weekdays++
+  }
+  const turnoIdx = TURNOS.indexOf(turno)
+  const sorteoCode = 52492 + weekdays * 5 + turnoIdx
+
+  try {
+    const r = await fetch("https://quiniela.loteriadelaciudad.gob.ar/resultadosQuiniela/consultaResultados.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
+      body: `codigo=0080&juridiccion=51&sorteo=${sorteoCode}`,
+      signal: AbortSignal.timeout(8000)
+    })
+    if (!r.ok) return null
+    const html = await r.text()
+    if (html.includes("No hay Sorteo")) return null
+
+    // Tolerante: admite espacios, comillas simples/dobles, clases múltiples
+    const rx = /<div\s+class\s*=\s*["']pos["']\s*>\s*\d{2}\s*<\/div>\s*<div\s*>\s*(\d{4})\s*<\/div>/gi
+    const nums = extractNums(html, rx)
+    if (nums.length < 5) return null
+    return { numbers: nums, source: "loteria-ciudad.gob.ar", cabezaMatch: null }
+  } catch { return null }
+}
+
+// ─── Fuente 2: QuinielaNacional1 (Primaria rápida) ──────────────────────────
+// HTML con <div class="veintena"> y <div class="numero">NNNN</div>
+export async function parseQuinielaNacional1(_fechaISO: string, fechaUrl: string, turno: string): Promise<ScrapeResult | null> {
+  const url = `https://quinielanacional1.com.ar/${fechaUrl}/${turno}`
+  for (let intento = 0; intento < 2; intento++) {
+    if (intento > 0) await new Promise(r => setTimeout(r, 3000))
+    try {
+      const html = await (await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0", "Accept": "text/html" },
+        signal: AbortSignal.timeout(8000)
+      })).text()
+
+      // Buscar sección Nacional o Ciudad (tolerante a espacios/atributos)
+      const sectionRx = /<p\s+class\s*=\s*["']h3["']\s*>\s*(?:Nacional|Ciudad)\s*<\/p>/gi
+      let sectionIdx = -1
+      let mx: RegExpExecArray | null
+      while ((mx = sectionRx.exec(html)) !== null) {
+        sectionIdx = mx.index
+      }
+      if (sectionIdx < 0) sectionIdx = html.indexOf('class="veintena"')
+      if (sectionIdx < 0) continue
+
+      const afterSection = html.slice(sectionIdx)
+      const veintenaIdx = afterSection.indexOf('class="veintena"')
+      if (veintenaIdx < 0) continue
+
+const chunk = afterSection.slice(veintenaIdx, veintenaIdx + 5000)
+       // Tolerante: espacios, comillas simples/dobles, clases múltiples, etiquetas <span> o <div>
+       const rx = /class\s*=\s*["']?num["']?\s*>\s*<[^>]+>\s*(\d{1,4})\s*<\/[^>]+>/gi
+       const nums = extractNums(chunk, rx)
+       // Filtrar números fuera del rango válido (00-99 para 2 cifras, 0001-9999 para 4)
+       const filtered = nums.filter(n => n >= 0 && n <= 9999)
+       if (filtered.length >= 5) {
+         return { numbers: filtered, source: "quinielanacional1.com.ar", cabezaMatch: null }
+       }
+    } catch {}
+  }
+  return null
+}
+
+// ─── Fuente 3: Quinieleando (Fallback 1) ─────────────────────────────────────
+// HTML con <span class="nro"><b>NNNN</b></span> (cabeza) y <span class="nro">NNNN</span>
+export async function parseQuinieleando(_fechaISO: string, _fechaUrl: string, turno: string): Promise<ScrapeResult | null> {
+  try {
+    const url = `https://quinieleando.com.ar/quinielas/nacional/resultados-de-hoy`
+    const html = await (await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0", "Accept": "text/html" },
+      signal: AbortSignal.timeout(8000)
+    })).text()
+
+    // Buscar la sección del turno específico (ej: "MATUTINA, Quiniela Nacional")
+    const turnoUpper = turno.toUpperCase()
+    const turnoHeaderRx = new RegExp(
+      `<h3>\\s*${turnoUpper}\\s*,\\s*Quiniela\\s*Nacional[^<]*<\\/h3>`,
+      "gi"
+    )
+    const headerMx = turnoHeaderRx.exec(html)
+    if (!headerMx) return null
+
+    // Buscar la tabla siguiente al header (hasta el próximo <h3 o </table>)
+    const afterHeader = html.slice(headerMx.index, headerMx.index + 6000)
+    const tableEnd = afterHeader.indexOf("</table>")
+    const chunk = tableEnd > 0 ? afterHeader.slice(0, tableEnd) : afterHeader.slice(0, 4000)
+
+    // Extraer todos los números de la tabla (con o sin <b>)
+const rx = /class\s*=\s*["']nro["']\s*>\s*(?:<b>)?\s*(\d{1,4})\s*(?:<\/b>)?\s*<\/span>/gi
+     const nums = extractNums(chunk, rx)
+     if (nums.length >= 5) {
+       return { numbers: nums, source: "quinieleando.com.ar", cabezaMatch: null }
+     }
+  } catch {}
+  return null
+}
+
+// ─── Fuente 4: Quiniela22 (Fallback 2 - solo cabeza) ────────────────────────
+// Solo tiene la cabeza (1 número), útil para cross-validation
+export async function parseQuiniela22Cabeza(_fechaISO: string, fechaUrl: string, turno: string): Promise<number | null> {
+  try {
+    const [dd, mm, yy] = fechaUrl.split("-")
+    const dayNames = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"]
+    const d = new Date(`20${yy}-${mm}-${dd}T12:00:00Z`)
+    const dayName = dayNames[d.getUTCDay()]
+    const url = `https://quiniela22.com/${turno}/Ciudad/${dayName}_${fechaUrl}`
+    const html = await (await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0", "Accept": "text/html" },
+      signal: AbortSignal.timeout(8000)
+    })).text()
+    // Tolerante: espacios, comillas simples/dobles, atributos extra
+    const rx = /class\s*=\s*["']num["']\s*>\s*<a[^>]*>\s*(\d{3,4})\s*<\/a>\s*<\/div>/gi
+    const mx = rx.exec(html)
+    if (mx) return parseInt(mx[1])
+  } catch {}
+  return null
+}
+
+// ─── Verificador de cabeza ───────────────────────────────────────────────────
+export async function verifyCabeza(fechaUrl: string, turno: string, expectedNum: number): Promise<boolean | null> {
+  const cabeza = await parseQuiniela22Cabeza("", fechaUrl, turno)
+  if (cabeza === null) return null
+  return cabeza === expectedNum
+}

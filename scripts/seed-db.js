@@ -4,8 +4,13 @@
 // oficiales mostrados a los usuarios sean INCORRECTOS.
 // Usar el scraper (/api/cron o /api/cron-nacional) para datos reales.
 
-const SB = "https://wazkylxgqckjfkcmfotl.supabase.co"
-const SK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indhemt5bHhncWNramZrY21mb3RsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjI0Nzc1NSwiZXhwIjoyMDg3ODIzNzU1fQ.IiksS0WwZZVlx9XJCzLhswJzSeeWnNS0dp3Z5uZiCSs
+const SB = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+const SK = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || ""
+
+if (!SB || !SK) {
+  console.error("Faltan variables de entorno: NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY")
+  process.exit(1)
+}
 
 const headers = {
   "apikey": SK,

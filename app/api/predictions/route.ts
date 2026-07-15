@@ -16,13 +16,12 @@ import { calcularFactores30 } from "@/lib/analisis/factores30"
 import { runMonteCarlo } from "@/lib/analisis/montecarlo"
 import { detectDrift } from "@/lib/analisis/drift"
 import { calculateSeasonalScores } from "@/lib/analisis/seasonal"
-import { bayesianAnalysis, bayesianConfidence, bayesianCredibleSet } from "@/lib/analisis/bayesian"
+import { bayesianAnalysis, bayesianConfidence } from "@/lib/analisis/bayesian"
 import { analyzeCorrelations } from "@/lib/analisis/correlation"
 import { higherOrderMarkov } from "@/lib/analisis/markov-superior"
 import { detectCyclicPatterns } from "@/lib/analisis/cyclic"
 import { crossValidateWeights, MetaWeights } from "@/lib/analisis/meta-learner"
-import { computeCDM, multiWindowCDM } from "@/lib/analisis/cdm-model"
-import { computePredictionMetadata } from "@/lib/analisis/prediction-tracker"
+import { multiWindowCDM } from "@/lib/analisis/cdm-model"
 import { getDeepLearningBoost, getPredictionUncertainty } from "@/lib/ml/deep-learning-loader"
 import { analyzeGraph } from "@/lib/analisis/graph"
 import { computeFeatureMatrix } from "@/lib/analisis/features-100"
@@ -119,6 +118,42 @@ function checkRate(ip: string, max = 20, windowMs = 300000): boolean {
 }
 
 // ============================================
+// TIER CHECK HELPER
+// ============================================
+async function getUserTier(token: string): Promise<{ isPremium: boolean; role: string; trialExpired: boolean }> {
+  if (!token) return { isPremium: false, role: "free", trialExpired: false }
+  const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
+  const SB_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
+  if (!SB_URL || !SB_KEY) return { isPremium: false, role: "free", trialExpired: false }
+  try {
+    const userRes = await fetch(`${SB_URL}/auth/v1/user`, {
+      headers: { "apikey": SB_KEY, "Authorization": `Bearer ${token}` },
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!userRes.ok) return { isPremium: false, role: "free", trialExpired: false }
+    const user = await userRes.json()
+    const profRes = await fetch(
+      `${SB_URL}/rest/v1/user_profiles?id=eq.${user.id}&select=role,premium_until&limit=1`,
+      { headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}` }, signal: AbortSignal.timeout(3000) }
+    )
+    if (!profRes.ok) return { isPremium: false, role: "free", trialExpired: false }
+    const profiles = await profRes.json()
+    const profile = profiles?.[0]
+    if (!profile) return { isPremium: false, role: "free", trialExpired: false }
+    const adminEmails = ["estudiowebpin@gmail.com"]
+    const isAdmin = adminEmails.includes(user.email?.toLowerCase?.() || "")
+    const role = isAdmin ? "admin" : (profile.role === "admin" ? "free" : profile.role)
+    const isPremium = role === "admin" ||
+      (role === "premium" && profile.premium_until && new Date(profile.premium_until) > new Date()) ||
+      (role === "free" && profile.premium_until && new Date(profile.premium_until) > new Date())
+    const trialExpired = role === "free" && profile.premium_until && new Date(profile.premium_until) <= new Date()
+    return { isPremium: !!isPremium, role, trialExpired: !!trialExpired }
+  } catch {
+    return { isPremium: false, role: "free", trialExpired: false }
+  }
+}
+
+// ============================================
 // MAIN API
 // ============================================
 export async function GET(req: NextRequest) {
@@ -126,6 +161,15 @@ export async function GET(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown"
   if (!checkRate(ip)) {
     return NextResponse.json({ error: "Demasiadas peticiones. Esperá unos minutos." }, { status: 429 })
+  }
+
+  // === SERVER-SIDE TIER CHECK ===
+  const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
+  const userTier = await getUserTier(token)
+
+  // Block expired trial users from generating analyses
+  if (userTier.trialExpired) {
+    return NextResponse.json({ error: "Tu período de prueba ha expirado. Actualizá a Premium para continuar.", trialExpired: true }, { status: 403 })
   }
 
   const { searchParams } = new URL(req.url)
@@ -801,6 +845,8 @@ export async function GET(req: NextRequest) {
     const responsePayload = {
       ok: true,
       turno: turnoQuery,
+      tier: userTier.role,
+      trialExpired: userTier.trialExpired,
       debug: {
         elapsed_ms: elapsed(t0),
         factores_aplicados: 30,
@@ -823,11 +869,11 @@ export async function GET(req: NextRequest) {
       confidence,
       pred: {
         numeros_2: pred2,
-        numeros_3: pred3,
-        numeros_4: pred4,
-        redoblona: redoblona,
+        numeros_3: userTier.isPremium ? pred3 : [],
+        numeros_4: userTier.isPremium ? pred4 : [],
+        redoblona: userTier.isPremium ? redoblona : null,
       },
-      redoblona: redoblona,
+      redoblona: userTier.isPremium ? redoblona : null,
       heatmap,
       stats: {
         totalNumeros: terminaciones2.length,
