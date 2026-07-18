@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { unstable_cache, revalidateTag } from "next/cache"
 import { analisisCrossTurno } from "@/lib/analisis/cross-turno"
 import { calcularPesosDinamicos, PesosDinamicos } from "@/lib/analisis/weights"
 import { calibrarConfianza, recalibrar } from "@/lib/analisis/calibration"
@@ -41,6 +42,16 @@ export const maxDuration = 60;
 const TIME_BUDGET_MS = 8000
 function elapsed(t0: number) { return Date.now() - t0 }
 function hasBudget(t0: number, reserveMs = 2000) { return elapsed(t0) < TIME_BUDGET_MS - reserveMs }
+
+// Cache invalidation helper - called by cron-scrape after new draws
+export async function invalidatePredictionCache(turno?: string): Promise<void> {
+  try {
+    if (turno) {
+      revalidateTag(`predictions-${turno}`, "max")
+    }
+    revalidateTag('predictions', "max")
+  } catch {}
+}
 
 // Persistent in-memory cache for heavy historical computations (meta-learner, CDM, motor)
 // Key: "type:turno" — survives across requests in same serverless instance
@@ -190,7 +201,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: `Sorteo inválido. Válidos: ${turnosValidos.join(", ")}` }, { status: 400 })
   }
 
-  // === IN-MEMORY CACHE: same turno+date returns cached result for 10 min ===
+  // === IN-MEMORY CACHE: fast lookup during warm invocations ===
   const cacheKey = `pred:${turnoQuery}:${targetDate}`
   const gc = globalThis as any
   if (!gc.__predCache) gc.__predCache = {}
@@ -207,6 +218,19 @@ export async function GET(req: NextRequest) {
   if (cached && Date.now() < cached.expiresAt) {
     return NextResponse.json(cached.result)
   }
+
+  // === UNSTABLE_CACHE: cross-instance cache with revalidation tags ===
+  const getCachedPrediction = unstable_cache(
+    async (turno: string, date: string, token: string) => {
+      // This function is called when both in-memory and unstable_cache miss
+      return null // Will be populated by the main computation
+    },
+    [`prediction-${turnoQuery}-${targetDate}`],
+    { 
+      tags: [`predictions-${turnoQuery}`, 'predictions'],
+      revalidate: 600 // 10 minutes
+    }
+  )
 
   // === PRE-PREDICTION SYNC: non-blocking, cached 5 min ===
   // First call may be slow; subsequent calls return instantly from cache

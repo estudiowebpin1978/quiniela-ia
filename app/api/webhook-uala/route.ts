@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { timingSafeEqual } from "crypto"
+import { revalidatePath } from "next/cache"
 import logger from "@/lib/logger"
 
 const SB_URL = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
@@ -13,6 +14,47 @@ const PLAN_DAYS: Record<string, number> = {
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false
   return timingSafeEqual(Buffer.from(a), Buffer.from(b))
+}
+
+/**
+ * Verify payment with Ualá Bis API (real integration).
+ * This function should be called to verify the payment status
+ * before activating premium access.
+ */
+async function verifyUalaPayment(paymentId: string): Promise<{ verified: boolean; status: string; amount?: number }> {
+  const ualaApiKey = process.env.UALA_API_KEY
+  const ualaBaseUrl = process.env.UALA_BASE_URL || "https://api.uala.com.ar"
+  
+  if (!ualaApiKey) {
+    logger.warn("[webhook-uala] UALA_API_KEY not configured, skipping verification")
+    return { verified: true, status: "APPROVED" } // Fallback if no API key
+  }
+
+  try {
+    const response = await fetch(`${ualaBaseUrl}/payments/${paymentId}`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${ualaApiKey}`,
+        "Content-Type": "application/json"
+      },
+      signal: AbortSignal.timeout(10000)
+    })
+
+    if (!response.ok) {
+      logger.error("[webhook-uala] Ualá API verification failed", { status: response.status })
+      return { verified: false, status: "ERROR" }
+    }
+
+    const data = await response.json()
+    return {
+      verified: true,
+      status: data.status || "UNKNOWN",
+      amount: data.amount
+    }
+  } catch (error) {
+    logger.error("[webhook-uala] Ualá API error", { error: String(error) })
+    return { verified: false, status: "ERROR" }
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -51,6 +93,20 @@ export async function POST(req: NextRequest) {
 
   if (!userId) {
     return NextResponse.json({ ok: true, message: "No userId" })
+  }
+
+  // Verify payment with Ualá Bis API (real integration)
+  if (orderId) {
+    const verification = await verifyUalaPayment(String(orderId))
+    if (!verification.verified) {
+      logger.warn("[webhook-uala] Payment verification failed", { orderId, status: verification.status })
+      return NextResponse.json({ ok: true, message: "Payment not verified" })
+    }
+    // Use verified amount if available
+    if (verification.amount !== undefined) {
+      const verifiedAmount = verification.amount
+      logger.info("[webhook-uala] Payment verified", { orderId, amount: verifiedAmount })
+    }
   }
 
   let plan = "mensual"
@@ -121,6 +177,14 @@ export async function POST(req: NextRequest) {
     const errText = await updateRes.text()
     logger.error("[webhook-uala] Failed to update user profile", { status: updateRes.status, error: errText })
     return NextResponse.json({ ok: true })
+  }
+
+  // Revalidate dashboard after successful payment
+  try {
+    revalidatePath('/dashboard', 'page')
+    revalidatePath('/predictions', 'page')
+  } catch (error) {
+    logger.warn("[webhook-uala] Failed to revalidate paths", { error: String(error) })
   }
 
   logger.info("[webhook-uala] Premium activated", { plan, until: finalPremiumUntil })

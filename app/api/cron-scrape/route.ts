@@ -11,10 +11,12 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { revalidateTag } from "next/cache"
 import { esDiaSinSorteo } from "@/lib/feriados"
 import { autoVerifyPredictions } from "@/lib/verificacion/auto-verify"
 import { fetchWithFallback } from "@/lib/scrapers/orchestrator"
 import { SourceStats } from "@/lib/scrapers/types"
+import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import logger from "@/lib/logger"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
@@ -81,30 +83,16 @@ async function limpiarPrediccionesViejas(): Promise<number> {
   } catch { return 0 }
 }
 
-async function isAdminToken(token: string): Promise<boolean> {
-  try {
-    const adminEmail = (process.env.ADMIN_EMAIL || "estudiowebpin@gmail.com").toLowerCase()
-    const r = await fetch(`${SB()}/auth/v1/user`, {
-      headers: { "apikey": SK(), "Authorization": `Bearer ${token}` }
-    })
-    if (!r.ok) return false
-    const user = await r.json()
-    return user.email?.toLowerCase() === adminEmail
-  } catch { return false }
-}
-
 export async function GET(req: NextRequest) {
   const start = Date.now()
-  const isVercelCron = req.headers.get("x-vercel-cron") === "1"
-  const secret = req.nextUrl.searchParams.get("secret") || ""
-  const expected = process.env.CRON_SECRET
-  const authHeader = req.headers.get("authorization")?.replace("Bearer ", "") || ""
-  const isCronSecret = secret && expected && secret === expected
-  const isAdmin = authHeader && await isAdminToken(authHeader)
-  if (!isVercelCron && !isCronSecret && !isAdmin) {
-    logger.warn("cron-scrape: unauthorized attempt", { ip: req.headers.get("x-forwarded-for") })
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  
+  // Centralized cron auth validation
+  const authResult = await validateCronAuth(req)
+  if (!authResult.authorized) {
+    return unauthorizedResponse()
   }
+
+  logger.info("cron-scrape: authorized", { source: authResult.source })
 
   const overrideDate = req.nextUrl.searchParams.get("date")
   let fechaISO: string, diaSemana: number, fUrl: string
@@ -153,6 +141,11 @@ export async function GET(req: NextRequest) {
           autoVerifyPredictions(fechaISO, turno).catch(e => {
             logger.error("cron-scrape: error auto-verify", { fecha: fechaISO, turno, error: String(e) })
           })
+          // Invalidate prediction cache for this turno
+          try {
+            revalidateTag(`predictions-${turno.toLowerCase()}`, "max")
+            revalidateTag('predictions', "max")
+          } catch {}
         } else {
           logger.warn("cron-scrape: fallo al guardar", { fecha: fechaISO, turno })
           errores++
@@ -195,6 +188,15 @@ export async function GET(req: NextRequest) {
   }
 
   const duration = Date.now() - start
+
+  // Log cron execution
+  logCronExecution("cron-scrape", {
+    fecha: fechaISO,
+    guardados,
+    errores,
+    eliminadas,
+    sourceStats
+  }, start)
 
   return NextResponse.json({
     ok: errores === 0,

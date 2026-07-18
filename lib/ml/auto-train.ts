@@ -3,6 +3,11 @@
  * Trains Markov, Random Forest, and Neural Net from historical data.
  * Persists to Supabase ml_models table and caches in globalThis.
  * Supports AI-enhanced predictions via Groq, Gemini, CRSR, and SK APIs.
+ * 
+ * Architecture:
+ * - Heavy compute (training) is separated from API calls (AI enhancement)
+ * - Heavy compute can be routed to Ollama for local inference
+ * - API calls are optional text formatting/enhancement layer
  */
 
 import { setModelos, getModelos } from "./cache"
@@ -145,97 +150,139 @@ async function fetchDraws(turno: string, limit = 5000): Promise<any[]> {
 }
 
 /**
- * Enhanced ML training with AI-powered features
+ * HEAVY COMPUTE ONLY: Train traditional ML models (Markov, RF, Neural).
+ * This function is separated from API calls for Ollama routing.
+ * Can be offloaded to local inference for cost optimization.
  */
-async function trainTurnoConIA(
-  turno: string, 
-  aiProviders?: string[]
-): Promise<{ turno: string; modelos: any[]; tiempoMs: number; proveedorIA?: string }> {
+export async function trainTurnoHeavyCompute(turno: string): Promise<{ modelos: any[]; tiempoMs: number }> {
   const start = Date.now()
 
-  // Import base training function
   const { entrenarModelos } = await import("./trainer")
-
-  // Fetch training data
   const sorteos = await fetchDraws(turno)
+  
   if (sorteos.length < 50) {
-    return { turno, modelos: [], tiempoMs: Date.now() - start }
+    return { modelos: [], tiempoMs: Date.now() - start }
   }
 
-  // Train traditional models first
+  // Pure ML training - no API calls
   const resultado = await entrenarModelos(sorteos, {
     incluirRF: true,
     incluirMarkov: true,
     incluirNN: true,
   })
 
-  // Generate AI-enhanced predictions if AI providers requested
+  return { modelos: resultado.modelos, tiempoMs: Date.now() - start }
+}
+
+/**
+ * AI ENHANCEMENT ONLY: Generate AI predictions via external APIs.
+ * This is the optional text formatting/enhancement layer.
+ * Can be called independently after heavy compute.
+ */
+export async function enhanceWithAI(
+  sorteos: any[],
+  turno: string,
+  aiProviders: string[]
+): Promise<{ aiPredictions: any; proveedorIA: string }> {
+  let aiPredictions: any = null
+  let proveedorIA = ""
+
+  if (!aiProviders || aiProviders.length === 0) {
+    return { aiPredictions: null, proveedorIA: "" }
+  }
+
+  try {
+    const groq = new GroqAI()
+    const gemini = new GeminiAI()
+    const cersr = new CRSR_AI()
+    const sk = new SKAI()
+
+    const aiPromises: Promise<any>[] = []
+    const aiNames: string[] = []
+
+    if (aiProviders.includes("groq")) {
+      aiPromises.push(groq.generatePrediction(
+        JSON.stringify(sorteos.slice(-50)),
+        `Análisis de los últimos ${sorteos.length} sorteos de quiniela para turno ${turno}`
+      ))
+      aiNames.push("Groq")
+    }
+
+    if (aiProviders.includes("gemini")) {
+      aiPromises.push(gemini.generatePrediction(
+        JSON.stringify(sorteos.slice(-50)),
+        `Análisis de los últimos ${sorteos.length} sorteos de quiniela para turno ${turno}`
+      ))
+      aiNames.push("Gemini")
+    }
+
+    if (aiProviders.includes("crsr")) {
+      aiPromises.push(cersr.generatePrediction(
+        JSON.stringify(sorteos.slice(-50)),
+        `Análisis de los últimos ${sorteos.length} sorteos de quiniela para turno ${turno}`
+      ))
+      aiNames.push("CRSR")
+    }
+
+    if (aiProviders.includes("sk")) {
+      aiPromises.push(sk.generatePrediction(
+        JSON.stringify(sorteos.slice(-50)),
+        `Análisis de los últimos ${sorteos.length} sorteos de quiniela para turno ${turno}`
+      ))
+      aiNames.push("SK")
+    }
+
+    if (aiPromises.length > 0) {
+      const aiResults = await Promise.allSettled(aiPromises)
+      const successfulResults = aiResults
+        .filter(result => result.status === "fulfilled")
+        .map(result => result.value)
+
+      if (successfulResults.length > 0) {
+        aiPredictions = {
+          predictions: successfulResults,
+          providers: aiNames.filter((_, idx) => aiResults[idx].status === "fulfilled")
+        }
+        proveedorIA = aiNames.filter((_, idx) => aiResults[idx].status === "fulfilled").join("+")
+      }
+    }
+  } catch (e) {
+    console.warn(`[AutoML AI] Error generating AI predictions:`, e)
+  }
+
+  return { aiPredictions, proveedorIA }
+}
+
+/**
+ * Enhanced ML training with AI-powered features.
+ * Combines heavy compute with optional AI enhancement.
+ */
+async function trainTurnoConIA(
+  turno: string, 
+  aiProviders?: string[]
+): Promise<TrainResult> {
+  const start = Date.now()
+
+  // Step 1: Heavy compute (can be routed to Ollama)
+  const { modelos, tiempoMs: computeTimeMs } = await trainTurnoHeavyCompute(turno)
+  
+  if (modelos.length === 0) {
+    return { turno, modelos: [], tiempoMs: Date.now() - start }
+  }
+
+  // Step 2: Optional AI enhancement (API calls)
   let aiPredictions: any = null
   let proveedorIA = ""
 
   if (aiProviders && aiProviders.length > 0) {
-    try {
-      const groq = new GroqAI()
-      const gemini = new GeminiAI()
-      const cersr = new CRSR_AI()
-      const sk = new SKAI()
-
-      const aiPromises: Promise<any>[] = []
-      const aiNames: string[] = []
-
-      if (aiProviders.includes("groq")) {
-        aiPromises.push(groq.generatePrediction(
-          JSON.stringify(sorteos.slice(-50)),
-          `Análisis de los últimos ${sorteos.length} sorteos de quiniela para turno ${turno}`
-        ))
-        aiNames.push("Groq")
-      }
-
-      if (aiProviders.includes("gemini")) {
-        aiPromises.push(gemini.generatePrediction(
-          JSON.stringify(sorteos.slice(-50)),
-          `Análisis de los últimos ${sorteos.length} sorteos de quiniela para turno ${turno}`
-        ))
-        aiNames.push("Gemini")
-      }
-
-      if (aiProviders.includes("crsr")) {
-        aiPromises.push(cersr.generatePrediction(
-          JSON.stringify(sorteos.slice(-50)),
-          `Análisis de los últimos ${sorteos.length} sorteos de quiniela para turno ${turno}`
-        ))
-        aiNames.push("CRSR")
-      }
-
-      if (aiProviders.includes("sk")) {
-        aiPromises.push(sk.generatePrediction(
-          JSON.stringify(sorteos.slice(-50)),
-          `Análisis de los últimos ${sorteos.length} sorteos de quiniela para turno ${turno}`
-        ))
-        aiNames.push("SK")
-      }
-
-      if (aiPromises.length > 0) {
-        const aiResults = await Promise.allSettled(aiPromises)
-        const successfulResults = aiResults
-          .filter(result => result.status === "fulfilled")
-          .map(result => result.value)
-
-        if (successfulResults.length > 0) {
-          aiPredictions = {
-            predictions: successfulResults,
-            providers: aiNames.filter((_, idx) => aiResults[idx].status === "fulfilled")
-          }
-          proveedorIA = aiNames.filter((_, idx) => aiResults[idx].status === "fulfilled").join("+" )
-        }
-      }
-    } catch (e) {
-      console.warn(`[AutoML AI] Error generating AI predictions:`, e)
-    }
+    const sorteos = await fetchDraws(turno)
+    const aiResult = await enhanceWithAI(sorteos, turno, aiProviders)
+    aiPredictions = aiResult.aiPredictions
+    proveedorIA = aiResult.proveedorIA
   }
 
   // Enhance traditional models with AI predictions
-  const enhancedModelos = resultado.modelos.map(modelo => ({
+  const enhancedModelos = modelos.map(modelo => ({
     ...modelo,
     ai_enhanced: !!aiPredictions,
     ai_predictions: aiPredictions,
