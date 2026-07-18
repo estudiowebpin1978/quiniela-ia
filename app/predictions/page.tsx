@@ -589,7 +589,36 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         const key = (p.date || p.fecha || "") + "|" + (p.turno || "")
         return key.trim() !== "|" && !apiKeys.has(key)
       })
-      const merged = [...localOnly, ...apiPreds]
+
+      const enrichedLocal = await Promise.all(localOnly.map(async (p: any) => {
+        if (p.resultado && p.resultado.length > 0) return p
+        const fechaVal = (p.date || p.fecha || "").trim()
+        const turnoVal = (p.turno || "").trim()
+        if (!fechaVal || !turnoVal) return p
+        try {
+          const r = await fetch(`/api/resultado?date=${fechaVal}&turno=${encodeURIComponent(turnoVal)}`)
+          const draw = await r.json()
+          if (draw?.found && draw?.numbers?.length) {
+            const reales = draw.numbers.map((n: any) => String(Number(n) % 100).padStart(2, "0"))
+            const reales3 = draw.numbers.map((n: any) => String(Number(n) % 1000).padStart(3, "0"))
+            const reales4 = draw.numbers.map((n: any) => String(Number(n) % 10000).padStart(4, "0"))
+            const pred2 = Array.isArray(p.numeros) ? p.numeros : (p.numeros?.["2"] || [])
+            const pred3 = !Array.isArray(p.numeros) ? (p.numeros?.["3"] || []) : (p.numeros_3 || [])
+            const pred4 = !Array.isArray(p.numeros) ? (p.numeros?.["4"] || []) : (p.numeros_4 || [])
+            const predichos2 = pred2.map((n: string) => String(n).padStart(2, "0"))
+            const predichos3 = pred3.map((n: string) => String(n).padStart(3, "0"))
+            const predichos4 = pred4.map((n: string) => String(n).padStart(4, "0"))
+            const aciertos2 = predichos2.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1, tipo: 2 }))
+            const aciertos3 = predichos3.filter((n: string) => reales3.includes(n)).map((n: string) => ({ numero: n, puesto: reales3.indexOf(n) + 1, tipo: 3 }))
+            const aciertos4 = predichos4.filter((n: string) => reales4.includes(n)).map((n: string) => ({ numero: n, puesto: reales4.indexOf(n) + 1, tipo: 4 }))
+            const allAciertos = [...aciertos2, ...aciertos3, ...aciertos4]
+            return { ...p, numeros: pred2, numeros_3: pred3, numeros_4: pred4, resultado: reales, resultado_3: reales3, resultado_4: reales4, aciertos: allAciertos, aciertos_2: aciertos2, aciertos_3: aciertos3, aciertos_4: aciertos4, acerto: allAciertos.length > 0, sorteoRealizado: true }
+          }
+        } catch {}
+        return p
+      }))
+
+      const merged = [...enrichedLocal, ...apiPreds]
 
       const prevAciertos = misPreds.reduce((sum: number, p: any) => sum + (p.aciertos?.length || 0), 0)
       const newAciertos = apiPreds.reduce((sum: number, p: any) => sum + (p.aciertos?.length || 0), 0)

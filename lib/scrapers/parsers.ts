@@ -40,7 +40,7 @@ export async function parseLoteriaOficial(fechaISO: string, _fechaUrl: string, t
     })
     if (!r.ok) return null
     const html = await r.text()
-    if (html.includes("No hay Sorteo")) return null
+    if (html.includes("No hay Sorteo") || html.includes("Sorteo no realizado") || html.includes("sin resultado")) return null
 
     // Tolerante: admite espacios, comillas simples/dobles, clases múltiples
     const rx = /<div\s+class\s*=\s*["']pos["']\s*>\s*\d{2}\s*<\/div>\s*<div\s*>\s*(\d{4})\s*<\/div>/gi
@@ -62,29 +62,17 @@ export async function parseQuinielaNacional1(_fechaISO: string, fechaUrl: string
         signal: AbortSignal.timeout(8000)
       })).text()
 
-      // Buscar sección Nacional o Ciudad (tolerante a espacios/atributos)
-      const sectionRx = /<p\s+class\s*=\s*["']h3["']\s*>\s*(?:Nacional|Ciudad)\s*<\/p>/gi
-      let sectionIdx = -1
-      let mx: RegExpExecArray | null
-      while ((mx = sectionRx.exec(html)) !== null) {
-        sectionIdx = mx.index
-      }
-      if (sectionIdx < 0) sectionIdx = html.indexOf('class="veintena"')
-      if (sectionIdx < 0) continue
+      if (html.includes("Sorteo no realizado") || html.includes("sorteo no realizado")) return null
 
-      const afterSection = html.slice(sectionIdx)
-      const veintenaIdx = afterSection.indexOf('class="veintena"')
+      const veintenaIdx = html.indexOf('class="veintena"')
       if (veintenaIdx < 0) continue
 
-const chunk = afterSection.slice(veintenaIdx, veintenaIdx + 5000)
-       // Tolerante: espacios, comillas simples/dobles, clases múltiples, etiquetas <span> o <div>
-       const rx = /class\s*=\s*["']?num["']?\s*>\s*<[^>]+>\s*(\d{1,4})\s*<\/[^>]+>/gi
-       const nums = extractNums(chunk, rx)
-       // Filtrar números fuera del rango válido (00-99 para 2 cifras, 0001-9999 para 4)
-       const filtered = nums.filter(n => n >= 0 && n <= 9999)
-       if (filtered.length >= 5) {
-         return { numbers: filtered, source: "quinielanacional1.com.ar", cabezaMatch: null }
-       }
+      const chunk = html.slice(veintenaIdx, veintenaIdx + 5000)
+      const rx = /class\s*=\s*["']?numero["']?\s*>\s*(\d{1,4})\s*<\/div>/gi
+      const nums = extractNums(chunk, rx)
+      if (nums.length >= 5) {
+        return { numbers: nums, source: "quinielanacional1.com.ar", cabezaMatch: null }
+      }
     } catch {}
   }
   return null
@@ -100,7 +88,8 @@ export async function parseQuinieleando(_fechaISO: string, _fechaUrl: string, tu
       signal: AbortSignal.timeout(8000)
     })).text()
 
-    // Buscar la sección del turno específico (ej: "MATUTINA, Quiniela Nacional")
+    if (html.includes("Sorteo no realizado") || html.includes("sorteo no realizado")) return null
+
     const turnoUpper = turno.toUpperCase()
     const turnoHeaderRx = new RegExp(
       `<h3>\\s*${turnoUpper}\\s*,\\s*Quiniela\\s*Nacional[^<]*<\\/h3>`,
@@ -109,17 +98,15 @@ export async function parseQuinieleando(_fechaISO: string, _fechaUrl: string, tu
     const headerMx = turnoHeaderRx.exec(html)
     if (!headerMx) return null
 
-    // Buscar la tabla siguiente al header (hasta el próximo <h3 o </table>)
     const afterHeader = html.slice(headerMx.index, headerMx.index + 6000)
     const tableEnd = afterHeader.indexOf("</table>")
     const chunk = tableEnd > 0 ? afterHeader.slice(0, tableEnd) : afterHeader.slice(0, 4000)
 
-    // Extraer todos los números de la tabla (con o sin <b>)
-const rx = /class\s*=\s*["']nro["']\s*>\s*(?:<b>)?\s*(\d{1,4})\s*(?:<\/b>)?\s*<\/span>/gi
-     const nums = extractNums(chunk, rx)
-     if (nums.length >= 5) {
-       return { numbers: nums, source: "quinieleando.com.ar", cabezaMatch: null }
-     }
+    const rx = /class\s*=\s*["']nro["']\s*>\s*(?:<b>)?\s*(\d{1,4})\s*(?:<\/b>)?\s*<\/span>/gi
+    const nums = extractNums(chunk, rx)
+    if (nums.length >= 5) {
+      return { numbers: nums, source: "quinieleando.com.ar", cabezaMatch: null }
+    }
   } catch {}
   return null
 }

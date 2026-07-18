@@ -47,6 +47,15 @@ export async function fetchWithFallback(
           } catch {}
         }
 
+        if (cabezaMatch === false) {
+          track(name, false)
+          logger.warn("cron-scrape: cabeza mismatch, rechazando datos", {
+            fecha: fechaISO, turno, source: name,
+            cabeza: result.numbers[0]
+          })
+          continue
+        }
+
         track(name, true)
         logger.info("cron-scrape: fuente exitosa", {
           fecha: fechaISO, turno, source: name,
