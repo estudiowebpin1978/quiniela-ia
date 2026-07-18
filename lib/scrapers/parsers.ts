@@ -80,8 +80,11 @@ export async function parseQuinielaNacional1(_fechaISO: string, fechaUrl: string
 
 // ─── Fuente 3: Quinieleando (Fallback 1) ─────────────────────────────────────
 // HTML con <span class="nro"><b>NNNN</b></span> (cabeza) y <span class="nro">NNNN</span>
-export async function parseQuinieleando(_fechaISO: string, _fechaUrl: string, turno: string): Promise<ScrapeResult | null> {
+export async function parseQuinieleando(fechaISO: string, _fechaUrl: string, turno: string): Promise<ScrapeResult | null> {
   try {
+    const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format()
+    if (fechaISO !== hoy) return null
+
     const url = `https://quinieleando.com.ar/quinielas/nacional/resultados-de-hoy`
     const html = await (await fetch(url, {
       headers: { "User-Agent": "Mozilla/5.0", "Accept": "text/html" },
