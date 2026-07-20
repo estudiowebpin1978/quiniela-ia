@@ -3,7 +3,7 @@
  * Replaces scattered localStorage parsing across login/page.tsx, predictions/page.tsx, page.tsx.
  */
 
-const TOKEN_KEY = "quiniela-ia-auth";
+import { STORAGE_KEYS, readStorage, writeStorage, removeStorage } from "@/lib/storage";
 
 export interface AuthData {
   access_token: string;
@@ -14,14 +14,12 @@ export interface AuthData {
 }
 
 export function saveAuth(data: AuthData): void {
-  localStorage.setItem(TOKEN_KEY, JSON.stringify(data));
+  writeStorage(STORAGE_KEYS.AUTH, data);
 }
 
 export function getAuth(): AuthData | null {
   try {
-    const raw = localStorage.getItem(TOKEN_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
+    const parsed = readStorage<AuthData>(STORAGE_KEYS.AUTH);
     if (!parsed?.access_token) return null;
     if (parsed.expires_at && parsed.expires_at < Math.floor(Date.now() / 1000)) {
       if (parsed.refresh_token) {
@@ -80,7 +78,7 @@ export async function getValidToken(): Promise<string | null> {
 }
 
 export function clearAuth(): void {
-  localStorage.removeItem(TOKEN_KEY);
+  removeStorage(STORAGE_KEYS.AUTH);
 }
 
 export function isLoggedIn(): boolean {
@@ -88,20 +86,21 @@ export function isLoggedIn(): boolean {
 }
 
 // Guest mode
-const GUEST_KEY = "quiniela-ia-guest";
-
 export function setGuest(): void {
-  localStorage.setItem(GUEST_KEY, "1");
+  if (typeof window !== "undefined") {
+    localStorage.setItem(STORAGE_KEYS.GUEST, "1");
+  }
 }
 
 export function isGuest(): boolean {
+  if (typeof window === "undefined") return false;
   try {
-    return localStorage.getItem(GUEST_KEY) === "1";
+    return localStorage.getItem(STORAGE_KEYS.GUEST) === "1";
   } catch {
     return false;
   }
 }
 
 export function clearGuest(): void {
-  localStorage.removeItem(GUEST_KEY);
+  removeStorage(STORAGE_KEYS.GUEST);
 }

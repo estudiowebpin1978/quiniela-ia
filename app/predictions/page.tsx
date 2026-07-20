@@ -14,6 +14,7 @@
 
 "use client";
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { usePushNotifications } from "@/components/PushNotifications";
 import PaywallModal from "@/components/PaywallModal";
 import WhatsAppFAB from "@/components/WhatsAppFAB";
@@ -23,7 +24,9 @@ import HistorialAciertos from "@/components/HistorialAciertos";
 import ExpiryBanner from "@/components/ExpiryBanner";
 import AgeGate from "@/components/AgeGate";
 import { ToastProvider, useToast } from "@/components/Toast";
-import { saveAuth, getAccessToken, clearAuth, getAuth, isGuest, clearGuest } from "@/lib/auth";
+import { getAccessToken, clearAuth, getAuth, isGuest, clearGuest } from "@/lib/auth";
+import { STORAGE_KEYS } from "@/lib/storage";
+import { isAdminEmail } from "@/lib/config";
 import { esFeriado, esDiaSinSorteo, motivoDiaSinSorteo, todosLosFeriados } from "@/lib/feriados";
 import NumberGrid from "@/components/predictions/NumberGrid";
 import HeatmapGrid from "@/components/predictions/HeatmapGrid";
@@ -35,6 +38,7 @@ import { useSound } from "@/lib/sound/audio-manager";
 import { useSettings } from "@/components/ui/Settings";
 import { ConfettiEffect, GlowOrbs, NeonBackground } from "@/components/ui/Effects";
 import { validatePredData } from "@/lib/api/predictions";
+import "./predictions.css";
 
 const EMOJIS: Record<string, string> = {
   "00": "🥚", "01": "💧", "02": "🧒", "03": "⛪", "04": "🛏️", "05": "🐱", "06": "🐶", "07": "🔫", "08": "🔥", "09": "🏞️",
@@ -88,6 +92,7 @@ type PredData = {
 };
 
 function PageInner() {
+  const router = useRouter();
   const toast = useToast();
   const sound = useSound();
   const { settings } = useSettings();
@@ -223,7 +228,7 @@ function PageInner() {
       return;
     }
     if (!auth) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -235,8 +240,7 @@ function PageInner() {
       } catch {}
     }
 
-    const adminEmails = ["estudiowebpin@gmail.com"];
-    const admin = adminEmails.includes(email.toLowerCase());
+    const admin = isAdminEmail(email);
     isAdminRef.current = admin;
 
     tkRef.current = auth.access_token;
@@ -252,7 +256,7 @@ function PageInner() {
       .then((d) => {
         if (d?.isPremium) setPr(true);
         if (d?.email) setEm(d.email);
-        const apiIsAdmin = isAdminRef.current || ["estudiowebpin@gmail.com"].includes((d?.email || "").toLowerCase());
+        const apiIsAdmin = isAdminRef.current || isAdminEmail(d?.email || "");
         if (apiIsAdmin) { isAdminRef.current = true; setUserRole("admin"); setPr(true); }
         else if (d?.role) { setUserRole(d.role as "free" | "premium" | "admin"); }
         if (d?.userId) setUserId(d.userId);
@@ -477,7 +481,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
   function logout() {
     clearAuth();
-    window.location.href = "/login";
+    router.push("/login");
   }
 
   // Horarios de cada sorteo (hora Argentina, el sorteo ya pasó si la hora actual >= cutoff)
@@ -1469,7 +1473,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                             background: "rgba(0,0,0,0.4)", borderRadius: 14,
                             cursor: "pointer", zIndex: 10
                           }}
-                          onClick={() => guestMode ? window.location.href = "/login" : setShowPaywall(true)}
+                          onClick={() => guestMode ? router.push("/login") : setShowPaywall(true)}
                         >
                           <div style={{ fontSize: 32, marginBottom: 8 }}>{guestMode ? "👤" : "🧠"}</div>
                           <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginBottom: 4 }}>{guestMode ? "Creá una cuenta para acceder" : "La IA ya procesó el análisis completo"}</div>

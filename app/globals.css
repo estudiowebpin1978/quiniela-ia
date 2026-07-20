@@ -109,6 +109,8 @@
     --text-muted: #94a3b8;
     --border-subtle: rgba(15, 23, 42, 0.06);
     --border-default: rgba(15, 23, 42, 0.1);
+    /* Variables que necesitan override explícito en modo claro */
+    --border-glow-green: rgba(34, 197, 94, 0.35);
   }
 }
 
@@ -369,8 +371,23 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.02em;
 }
 
-.text-gradient { @apply gradient-text; }
-.text-gradient-gold { @apply gradient-text-gold; }
+.text-gradient {
+  background: linear-gradient(135deg, var(--brand-pink), var(--brand-purple), var(--brand-cyan));
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-shift 3s ease infinite;
+}
+
+.text-gradient-gold {
+  background: linear-gradient(135deg, #ffd700, #f8b500, #ffd700);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-shift 3s ease infinite;
+}
 
 /* ============ INPUTS ============ */
 

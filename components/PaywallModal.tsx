@@ -314,7 +314,7 @@ export default function PaywallModal({ open, onClose, userId }: Props) {
             </button>
 
             <div style={{ fontSize: 10, color: "#475569", textAlign: "center", marginTop: 12, lineHeight: 1.5 }}>
-              La activación puede tardar hasta 24hs háiles tras confirmar el pago
+              La activación puede tardar hasta 24hs hábiles tras confirmar el pago
             </div>
 
             <button
