@@ -186,6 +186,15 @@ export async function GET(req: NextRequest) {
     }).catch((e) => {
       logger.warn("cron-scrape: failed to trigger cron-ml-training", { error: String(e) })
     })
+
+    // Trigger turn analytics pre-calculation after each scrape
+    const analyticsUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-analytics`
+    fetch(analyticsUrl, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${process.env.CRON_SECRET}`, "Content-Type": "application/json" },
+    }).catch((e) => {
+      logger.warn("cron-scrape: failed to trigger cron-analytics", { error: String(e) })
+    })
   }
 
   const duration = Date.now() - start

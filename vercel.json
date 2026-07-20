@@ -5,10 +5,6 @@
       "schedule": "0 20 * * 1-6"
     },
     {
-      "path": "/api/cron-analytics",
-      "schedule": "30 20 * * 1-6"
-    },
-    {
       "path": "/api/cron-premium-expiry",
       "schedule": "0 12 * * *"
     }
