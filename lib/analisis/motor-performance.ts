@@ -131,8 +131,22 @@ export function updateMotorPerformanceSync(motor: string, turno: string, hitRate
   updateMotorPerformance(motor, turno, hitRate).catch(() => {})
 }
 
+// In-memory performance cache (sync access, refreshed periodically)
+const perfCache = new Map<string, { accuracy: number; expiresAt: number }>()
+const PERF_CACHE_TTL = 1000 * 60 * 30 // 30 min
+
 export function shouldRunMotorSync(motor: string, turno: string): boolean {
-  return true // Conservative default when sync
+  const key = `${motor}:${turno}`
+  const cached = perfCache.get(key)
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.accuracy >= MIN_ACCURACY
+  }
+  // Fire-and-forget async refresh
+  getMotorAccuracy(motor, turno).then(accuracy => {
+    perfCache.set(key, { accuracy, expiresAt: Date.now() + PERF_CACHE_TTL })
+  }).catch(() => {})
+  // Default: run the motor (conservative)
+  return true
 }
 
 export function getSkippedMotorsSync(turno: string): string[] {

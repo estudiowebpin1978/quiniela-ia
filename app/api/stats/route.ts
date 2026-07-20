@@ -9,7 +9,22 @@ export async function GET(req: NextRequest) {
   if (!SB || !SK) return NextResponse.json({ error: "Configuración incompleta" }, { status: 500 })
 
   try {
-    const drawsRes = await fetch(`${SB}/rest/v1/draws?select=date,turno,numbers&order=date.desc&limit=50000`, {
+    // Use RPC for aggregated stats instead of fetching 50k rows
+    const statsRes = await fetch(`${SB}/rest/v1/rpc/get_draw_stats`, {
+      method: "POST",
+      headers: { "apikey": SK, "Authorization": `Bearer ${SK}`, "Content-Type": "application/json" },
+      body: JSON.stringify({})
+    })
+
+    if (statsRes.ok) {
+      const stats = await statsRes.json()
+      if (stats && typeof stats === 'object' && stats.total_sorteos !== undefined) {
+        return NextResponse.json(stats)
+      }
+    }
+
+    // Fallback: fetch recent draws only (last 5000 instead of 50000)
+    const drawsRes = await fetch(`${SB}/rest/v1/draws?select=date,turno,numbers&order=date.desc&limit=5000`, {
       headers: { "apikey": SK, "Authorization": `Bearer ${SK}` }
     })
     const rows: any[] = await drawsRes.json()
@@ -45,7 +60,7 @@ export async function GET(req: NextRequest) {
         d.setDate(d.getDate() - i)
         const ds = d.toISOString().split("T")[0]
         if (fechasOrdenadas.includes(ds)) streak++
-        else if (d.getDay() !== 0) break // domingos no cuentan
+        else if (d.getDay() !== 0) break
       }
       return streak
     })()

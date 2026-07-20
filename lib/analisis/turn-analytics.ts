@@ -63,8 +63,14 @@ async function fetchAllTurnSequences(
 ): Promise<Map<string, number[][]>> {
   const result = new Map<string, number[][]>()
 
-  for (const turno of TURNOS) {
-    const seqs = await fetchTurnSequences(turno, limit)
+  const entries = await Promise.all(
+    TURNOS.map(async (turno) => {
+      const seqs = await fetchTurnSequences(turno, limit)
+      return [turno, seqs] as const
+    })
+  )
+
+  for (const [turno, seqs] of entries) {
     result.set(turno, seqs)
   }
 

@@ -74,6 +74,16 @@ export async function autoVerifyPredictions(fecha: string, turno: string): Promi
   const verifiedSet = new Set((existing || []).map(e => e.prediction_id))
 
   const results: any[] = []
+  const historyInserts: any[] = []
+  const statsUpdates = new Map<string, { total_predictions: number; total_hits: number; current_streak: number; best_streak: number }>()
+
+  // Pre-fetch all existing stats for affected users
+  const userIds = [...new Set(predictions.map(p => p.user_id).filter(Boolean))]
+  const { data: allStats } = userIds.length > 0
+    ? await supabase.from("user_stats").select("user_id, total_predictions, total_hits, best_streak, current_streak").in("user_id", userIds)
+    : { data: [] }
+  const statsMap = new Map<string, any>()
+  for (const s of (allStats || [])) statsMap.set(s.user_id, s)
 
   for (const pred of predictions) {
     if (verifiedSet.has(pred.id)) continue
@@ -94,7 +104,7 @@ export async function autoVerifyPredictions(fecha: string, turno: string): Promi
 
     const totalAciertos = aciertos2.length + aciertos3.length + aciertos4.length
 
-    const { error: insertError } = await supabase.from("prediction_history").insert({
+    historyInserts.push({
       prediction_id: pred.id,
       user_id: pred.user_id,
       fecha: pred.date,
@@ -111,33 +121,17 @@ export async function autoVerifyPredictions(fecha: string, turno: string): Promi
       verified_at: new Date().toISOString(),
     })
 
-    if (insertError) {
-      logger.error("[auto-verify] Error inserting prediction_history", { predId: pred.id, error: insertError.message })
-      continue
-    }
-
     if (pred.user_id) {
-      const { data: existingStats } = await supabase
-        .from("user_stats")
-        .select("total_predictions, total_hits, best_streak, current_streak")
-        .eq("user_id", pred.user_id)
-        .single()
-
-      const prev = existingStats || { total_predictions: 0, total_hits: 0, best_streak: 0, current_streak: 0 }
+      const prev = statsMap.get(pred.user_id) || { total_predictions: 0, total_hits: 0, best_streak: 0, current_streak: 0 }
       const newStreak = totalAciertos > 0 ? prev.current_streak + 1 : 0
-
-      const { error: statsError } = await supabase.from("user_stats").upsert({
+      statsMap.set(pred.user_id, {
         user_id: pred.user_id,
         total_predictions: prev.total_predictions + 1,
         total_hits: prev.total_hits + totalAciertos,
         current_streak: newStreak,
         best_streak: Math.max(prev.best_streak, newStreak),
         last_verified: new Date().toISOString(),
-      }, { onConflict: "user_id" })
-
-      if (statsError) {
-        logger.error("[auto-verify] Error upserting user_stats", { userId: pred.user_id, error: statsError.message })
-      }
+      })
     }
 
     results.push({
@@ -150,6 +144,23 @@ export async function autoVerifyPredictions(fecha: string, turno: string): Promi
       total_aciertos: totalAciertos,
       resultado_oficial: draw.numbers,
     })
+  }
+
+  // Bulk insert prediction_history
+  if (historyInserts.length > 0) {
+    const { error: batchError } = await supabase.from("prediction_history").insert(historyInserts)
+    if (batchError) {
+      logger.error("[auto-verify] Batch insert error", { error: batchError.message })
+    }
+  }
+
+  // Bulk upsert user_stats
+  const statsArray = Array.from(statsMap.values()).filter(s => s.user_id)
+  if (statsArray.length > 0) {
+    const { error: statsBatchError } = await supabase.from("user_stats").upsert(statsArray, { onConflict: "user_id" })
+    if (statsBatchError) {
+      logger.error("[auto-verify] Batch stats upsert error", { error: statsBatchError.message })
+    }
   }
 
   if (results.length > 0) {
@@ -168,7 +179,7 @@ export async function getVerificationStats(userId?: string, days: number = 30) {
 
   let query = supabase
     .from("prediction_history")
-    .select("*")
+    .select("prediction_id, user_id, fecha, turno, total_aciertos, aciertos_2, aciertos_3, aciertos_4")
     .eq("verified", true)
     .gte("fecha", cutoff.toISOString().split("T")[0])
 

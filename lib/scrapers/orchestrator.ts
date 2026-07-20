@@ -45,7 +45,7 @@ export async function fetchWithFallback(
         )
       ])
 
-      if (result && result.numbers.length >= 5) {
+      if (result && result.numbers.length >= 20) {
         // Cross-validate cabeza con quiniela22.com (only for quiniela)
         let cabezaMatch: boolean | null = null
         if (gameSlug === 'quiniela' && result.numbers.length > 0) {

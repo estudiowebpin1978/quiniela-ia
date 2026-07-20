@@ -323,104 +323,6 @@ export async function GET(req: NextRequest) {
     if (crossResult.status === 'fulfilled') crossTurnoScore = crossResult.value.crossTurnoScore
     if (pesosResult.status === 'fulfilled') pesosDinamicos = pesosResult.value
 
-    // === COLD START FAST PATH: if compCache empty, return ultra-fast (30 factors + seasonal + cross-turno) ===
-    if (compCache.size === 0) {
-      const scores: { num: number, score: number, confianza: number, factores: string[], frecuencia: number, crossTurno: number, pesoAjustado: number }[] = []
-      const freq: Record<number, number> = {}
-      for (const t of terminaciones2) { freq[t] = (freq[t] || 0) + 1 }
-      
-      for (let n = 0; n < 100; n++) {
-        const factorScore = factores30.scores[n] || 0
-        const crossBoost = crossTurnoScore[n] || 0
-        const seasonScore = seasonalScores[n] || 0.5
-        const driftFactor = drift.drifted ? (1 - drift.severity * 0.3) : 1
-        
-        const scoreFinal = (
-          factorScore * 0.5 +
-          crossBoost * 0.2 +
-          (seasonScore - 0.5) * 0.1
-        ) * driftFactor
-
-        const detail = factores30.detail[n] || {}
-        const topFactors = Object.entries(detail)
-          .sort(([, a], [, b]) => (b as number) - (a as number))
-          .slice(0, 3)
-          .map(([name, val]) => `${name}: ${((val as number) * 100).toFixed(0)}%`)
-
-        scores.push({
-          num: n,
-          score: scoreFinal,
-          confianza: calibrarConfianza(scoreFinal, factorScore),
-          factores: [...topFactors, ...(crossBoost > 0 ? [`Cross: +${crossBoost.toFixed(3)}`] : [])],
-          frecuencia: freq[n] || 0,
-          crossTurno: crossBoost,
-          pesoAjustado: 1
-        })
-      }
-      
-      scores.sort((a, b) => b.score - a.score)
-      
-      // Softmax normalization
-      const maxScore = Math.max(...scores.map(s => s.score))
-      const expScores = scores.map(s => Math.exp(Math.max(-20, Math.min(20, s.score - maxScore))))
-      const sumExp = expScores.reduce((a, b) => a + b, 0)
-      if (sumExp > 0 && isFinite(sumExp)) {
-        for (let i = 0; i < scores.length; i++) { scores[i].score = expScores[i] / sumExp }
-      }
-      scores.sort((a, b) => b.score - a.score)
-      
-      // Build minimal response for cold start
-      const pred2 = scores.slice(0, 10).map(s => pad(s.num))
-      const uniqueDates = [...new Set(dates)].sort().reverse()
-      const confidence = Math.round((scores.slice(0, 10).reduce((sum, s) => sum + s.confianza, 0) / 10))
-      
-      const responsePayload = {
-        ok: true,
-        turno: turnoQuery,
-        debug: {
-          elapsed_ms: elapsed(t0),
-          cold_start: true,
-          factores_aplicados: 30,
-          motores_activos: 1,
-          total_numeros: terminaciones2.length,
-          sorteos_analizados: sequences.length,
-          sync: syncStatus ? { sincronizado: syncStatus.synced, nuevos_sorteos: syncStatus.newDraws } : null,
-        },
-        numeros: scores.slice(0, 10).map((s, i) => ({
-          n: s.num, numero: pad(s.num),
-          emoji: SUENOS[s.num]?.emoji || "❓",
-          significado: SUENOS[s.num]?.nombre || "",
-          score: s.score, confianza: s.confianza, rank: i + 1,
-          frecuencia: s.frecuencia, factores: s.factores,
-        })),
-        totalSorteos: sequences.length,
-        fechasAnalizadas: uniqueDates.length,
-        generado: new Date().toISOString(),
-        confidence,
-        pred: { numeros_2: pred2, numeros_3: [], numeros_4: [], redoblona: scores.length >= 2 ? `${pad(scores[0].num)}-${pad(scores[1].num)}` : "00-00" },
-        redoblona: scores.length >= 2 ? `${pad(scores[0].num)}-${pad(scores[1].num)}` : "00-00",
-        heatmap: scores.slice(0, 10).map(s => ({ n: s.num, f: s.frecuencia, s: SUENOS[s.num] || { emoji: "❓", nombre: "" }, pct: Math.round((s.frecuencia / terminaciones2.length) * 10000) / 100 })),
-        stats: {
-          totalNumeros: terminaciones2.length,
-          promedioPorSorteo: (terminaciones2.length / sequences.length).toFixed(2),
-          numeroMasFrecuente: { numero: pad(scores[0]?.num || 0), frecuencia: scores[0]?.frecuencia || 0, significado: SUENOS[scores[0]?.num || 0]?.nombre || "" },
-          terminacionesMasFrecuentes: scores.slice(0, 5).map(s => ({ terminacion: s.num, frecuencia: s.frecuencia, score: s.score.toFixed(2) })),
-        },
-        analysisInfo: {
-          metodo: `Motor 30 factores (cold-start fast path) - turno ${turnoQuery.toUpperCase()}`,
-          motores: ["1. 30 Factores estadísticos (frecuencia, ausencia, tendencia, ciclos, hot/cold, familias, entropía)"],
-          datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} terminaciones de 2 cifras`,
-        }
-      }
-      
-      // Cache and return
-      const gc2 = globalThis as any
-      if (!gc2.__predCache) gc2.__predCache = {}
-      gc2.__predCache[cacheKey] = { result: responsePayload, expiresAt: Date.now() + 600_000 }
-      
-      return NextResponse.json(responsePayload)
-    }
-
     // === HEAVY ENGINES: limit to 100 draws for speed ===
     const heavySeqs = sequences.slice(0, Math.min(100, sequences.length))
 
@@ -606,7 +508,18 @@ export async function GET(req: NextRequest) {
         }
       }
       if (trainFeatures.length >= 50) {
-        const ensemble = trainEnsemble({ features: trainFeatures, labels: trainLabels })
+        // Cache ensemble model for 30 min per turno
+        const gc = globalThis as any
+        const ensCacheKey = `ensembleML:${turnoQuery}`
+        if (!gc.__ensCache) gc.__ensCache = {}
+        const cachedEns = gc.__ensCache[ensCacheKey]
+        let ensemble
+        if (cachedEns && Date.now() < cachedEns.expiresAt) {
+          ensemble = cachedEns.model
+        } else {
+          ensemble = trainEnsemble({ features: trainFeatures, labels: trainLabels })
+          gc.__ensCache[ensCacheKey] = { model: ensemble, expiresAt: Date.now() + 1800_000 }
+        }
         const predFeat = new Array(100).fill(0)
         const last5 = sequences.slice(0, 5)
         for (const seq of last5) {
@@ -871,7 +784,7 @@ export async function GET(req: NextRequest) {
             for (const p of pred) mlTop.add(p.clase)
           }
           for (const s of scores) {
-            if (mlTop.has(s.num)) s.score += 3
+            if (mlTop.has(s.num)) s.score += s.score * 0.15
           }
         }
         scores.sort((a, b) => b.score - a.score)
@@ -887,7 +800,7 @@ export async function GET(req: NextRequest) {
         boostPythonActivo = true
         for (const s of scores) {
           const b = boostEnsemble[s.num] || 0
-          if (b > 0) s.score += Math.min(10, b / 8)
+          if (b > 0) s.score += s.score * Math.min(0.2, b / 100)
         }
         scores.sort((a, b) => b.score - a.score)
       }
@@ -905,7 +818,7 @@ export async function GET(req: NextRequest) {
           if (mlData?.scores_completos) {
             for (const s of scores) {
               const boost = mlData.scores_completos[String(s.num).padStart(2, "0")] || 0
-              if (boost > 0) s.score += Math.min(10, boost / 5)
+              if (boost > 0) s.score += s.score * Math.min(0.2, boost / 50)
             }
             scores.sort((a, b) => b.score - a.score)
           }

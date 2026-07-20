@@ -185,17 +185,16 @@ CREATE OR REPLACE FUNCTION compute_survival_hazard(
 DECLARE
   v_draws RECORD;
   v_last_seen INTEGER[];
-  v_hazard NUMERIC[] := ARRAY_FILL(0, ARRAY[100]);
+  v_gaps NUMERIC[] := ARRAY_FILL(0, ARRAY[100]);
   v_current_draw INTEGER := 0;
   v_critical JSONB := '[]'::jsonb;
-  v_max_hazard NUMERIC := 0;
   v_avg_hazard NUMERIC := 0;
   v_count INTEGER := 0;
+  v_hazard_arr NUMERIC[] := ARRAY_FILL(0, ARRAY[100]);
+  v_hazard_json JSONB := '{}'::jsonb;
 BEGIN
-  -- Initialize last_seen to -1 (never seen)
   v_last_seen := ARRAY_FILL(-1, ARRAY[100]);
 
-  -- Process draws in chronological order
   FOR v_draws IN
     SELECT numbers
     FROM draws
@@ -204,32 +203,24 @@ BEGIN
     LIMIT p_limit
   LOOP
     v_current_draw := v_current_draw + 1;
-    
     FOR i IN 1..array_length(v_draws.numbers, 1)
     LOOP
       DECLARE v_num INTEGER := v_draws.numbers[i] % 100;
       BEGIN
         IF v_last_seen[v_num + 1] >= 0 THEN
-          -- Number appeared before, compute gap
-          v_hazard[v_num + 1] := v_hazard[v_num + 1] + (v_current_draw - v_last_seen[v_num + 1]);
+          v_gaps[v_num + 1] := v_gaps[v_num + 1] + (v_current_draw - v_last_seen[v_num + 1]);
         END IF;
         v_last_seen[v_num + 1] := v_current_draw;
       END;
     END LOOP;
   END LOOP;
 
-  -- Normalize hazard rates (average gap between appearances)
   FOR i IN 1..100
   LOOP
-    IF v_last_seen[i] >= 0 THEN
-      -- Hazard rate = 1 / (average gap)
-      IF v_hazard[i] > 0 THEN
-        v_hazard[i] := ROUND(1.0 / (v_hazard[i] / (v_current_draw - v_last_seen[i])), 6);
-      ELSE
-        v_hazard[i] := 0;
-      END IF;
+    IF v_last_seen[i] >= 0 AND v_gaps[i] > 0 THEN
+      v_hazard_arr[i] := ROUND(1.0 / (v_gaps[i] / (v_current_draw - v_last_seen[i])), 6);
       v_count := v_count + 1;
-      v_avg_hazard := v_avg_hazard + v_hazard[i];
+      v_avg_hazard := v_avg_hazard + v_hazard_arr[i];
     END IF;
   END LOOP;
 
@@ -237,28 +228,25 @@ BEGIN
     v_avg_hazard := v_avg_hazard / v_count;
   END IF;
 
-  -- Find critical numbers (hazard > 1.5x average)
   FOR i IN 1..100
   LOOP
-    IF v_hazard[i] > v_avg_hazard * 1.5 THEN
+    IF v_hazard_arr[i] > v_avg_hazard * 1.5 THEN
       v_critical := v_critical || jsonb_build_object(
         'number', i - 1,
-        'hazard', v_hazard[i],
-        'ratio', ROUND(v_hazard[i] / NULLIF(v_avg_hazard, 0), 2)
+        'hazard', v_hazard_arr[i],
+        'ratio', ROUND(v_hazard_arr[i] / NULLIF(v_avg_hazard, 0), 2)
       );
     END IF;
   END LOOP;
 
-  -- Build hazard JSONB
-  v_hazard := '{}'::jsonb;
   FOR i IN 1..100
   LOOP
     IF v_last_seen[i] >= 0 THEN
-      v_hazard := jsonb_set(v_hazard, ARRAY[(i-1)::TEXT], ROUND(v_hazard[i], 6)::TEXT::jsonb);
+      v_hazard_json := jsonb_set(v_hazard_json, ARRAY[(i-1)::TEXT], ROUND(v_hazard_arr[i], 6)::TEXT::jsonb);
     END IF;
   END LOOP;
 
-  RETURN QUERY SELECT v_hazard, v_critical;
+  RETURN QUERY SELECT v_hazard_json, v_critical;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

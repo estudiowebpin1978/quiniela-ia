@@ -42,13 +42,14 @@ async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
 }
 
 async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string): Promise<boolean> {
-  await fetch(`${SB()}/rest/v1/draws?date=eq.${fechaISO}&turno=eq.${turno}`, {
-    method: "DELETE",
-    headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}`, "Prefer": "return=minimal" }
-  })
   const r = await fetch(`${SB()}/rest/v1/draws`, {
     method: "POST",
-    headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
+    headers: { 
+      "apikey": SK(), 
+      "Authorization": `Bearer ${SK()}`, 
+      "Content-Type": "application/json", 
+      "Prefer": "resolution=merge-duplicates,return=minimal" 
+    },
     body: JSON.stringify({ date: fechaISO, turno, numbers: nums, source })
   })
   return r.ok
@@ -72,7 +73,7 @@ async function limpiarPrediccionesViejas(): Promise<number> {
     const verified = await verifiedRes.json()
     const verifiedIds = new Set((verified || []).map((v: any) => v.prediction_id))
 
-    const deletableIds = ids.filter((id: string) => verifiedIds.has(id))
+    const deletableIds = ids.filter((id: string) => !verifiedIds.has(id))
     if (deletableIds.length === 0) return 0
 
     const d = await fetch(
@@ -129,7 +130,7 @@ export async function GET(req: NextRequest) {
 
     const result = await fetchWithFallback(fechaISO, fUrl, turno, sourceStats)
 
-    if (result.numbers.length >= 5) {
+    if (result.numbers.length >= 20) {
       try {
         if (await guardarDraw(fechaISO, turno, result.numbers, result.source)) {
           guardados++
