@@ -263,6 +263,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // === DETERMINE PATH EARLY: fast (3 engines) vs full (20 engines) ===
+    // On cold start: ALWAYS fast path. Full path runs via background precompute only.
+    const fullCacheKey = `full:${turnoQuery}:${targetDate}`
+    const gc3 = globalThis as any
+    if (!gc3.__fullCache) gc3.__fullCache = {}
+    const fullCached = gc3.__fullCache[fullCacheKey]
+    const useFullPath = false // First request is ALWAYS fast; full result is precomputed by cron/precompute
+
     // === MOTOR DE 30 FACTORES ===
     const runFactores30 = shouldRunMotorSync("factores30", turnoQuery)
     const factores30 = runFactores30 ? calcularFactores30(sequences, rows) : { scores: new Array(100).fill(0.5), detail: {} as any }
@@ -278,24 +286,17 @@ export async function GET(req: NextRequest) {
       dates,
     )
 
-    // === CROSS-TURNO + PESOS DINÁMICOS: run in parallel ===
+    // === CROSS-TURNO + PESOS DINÁMICOS: only in full path ===
     let crossTurnoScore: Record<number, number> = {}
     let pesosDinamicos: PesosDinamicos | null = null
-    const [crossResult, pesosResult] = await Promise.allSettled([
-      shouldRunMotorSync("crossTurno", turnoQuery) ? analisisCrossTurno(turno, 3, targetDate || undefined) : Promise.resolve({ crossTurnoScore: {} as Record<number, number> }),
-      calcularPesosDinamicos(turnoQuery)
-    ])
-    if (crossResult.status === 'fulfilled') crossTurnoScore = crossResult.value.crossTurnoScore
-    if (pesosResult.status === 'fulfilled') pesosDinamicos = pesosResult.value
-
-    // === DETERMINE PATH: fast (3 engines) vs full (20 engines) ===
-    // Full path runs only if: cache has previous full result, OR this is first request after 1h
-    const fullCacheKey = `full:${turnoQuery}:${targetDate}`
-    const gc3 = globalThis as any
-    if (!gc3.__fullCache) gc3.__fullCache = {}
-    const fullCached = gc3.__fullCache[fullCacheKey]
-    const isFullStale = !fullCached || Date.now() > fullCached.expiresAt
-    const useFullPath = isFullStale // Run full path when stale or missing
+    if (useFullPath) {
+      const [crossResult, pesosResult] = await Promise.allSettled([
+        shouldRunMotorSync("crossTurno", turnoQuery) ? analisisCrossTurno(turno, 3, targetDate || undefined) : Promise.resolve({ crossTurnoScore: {} as Record<number, number> }),
+        calcularPesosDinamicos(turnoQuery)
+      ])
+      if (crossResult.status === 'fulfilled') crossTurnoScore = crossResult.value.crossTurnoScore
+      if (pesosResult.status === 'fulfilled') pesosDinamicos = pesosResult.value
+    }
 
     // === HEAVY ENGINES: limit to 100 draws for speed ===
     const heavySeqs = sequences.slice(0, Math.min(100, sequences.length))
@@ -572,11 +573,14 @@ export async function GET(req: NextRequest) {
       entropy: 0.04, survival: 0.05, interTurno: 0.04, genetic: 0.03
     }
 
-    // === CDM MODEL (Compound-Dirichlet-Multinomial) ===
-    const cdmScores = multiWindowCDM(sequences, [10, 30, 50], 0.02)
+    // === CDM MODEL (Compound-Dirichlet-Multinomial) - full path only ===
+    let cdmScores: { number: number; posterior: number }[] = []
     const cdmMap: Record<number, number> = {}
-    for (const s of cdmScores) cdmMap[s.number] = s.posterior * 100 // normalize to ~0-1 scale
-    const cdmWeight = 0.08 // 8% weight for CDM
+    const cdmWeight = 0.08
+    if (useFullPath) {
+      cdmScores = multiWindowCDM(sequences, [10, 30, 50], 0.02)
+      for (const s of cdmScores) cdmMap[s.number] = s.posterior * 100
+    }
 
     for (let n = 0; n < 100; n++) {
       // 30-factor score
