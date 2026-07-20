@@ -193,8 +193,8 @@ async function saveTurnAnalytics(data: TurnAnalyticsData): Promise<void> {
   const today = new Date().toISOString().split('T')[0]
   const { error } = await supabase
     .from('turn_analytics')
-    .upsert(payload, {
-      onConflict: 'turno,fecha_calculo',
+    .upsert({ ...payload, fecha: today }, {
+      onConflict: 'turno,fecha',
       ignoreDuplicates: false
     })
 

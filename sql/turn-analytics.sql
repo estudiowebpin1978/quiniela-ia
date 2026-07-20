@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS turn_analytics (
   id BIGSERIAL PRIMARY KEY,
   turno TEXT NOT NULL,
   game_id UUID DEFAULT (SELECT id FROM games WHERE slug = 'quiniela'),
+  fecha DATE DEFAULT CURRENT_DATE,
   fecha_calculo TIMESTAMPTZ DEFAULT NOW(),
   
   -- Inter-Turno Markov (order 2 conditional probabilities)
@@ -29,7 +30,7 @@ CREATE TABLE IF NOT EXISTS turn_analytics (
   -- Composite confidence
   composite_confidence NUMERIC(5,4),
   
-  UNIQUE(turno, fecha_calculo::date)
+  UNIQUE(turno, fecha)
 );
 
 ALTER TABLE turn_analytics ENABLE ROW LEVEL SECURITY;
@@ -40,7 +41,7 @@ DROP POLICY IF EXISTS "Public read turn_analytics" ON turn_analytics;
 CREATE POLICY "Public read turn_analytics" ON turn_analytics FOR SELECT USING (true);
 
 CREATE INDEX IF NOT EXISTS idx_turn_analytics_turno ON turn_analytics(turno);
-CREATE INDEX IF NOT EXISTS idx_turn_analytics_turno_fecha ON turn_analytics(turno, fecha_calculo DESC);
+CREATE INDEX IF NOT EXISTS idx_turn_analytics_turno_fecha ON turn_analytics(turno, fecha DESC);
 
 -- === 2. RPC: Compute inter-turno Markov transition matrix ===
 CREATE OR REPLACE FUNCTION compute_inter_turno_markov(
