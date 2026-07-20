@@ -35,6 +35,11 @@ import { syncBeforePrediction } from "@/lib/scraper/sync"
 import { 
   shouldRunMotorSync, updateMotorPerformance, clearOldPerformance 
 } from "@/lib/analisis/motor-performance"
+import { computeShannonEntropy, getEntropyScores } from "@/lib/analisis/shannon-entropy"
+import { computeSurvivalAnalysis, getSurvivalScores } from "@/lib/analisis/survival"
+import { computeInterTurnoMarkov, getMarkovScores } from "@/lib/analisis/inter-turno-markov"
+import { optimizeWeights } from "@/lib/analisis/genetic-weights"
+import { getLatestAnalytics } from "@/lib/analisis/turn-analytics"
 
 export const maxDuration = 60;
 
@@ -512,6 +517,71 @@ export async function GET(req: NextRequest) {
       } catch {}
     }
 
+    // === ADVANCED: SHANNON ENTROPY FILTER ===
+    let entropyResult: ReturnType<typeof computeShannonEntropy> | null = null
+    let entropyScores = new Array(100).fill(0.5)
+    if (shouldRunMotorSync("shannonEntropy", turnoQuery)) {
+      try {
+        entropyResult = computeShannonEntropy(heavySeqs.map(s => s.map(n => n % 100)))
+        entropyScores = getEntropyScores(entropyResult)
+      } catch {}
+    }
+
+    // === ADVANCED: SURVIVAL ANALYSIS (Kaplan-Meier) ===
+    let survivalResult: ReturnType<typeof computeSurvivalAnalysis> | null = null
+    let survivalScores = new Array(100).fill(0.5)
+    if (shouldRunMotorSync("survivalAnalysis", turnoQuery)) {
+      try {
+        survivalResult = computeSurvivalAnalysis(heavySeqs.map(s => s.map(n => n % 100)))
+        survivalScores = getSurvivalScores(survivalResult)
+      } catch {}
+    }
+
+    // === ADVANCED: INTER-TURNO MARKOV (order 2) ===
+    let interTurnoResult: ReturnType<typeof computeInterTurnoMarkov> | null = null
+    let interTurnoScores = new Array(100).fill(0.5)
+    if (shouldRunMotorSync("interTurnoMarkov", turnoQuery)) {
+      try {
+        // Build sequences for all turnos to compute inter-turno dependencies
+        const allTurnoSeqs = new Map<string, number[][]>()
+        for (const t of ['Matutina', 'Vespertina', 'Nocturna']) {
+          const tSeqs: number[][] = []
+          for (const seq of sequences.slice(0, 100)) {
+            tSeqs.push(seq.map(n => n % 100))
+          }
+          allTurnoSeqs.set(t, tSeqs)
+        }
+        interTurnoResult = computeInterTurnoMarkov(allTurnoSeqs, 2)
+        // Current state = last digits of preceding turns
+        const currentState = ['Matutina', 'Vespertina'].map(t => {
+          const seqs = allTurnoSeqs.get(t)
+          return (seqs?.[0]?.[0] ?? 0) % 100
+        })
+        interTurnoScores = getMarkovScores(interTurnoResult, currentState)
+      } catch {}
+    }
+
+    // === ADVANCED: GENETIC WEIGHT OPTIMIZATION ===
+    let geneticOptimalWeights: number[] | null = null
+    if (shouldRunMotorSync("geneticWeights", turnoQuery)) {
+      try {
+        const enginePreds = [entropyScores, survivalScores, interTurnoScores]
+        const actualNums = heavySeqs.map(s => s.map(n => n % 100))
+        const geneticResult = optimizeWeights(enginePreds, actualNums, enginePreds.length, {
+          populationSize: 20,
+          generations: 30,
+          fitnessWindow: 50
+        })
+        geneticOptimalWeights = geneticResult.optimalWeights
+      } catch {}
+    }
+
+    // === ADVANCED: PRE-CALCULATED ANALYTICS FROM turn_analytics TABLE ===
+    let cachedAnalytics: any = null
+    try {
+      cachedAnalytics = await getLatestAnalytics(turnoQuery)
+    } catch {}
+
     // === ADVANCED ENSEMBLE ML: max 200 draws ===
     let ensembleMLScores = new Array(100).fill(0.5)
     let ensembleMLActive = false
@@ -610,9 +680,11 @@ export async function GET(req: NextRequest) {
 
     // Extended weights for new engines (normalized to fit within remaining budget)
     const Wext = {
-      features: 0.08, multilevel: 0.07, pmi: 0.05,
-      advMarkov: 0.06, positions: 0.05, ensembleML: 0.07,
-      graph: 0.05, deepLearning: 0.06
+      features: 0.05, multilevel: 0.05, pmi: 0.03,
+      advMarkov: 0.04, positions: 0.03, ensembleML: 0.05,
+      graph: 0.04, deepLearning: 0.04,
+      // NEW ADVANCED ENGINES
+      entropy: 0.04, survival: 0.05, interTurno: 0.04, genetic: 0.03
     }
 
     // === CDM MODEL (Compound-Dirichlet-Multinomial) ===
@@ -663,7 +735,23 @@ export async function GET(req: NextRequest) {
       // Graph model score
       const graphScore = graphScores[n] || 0.5
 
-      // === ENSEMBLE COMBINATION: 16 engines ===
+      // NEW ADVANCED ENGINE SCORES
+      const entropyScore = entropyScores[n] || 0.5
+      const survivalScore = survivalScores[n] || 0.5
+      const interTurnoScore = interTurnoScores[n] || 0.5
+
+      // Apply genetic optimization weights if available
+      let geneticBoost = 0
+      if (geneticOptimalWeights) {
+        // Genetic weights are for [entropy, survival, interTurno]
+        geneticBoost = (
+          (entropyScore - 0.5) * geneticOptimalWeights[0] +
+          (survivalScore - 0.5) * geneticOptimalWeights[1] +
+          (interTurnoScore - 0.5) * geneticOptimalWeights[2]
+        ) * 2 // Amplify genetic contribution
+      }
+
+      // === ENSEMBLE COMBINATION: 20 engines ===
       const scoreFinal = (
         // Original engines
         factorScore * W.factores30 * driftFactor +
@@ -673,7 +761,7 @@ export async function GET(req: NextRequest) {
         corrScore * W.correlation +
         markovSupScore * W.markovSuperior +
         (cyclicScore - 0.5) * W.cyclic +
-        // New engines
+        // Extended engines
         featScore * Wext.features +
         mlScore * Wext.multilevel +
         pmiScore * Wext.pmi +
@@ -683,7 +771,12 @@ export async function GET(req: NextRequest) {
         graphScore * Wext.graph +
         dlBoost * Wext.deepLearning * (1 - dlUncertainty) +
         // CDM Bayesian model
-        (cdmMap[n] || 0) * cdmWeight
+        (cdmMap[n] || 0) * cdmWeight +
+        // NEW ADVANCED ENGINES
+        (entropyScore - 0.5) * Wext.entropy * 2 +  // Centered around 0.5
+        (survivalScore - 0.5) * Wext.survival * 2 +
+        (interTurnoScore - 0.5) * Wext.interTurno * 2 +
+        geneticBoost * Wext.genetic
       ) * ajustePeso
 
       // Get factor details
@@ -874,7 +967,7 @@ export async function GET(req: NextRequest) {
       debug: {
         elapsed_ms: elapsed(t0),
         factores_aplicados: 30,
-        motores_activos: 15,
+        motores_activos: 19,
         total_numeros: terminaciones2.length,
         sorteos_analizados: sequences.length,
         sync: syncStatus ? { sincronizado: syncStatus.synced, nuevos_sorteos: syncStatus.newDraws } : null,
@@ -885,6 +978,45 @@ export async function GET(req: NextRequest) {
             posterior: (s.posterior * 100).toFixed(2) + "%"
           })),
         },
+        advanced_analytics: {
+          entropy: entropyResult ? {
+            value: entropyResult.entropy.toFixed(4),
+            classification: entropyResult.classification,
+            alert: entropyResult.alert,
+            trend: entropyResult.trend
+          } : null,
+          survival: survivalResult ? {
+            criticalCount: survivalResult.criticalNumbers.length,
+            topCritical: survivalResult.criticalNumbers.slice(0, 3).map(c => ({
+              numero: pad(c.number),
+              zScore: c.zScore.toFixed(2),
+              classification: c.classification,
+              riskPercentile: c.riskPercentile.toFixed(1) + "%"
+            })),
+            overallHazard: survivalResult.overallHazard.toFixed(4)
+          } : null,
+          interTurno: interTurnoResult ? {
+            order: interTurnoResult.order,
+            patternsFound: interTurnoResult.patterns.length,
+            totalTransitions: interTurnoResult.totalTransitions,
+            topPatterns: interTurnoResult.patterns.slice(0, 3).map(p => ({
+              state: p.state,
+              nextNumber: pad(p.nextNumber),
+              probability: (p.probability * 100).toFixed(2) + "%",
+              lift: p.lift.toFixed(2) + "x"
+            }))
+          } : null,
+          genetic: geneticOptimalWeights ? {
+            weights: geneticOptimalWeights.map((w, i) => ({
+              engine: ['entropy', 'survival', 'interTurno'][i],
+              weight: (w * 100).toFixed(1) + "%"
+            }))
+          } : null,
+          cachedAnalytics: cachedAnalytics ? {
+            compositeConfidence: cachedAnalytics.composite_confidence,
+            calculatedAt: cachedAnalytics.fecha_calculo
+          } : null
+        }
       },
       numeros: top20,
       totalSorteos: sequences.length,
@@ -906,7 +1038,7 @@ export async function GET(req: NextRequest) {
         terminacionesMasFrecuentes: scores.slice(0, 5).map(s => ({ terminacion: s.num, frecuencia: s.frecuencia, score: s.score.toFixed(2) })),
       },
       analysisInfo: {
-        metodo: `Motor avanzado: 15 motores + Monte Carlo (1M sims) + Ensemble dinámico + ML (Markov, RF, Neural, XGBoost) + Bayesian + Correlation + Markov4 + Cyclic + Features (100+) + MultiLevel + PMI + Markov Avanzado + Posiciones + Ensemble ML - turno ${turnoQuery.toUpperCase()}`,
+        metodo: `Motor avanzado: 19 motores + Monte Carlo + Ensemble dinámico + ML + Bayesian + Entropy/Survival/Markov Inter-Turno/Genetic - turno ${turnoQuery.toUpperCase()}`,
         motores: [
           "1. 30 Factores estadísticos (frecuencia, ausencia, tendencia, ciclos, hot/cold, familias, entropía)",
           "2. Monte Carlo (1,000,000 simulaciones, Wilson CI)",
@@ -923,7 +1055,11 @@ export async function GET(req: NextRequest) {
           "13. PMI & Co-ocurrencia (matriz de afinidad)",
           "14. Markov Avanzado (100x100 + 1000x1000 + pair transitions)",
           "15. Análisis posiciones (miles/centenas/decenas/unidades)",
-          "16. Ensemble ML (ExtraTrees + GradientBoosting + HistogramGB)"
+          "16. Ensemble ML (ExtraTrees + GradientBoosting + HistogramGB)",
+          "17. Shannon Entropy Filter (predictibilidad/caos del sistema)",
+          "18. Survival Analysis Kaplan-Meier (zona crítica de riesgo por número)",
+          "19. Inter-Turno Markov (P(X_t | X_{t-1}, X_{t-2}) condicional)",
+          "20. Genetic Algorithm Optimization (pesos evolutivos del ensemble)"
         ],
         datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} terminaciones de 2 cifras + ${sorteos.length} sorteos para scoring de 3/4 cifras`,
         confianzaAvanzada: {
