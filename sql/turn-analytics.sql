@@ -7,7 +7,7 @@
 CREATE TABLE IF NOT EXISTS turn_analytics (
   id BIGSERIAL PRIMARY KEY,
   turno TEXT NOT NULL,
-  game_id UUID DEFAULT (SELECT id FROM games WHERE slug = 'quiniela'),
+  game_id UUID,
   fecha DATE DEFAULT CURRENT_DATE,
   fecha_calculo TIMESTAMPTZ DEFAULT NOW(),
   
