@@ -54,19 +54,36 @@ CREATE INDEX IF NOT EXISTS idx_user_predictions_user_date ON user_predictions(us
 CREATE INDEX IF NOT EXISTS idx_user_predictions_date_turno ON user_predictions(date, turno);
 
 -- === Fix: Add SET search_path to SECURITY DEFINER functions ===
-ALTER FUNCTION update_motor_performance(TEXT, TEXT, DOUBLE PRECISION) 
-  SET search_path = public, pg_temp;
+-- These only work if the functions already exist (run setup-motor-performance.sql first)
 
-ALTER FUNCTION get_top_motors(TEXT, INTEGER) 
-  SET search_path = public, pg_temp;
+DO $$ BEGIN
+  ALTER FUNCTION update_motor_performance(TEXT, TEXT, NUMERIC) 
+    SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL;
+END $$;
 
-ALTER FUNCTION get_skipped_motors(TEXT) 
-  SET search_path = public, pg_temp;
+DO $$ BEGIN
+  ALTER FUNCTION get_top_motors(TEXT, INTEGER) 
+    SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL;
+END $$;
 
-ALTER FUNCTION should_run_motor(TEXT, TEXT) 
-  SET search_path = public, pg_temp;
+DO $$ BEGIN
+  ALTER FUNCTION get_skipped_motors(TEXT) 
+    SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL;
+END $$;
 
-ALTER FUNCTION clear_old_motor_performance(INTEGER) 
-  SET search_path = public, pg_temp;
+DO $$ BEGIN
+  ALTER FUNCTION should_run_motor(TEXT, TEXT) 
+    SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER FUNCTION clear_old_motor_performance(INTEGER) 
+    SET search_path = public, pg_temp;
+EXCEPTION WHEN undefined_function THEN NULL;
+END $$;
 
 -- Done
