@@ -1,4 +1,5 @@
 import { ScrapeResult } from "./types"
+import logger from "@/lib/logger"
 
 const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
@@ -42,12 +43,22 @@ export async function parseLoteriaOficial(fechaISO: string, _fechaUrl: string, t
     const html = await r.text()
     if (html.includes("No hay Sorteo") || html.includes("Sorteo no realizado") || html.includes("sin resultado")) return null
 
-    // Tolerante: admite espacios, comillas simples/dobles, clases múltiples
-    const rx = /<div\s+class\s*=\s*["']pos["']\s*>\s*\d{2}\s*<\/div>\s*<div\s*>\s*(\d{4})\s*<\/div>/gi
-    const nums = extractNums(html, rx)
+    // Tolerant: multiple patterns for class="pos" with optional extra classes/attributes
+    const patterns = [
+      /<div\s+class\s*=\s*["'][^"']*pos[^"']*["']\s*>\s*\d{2}\s*<\/div>\s*<div[^>]*>\s*(\d{4})\s*<\/div>/gi,
+      /<div[^>]*class\s*=\s*["'][^"']*pos[^"']*["'][^>]*>\s*(\d{4})\s*<\/div>/gi,
+    ]
+    let nums: number[] = []
+    for (const rx of patterns) {
+      nums = extractNums(html, rx)
+      if (nums.length >= 5) break
+    }
     if (nums.length < 5) return null
     return { numbers: nums, source: "loteria-ciudad.gob.ar", cabezaMatch: null }
-  } catch { return null }
+  } catch (e) {
+    logger.debug("[scraper] parseLoteriaOficial failed", { error: String(e) })
+    return null
+  }
 }
 
 // ─── Fuente 2: QuinielaNacional1 (Primaria rápida) ──────────────────────────
@@ -64,16 +75,22 @@ export async function parseQuinielaNacional1(_fechaISO: string, fechaUrl: string
 
       if (html.includes("Sorteo no realizado") || html.includes("sorteo no realizado")) return null
 
-      const veintenaIdx = html.indexOf('class="veintena"')
+      // Tolerant veintena lookup: try multiple patterns
+      let veintenaIdx = html.indexOf('class="veintena"')
+      if (veintenaIdx < 0) veintenaIdx = html.indexOf("class='veintena'")
+      if (veintenaIdx < 0) veintenaIdx = html.search(/class\s*=\s*["']veintena["']/)
       if (veintenaIdx < 0) continue
 
       const chunk = html.slice(veintenaIdx, veintenaIdx + 5000)
-      const rx = /class\s*=\s*["']?numero["']?\s*>\s*(\d{1,4})\s*<\/div>/gi
+      // Tolerant numero regex: allows extra classes, nested tags
+      const rx = /class\s*=\s*["']?numero["']?\s*>\s*(?:<(?:b|strong|span)[^>]*>)?\s*(\d{1,4})\s*(?:<\/(?:b|strong|span)>)?\s*<\/div>/gi
       const nums = extractNums(chunk, rx)
       if (nums.length >= 5) {
         return { numbers: nums, source: "quinielanacional1.com.ar", cabezaMatch: null }
       }
-    } catch {}
+    } catch (e) {
+      logger.debug("[scraper] parseQuinielaNacional1 attempt failed", { intento, error: String(e) })
+    }
   }
   return null
 }
@@ -94,8 +111,9 @@ export async function parseQuinieleando(fechaISO: string, _fechaUrl: string, tur
     if (html.includes("Sorteo no realizado") || html.includes("sorteo no realizado")) return null
 
     const turnoUpper = turno.toUpperCase()
+    // Tolerant header regex: allows extra whitespace, different separators, optional text
     const turnoHeaderRx = new RegExp(
-      `<h3>\\s*${turnoUpper}\\s*,\\s*Quiniela\\s*Nacional[^<]*<\\/h3>`,
+      `<h3>\\s*${turnoUpper}\\s*[,:;\\-]?\\s*Quiniela\\s*Nacional[^<]*<\\/h3>`,
       "gi"
     )
     const headerMx = turnoHeaderRx.exec(html)
@@ -105,12 +123,15 @@ export async function parseQuinieleando(fechaISO: string, _fechaUrl: string, tur
     const tableEnd = afterHeader.indexOf("</table>")
     const chunk = tableEnd > 0 ? afterHeader.slice(0, tableEnd) : afterHeader.slice(0, 4000)
 
-    const rx = /class\s*=\s*["']nro["']\s*>\s*(?:<b>)?\s*(\d{1,4})\s*(?:<\/b>)?\s*<\/span>/gi
+    // Tolerant number regex: allows optional classes, nested tags, whitespace
+    const rx = /class\s*=\s*["']nro["']\s*>\s*(?:<(?:b|strong|span)[^>]*>)?\s*(\d{1,4})\s*(?:<\/(?:b|strong|span)>)?\s*<\/span>/gi
     const nums = extractNums(chunk, rx)
     if (nums.length >= 5) {
       return { numbers: nums, source: "quinieleando.com.ar", cabezaMatch: null }
     }
-  } catch {}
+  } catch (e) {
+    logger.debug("[scraper] parseQuinieleando failed", { error: String(e) })
+  }
   return null
 }
 
@@ -127,11 +148,13 @@ export async function parseQuiniela22Cabeza(_fechaISO: string, fechaUrl: string,
       headers: { "User-Agent": "Mozilla/5.0", "Accept": "text/html" },
       signal: AbortSignal.timeout(8000)
     })).text()
-    // Tolerante: espacios, comillas simples/dobles, atributos extra
+    // Tolerant: allows extra attributes on <a> tag, optional whitespace
     const rx = /class\s*=\s*["']num["']\s*>\s*<a[^>]*>\s*(\d{3,4})\s*<\/a>\s*<\/div>/gi
     const mx = rx.exec(html)
     if (mx) return parseInt(mx[1])
-  } catch {}
+  } catch (e) {
+    logger.debug("[scraper] parseQuiniela22Cabeza failed", { error: String(e) })
+  }
   return null
 }
 

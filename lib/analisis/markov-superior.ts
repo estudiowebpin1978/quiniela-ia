@@ -20,10 +20,12 @@ export function higherOrderMarkov(
   const n = 100
   const lastNums = sequences.map(s => s.map(x => x % 100))
 
-  // Flatten to a single sequence of last numbers per draw
+  // Flatten to a single sequence using ALL numbers from each draw (not just the first)
   const flatSequence: number[] = []
   for (const draw of lastNums) {
-    if (draw.length > 0) flatSequence.push(draw[0])
+    for (const num of draw) {
+      if (num >= 0 && num <= 99) flatSequence.push(num)
+    }
   }
 
   if (flatSequence.length < maxOrder + 10) {

@@ -8,6 +8,25 @@ function getSB(): string {
   return (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 }
 
+function normalizeTurno(t: string): string {
+  return t.replace(/-\d+cifras?$/i, "").toLowerCase().trim()
+}
+
+function parseNumeros(predNumeros: any): { n2: string[]; n3: string[]; n4: string[] } {
+  let data = predNumeros
+  if (Array.isArray(data) && data.length === 1 && typeof data[0] === "string") {
+    try { data = JSON.parse(data[0]) } catch {}
+  }
+  if (Array.isArray(data)) {
+    return { n2: data.map((n: string) => String(n).padStart(2, "0")), n3: [], n4: [] }
+  }
+  return {
+    n2: (data?.["2"] || []).map((n: string) => String(n).padStart(2, "0")),
+    n3: (data?.["3"] || []).map((n: string) => String(n).padStart(3, "0")),
+    n4: (data?.["4"] || []).map((n: string) => String(n).padStart(4, "0")),
+  }
+}
+
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret")
   const fecha = req.nextUrl.searchParams.get("fecha")
@@ -43,14 +62,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: "No hay análisis para comparar", results: [] })
     }
 
-    const fechas = [...new Set(predictions.map((p: any) => p.date))]
-    const turnos = [...new Set(predictions.map((p: any) => p.turno))]
+    const fechas = [...new Set(predictions.map((p: any) => p.date))] as string[]
+    const turnos = [...new Set(predictions.map((p: any) => normalizeTurno(p.turno || "")))] as string[]
     
     const drawsMap: Record<string, number[]> = {}
     for (const f of fechas) {
       for (const t of turnos) {
+        const normalizedTurno = t.charAt(0).toUpperCase() + t.slice(1)
         const drawRes = await fetch(
-          `${SB}/rest/v1/draws?date=eq.${f}&turno=eq.${t}&select=numbers&limit=1`,
+          `${SB}/rest/v1/draws?date=eq.${f}&turno=eq.${normalizedTurno}&select=numbers&limit=1`,
           { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
         )
         const draws = await drawRes.json()
@@ -61,31 +81,48 @@ export async function GET(req: NextRequest) {
     }
 
     for (const pred of predictions) {
-      const drawKey = `${pred.date}-${pred.turno}`
+      const turnoLower = normalizeTurno(pred.turno || "")
+      const drawKey = `${pred.date}-${turnoLower}`
       const drawNums = drawsMap[drawKey]
       
       if (!drawNums) continue
       
-      const numerosReales = drawNums.map((n: number) => String(n % 100).padStart(2, "0"))
-      const predNumeros = (pred.numeros || []).map((n: string) => String(n).padStart(2, "0"))
+      const nums2 = drawNums.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
+      const nums3 = drawNums.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
+      const nums4 = drawNums.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
+
+      const { n2: predNumeros2, n3: predNumeros3, n4: predNumeros4 } = parseNumeros(pred.numeros)
       
-      const aciertos = predNumeros
-        .filter((n: string) => numerosReales.includes(n))
-        .map((n: string) => ({
-          numero: n,
-          posicion: numerosReales.indexOf(n) + 1,
-          acierto: true
-        }))
+      const aciertos2 = predNumeros2
+        .filter((n: string) => nums2.includes(n))
+        .map((n: string) => ({ numero: n, posicion: nums2.indexOf(n) + 1, tipo: 2 }))
+
+      const aciertos3 = predNumeros3
+        .filter((n: string) => nums3.includes(n))
+        .map((n: string) => ({ numero: n, posicion: nums3.indexOf(n) + 1, tipo: 3 }))
+
+      const aciertos4 = predNumeros4
+        .filter((n: string) => nums4.includes(n))
+        .map((n: string) => ({ numero: n, posicion: nums4.indexOf(n) + 1, tipo: 4 }))
+
+      const allAciertos = [...aciertos2, ...aciertos3, ...aciertos4]
       
-      if (aciertos.length > 0) {
+      if (allAciertos.length > 0) {
         results.push({
           id: pred.id,
           fecha: pred.date,
           turno: pred.turno,
-          prediccion: predNumeros,
-          resultado: numerosReales,
-          aciertos: aciertos.length,
-          detalles: aciertos,
+          prediccion_2: predNumeros2,
+          prediccion_3: predNumeros3,
+          prediccion_4: predNumeros4,
+          resultado_2: nums2,
+          resultado_3: nums3,
+          resultado_4: nums4,
+          aciertos: allAciertos.length,
+          aciertos_2: aciertos2.length,
+          aciertos_3: aciertos3.length,
+          aciertos_4: aciertos4.length,
+          detalles: allAciertos,
           acierto: true
         })
       }

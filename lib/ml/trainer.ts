@@ -39,7 +39,12 @@ export function dividirDatos<T>(
     throw new Error('Las proporciones deben sumar 1');
   }
 
-  const shuffled = [...datos].sort(() => Math.random() - 0.5);
+  // Fisher-Yates shuffle for unbiased random permutation
+  const shuffled = [...datos]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
   
   const nEntrenamiento = Math.floor(datos.length * entrenamiento);
   const nValidacion = Math.floor(datos.length * validacion);
@@ -162,11 +167,11 @@ export async function entrenarModelos(
       .map(s => s.numbers.map(n => n % 100).filter(n => n >= 0 && n <= 99));
     const secuencias: number[][] = [];
     for (let i = 0; i < numerosDraws.length - 2; i++) {
-      // Use first 5 numbers from each of 3 consecutive draws as Markov state
+      // Use up to 10 numbers from each of 3 consecutive draws as Markov state
       const state = [
-        ...numerosDraws[i].slice(0, 5),
-        ...numerosDraws[i + 1].slice(0, 5),
-        ...numerosDraws[i + 2].slice(0, 5)
+        ...numerosDraws[i].slice(0, 10),
+        ...numerosDraws[i + 1].slice(0, 10),
+        ...numerosDraws[i + 2].slice(0, 10)
       ];
       secuencias.push(state);
     }

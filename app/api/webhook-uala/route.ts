@@ -26,8 +26,8 @@ async function verifyUalaPayment(paymentId: string): Promise<{ verified: boolean
   const ualaBaseUrl = process.env.UALA_BASE_URL || "https://api.uala.com.ar"
   
   if (!ualaApiKey) {
-    logger.warn("[webhook-uala] UALA_API_KEY not configured, skipping verification")
-    return { verified: true, status: "APPROVED" } // Fallback if no API key
+    logger.error("[webhook-uala] UALA_API_KEY not configured — CANNOT verify payment, rejecting")
+    return { verified: false, status: "UNVERIFIED" }
   }
 
   try {

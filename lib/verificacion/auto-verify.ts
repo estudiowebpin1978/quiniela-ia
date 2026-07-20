@@ -16,12 +16,12 @@ function parseNumeros(numeros: any): ParsedNumeros {
     try { data = JSON.parse(data[0]) } catch {}
   }
   if (Array.isArray(data)) {
-    return { numeros_2: data, numeros_3: [], numeros_4: [] }
+    return { numeros_2: data.map((n: string) => String(n).padStart(2, "0")), numeros_3: [], numeros_4: [] }
   }
   return {
-    numeros_2: data?.["2"] || [],
-    numeros_3: data?.["3"] || [],
-    numeros_4: data?.["4"] || [],
+    numeros_2: (data?.["2"] || []).map((n: string) => String(n).padStart(2, "0")),
+    numeros_3: (data?.["3"] || []).map((n: string) => String(n).padStart(3, "0")),
+    numeros_4: (data?.["4"] || []).map((n: string) => String(n).padStart(4, "0")),
   }
 }
 
@@ -94,7 +94,7 @@ export async function autoVerifyPredictions(fecha: string, turno: string): Promi
 
     const totalAciertos = aciertos2.length + aciertos3.length + aciertos4.length
 
-    await supabase.from("prediction_history").insert({
+    const { error: insertError } = await supabase.from("prediction_history").insert({
       prediction_id: pred.id,
       user_id: pred.user_id,
       fecha: pred.date,
@@ -111,6 +111,11 @@ export async function autoVerifyPredictions(fecha: string, turno: string): Promi
       verified_at: new Date().toISOString(),
     })
 
+    if (insertError) {
+      logger.error("[auto-verify] Error inserting prediction_history", { predId: pred.id, error: insertError.message })
+      continue
+    }
+
     if (pred.user_id) {
       const { data: existingStats } = await supabase
         .from("user_stats")
@@ -121,7 +126,7 @@ export async function autoVerifyPredictions(fecha: string, turno: string): Promi
       const prev = existingStats || { total_predictions: 0, total_hits: 0, best_streak: 0, current_streak: 0 }
       const newStreak = totalAciertos > 0 ? prev.current_streak + 1 : 0
 
-      await supabase.from("user_stats").upsert({
+      const { error: statsError } = await supabase.from("user_stats").upsert({
         user_id: pred.user_id,
         total_predictions: prev.total_predictions + 1,
         total_hits: prev.total_hits + totalAciertos,
@@ -129,6 +134,10 @@ export async function autoVerifyPredictions(fecha: string, turno: string): Promi
         best_streak: Math.max(prev.best_streak, newStreak),
         last_verified: new Date().toISOString(),
       }, { onConflict: "user_id" })
+
+      if (statsError) {
+        logger.error("[auto-verify] Error upserting user_stats", { userId: pred.user_id, error: statsError.message })
+      }
     }
 
     results.push({

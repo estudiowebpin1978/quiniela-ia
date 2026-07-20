@@ -26,7 +26,7 @@ const PESOS_BASE: PesosDinamicos = {
 
 const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
-async function fetchDraws(turno: string, limit: number = 30): Promise<number[][]> {
+async function fetchDraws(turno: string, limit: number = 100): Promise<number[][]> {
   const url = `${SB()}/rest/v1/draws?select=numbers,turno&turno=ilike.*${turno}*&order=date.desc&limit=${limit}`
   try {
     const res = await fetch(url, {
@@ -37,7 +37,6 @@ async function fetchDraws(turno: string, limit: number = 30): Promise<number[][]
     const rows: any[] = await res.json()
     return rows
       .filter((r: any) => Array.isArray(r.numbers) && r.numbers.length >= 5)
-      .slice(0, limit)
       .map((r: any) => r.numbers.map((n: number) => Number(n)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999))
   } catch {
     return []
@@ -56,7 +55,7 @@ function scoreFactor(n: number, freq: number[], total: number, paridadMayor: str
 
 export async function calcularPesosDinamicos(turno: string): Promise<PesosDinamicos> {
   try {
-    const draws = await fetchDraws(turno, 30)
+    const draws = await fetchDraws(turno, 100)
     if (draws.length < 10) return { ...PESOS_BASE }
 
     const mitades = Math.floor(draws.length / 2)
