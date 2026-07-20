@@ -15,10 +15,10 @@ import { computeInterTurnoMarkov, getMarkovScores, isLowEntropyState } from './i
 import { optimizeWeights } from './genetic-weights'
 import logger from '@/lib/logger'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
+const SK_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
+
+const supabase = createClient(SB_URL || 'http://localhost', SK_KEY || 'dummy')
 
 const TURNOS = ['Matutina', 'Vespertina', 'Nocturna']
 

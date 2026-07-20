@@ -153,7 +153,7 @@ function scorePositions(sequences: number[][]): number[] {
   const scores = new Array(10000)
   for (let n = 0; n < 10000; n++) {
     const d = extractDigits(n)
-    scores[n] = (posFreq.miles[d[0]] + posFreq.centenas[d[1]] + posFreq.decenas[d[2]] + posFreq.unidades[d[4 - 1]]) / 4
+    scores[n] = (posFreq.miles[d[0]] + posFreq.centenas[d[1]] + posFreq.decenas[d[2]] + posFreq.unidades[d[3]]) / 4
   }
   return normalizeArray(scores)
 }

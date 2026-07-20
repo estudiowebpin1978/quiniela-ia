@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { unstable_cache, revalidateTag } from "next/cache"
+import { revalidateTag } from "next/cache"
 import { analisisCrossTurno } from "@/lib/analisis/cross-turno"
 import { calcularPesosDinamicos, PesosDinamicos } from "@/lib/analisis/weights"
 import { calibrarConfianza, recalibrar } from "@/lib/analisis/calibration"
@@ -46,7 +46,6 @@ export const maxDuration = 60;
 // Time budget: Vercel Hobby = 10s hard limit. Target 8s for safety.
 const TIME_BUDGET_MS = 8000
 function elapsed(t0: number) { return Date.now() - t0 }
-function hasBudget(t0: number, reserveMs = 2000) { return elapsed(t0) < TIME_BUDGET_MS - reserveMs }
 
 // Cache invalidation helper - called by cron-scrape after new draws
 export async function invalidatePredictionCache(turno?: string): Promise<void> {
@@ -56,27 +55,6 @@ export async function invalidatePredictionCache(turno?: string): Promise<void> {
     }
     revalidateTag('predictions', "max")
   } catch {}
-}
-
-// Persistent in-memory cache for heavy historical computations (meta-learner, CDM, motor)
-// Key: "type:turno" — survives across requests in same serverless instance
-const COMP_TTL_MS = 1000 * 60 * 60 * 6 // 6 hours
-interface CompEntry<T> { value: T; expiresAt: number }
-const compCache = new Map<string, CompEntry<any>>()
-
-function getComp<T>(key: string): T | null {
-  const entry = compCache.get(key)
-  if (!entry) return null
-  if (Date.now() > entry.expiresAt) { compCache.delete(key); return null }
-  return entry.value as T
-}
-function setComp<T>(key: string, value: T): void {
-  compCache.set(key, { value, expiresAt: Date.now() + COMP_TTL_MS })
-  // Evict old entries if > 200
-  if (compCache.size > 200) {
-    const now = Date.now()
-    for (const [k, v] of compCache) { if (now > v.expiresAt) compCache.delete(k) }
-  }
 }
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
@@ -223,19 +201,6 @@ export async function GET(req: NextRequest) {
   if (cached && Date.now() < cached.expiresAt) {
     return NextResponse.json(cached.result)
   }
-
-  // === UNSTABLE_CACHE: cross-instance cache with revalidation tags ===
-  const getCachedPrediction = unstable_cache(
-    async (turno: string, date: string, token: string) => {
-      // This function is called when both in-memory and unstable_cache miss
-      return null // Will be populated by the main computation
-    },
-    [`prediction-${turnoQuery}-${targetDate}`],
-    { 
-      tags: [`predictions-${turnoQuery}`, 'predictions'],
-      revalidate: 600 // 10 minutes
-    }
-  )
 
   // === PRE-PREDICTION SYNC: non-blocking, cached 5 min ===
   // First call may be slow; subsequent calls return instantly from cache

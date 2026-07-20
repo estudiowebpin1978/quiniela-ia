@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
   // Validar secret
   const { searchParams } = new URL(req.url)
   const secret = searchParams.get("secret") || req.headers.get("authorization")?.replace("Bearer ", "") || ""
-  if (CRON_SECRET && secret !== CRON_SECRET) {
+  if (!CRON_SECRET || secret !== CRON_SECRET) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 

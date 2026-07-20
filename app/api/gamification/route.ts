@@ -10,11 +10,16 @@ if (!SB_URL || !SB_KEY) logger.error("[gamification] Missing Supabase env vars")
 async function verifyUser(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "")
   if (!token) return null
-  const res = await fetch(`${SB_URL}/auth/v1/user`, {
-    headers: { "apikey": SB_KEY, "Authorization": `Bearer ${token}` },
-  })
-  if (!res.ok) return null
-  return (await res.json()).id as string
+  try {
+    const res = await fetch(`${SB_URL}/auth/v1/user`, {
+      headers: { "apikey": SB_KEY, "Authorization": `Bearer ${token}` },
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) return null
+    return (await res.json()).id as string
+  } catch {
+    return null
+  }
 }
 
 async function getGamification(userId: string) {

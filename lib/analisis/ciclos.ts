@@ -50,6 +50,8 @@ export function analizarCiclos(
   const distancias3: Map<number, number[]> = new Map();
   const distancias4: Map<number, number[]> = new Map();
   const ultimosIdx: Map<number, number> = new Map();
+  const ultimosIdx3: Map<number, number> = new Map();
+  const ultimosIdx4: Map<number, number> = new Map();
 
   let idx = 0;
   for (const sorteo of sorteosFiltrados) {
@@ -72,13 +74,24 @@ export function analizarCiclos(
       }
 
       if (!distancias3.has(n3)) {
-        const prev = -1;
         distancias3.set(n3, []);
       }
-      const prev3 = Array.from(distancias3.entries()).find(([k]) => k === n3)?.[1].length ? 0 : -1;
+      const prevIdx3 = ultimosIdx3.get(n3);
+      if (prevIdx3 !== undefined) {
+        const dist = idx - prevIdx3;
+        distancias3.set(n3, [...(distancias3.get(n3) || []), dist]);
+      }
+      ultimosIdx3.set(n3, idx);
+
       if (!distancias4.has(n)) {
         distancias4.set(n, []);
       }
+      const prevIdx4 = ultimosIdx4.get(n);
+      if (prevIdx4 !== undefined) {
+        const dist = idx - prevIdx4;
+        distancias4.set(n, [...(distancias4.get(n) || []), dist]);
+      }
+      ultimosIdx4.set(n, idx);
     });
 
     idx++;
