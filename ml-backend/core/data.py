@@ -1,10 +1,8 @@
 """Acceso a datos: carga histórica desde Supabase."""
-import os
 import requests
 from typing import Optional
 
-SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+from config import SUPABASE_URL, SUPABASE_KEY
 
 
 def obtener_sorteos_supabase(dias=365, turno=None, limit=10000):

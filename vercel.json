@@ -7,6 +7,10 @@
     {
       "path": "/api/cron-premium-expiry",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/ping-python",
+      "schedule": "*/14 * * * *"
     }
   ]
 }

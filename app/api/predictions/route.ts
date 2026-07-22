@@ -801,15 +801,15 @@ export async function GET(req: NextRequest) {
     let mlApiActivo = false
     if (useFullPath) {
       try {
-        const mlApiUrl = process.env.ML_API_URL
+        const mlApiUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || process.env.ML_API_URL
         if (mlApiUrl) {
           mlApiActivo = true
-          const mlRes = await fetch(`${mlApiUrl}/predict?turno=${turnoQuery}&top=10`, { signal: AbortSignal.timeout(5000) })
+          const mlRes = await fetch(`${mlApiUrl}/api/predict/${turnoQuery}?top=10`, { signal: AbortSignal.timeout(5000) })
           if (mlRes.ok) {
             const mlData = await mlRes.json()
-            if (mlData?.scores_completos) {
+            if (mlData?.scores) {
               for (const s of scores) {
-                const boost = mlData.scores_completos[String(s.num).padStart(2, "0")] || 0
+                const boost = mlData.scores[String(s.num).padStart(2, "0")] || 0
                 if (boost > 0) s.score += s.score * Math.min(0.2, boost / 50)
               }
               scores.sort((a, b) => b.score - a.score)

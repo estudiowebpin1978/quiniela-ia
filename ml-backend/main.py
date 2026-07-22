@@ -197,7 +197,7 @@ async def predict_get(turno: str, top: int = 10):
 
 
 @app.get("/api/status")
-async def status():
+async def model_status():
     model_status = {}
     for turno in TURNOS:
         try:

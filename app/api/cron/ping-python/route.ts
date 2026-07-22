@@ -7,14 +7,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import logger from "@/lib/logger"
 
 export async function GET(req: NextRequest) {
-  const authResult = await validateCronAuth(req)
-  if (!authResult.authorized) {
-    return unauthorizedResponse()
-  }
 
   const mlBackendUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL
   if (!mlBackendUrl) {
