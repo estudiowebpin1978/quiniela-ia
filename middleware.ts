@@ -57,15 +57,6 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  // --- Page route auth enforcement ---
-  // Admin page requires server-side token verification
-  if (pathname.startsWith("/admin")) {
-    const token = req.headers.get("authorization")?.replace("Bearer ", "");
-    if (!token) {
-      return NextResponse.redirect(new URL("/login", req.url));
-    }
-  }
-
   return res;
 }
 
