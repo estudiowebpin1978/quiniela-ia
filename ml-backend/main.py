@@ -2,6 +2,7 @@
 Quiniela IA - ML Backend (FastAPI)
 Microservicio independiente para entrenamiento y predicción de modelos ML.
 Se comunica con Supabase para leer datos y escribir resultados.
+Autenticación: API Key via header X-API-Key.
 """
 import os
 import json
@@ -13,8 +14,9 @@ from contextlib import asynccontextmanager
 
 import numpy as np
 import requests
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
 from config import SUPABASE_URL, SUPABASE_KEY, ML_API_PORT, ML_API_HOST, TURNOS
@@ -30,6 +32,22 @@ SB_HEADERS = {
     "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json",
 }
+
+# === API KEY AUTHENTICATION ===
+PYTHON_API_SECRET = os.getenv("PYTHON_API_SECRET", "")
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def verify_api_key(api_key: Optional[str] = Depends(api_key_header)):
+    """Validate X-API-Key header. Only protects /api/train; /api/predict and /health are public."""
+    if not PYTHON_API_SECRET:
+        logger.warning("PYTHON_API_SECRET not set - auth disabled (dev mode)")
+        return
+    if api_key != PYTHON_API_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Acceso denegado. Token inválido.",
+        )
 
 
 @asynccontextmanager
@@ -83,7 +101,7 @@ async def health():
     }
 
 
-@app.post("/api/train")
+@app.post("/api/train", dependencies=[Depends(verify_api_key)])
 async def train_models(req: TrainRequest, background_tasks: BackgroundTasks):
     start = time.time()
     turnos_to_train = [req.turno.lower()] if req.turno else TURNOS

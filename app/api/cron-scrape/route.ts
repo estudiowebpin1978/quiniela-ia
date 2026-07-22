@@ -195,12 +195,16 @@ export async function GET(req: NextRequest) {
       logger.warn("cron-scrape: failed to trigger cron-analytics", { error: String(e) })
     })
 
-    // Trigger ML Backend retraining (FastAPI microservice)
-    const mlBackendUrl = process.env.ML_API_URL
-    if (mlBackendUrl) {
+    // Trigger ML Backend retraining (FastAPI microservice) - fire-and-forget with API key
+    const mlBackendUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL
+    const mlSecret = process.env.PYTHON_API_SECRET
+    if (mlBackendUrl && mlSecret) {
       fetch(`${mlBackendUrl}/api/train`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "X-API-Key": mlSecret,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ turno: null, force: false }),
         signal: AbortSignal.timeout(30000),
       }).then((r) => {

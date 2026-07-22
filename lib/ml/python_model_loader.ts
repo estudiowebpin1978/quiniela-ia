@@ -13,7 +13,8 @@ let pyCacheLoaded = false
 
 const SB_URL = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SB_KEY = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
-const ML_API_URL = () => (process.env.ML_API_URL || "").replace(/"/g, "").trim()
+const ML_API_URL = () => (process.env.NEXT_PUBLIC_PYTHON_API_URL || "").replace(/"/g, "").trim()
+const ML_API_SECRET = () => (process.env.PYTHON_API_SECRET || "").replace(/"/g, "").trim()
 
 /**
  * Try to fetch live predictions from FastAPI ML Backend.
@@ -21,10 +22,15 @@ const ML_API_URL = () => (process.env.ML_API_URL || "").replace(/"/g, "").trim()
  */
 export async function fetchFromMLBackend(turno: string): Promise<PythonBoostResult | null> {
   const url = ML_API_URL()
+  const secret = ML_API_SECRET()
   if (!url) return null
 
   try {
+    const headers: Record<string, string> = {}
+    if (secret) headers["X-API-Key"] = secret
+
     const res = await fetch(`${url}/api/predict/${turno}?top=100`, {
+      headers,
       signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) return null

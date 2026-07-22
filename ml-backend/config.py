@@ -8,6 +8,7 @@ load_dotenv()
 
 SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+PYTHON_API_SECRET = os.environ.get("PYTHON_API_SECRET", "")
 ML_API_PORT = int(os.environ.get("ML_API_PORT", "8000"))
 ML_API_HOST = os.environ.get("ML_API_HOST", "0.0.0.0")
 
