@@ -17,7 +17,8 @@ function extractNums(html: string, rx: RegExp, max = 20): number[] {
 // ─── Fuente 1: Lotería de la Ciudad (Oficial) ───────────────────────────────
 // POST a PHP endpoint, HTML con <div class="pos">NN</div> seguido de <div>NNNN</div>
 export async function parseLoteriaOficial(fechaISO: string, _fechaUrl: string, turno: string): Promise<ScrapeResult | null> {
-  const refDate = new Date("2026-06-08T12:00:00Z")
+  const refDateStr = process.env.LOTERIA_REF_DATE || "2026-06-08"
+  const refDate = new Date(refDateStr + "T12:00:00Z")
   const targetDate = new Date(fechaISO + "T12:00:00Z")
   const daysDiff = Math.round((targetDate.getTime() - refDate.getTime()) / 86400000)
   let weekdays = 0

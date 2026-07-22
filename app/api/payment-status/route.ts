@@ -33,24 +33,30 @@ export async function GET(req: NextRequest) {
     const profile = profiles?.[0]
 
     if (!profile) {
-      // Create profile if missing
+      // Create profile if missing with 30-day trial
+      const trialUntil = new Date(Date.now() + 30 * 86400000).toISOString();
       await fetch(`${SB_URL()}/rest/v1/user_profiles`, {
         method: "POST",
         headers: {
           "apikey": SB_KEY(), Authorization: `Bearer ${SB_KEY()}`,
           "Content-Type": "application/json", Prefer: "return=minimal",
         },
-        body: JSON.stringify({ id: user.id, email: user.email || "", role: "free" }),
+        body: JSON.stringify({ id: user.id, email: user.email || "", role: "free", premium_until: trialUntil }),
       });
-      return NextResponse.json({ isPremium: false, role: "free", premium_until: null, daysRemaining: null });
+      return NextResponse.json({ isPremium: true, role: "free", premium_until: trialUntil, daysRemaining: 30 });
     }
 
+    const adminEmails = ["estudiowebpin@gmail.com"];
+    const isAdmin = adminEmails.includes(user.email?.toLowerCase?.() || user.email);
+    const dbRole = profile?.role ?? "free";
+    const role = isAdmin ? "admin" : (dbRole === "admin" ? "free" : dbRole);
+
     const isPremium =
-      profile?.role === "admin" ||
-      (profile?.role === "premium" &&
+      role === "admin" ||
+      (role === "premium" &&
         profile?.premium_until &&
         new Date(profile.premium_until) > new Date()) ||
-      (profile?.role === "free" &&
+      (role === "free" &&
         profile?.premium_until &&
         new Date(profile.premium_until) > new Date())
 
@@ -62,11 +68,14 @@ export async function GET(req: NextRequest) {
       if (daysRemaining < 0) daysRemaining = 0
     }
 
+    const trialExpired = role === "free" && profile?.premium_until && new Date(profile.premium_until) <= new Date()
+
     return NextResponse.json({
       isPremium,
-      role: profile?.role ?? "free",
+      role,
       premium_until: profile?.premium_until || null,
       daysRemaining,
+      trialExpired: !!trialExpired,
     })
   } catch {
     return NextResponse.json({ isPremium: false, role: "free" })

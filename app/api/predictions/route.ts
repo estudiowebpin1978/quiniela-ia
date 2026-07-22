@@ -43,6 +43,26 @@ import { getLatestAnalytics } from "@/lib/analisis/turn-analytics"
 
 export const maxDuration = 60;
 
+interface HeavyCacheScores {
+  monteCarloTop: any[]
+  correlationScores: number[]
+  markovSuperScores: number[]
+  cyclicScores: number[]
+  graphScores: number[]
+  featureScores: number[]
+  multilevelScores: number[]
+  pmiScores: number[]
+  advMarkovScores: number[]
+  positionScores: number[]
+  entropyScores: number[]
+  survivalScores: number[]
+  interTurnoScores: number[]
+  geneticOptimalWeights: number[] | null
+  ensembleMLScores: number[]
+  cdmScores: { number: number; posterior: number }[]
+  crossTurnoScore: Record<number, number>
+}
+
 // Time budget: Vercel Hobby = 10s hard limit. Target 8s for safety.
 const TIME_BUDGET_MS = 8000
 function elapsed(t0: number) { return Date.now() - t0 }
@@ -161,10 +181,8 @@ export async function GET(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
   const userTier = await getUserTier(token)
 
-  // Block expired trial users from generating analyses
-  if (userTier.trialExpired) {
-    return NextResponse.json({ error: "Tu período de prueba ha expirado. Actualizá a Premium para continuar.", trialExpired: true }, { status: 403 })
-  }
+  // Expired trial: allow limited access (2 cifras only)
+  const trialExpired = userTier.trialExpired
 
   const { searchParams } = new URL(req.url)
   const turno = searchParams.get("sorteo") || "previa"
@@ -263,13 +281,15 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // === DETERMINE PATH EARLY: fast (3 engines) vs full (20 engines) ===
-    // On cold start: ALWAYS fast path. Full path runs via background precompute only.
+    // === DETERMINE PATH: Run all engines in background, but serve fast cached response if available ===
+    // Fast path: 30 factores + drift + seasonal (~1s). Full path: all 19 engines (~5s).
+    // Full results are cached for 1 hour; subsequent requests use cached heavy scores.
     const fullCacheKey = `full:${turnoQuery}:${targetDate}`
     const gc3 = globalThis as any
     if (!gc3.__fullCache) gc3.__fullCache = {}
     const fullCached = gc3.__fullCache[fullCacheKey]
-    const useFullPath = false // First request is ALWAYS fast; full result is precomputed by cron/precompute
+    const useFullPath = !!fullCached?.scores || fullCached?.warm === true
+    const hc = fullCached?.scores as HeavyCacheScores | undefined
 
     // === MOTOR DE 30 FACTORES ===
     const runFactores30 = shouldRunMotorSync("factores30", turnoQuery)
@@ -289,7 +309,9 @@ export async function GET(req: NextRequest) {
     // === CROSS-TURNO + PESOS DINÁMICOS: only in full path ===
     let crossTurnoScore: Record<number, number> = {}
     let pesosDinamicos: PesosDinamicos | null = null
-    if (useFullPath) {
+    if (hc?.crossTurnoScore) {
+      crossTurnoScore = hc.crossTurnoScore
+    } else if (useFullPath) {
       const [crossResult, pesosResult] = await Promise.allSettled([
         shouldRunMotorSync("crossTurno", turnoQuery) ? analisisCrossTurno(turno, 3, targetDate || undefined) : Promise.resolve({ crossTurnoScore: {} as Record<number, number> }),
         calcularPesosDinamicos(turnoQuery)
@@ -302,52 +324,42 @@ export async function GET(req: NextRequest) {
     const heavySeqs = sequences.slice(0, Math.min(100, sequences.length))
 
     // === MONTE CARLO SIMULATION (only in full path) ===
-    let monteCarloTop = useFullPath && shouldRunMotorSync("monteCarlo", turnoQuery) ? runMonteCarlo(heavySeqs, { simulations: 500, topN: 100 }) : []
+    let monteCarloTop: any[] = hc?.monteCarloTop || []
+    if (!hc?.monteCarloTop && useFullPath && shouldRunMotorSync("monteCarlo", turnoQuery)) {
+      try { monteCarloTop = runMonteCarlo(heavySeqs, { simulations: 500, topN: 100 }) } catch {}
+    }
 
     // === CORRELATION ANALYSIS (only in full path) ===
-    let correlationScores = new Array(100).fill(0.5)
-    if (useFullPath && shouldRunMotorSync("correlation", turnoQuery)) {
-      try {
-        const correlationResult = analyzeCorrelations(heavySeqs)
-        correlationScores = correlationResult.numberScores
-      } catch {}
+    let correlationScores: number[] = hc?.correlationScores || new Array(100).fill(0.5)
+    if (!hc?.correlationScores && useFullPath && shouldRunMotorSync("correlation", turnoQuery)) {
+      try { correlationScores = analyzeCorrelations(heavySeqs).numberScores } catch {}
     }
 
     // === HIGHER-ORDER MARKOV ===
-    let markovSuperScores = new Array(100).fill(0.5)
-    if (useFullPath && shouldRunMotorSync("markovSuperior", turnoQuery)) {
-      try {
-        const markovSuperResult = higherOrderMarkov(heavySeqs, 4)
-        markovSuperScores = markovSuperResult.scores
-      } catch {}
+    let markovSuperScores: number[] = hc?.markovSuperScores || new Array(100).fill(0.5)
+    if (!hc?.markovSuperScores && useFullPath && shouldRunMotorSync("markovSuperior", turnoQuery)) {
+      try { markovSuperScores = higherOrderMarkov(heavySeqs, 4).scores } catch {}
     }
 
     // === CYCLIC PATTERNS ===
-    let cyclicScores = new Array(100).fill(0.5)
-    if (useFullPath && shouldRunMotorSync("cyclicPatterns", turnoQuery)) {
-      try {
-        const cyclicResult = detectCyclicPatterns(heavySeqs)
-        cyclicScores = cyclicResult.scores
-      } catch {}
+    let cyclicScores: number[] = hc?.cyclicScores || new Array(100).fill(0.5)
+    if (!hc?.cyclicScores && useFullPath && shouldRunMotorSync("cyclicPatterns", turnoQuery)) {
+      try { cyclicScores = detectCyclicPatterns(heavySeqs).scores } catch {}
     }
 
     // === GRAPH ANALYSIS ===
-    let graphScores = new Array(100).fill(0.5)
-    if (useFullPath && shouldRunMotorSync("graphAnalysis", turnoQuery)) {
-      try {
-        const graphResult = analyzeGraph(heavySeqs)
-        graphScores = graphResult.scores
-      } catch {}
+    let graphScores: number[] = hc?.graphScores || new Array(100).fill(0.5)
+    if (!hc?.graphScores && useFullPath && shouldRunMotorSync("graphAnalysis", turnoQuery)) {
+      try { graphScores = analyzeGraph(heavySeqs).scores } catch {}
     }
 
     // === FEATURE ENGINEERING (100+ variables) ===
-    let featureScores = new Array(100).fill(0.5)
-    let featureMatrix: ReturnType<typeof computeFeatureMatrix> | null = null
-    if (useFullPath && shouldRunMotorSync("featureEngineering", turnoQuery)) {
+    let featureScores: number[] = hc?.featureScores || new Array(100).fill(0.5)
+    if (!hc?.featureScores && useFullPath && shouldRunMotorSync("featureEngineering", turnoQuery)) {
       try {
-        featureMatrix = computeFeatureMatrix(heavySeqs)
+        const fm = computeFeatureMatrix(heavySeqs)
         for (let n = 0; n < 100; n++) {
-          const vec = featureMatrix.vectors.find(v => v.number === n)
+          const vec = fm.vectors.find(v => v.number === n)
           if (vec) {
             const vals = Object.values(vec.features)
             featureScores[n] = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0.5
@@ -357,47 +369,35 @@ export async function GET(req: NextRequest) {
     }
 
     // === MULTI-LEVEL SCORING (4D, 3D, 2D, positions) ===
-    let multilevelScores = new Array(100).fill(0.5)
-    if (useFullPath && shouldRunMotorSync("multilevelScoring", turnoQuery)) {
+    let multilevelScores: number[] = hc?.multilevelScores || new Array(100).fill(0.5)
+    if (!hc?.multilevelScores && useFullPath && shouldRunMotorSync("multilevelScoring", turnoQuery)) {
       try {
-        const multilevelResult = computeMultiLevelScores(heavySeqs)
-        for (const ml of multilevelResult) {
-          multilevelScores[ml.number] = ml.combined
-        }
+        for (const ml of computeMultiLevelScores(heavySeqs)) multilevelScores[ml.number] = ml.combined
       } catch {}
     }
 
     // === PMI & CO-OCCURRENCE ===
-    let pmiScores = new Array(100).fill(0.5)
-    if (useFullPath && shouldRunMotorSync("pmiCooccurrence", turnoQuery)) {
-      try {
-        const pmiResult = computeCooccurrence(heavySeqs)
-        pmiScores = pmiResult.scores
-      } catch {}
+    let pmiScores: number[] = hc?.pmiScores || new Array(100).fill(0.5)
+    if (!hc?.pmiScores && useFullPath && shouldRunMotorSync("pmiCooccurrence", turnoQuery)) {
+      try { pmiScores = computeCooccurrence(heavySeqs).scores } catch {}
     }
 
     // === ADVANCED MARKOV (100x100 + 1000x1000 + pair transitions) ===
-    let advMarkovScores = new Array(100).fill(0.5)
-    if (useFullPath && shouldRunMotorSync("advancedMarkov", turnoQuery)) {
-      try {
-        const advMarkovResult = computeAdvancedMarkov(heavySeqs)
-        advMarkovScores = advMarkovResult.scores
-      } catch {}
+    let advMarkovScores: number[] = hc?.advMarkovScores || new Array(100).fill(0.5)
+    if (!hc?.advMarkovScores && useFullPath && shouldRunMotorSync("advancedMarkov", turnoQuery)) {
+      try { advMarkovScores = computeAdvancedMarkov(heavySeqs).scores } catch {}
     }
 
     // === POSITION ANALYSIS ===
-    let positionScores = new Array(100).fill(0.5)
-    if (useFullPath && shouldRunMotorSync("positionAnalysis", turnoQuery)) {
-      try {
-        const positionResult = analyzePositions(heavySeqs)
-        positionScores = positionResult.scores
-      } catch {}
+    let positionScores: number[] = hc?.positionScores || new Array(100).fill(0.5)
+    if (!hc?.positionScores && useFullPath && shouldRunMotorSync("positionAnalysis", turnoQuery)) {
+      try { positionScores = analyzePositions(heavySeqs).scores } catch {}
     }
 
     // === ADVANCED: SHANNON ENTROPY FILTER ===
-    let entropyResult: ReturnType<typeof computeShannonEntropy> | null = null
-    let entropyScores = new Array(100).fill(0.5)
-    if (useFullPath && shouldRunMotorSync("shannonEntropy", turnoQuery)) {
+    let entropyResult: any = null
+    let entropyScores: number[] = hc?.entropyScores || new Array(100).fill(0.5)
+    if (!hc?.entropyScores && useFullPath && shouldRunMotorSync("shannonEntropy", turnoQuery)) {
       try {
         entropyResult = computeShannonEntropy(heavySeqs.map(s => s.map(n => n % 100)))
         entropyScores = getEntropyScores(entropyResult)
@@ -405,9 +405,9 @@ export async function GET(req: NextRequest) {
     }
 
     // === ADVANCED: SURVIVAL ANALYSIS (Kaplan-Meier) ===
-    let survivalResult: ReturnType<typeof computeSurvivalAnalysis> | null = null
-    let survivalScores = new Array(100).fill(0.5)
-    if (useFullPath && shouldRunMotorSync("survivalAnalysis", turnoQuery)) {
+    let survivalResult: any = null
+    let survivalScores: number[] = hc?.survivalScores || new Array(100).fill(0.5)
+    if (!hc?.survivalScores && useFullPath && shouldRunMotorSync("survivalAnalysis", turnoQuery)) {
       try {
         survivalResult = computeSurvivalAnalysis(heavySeqs.map(s => s.map(n => n % 100)))
         survivalScores = getSurvivalScores(survivalResult)
@@ -415,41 +415,29 @@ export async function GET(req: NextRequest) {
     }
 
     // === ADVANCED: INTER-TURNO MARKOV (order 2) ===
-    let interTurnoResult: ReturnType<typeof computeInterTurnoMarkov> | null = null
-    let interTurnoScores = new Array(100).fill(0.5)
-    if (useFullPath && shouldRunMotorSync("interTurnoMarkov", turnoQuery)) {
+    let interTurnoResult: any = null
+    let interTurnoScores: number[] = hc?.interTurnoScores || new Array(100).fill(0.5)
+    if (!hc?.interTurnoScores && useFullPath && shouldRunMotorSync("interTurnoMarkov", turnoQuery)) {
       try {
-        // Build sequences for all turnos to compute inter-turno dependencies
         const allTurnoSeqs = new Map<string, number[][]>()
         for (const t of ['Matutina', 'Vespertina', 'Nocturna']) {
-          const tSeqs: number[][] = []
-          for (const seq of sequences.slice(0, 100)) {
-            tSeqs.push(seq.map(n => n % 100))
-          }
-          allTurnoSeqs.set(t, tSeqs)
+          allTurnoSeqs.set(t, sequences.slice(0, 100).map(s => s.map(n => n % 100)))
         }
         interTurnoResult = computeInterTurnoMarkov(allTurnoSeqs, 2)
-        // Current state = last digits of preceding turns
-        const currentState = ['Matutina', 'Vespertina'].map(t => {
-          const seqs = allTurnoSeqs.get(t)
-          return (seqs?.[0]?.[0] ?? 0) % 100
-        })
+        const currentState = ['Matutina', 'Vespertina'].map(t => (allTurnoSeqs.get(t)?.[0]?.[0] ?? 0) % 100)
         interTurnoScores = getMarkovScores(interTurnoResult, currentState)
       } catch {}
     }
 
     // === ADVANCED: GENETIC WEIGHT OPTIMIZATION ===
-    let geneticOptimalWeights: number[] | null = null
-    if (useFullPath && shouldRunMotorSync("geneticWeights", turnoQuery)) {
+    let geneticOptimalWeights: number[] | null = hc?.geneticOptimalWeights || null
+    if (!hc?.geneticOptimalWeights && useFullPath && shouldRunMotorSync("geneticWeights", turnoQuery)) {
       try {
-        const enginePreds = [entropyScores, survivalScores, interTurnoScores]
-        const actualNums = heavySeqs.map(s => s.map(n => n % 100))
-        const geneticResult = optimizeWeights(enginePreds, actualNums, enginePreds.length, {
-          populationSize: 20,
-          generations: 30,
-          fitnessWindow: 50
-        })
-        geneticOptimalWeights = geneticResult.optimalWeights
+        geneticOptimalWeights = optimizeWeights(
+          [entropyScores, survivalScores, interTurnoScores],
+          heavySeqs.map(s => s.map(n => n % 100)),
+          3, { populationSize: 20, generations: 30, fitnessWindow: 50 }
+        ).optimalWeights
       } catch {}
     }
 
@@ -472,9 +460,9 @@ export async function GET(req: NextRequest) {
     }
 
     // === ADVANCED ENSEMBLE ML: max 200 draws ===
-    let ensembleMLScores = new Array(100).fill(0.5)
+    let ensembleMLScores: number[] = hc?.ensembleMLScores || new Array(100).fill(0.5)
     let ensembleMLActive = false
-    if (useFullPath && shouldRunMotorSync("ensembleML", turnoQuery)) {
+    if (!hc?.ensembleMLScores && useFullPath && shouldRunMotorSync("ensembleML", turnoQuery)) {
       try {
       const trainSlice = sequences.slice(0, Math.min(200, sequences.length))
       const trainFeatures: number[][] = []
@@ -831,8 +819,8 @@ export async function GET(req: NextRequest) {
       } catch {}
     }
 
-    const pred3 = (analisisAv.recomendaciones.tresCifras as any[]).slice(0, 10).map((r: any) => r.numero.padStart(3, '0'))
-    const pred4 = (analisisAv.recomendaciones.cuatroCifras as any[]).slice(0, 10).map((r: any) => r.numero.padStart(4, '0'))
+    const pred3 = userTier.isPremium ? (analisisAv.recomendaciones.tresCifras as any[]).slice(0, 10).map((r: any) => r.numero.padStart(3, '0')) : []
+    const pred4 = userTier.isPremium ? (analisisAv.recomendaciones.cuatroCifras as any[]).slice(0, 10).map((r: any) => r.numero.padStart(4, '0')) : []
 
     // === BAYESIAN UNCERTAINTY (heavy - full path only) ===
     let bayesian;
@@ -886,7 +874,7 @@ export async function GET(req: NextRequest) {
       debug: {
         elapsed_ms: elapsed(t0),
         factores_aplicados: 30,
-        motores_activos: 19,
+        motores_activos: useFullPath ? 19 : 3,
         total_numeros: terminaciones2.length,
         sorteos_analizados: sequences.length,
         sync: syncStatus ? { sincronizado: syncStatus.synced, nuevos_sorteos: syncStatus.newDraws } : null,
@@ -906,7 +894,7 @@ export async function GET(req: NextRequest) {
           } : null,
           survival: survivalResult ? {
             criticalCount: survivalResult.criticalNumbers.length,
-            topCritical: survivalResult.criticalNumbers.slice(0, 3).map(c => ({
+            topCritical: survivalResult.criticalNumbers.slice(0, 3).map((c: any) => ({
               numero: pad(c.number),
               zScore: c.zScore.toFixed(2),
               classification: c.classification,
@@ -918,7 +906,7 @@ export async function GET(req: NextRequest) {
             order: interTurnoResult.order,
             patternsFound: interTurnoResult.patterns.length,
             totalTransitions: interTurnoResult.totalTransitions,
-            topPatterns: interTurnoResult.patterns.slice(0, 3).map(p => ({
+            topPatterns: interTurnoResult.patterns.slice(0, 3).map((p: any) => ({
               state: p.state,
               nextNumber: pad(p.nextNumber),
               probability: (p.probability * 100).toFixed(2) + "%",
@@ -994,10 +982,35 @@ export async function GET(req: NextRequest) {
     if (!gc2.__predCache) gc2.__predCache = {}
     gc2.__predCache[cacheKey] = { result: responsePayload, expiresAt: Date.now() + 600_000 }
 
-    // If full path ran, cache it for 1 hour to avoid re-running heavy engines
+    // If full path ran, store scores in cache for 1 hour to avoid re-running
     if (useFullPath) {
       if (!gc2.__fullCache) gc2.__fullCache = {}
-      gc2.__fullCache[fullCacheKey] = { expiresAt: Date.now() + 3_600_000 }
+      gc2.__fullCache[fullCacheKey] = {
+        scores: {
+          crossTurnoScore,
+          monteCarloTop,
+          correlationScores,
+          markovSuperScores,
+          cyclicScores,
+          graphScores,
+          featureScores,
+          multilevelScores,
+          pmiScores,
+          advMarkovScores,
+          positionScores,
+          entropyScores,
+          survivalScores,
+          interTurnoScores,
+          geneticOptimalWeights,
+          ensembleMLScores,
+          cdmScores,
+        } as HeavyCacheScores,
+        expiresAt: Date.now() + 3_600_000,
+      }
+    } else if (!fullCached) {
+      // Mark for warm: next request will run heavy engines synchronously
+      if (!gc2.__fullCache) gc2.__fullCache = {}
+      gc2.__fullCache[fullCacheKey] = { warm: true, expiresAt: Date.now() + 60000 }
     }
 
     // === MOTOR PERFORMANCE TRACKING ===
