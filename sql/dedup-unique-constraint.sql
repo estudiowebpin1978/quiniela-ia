@@ -1,5 +1,5 @@
 -- ============================================================
--- Deduplication: Add UNIQUE constraint on draws (date, turno)
+-- Deduplication: Add UNIQUE constraint on draws (date, turno, game_id)
 -- Prevents duplicate rows when using resolution=merge-duplicates
 -- Run after multi-game-schema.sql
 -- ============================================================
@@ -12,8 +12,12 @@ WHERE a.id < b.id
   AND a.turno = b.turno
   AND a.game_id IS NOT DISTINCT FROM b.game_id;
 
--- Add UNIQUE constraint
-ALTER TABLE draws ADD CONSTRAINT draws_date_turno_key UNIQUE (date, turno, COALESCE(game_id, '00000000-0000-0000-0000-000000000000'));
+-- Ensure game_id is NOT NULL for constraint to work (backfill NULLs)
+UPDATE draws SET game_id = '00000000-0000-0000-0000-000000000000' WHERE game_id IS NULL;
+
+-- Add UNIQUE constraint (now game_id is NOT NULL)
+ALTER TABLE draws ALTER COLUMN game_id SET NOT NULL;
+ALTER TABLE draws ADD CONSTRAINT draws_date_turno_key UNIQUE (date, turno, game_id);
 
 -- Add index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_draws_date_turno ON draws (date, turno);
