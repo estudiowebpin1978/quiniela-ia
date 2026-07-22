@@ -43,17 +43,53 @@ function pad(n: number, l = 2): string {
   return String(n).padStart(l, '0');
 }
 
+async function getUserTier(token: string): Promise<{ isPremium: boolean; role: string }> {
+  const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/"/g, '').trim();
+  const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '').replace(/"/g, '').trim();
+  try {
+    const userRes = await fetch(`${SB}/auth/v1/user`, {
+      headers: { apikey: SK, Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!userRes.ok) return { isPremium: false, role: "free" };
+    const user = await userRes.json();
+    const profRes = await fetch(`${SB}/rest/v1/user_profiles?id=eq.${user.id}&select=role,premium_until&limit=1`, {
+      headers: { apikey: SK, Authorization: `Bearer ${SK}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!profRes.ok) return { isPremium: false, role: "free" };
+    const profiles = await profRes.json();
+    const profile = profiles?.[0];
+    if (!profile) return { isPremium: false, role: "free" };
+    const adminEmails = ["estudiowebpin@gmail.com"];
+    const isAdmin = adminEmails.includes(user.email?.toLowerCase?.() || user.email);
+    const role = isAdmin ? "admin" : (profile.role === "admin" ? "free" : (profile.role ?? "free"));
+    const isPremium = role === "admin" ||
+      (role === "premium" && profile.premium_until && new Date(profile.premium_until) > new Date()) ||
+      (role === "free" && profile.premium_until && new Date(profile.premium_until) > new Date());
+    return { isPremium, role };
+  } catch {
+    return { isPremium: false, role: "free" };
+  }
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const turno = searchParams.get('turno') || 'todos';
   const dias = parseInt(searchParams.get('dias') || '90');
-  const incluirML = searchParams.get('ml') === 'true';
 
   const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/"/g, '').trim();
   const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '').replace(/"/g, '').trim();
 
   if (!SB || !SK) {
     return NextResponse.json({ error: 'Configuración incompleta' }, { status: 500 });
+  }
+
+  const token = req.headers.get("authorization")?.replace("Bearer ", "");
+  let isPremium = false;
+  if (token) {
+    const tier = await getUserTier(token);
+    isPremium = tier.isPremium;
   }
 
   const ctrl = new AbortController();
@@ -104,21 +140,22 @@ export async function GET(req: NextRequest) {
       razon: r.razon
     }));
 
-    const pred3 = analisis.recomendaciones.tresCifras.map(p => ({
+    const pred3 = isPremium ? analisis.recomendaciones.tresCifras.map(p => ({
       numero: pad(parseInt(p.numero), 3),
       confianza: p.confianza
-    }));
+    })) : [];
 
-    const pred4 = analisis.recomendaciones.cuatroCifras.map(p => ({
+    const pred4 = isPremium ? analisis.recomendaciones.cuatroCifras.map(p => ({
       numero: pad(parseInt(p.numero), 4),
       probabilidad: (p as any).probabilidad || 0
-    }));
+    })) : [];
 
-    const redoblona = analisis.recomendaciones.redoblona;
+    const redoblona = isPremium ? analisis.recomendaciones.redoblona : null;
 
     return NextResponse.json({
       ok: true,
       turno: turno === 'todos' ? 'todos' : turno,
+      isPremium,
       datos: {
         totalSorteos: analisis.resumen.totalSorteos,
         totalNumeros: analisis.resumen.totalNumeros,

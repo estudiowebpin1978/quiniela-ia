@@ -115,24 +115,13 @@ async function saveDraw(
   nums: number[],
   source: string
 ): Promise<boolean> {
-  await fetch(
-    `${SB()}/rest/v1/draws?date=eq.${fechaISO}&turno=eq.${turno}`,
-    {
-      method: "DELETE",
-      headers: {
-        apikey: SK(),
-        Authorization: `Bearer ${SK()}`,
-        Prefer: "return=minimal",
-      },
-    }
-  )
   const r = await fetch(`${SB()}/rest/v1/draws`, {
     method: "POST",
     headers: {
       apikey: SK(),
       Authorization: `Bearer ${SK()}`,
       "Content-Type": "application/json",
-      Prefer: "return=minimal",
+      Prefer: "resolution=merge-duplicates,return=minimal",
     },
     body: JSON.stringify({ date: fechaISO, turno, numbers: nums, source }),
   })

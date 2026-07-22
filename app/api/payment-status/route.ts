@@ -49,6 +49,9 @@ export async function GET(req: NextRequest) {
       profile?.role === "admin" ||
       (profile?.role === "premium" &&
         profile?.premium_until &&
+        new Date(profile.premium_until) > new Date()) ||
+      (profile?.role === "free" &&
+        profile?.premium_until &&
         new Date(profile.premium_until) > new Date())
 
     let daysRemaining = null

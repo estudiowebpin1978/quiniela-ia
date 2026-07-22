@@ -95,6 +95,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, message: "No userId" })
   }
 
+  // Validate userId is a valid UUID
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_REGEX.test(String(userId))) {
+    return NextResponse.json({ ok: true, message: "Invalid userId format" })
+  }
+
+  // Idempotency: check if this orderId was already processed
+  if (orderId) {
+    try {
+      const existingLog = await fetch(
+        `${SB_URL()}/rest/v1/webhook_logs?payload=cs.${encodeURIComponent(JSON.stringify({ orderId }))}&select=id&limit=1`,
+        { headers: { apikey: SB_KEY(), Authorization: `Bearer ${SB_KEY()}` } }
+      )
+      if (existingLog.ok) {
+        const logs = await existingLog.json()
+        if (Array.isArray(logs) && logs.length > 0) {
+          logger.info("[webhook-uala] Duplicate orderId, skipping", { orderId })
+          return NextResponse.json({ ok: true, message: "Already processed" })
+        }
+      }
+    } catch {
+      // If webhook_logs table doesn't exist, continue processing
+    }
+  }
+
   // Verify payment with Ualá Bis API (real integration)
   if (orderId) {
     const verification = await verifyUalaPayment(String(orderId))

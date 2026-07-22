@@ -88,7 +88,26 @@ export default function Home() {
     return () => clearInterval(iv)
   }, [])
 
-  if (!ready) return null
+  if (!ready) return (
+    <div style={{
+      minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "center", padding: "24px 20px",
+      background: "linear-gradient(180deg, #0a0a1a 0%, #1a0a2e 50%, #0a0a1a 100%)",
+    }}>
+      <div className="animate-float" style={{
+        width: 100, height: 100, borderRadius: 28,
+        background: "linear-gradient(135deg, #ff3366, #cc0033)",
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        fontSize: 52, marginBottom: 16,
+        boxShadow: "0 12px 0 #990033, 0 16px 40px rgba(255,51,102,0.5)",
+      }}>📊</div>
+      <h1 className="gradient-text" style={{
+        fontSize: 42, fontWeight: 900, letterSpacing: "-1px", textAlign: "center", marginBottom: 8,
+        fontFamily: "var(--font-display)",
+      }}>Quiniela IA</h1>
+      <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 8 }}>Cargando...</div>
+    </div>
+  )
 
   return (<>
     <AgeGate />

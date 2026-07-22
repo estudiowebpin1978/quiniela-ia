@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import logger from "@/lib/logger"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
@@ -129,13 +130,9 @@ async function scrapeTurno(fechaUrl: string, turno: string): Promise<number[]> {
 }
 
 async function guardarDraw(fechaISO: string, turno: string, nums: number[]): Promise<boolean> {
-  await fetch(`${SB()}/rest/v1/draws?date=eq.${fechaISO}&turno=eq.${turno}`, {
-    method: "DELETE",
-    headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}`, "Prefer": "return=minimal" }
-  })
   const r = await fetch(`${SB()}/rest/v1/draws`, {
     method: "POST",
-    headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}`, "Content-Type": "application/json", "Prefer": "return=minimal" },
+    headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}`, "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify({ date: fechaISO, turno, numbers: nums, source: "quiniela-nacional.com" })
   })
   return r.ok
@@ -152,7 +149,7 @@ async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
   } catch { return false }
 }
 
-async function backfillDiasFaltantes(hoy: string, expected: string, cronSecret: string, maxDias: number = 7): Promise<number> {
+async function backfillDiasFaltantes(hoy: string, cronSecret: string, maxDias: number = 7): Promise<number> {
   let backfilled = 0
   for (let d = 1; d <= maxDias; d++) {
     const f = new Date(hoy + "T12:00:00-03:00")
@@ -165,36 +162,30 @@ async function backfillDiasFaltantes(hoy: string, expected: string, cronSecret: 
       if (turno === "Previa" && diaSemana === 6) continue
       if (await tieneDraw(fechaStr, turno)) continue
 
-      const nums = await scrapeTurno(fUrl, turno)
-      if (nums.length >= 20) {
-        await guardarDraw(fechaStr, turno, nums)
-        backfilled++
-        logger.info(`[BACKFILL] ${fechaStr} ${turno}: ${nums.length} numeros`)
-        fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-push?secret=${cronSecret}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ turno, numeros: nums, fecha: fechaStr })
-        }).catch(() => {})
+      try {
+        const nums = await scrapeTurno(fUrl, turno)
+        if (nums.length >= 20) {
+          await guardarDraw(fechaStr, turno, nums)
+          backfilled++
+          logger.info(`[BACKFILL] ${fechaStr} ${turno}: ${nums.length} numeros`)
+          fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-push?secret=${cronSecret}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ turno, numeros: nums, fecha: fechaStr })
+          }).catch(() => {})
+        }
+      } catch (e) {
+        logger.error(`[BACKFILL] Error processing ${fechaStr} ${turno}`, { error: String(e) })
       }
     }
   }
   return backfilled
 }
 
-function isAuthorizedCron(req: NextRequest): boolean {
-  // Vercel Cron sends x-vercel-cron header
-  if (req.headers.get("x-vercel-cron") === "1") return true
-  // GitHub Actions / external cron via secret
-  const secret = req.nextUrl.searchParams.get("secret") || ""
-  const expected = process.env.CRON_SECRET
-  if (secret && expected && secret === expected) return true
-  return false
-}
-
 export async function GET(req: NextRequest) {
-  if (!isAuthorizedCron(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const secret = req.nextUrl.searchParams.get("secret") || ""
-  const expected = process.env.CRON_SECRET || ""
+  const auth = await validateCronAuth(req)
+  if (!auth.authorized) return unauthorizedResponse()
+  const secret = req.nextUrl.searchParams.get("secret") || process.env.CRON_SECRET || ""
 
   const save = req.nextUrl.searchParams.get("save") === "true"
   const turnoParam = req.nextUrl.searchParams.get("turno") || ""
@@ -207,7 +198,7 @@ export async function GET(req: NextRequest) {
   // Deep fill: buscar sorteos faltantes en un rango de hasta 90 dias
   if (fill === "deep" && save) {
     const fillDays = Math.min(parseInt(req.nextUrl.searchParams.get("days") || "90"), 90)
-    const fillBackfilled = await backfillDiasFaltantes(fechaISO, expected, secret, fillDays)
+    const fillBackfilled = await backfillDiasFaltantes(fechaISO, secret, fillDays)
     return NextResponse.json({ ok: true, message: "Deep fill completo", backfilled: fillBackfilled })
   }
 
@@ -235,7 +226,7 @@ export async function GET(req: NextRequest) {
       if (save) {
         if (await guardarDraw(fechaISO, turno, nums)) {
           totalGuardados++
-          fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-push?secret=${expected}`, {
+          fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-push?secret=${secret}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ turno, numeros: nums, fecha: fechaISO })
@@ -248,7 +239,7 @@ export async function GET(req: NextRequest) {
   // BACKFILL: completar sorteos faltantes de los ultimos 3 dias
   let backfilled = 0
   if (save) {
-    backfilled = await backfillDiasFaltantes(fechaISO, expected, secret)
+    backfilled = await backfillDiasFaltantes(fechaISO, secret)
   }
 
   const resultados: Record<string, number[]> = {}

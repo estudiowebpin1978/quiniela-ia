@@ -459,6 +459,18 @@ export async function GET(req: NextRequest) {
       cachedAnalytics = await getLatestAnalytics(turnoQuery)
     } catch {}
 
+    // === INTEGRATE turn_analytics: use pre-calculated entropy/survival/markov scores ===
+    let analyticsEntropyScores = new Array(100).fill(0.5)
+    let analyticsSurvivalScores = new Array(100).fill(0.5)
+    let analyticsMarkovScores = new Array(100).fill(0.5)
+    let analyticsGeneticWeights: number[] | null = null
+    if (cachedAnalytics) {
+      if (cachedAnalytics.entropy_scores) analyticsEntropyScores = cachedAnalytics.entropy_scores
+      if (cachedAnalytics.survival_scores) analyticsSurvivalScores = cachedAnalytics.survival_scores
+      if (cachedAnalytics.markov_scores) analyticsMarkovScores = cachedAnalytics.markov_scores
+      if (cachedAnalytics.genetic_weights) analyticsGeneticWeights = cachedAnalytics.genetic_weights
+    }
+
     // === ADVANCED ENSEMBLE ML: max 200 draws ===
     let ensembleMLScores = new Array(100).fill(0.5)
     let ensembleMLActive = false
@@ -629,14 +641,20 @@ export async function GET(req: NextRequest) {
       const survivalScore = survivalScores[n] || 0.5
       const interTurnoScore = interTurnoScores[n] || 0.5
 
-      // Apply genetic optimization weights if available
+      // Analytics pre-calculated scores (from turn_analytics table)
+      const analyticsEntropy = analyticsEntropyScores[n] || 0.5
+      const analyticsSurvival = analyticsSurvivalScores[n] || 0.5
+      const analyticsMarkov = analyticsMarkovScores[n] || 0.5
+
+      // Apply genetic optimization weights if available (live or cached)
+      const activeGeneticWeights = geneticOptimalWeights || analyticsGeneticWeights
       let geneticBoost = 0
-      if (geneticOptimalWeights) {
+      if (activeGeneticWeights) {
         // Genetic weights are for [entropy, survival, interTurno]
         geneticBoost = (
-          (entropyScore - 0.5) * geneticOptimalWeights[0] +
-          (survivalScore - 0.5) * geneticOptimalWeights[1] +
-          (interTurnoScore - 0.5) * geneticOptimalWeights[2]
+          (entropyScore - 0.5) * activeGeneticWeights[0] +
+          (survivalScore - 0.5) * activeGeneticWeights[1] +
+          (interTurnoScore - 0.5) * activeGeneticWeights[2]
         ) * 2 // Amplify genetic contribution
       }
 
@@ -665,7 +683,11 @@ export async function GET(req: NextRequest) {
         (entropyScore - 0.5) * Wext.entropy * 2 +  // Centered around 0.5
         (survivalScore - 0.5) * Wext.survival * 2 +
         (interTurnoScore - 0.5) * Wext.interTurno * 2 +
-        geneticBoost * Wext.genetic
+        geneticBoost * Wext.genetic +
+        // turn_analytics pre-calculated boost (small weight, high value)
+        (analyticsEntropy - 0.5) * 0.02 * 2 +
+        (analyticsSurvival - 0.5) * 0.02 * 2 +
+        (analyticsMarkov - 0.5) * 0.02 * 2
       ) * ajustePeso
 
       // Get factor details

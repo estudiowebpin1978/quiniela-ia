@@ -35,14 +35,13 @@ SB_HEADERS = {
 
 # === API KEY AUTHENTICATION ===
 PYTHON_API_SECRET = os.getenv("PYTHON_API_SECRET", "")
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-async def verify_api_key(api_key: Optional[str] = Depends(api_key_header)):
-    """Validate X-API-Key header. Only protects /api/train; /api/predict and /health are public."""
+def verify_api_key(request):
+    """Validate X-API-Key from request headers. Returns None on success, raises HTTPException on failure."""
     if not PYTHON_API_SECRET:
-        logger.warning("PYTHON_API_SECRET not set - auth disabled (dev mode)")
         return
+    api_key = request.headers.get("X-API-Key")
     if api_key != PYTHON_API_SECRET:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
