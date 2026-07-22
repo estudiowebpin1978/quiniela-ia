@@ -708,7 +708,7 @@ export async function GET(req: NextRequest) {
     // Top 10 de 2 cifras
     const pred2 = scores.slice(0, 10).map(s => pad(s.num))
 
-    // === Análisis de 4 cifras vía motor para 3 y 4 cifras (heavy - full path only) ===
+    // === Análisis de 4 cifras vía motor para 3 y 4 cifras ===
     const sorteos = rows
       .filter((row: any) => Array.isArray(row.numbers) && row.numbers.length >= 20)
       .map((row: any) => ({
@@ -717,12 +717,10 @@ export async function GET(req: NextRequest) {
         numbers: row.numbers.map((n: any) => Number(n)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999)
       }))
     let analisisAv = { recomendaciones: { tresCifras: [], cuatroCifras: [], evitar: [] }, resumen: { promedioConfianza: 0 }, ciclos: { numerosEnCicloFavorables: [] } } as any
-    if (useFullPath) {
-      try {
-        const { ejecutarAnalisisCompleto } = await import("@/lib/analisis/motor")
-        analisisAv = ejecutarAnalisisCompleto(sorteos, { topNRanking: 15 })
-      } catch {}
-    }
+    try {
+      const { ejecutarAnalisisCompleto } = await import("@/lib/analisis/motor")
+      analisisAv = ejecutarAnalisisCompleto(sorteos, { topNRanking: 15 })
+    } catch {}
 
     // === ENSEMBLE: Integrar ML cacheado (TypeScript) ===
     if (useFullPath) {
@@ -777,7 +775,7 @@ export async function GET(req: NextRequest) {
     if (useFullPath) {
       try {
         const { obtenerBoostEnsemble } = await import("@/lib/ml/python_model_loader")
-        const boostEnsemble = obtenerBoostEnsemble(turnoQuery)
+        const boostEnsemble = await obtenerBoostEnsemble(turnoQuery)
         if (boostEnsemble) {
           boostPythonActivo = true
           for (const s of scores) {

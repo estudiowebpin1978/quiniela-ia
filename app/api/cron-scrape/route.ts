@@ -187,7 +187,6 @@ export async function GET(req: NextRequest) {
       logger.warn("cron-scrape: failed to trigger cron-ml-training", { error: String(e) })
     })
 
-    // Trigger turn analytics pre-calculation after each scrape
     const analyticsUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-analytics`
     fetch(analyticsUrl, {
       method: "POST",
@@ -195,6 +194,21 @@ export async function GET(req: NextRequest) {
     }).catch((e) => {
       logger.warn("cron-scrape: failed to trigger cron-analytics", { error: String(e) })
     })
+
+    // Trigger ML Backend retraining (FastAPI microservice)
+    const mlBackendUrl = process.env.ML_API_URL
+    if (mlBackendUrl) {
+      fetch(`${mlBackendUrl}/api/train`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ turno: null, force: false }),
+        signal: AbortSignal.timeout(30000),
+      }).then((r) => {
+        logger.info("cron-scrape: ML backend training triggered", { status: r.status })
+      }).catch((e) => {
+        logger.warn("cron-scrape: ML backend not available", { error: String(e) })
+      })
+    }
   }
 
   const duration = Date.now() - start
