@@ -234,6 +234,9 @@ export async function GET(req: NextRequest) {
   // Load Python ML models from Supabase (async, cached)
   import("@/lib/ml/python_model_loader").then(m => m.loadPythonModelsFromSupabase()).catch(() => {})
 
+  // Load backtest summary from Supabase (async, cached)
+  import("@/lib/backtest/loader").then(m => m.loadBacktestSummary()).catch(() => {})
+
   const ctrl = new AbortController()
   const to = setTimeout(() => ctrl.abort(), 8000)
 
@@ -853,6 +856,13 @@ export async function GET(req: NextRequest) {
       ? `${pad(scores[0].num)}-${pad(scores[1].num)}`
       : "00-00"
 
+    // Fetch backtest summary for this turno/model
+    let backtestSummary: any = null
+    try {
+      const { getBacktestSummary } = await import("@/lib/ml/backtest-loader")
+      backtestSummary = await getBacktestSummary(turnoQuery, "ensemble")
+    } catch {}
+
     // Heatmap
     const heatmap = scores.slice(0, 10).map(s => ({
       n: s.num, f: s.frecuencia,
@@ -938,6 +948,14 @@ export async function GET(req: NextRequest) {
       },
       redoblona: userTier.isPremium ? redoblona : null,
       heatmap,
+      backtest: backtestSummary ? {
+        hit_at_1_pct: backtestSummary.hit_at_1_pct,
+        hit_at_5_pct: backtestSummary.hit_at_5_pct,
+        hit_at_10_pct: backtestSummary.hit_at_10_pct,
+        avg_roi: backtestSummary.avg_roi,
+        total_tests: backtestSummary.total_tests,
+        model_type: backtestSummary.model_type,
+      } : null,
       stats: {
         totalNumeros: terminaciones2.length,
         promedioPorSorteo: (terminaciones2.length / sequences.length).toFixed(2),
