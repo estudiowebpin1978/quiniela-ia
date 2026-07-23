@@ -648,8 +648,8 @@ BEGIN
         numero,
         score,
         RANK() OVER (ORDER BY score DESC) AS rank,
-        ARRAY_AGG(numero ORDER BY score DESC LIMIT 5) AS top5,
-        ARRAY_AGG(numero ORDER BY score DESC LIMIT 10) AS top10
+        (SELECT ARRAY_AGG(numero ORDER BY score DESC) FROM get_ensemble_scores(v_turno, p_game_slug) LIMIT 5) AS top5,
+        (SELECT ARRAY_AGG(numero ORDER BY score DESC) FROM get_ensemble_scores(v_turno, p_game_slug) LIMIT 10) AS top10
       FROM get_ensemble_scores(v_turno, p_game_slug)
       LIMIT 100
     ) pred
