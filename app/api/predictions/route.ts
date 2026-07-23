@@ -235,7 +235,7 @@ export async function GET(req: NextRequest) {
   import("@/lib/ml/python_model_loader").then(m => m.loadPythonModelsFromSupabase()).catch(() => {})
 
   // Load backtest summary from Supabase (async, cached)
-  import("@/lib/backtest/loader").then(m => m.loadBacktestSummary()).catch(() => {})
+  import("@/lib/ml/backtest-loader").then(m => m.getBacktestSummary("nocturna")).catch(() => {})
 
   const ctrl = new AbortController()
   const to = setTimeout(() => ctrl.abort(), 8000)
