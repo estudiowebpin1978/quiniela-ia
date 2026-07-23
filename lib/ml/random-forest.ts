@@ -1,3 +1,5 @@
+import { createRng, hashSeed, seededInt } from '@/lib/math/seeded-rng';
+
 export interface ArbolDecision {
   feature: string | null;
   threshold: number | null;
@@ -56,10 +58,11 @@ export function entrenarRandomForest(
   rf.arbres = [];
 
   const nBootstrap = Math.min(datos.length, datos.length);
+  const baseSeed = hashSeed(datos.length, rf.nFeatures, rf.nArboles);
   
   for (let i = 0; i < rf.nArboles; i++) {
-    const bootstrap = generarBootstrap(datos, nBootstrap);
-    const tree = construirArbol(bootstrap, 0, MAX_PROFUNDIDAD_DEFAULT);
+    const bootstrap = generarBootstrap(datos, nBootstrap, baseSeed + i * 9973);
+    const tree = construirArbol(bootstrap, 0, MAX_PROFUNDIDAD_DEFAULT, baseSeed + i * 7919);
     rf.arbres.push(tree);
   }
 
@@ -74,11 +77,13 @@ export function entrenarRandomForest(
 
 function generarBootstrap(
   datos: { features: number[]; etiqueta: number }[],
-  n: number
+  n: number,
+  seed: number
 ): { features: number[]; etiqueta: number }[] {
+  const rng = createRng(seed);
   const bootstrap: { features: number[]; etiqueta: number }[] = [];
   for (let i = 0; i < n; i++) {
-    const idx = Math.floor(Math.random() * datos.length);
+    const idx = seededInt(rng, datos.length);
     bootstrap.push(datos[idx]);
   }
   return bootstrap;
@@ -87,7 +92,8 @@ function generarBootstrap(
 function construirArbol(
   datos: { features: number[]; etiqueta: number }[],
   profundidad: number,
-  maxProfundidad: number
+  maxProfundidad: number,
+  seed: number
 ): ArbolDecision {
   if (profundidad >= maxProfundidad || datos.length < MIN_MUESTRAS_HOJA) {
     const labels = datos.map(d => d.etiqueta);
@@ -106,7 +112,7 @@ function construirArbol(
     };
   }
 
-  const mejorSplit = encontrarMejorSplit(datos);
+  const mejorSplit = encontrarMejorSplit(datos, seed + profundidad * 131);
   
   if (!mejorSplit) {
     const meanVal = datos.reduce((sum, d) => sum + d.etiqueta, 0) / datos.length;
@@ -134,24 +140,30 @@ function construirArbol(
   return {
     feature: mejorSplit.feature !== null ? `feature_${mejorSplit.feature}` : null,
     threshold: mejorSplit.threshold,
-    izquierda: construirArbol(izquierda, profundidad + 1, maxProfundidad),
-    derecha: construirArbol(derecha, profundidad + 1, maxProfundidad),
+    izquierda: construirArbol(izquierda, profundidad + 1, maxProfundidad, seed + 17),
+    derecha: construirArbol(derecha, profundidad + 1, maxProfundidad, seed + 31),
     importancia: 1,
     featureIdx: mejorSplit.feature ?? undefined
   };
 }
 
 function encontrarMejorSplit(
-  datos: { features: number[]; etiqueta: number }[]
+  datos: { features: number[]; etiqueta: number }[],
+  seed: number
 ): { feature: number | null; threshold: number | null; ganancia: number } | null {
   if (datos.length < 2) return null;
 
   const nFeatures = datos[0].features.length;
   const nSubset = Math.max(1, Math.round(Math.sqrt(nFeatures)));
+  const rng = createRng(seed);
   const candidatas = new Set<number>();
-  while (candidatas.size < nSubset && candidatas.size < nFeatures) {
-    candidatas.add(Math.floor(Math.random() * nFeatures));
+  let guard = 0;
+  while (candidatas.size < nSubset && candidatas.size < nFeatures && guard < nFeatures * 4) {
+    candidatas.add(seededInt(rng, nFeatures));
+    guard++;
   }
+  // Fallback determinista si el set quedó corto
+  for (let f = 0; candidatas.size < nSubset && f < nFeatures; f++) candidatas.add(f);
 
   let mejorGanancia = -Infinity;
   let mejorFeature: number | null = null;

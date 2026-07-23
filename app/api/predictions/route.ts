@@ -6,6 +6,7 @@
  * Free: solo 2 cifras | Premium: 3/4 cifras + redoblona.
  */
 
+import { unstable_cache } from "next/cache"
 import { NextRequest, NextResponse } from "next/server"
 import { revalidateTag } from "next/cache"
 import { analisisCrossTurno } from "@/lib/analisis/cross-turno"
@@ -205,7 +206,7 @@ export async function GET(req: NextRequest) {
   )
 
   const ctrl = new AbortController()
-  const to = setTimeout(() => ctrl.abort(), 8000)
+  const to = setTimeout(() => ctrl.abort(), 25000)
 
   try {
     const dateFilter = targetDate ? `&date=lt.${targetDate}` : ""
@@ -690,10 +691,14 @@ export async function GET(req: NextRequest) {
         numbers: row.numbers.map((n: any) => Number(n)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999)
       }))
     let analisisAv = { recomendaciones: { tresCifras: [], cuatroCifras: [], evitar: [] }, resumen: { promedioConfianza: 0 }, ciclos: { numerosEnCicloFavorables: [] } } as any
-    try {
-      const { ejecutarAnalisisCompleto } = await import("@/lib/analisis/motor")
-      analisisAv = ejecutarAnalisisCompleto(sorteos, { topNRanking: 15 })
-    } catch {}
+
+    // === PREMIUM FEATURES: 3/4 cifras + Redoblona (only for premium) ===
+    if (userTier.canAccessPremiumFeatures) {
+      try {
+        const { ejecutarAnalisisCompleto } = await import("@/lib/analisis/motor")
+        analisisAv = ejecutarAnalisisCompleto(sorteos, { topNRanking: 15 })
+      } catch {}
+    }
 
     // === ENSEMBLE: Integrar ML cacheado (TypeScript) ===
     if (useFullPath) {
@@ -946,9 +951,13 @@ export async function GET(req: NextRequest) {
         ],
         datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} terminaciones de 2 cifras + ${sorteos.length} sorteos para scoring de 3/4 cifras`,
         confianzaAvanzada: {
-          promedioGeneral: analisisAv.resumen.promedioConfianza,
-          enCicloFavorable: (analisisAv.ciclos.numerosEnCicloFavorables as number[]).slice(0, 10).map((n: number) => pad(n)),
-          evitar: (analisisAv.recomendaciones.evitar as any[]).slice(0, 10).map((n: any) => pad(n))
+          promedioGeneral: userTier.canAccessPremiumFeatures ? analisisAv.resumen.promedioConfianza : 0,
+          enCicloFavorable: userTier.canAccessPremiumFeatures 
+            ? (analisisAv.ciclos.numerosEnCicloFavorables as number[]).slice(0, 10).map((n: number) => pad(n))
+            : [],
+          evitar: userTier.canAccessPremiumFeatures 
+            ? (analisisAv.recomendaciones.evitar as any[]).slice(0, 10).map((n: any) => pad(n))
+            : [],
         }
       }
     }

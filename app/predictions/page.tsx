@@ -254,7 +254,9 @@ function PageInner() {
     fetch("/api/auth/me", { headers: { Authorization: "Bearer " + auth.access_token } })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (d?.isPremium) setPr(true);
+        // Premium real (pago/admin). Trial free NO desbloquea 3/4/redoblona.
+        if (d?.canAccessPremiumFeatures || d?.role === "premium" || d?.role === "admin") setPr(true);
+        else setPr(false);
         if (d?.email) setEm(d.email);
         const apiIsAdmin = isAdminRef.current || isAdminEmail(d?.email || "");
         if (apiIsAdmin) { isAdminRef.current = true; setUserRole("admin"); setPr(true); }
@@ -276,7 +278,7 @@ function PageInner() {
         try {
           const r = await fetch("/api/payment-status", { headers: { Authorization: "Bearer " + auth.access_token } });
           const d = await r.json();
-          if (d.isPremium) {
+          if (d.isPremium || d.canAccessPremiumFeatures) {
             setPr(true);
             if (d.premium_until) setPremExpiry({ premium_until: d.premium_until, daysRemaining: d.daysRemaining });
             clearInterval(pollPremium);

@@ -1,6 +1,7 @@
 import { RandomForest, crearRandomForest, entrenarRandomForest, predecirRandomForest } from './random-forest';
 import { CadenaMarkov, crearCadenaMarkov, entrenarCadenaMarkov, predecirSiguienteMarkov } from './markov';
 import { RedNeuronal, crearRedNeuronal, entrenarRedNeuronal, predecirRedNeuronal } from './neural';
+import { hashSeed, seededShuffle } from '@/lib/math/seeded-rng';
 
 export interface ModeloEntrenado {
   nombre: string;
@@ -32,19 +33,16 @@ export function dividirDatos<T>(
   datos: T[],
   entrenamiento: number = 0.7,
   validacion: number = 0.15,
-  test: number = 0.15
+  test: number = 0.15,
+  seedHint: string | number = "split"
 ): { entrenamiento: T[]; validacion: T[]; test: T[] } {
   const total = entrenamiento + validacion + test;
   if (Math.abs(total - 1) > 0.001) {
     throw new Error('Las proporciones deben sumar 1');
   }
 
-  // Fisher-Yates shuffle for unbiased random permutation
-  const shuffled = [...datos]
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-  }
+  // Split temporal-ish + shuffle determinista (reproducible)
+  const shuffled = seededShuffle(datos, hashSeed(seedHint, datos.length));
   
   const nEntrenamiento = Math.floor(datos.length * entrenamiento);
   const nValidacion = Math.floor(datos.length * validacion);

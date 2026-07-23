@@ -1,3 +1,5 @@
+import { createRng, hashSeed } from '@/lib/math/seeded-rng';
+
 export interface Capa {
   pesos: number[][];
   sesgos: number[];
@@ -23,20 +25,24 @@ export function crearRedNeuronal(config: {
   arquitectura: number[];
   tasaAprendizaje?: number;
   epochs?: number;
+  seed?: number;
 }): RedNeuronal {
-  const { arquitectura, tasaAprendizaje = 0.01, epochs = 100 } = config;
+  const { arquitectura, tasaAprendizaje = 0.01, epochs = 100, seed } = config;
+  const rng = createRng(seed ?? hashSeed(...arquitectura, tasaAprendizaje, epochs));
   
   const capas: Capa[] = [];
 
   for (let i = 1; i < arquitectura.length; i++) {
     const entrada = arquitectura[i - 1];
     const salida = arquitectura[i];
+    // Xavier/Glorot acotado, determinista
+    const scale = Math.sqrt(6 / (entrada + salida));
     
     const pesos: number[][] = [];
     for (let j = 0; j < salida; j++) {
       const fila: number[] = [];
       for (let k = 0; k < entrada; k++) {
-        fila.push((Math.random() - 0.5) * 2);
+        fila.push((rng() * 2 - 1) * scale);
       }
       pesos.push(fila);
     }

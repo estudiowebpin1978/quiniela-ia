@@ -156,19 +156,17 @@ export function predecirSecuenciaMarkov(
   for (let i = 0; i < longitud; i++) {
     const idxEstado = secuencia.slice(-orden).reduce((acc, val) => acc * NUM_ESTADOS + (val % 100), 0);
     const fila = cadena.matrizTransicion[idxEstado] || Array(NUM_ESTADOS).fill(1 / NUM_ESTADOS);
-    
-    const rand = Math.random();
-    let acumulador = 0;
+
+    // Determinista: argmax de la fila de transición (sin Math.random)
     let siguiente = 0;
-    
+    let mejor = -1;
     for (let j = 0; j < NUM_ESTADOS; j++) {
-      acumulador += fila[j];
-      if (rand <= acumulador) {
+      if (fila[j] > mejor) {
+        mejor = fila[j];
         siguiente = j;
-        break;
       }
     }
-    
+
     secuencia.push(siguiente);
   }
 
