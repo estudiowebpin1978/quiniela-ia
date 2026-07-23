@@ -25,8 +25,17 @@ async function scrape(fechaUrl:string,turno:string):Promise<number[]>{
 }
 
 async function save(fechaStr:string,turno:string,nums:number[]):Promise<boolean>{
-  await fetch(`${SB()}/rest/v1/draws?date=eq.${fechaStr}&turno=eq.${turno}`,{method:"DELETE",headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`,"Prefer":"return=minimal"}})
-  const r=await fetch(`${SB()}/rest/v1/draws`,{method:"POST",headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({date:fechaStr,turno,numbers:nums,source:"cron-scraper"})})
+  // Upsert atómico (sin DELETE previo) — requiere UNIQUE(date,turno) en draws
+  const r=await fetch(`${SB()}/rest/v1/draws`,{
+    method:"POST",
+    headers:{
+      "apikey":SK(),
+      "Authorization":`Bearer ${SK()}`,
+      "Content-Type":"application/json",
+      "Prefer":"resolution=merge-duplicates,return=minimal"
+    },
+    body:JSON.stringify({date:fechaStr,turno,numbers:nums,source:"cron-scraper"})
+  })
   return r.ok
 }
   
@@ -78,8 +87,15 @@ export async function GET(req: NextRequest) {
               dayResults.turnos.push({ turno: t, ok: false, total: 0 })
             }
           } else {
-            guardados++
-            dayResults.turnos.push({ turno: t, ok: true, total: nums.length })
+            // Upsert real (sin force también persiste; evita backfill “fantasma”)
+            const ok = await save(fechaStr, t, nums)
+            if (ok) {
+              guardados++
+              dayResults.turnos.push({ turno: t, ok: true, total: nums.length })
+            } else {
+              errores++
+              dayResults.turnos.push({ turno: t, ok: false, total: 0 })
+            }
           }
         } else {
           saltados++

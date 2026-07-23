@@ -174,17 +174,9 @@ export async function GET(req: NextRequest) {
   }
 
   if (guardados > 0) {
+    // Entrenamiento TS local + analytics (sin microservicio Python)
     import("@/lib/ml/auto-train").then(m => m.autoTrainAll()).catch((e) => {
       logger.error("cron-scrape: error en auto-train", { error: String(e) })
-    })
-
-    const cronUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-ml-training`
-    fetch(cronUrl, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${process.env.CRON_SECRET}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ trigger: "cron-scrape" }),
-    }).catch((e) => {
-      logger.warn("cron-scrape: failed to trigger cron-ml-training", { error: String(e) })
     })
 
     const analyticsUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-analytics`
@@ -194,25 +186,6 @@ export async function GET(req: NextRequest) {
     }).catch((e) => {
       logger.warn("cron-scrape: failed to trigger cron-analytics", { error: String(e) })
     })
-
-    // Trigger ML Backend retraining (FastAPI microservice) - fire-and-forget with API key
-    const mlBackendUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL
-    const mlSecret = process.env.PYTHON_API_SECRET
-    if (mlBackendUrl && mlSecret) {
-      fetch(`${mlBackendUrl}/api/train`, {
-        method: "POST",
-        headers: {
-          "X-API-Key": mlSecret,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ turno: null, force: false }),
-        signal: AbortSignal.timeout(30000),
-      }).then((r) => {
-        logger.info("cron-scrape: ML backend training triggered", { status: r.status })
-      }).catch((e) => {
-        logger.warn("cron-scrape: ML backend not available", { error: String(e) })
-      })
-    }
   }
 
   const duration = Date.now() - start

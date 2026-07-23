@@ -1,11 +1,9 @@
 /**
  * API de predicciones de Quiniela IA.
- * 
- * Endpoint principal: GET /api/predictions?sorteo=Nocturna&date=2026-06-01
- * 
- * Motor avanzado: 30 factores + Monte Carlo + Ensemble dinámico.
- * Integra modelos ML (Markov, Random Forest, Neural, XGBoost Python).
- * Backtesting con Hit@1/5/10, Precision, Recall, ROI.
+ *
+ * Motor: factores estadísticos + distribución empírica determinista + ensemble TS.
+ * Arquitectura: Vercel + Supabase únicamente (sin Python/Render).
+ * Free: solo 2 cifras | Premium: 3/4 cifras + redoblona.
  */
 
 import { NextRequest, NextResponse } from "next/server"
@@ -38,8 +36,9 @@ import {
 import { computeShannonEntropy, getEntropyScores } from "@/lib/analisis/shannon-entropy"
 import { computeSurvivalAnalysis, getSurvivalScores } from "@/lib/analisis/survival"
 import { computeInterTurnoMarkov, getMarkovScores } from "@/lib/analisis/inter-turno-markov"
-import { optimizeWeights } from "@/lib/analisis/genetic-weights"
 import { getLatestAnalytics } from "@/lib/analisis/turn-analytics"
+import { resolveUserTier } from "@/lib/auth/tier"
+import { generatePredictionSummary } from "@/lib/ai/summary"
 
 export const maxDuration = 60;
 
@@ -132,42 +131,6 @@ function checkRate(ip: string, max = 20, windowMs = 300000): boolean {
 }
 
 // ============================================
-// TIER CHECK HELPER
-// ============================================
-async function getUserTier(token: string): Promise<{ isPremium: boolean; role: string; trialExpired: boolean }> {
-  if (!token) return { isPremium: false, role: "free", trialExpired: false }
-  const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-  const SB_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
-  if (!SB_URL || !SB_KEY) return { isPremium: false, role: "free", trialExpired: false }
-  try {
-    const userRes = await fetch(`${SB_URL}/auth/v1/user`, {
-      headers: { "apikey": SB_KEY, "Authorization": `Bearer ${token}` },
-      signal: AbortSignal.timeout(3000),
-    })
-    if (!userRes.ok) return { isPremium: false, role: "free", trialExpired: false }
-    const user = await userRes.json()
-    const profRes = await fetch(
-      `${SB_URL}/rest/v1/user_profiles?id=eq.${user.id}&select=role,premium_until&limit=1`,
-      { headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}` }, signal: AbortSignal.timeout(3000) }
-    )
-    if (!profRes.ok) return { isPremium: false, role: "free", trialExpired: false }
-    const profiles = await profRes.json()
-    const profile = profiles?.[0]
-    if (!profile) return { isPremium: false, role: "free", trialExpired: false }
-    const adminEmails = ["estudiowebpin@gmail.com"]
-    const isAdmin = adminEmails.includes(user.email?.toLowerCase?.() || "")
-    const role = isAdmin ? "admin" : (profile.role === "admin" ? "free" : profile.role)
-    const isPremium = role === "admin" ||
-      (role === "premium" && profile.premium_until && new Date(profile.premium_until) > new Date()) ||
-      (role === "free" && profile.premium_until && new Date(profile.premium_until) > new Date())
-    const trialExpired = role === "free" && profile.premium_until && new Date(profile.premium_until) <= new Date()
-    return { isPremium: !!isPremium, role, trialExpired: !!trialExpired }
-  } catch {
-    return { isPremium: false, role: "free", trialExpired: false }
-  }
-}
-
-// ============================================
 // MAIN API
 // ============================================
 export async function GET(req: NextRequest) {
@@ -177,12 +140,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Demasiadas peticiones. Esperá unos minutos." }, { status: 429 })
   }
 
-  // === SERVER-SIDE TIER CHECK ===
+  // === SERVER-SIDE TIER CHECK (fuente única: lib/auth/tier) ===
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
-  const userTier = await getUserTier(token)
+  const userTier = await resolveUserTier(token)
 
-  // Expired trial: allow limited access (2 cifras only)
-  const trialExpired = userTier.trialExpired
+  if (token && !userTier.canAccess2Cifras) {
+    return NextResponse.json({
+      error: "Tu período gratuito de 30 días expiró. Actualizá a Premium para continuar.",
+      trialExpired: true,
+      tier: userTier.role,
+      upgradeRequired: true,
+    }, { status: 403 })
+  }
 
   const { searchParams } = new URL(req.url)
   const turno = searchParams.get("sorteo") || "previa"
@@ -228,14 +197,12 @@ export async function GET(req: NextRequest) {
   // Recalibrar curva de confianza desde datos reales
   recalibrar().catch(() => {})
 
-  // Load deep learning models from Supabase (async, cached)
-  import("@/lib/ml/deep-learning-loader").then(m => m.loadDeepLearningFromSupabase()).catch(() => {})
-
-  // Load Python ML models from Supabase (async, cached)
-  import("@/lib/ml/python_model_loader").then(m => m.loadPythonModelsFromSupabase()).catch(() => {})
-
-  // Load backtest summary from Supabase (async, cached)
-  import("@/lib/ml/backtest-loader").then(m => m.getBacktestSummary("nocturna")).catch(() => {})
+  // Create Supabase client for RPC calls
+  const { createClient } = await import('@supabase/supabase-js')
+  const supabase = createClient(
+    (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim(),
+    (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
+  )
 
   const ctrl = new AbortController()
   const to = setTimeout(() => ctrl.abort(), 8000)
@@ -432,17 +399,8 @@ export async function GET(req: NextRequest) {
       } catch {}
     }
 
-    // === ADVANCED: GENETIC WEIGHT OPTIMIZATION ===
+    // === GENETIC WEIGHTS: solo cache/analytics (GA estocastico prohibido en request) ===
     let geneticOptimalWeights: number[] | null = hc?.geneticOptimalWeights || null
-    if (!hc?.geneticOptimalWeights && useFullPath && shouldRunMotorSync("geneticWeights", turnoQuery)) {
-      try {
-        geneticOptimalWeights = optimizeWeights(
-          [entropyScores, survivalScores, interTurnoScores],
-          heavySeqs.map(s => s.map(n => n % 100)),
-          3, { populationSize: 20, generations: 30, fitnessWindow: 50 }
-        ).optimalWeights
-      } catch {}
-    }
 
     // === ADVANCED: PRE-CALCULATED ANALYTICS FROM turn_analytics TABLE ===
     let cachedAnalytics: any = null
@@ -544,7 +502,9 @@ export async function GET(req: NextRequest) {
           }
           const windowMax = Math.max(...Object.values(windowFreq), 1)
           const expandingFactors = new Array(100).fill(0).map((_, num) => (windowFreq[num] || 0) / windowMax)
-          const expandingMC = expandingFactors.map(f => f * (0.9 + Math.random() * 0.2))
+          // Determinista: escala fija por posición del fold (sin Math.random)
+          const foldScale = 0.92 + 0.08 * (i / Math.max(1, nSeq - 1))
+          const expandingMC = expandingFactors.map(f => f * foldScale)
           const foldNoise = 0.95 + (i / nSeq) * 0.1
           factorScoreArr.push(expandingFactors)
           mcScoreArr.push(expandingMC)
@@ -783,47 +743,28 @@ export async function GET(req: NextRequest) {
       } catch {}
     }
 
-    // === ENSEMBLE: Integrar modelos exportados desde Python (LGBM + XGBoost ensemble) ===
-    let boostPythonActivo = false
+    // === ENSEMBLE: scores ML precalculados en Supabase (vía RPC) ===
     if (useFullPath) {
       try {
-        const { obtenerBoostEnsemble } = await import("@/lib/ml/python_model_loader")
-        const boostEnsemble = await obtenerBoostEnsemble(turnoQuery)
-        if (boostEnsemble) {
-          boostPythonActivo = true
-          for (const s of scores) {
-            const b = boostEnsemble[s.num] || 0
-            if (b > 0) s.score += s.score * Math.min(0.2, b / 100)
+        const { data: ensembleData } = await supabase.rpc('get_ensemble_scores', { p_turno: turnoQuery })
+        if (ensembleData && Array.isArray(ensembleData)) {
+          for (const row of ensembleData) {
+            const s = scores.find(x => x.num === row.numero)
+            if (s && row.final_score) {
+              s.score += s.score * Math.min(0.2, Number(row.final_score) / 100)
+            }
           }
           scores.sort((a, b) => b.score - a.score)
         }
       } catch {}
     }
 
-    // === ENSEMBLE: FastAPI ML backend (si está disponible) ===
-    let mlApiActivo = false
-    if (useFullPath) {
-      try {
-        const mlApiUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || process.env.ML_API_URL
-        if (mlApiUrl) {
-          mlApiActivo = true
-          const mlRes = await fetch(`${mlApiUrl}/api/predict/${turnoQuery}?top=10`, { signal: AbortSignal.timeout(5000) })
-          if (mlRes.ok) {
-            const mlData = await mlRes.json()
-            if (mlData?.scores) {
-              for (const s of scores) {
-                const boost = mlData.scores[String(s.num).padStart(2, "0")] || 0
-                if (boost > 0) s.score += s.score * Math.min(0.2, boost / 50)
-              }
-              scores.sort((a, b) => b.score - a.score)
-            }
-          }
-        }
-      } catch {}
-    }
-
-    const pred3 = userTier.isPremium ? (analisisAv.recomendaciones.tresCifras as any[]).slice(0, 10).map((r: any) => r.numero.padStart(3, '0')) : []
-    const pred4 = userTier.isPremium ? (analisisAv.recomendaciones.cuatroCifras as any[]).slice(0, 10).map((r: any) => r.numero.padStart(4, '0')) : []
+    const pred3 = userTier.canAccessPremiumFeatures
+      ? (analisisAv.recomendaciones.tresCifras as any[]).slice(0, 10).map((r: any) => r.numero.padStart(3, '0'))
+      : []
+    const pred4 = userTier.canAccessPremiumFeatures
+      ? (analisisAv.recomendaciones.cuatroCifras as any[]).slice(0, 10).map((r: any) => r.numero.padStart(4, '0'))
+      : []
 
     // === BAYESIAN UNCERTAINTY (heavy - full path only) ===
     let bayesian;
@@ -851,17 +792,31 @@ export async function GET(req: NextRequest) {
       bayesianPosterior: (s as any).bayesianPosterior,
     }))
 
-    // Redoblona (dos mejores score de 2 cifras)
-    const redoblona = scores.length >= 2 
-      ? `${pad(scores[0].num)}-${pad(scores[1].num)}`
-      : "00-00"
-
-    // Fetch backtest summary for this turno/model
-    let backtestSummary: any = null
-    try {
-      const { getBacktestSummary } = await import("@/lib/ml/backtest-loader")
-      backtestSummary = await getBacktestSummary(turnoQuery, "ensemble")
-    } catch {}
+    // Redoblona premium: par con mayor co-aparición histórica entre top scores
+    let redoblona: string | null = null
+    if (userTier.canAccessPremiumFeatures && scores.length >= 2) {
+      const topCandidates = scores.slice(0, 15).map(s => s.num)
+      const pairCount = new Map<string, number>()
+      for (const seq of sequences) {
+        const terms = new Set(seq.map(n => n % 100))
+        for (let i = 0; i < topCandidates.length; i++) {
+          for (let j = i + 1; j < topCandidates.length; j++) {
+            const a = topCandidates[i], b = topCandidates[j]
+            if (terms.has(a) && terms.has(b)) {
+              const key = a < b ? `${a}-${b}` : `${b}-${a}`
+              pairCount.set(key, (pairCount.get(key) || 0) + 1)
+            }
+          }
+        }
+      }
+      let bestKey = `${Math.min(scores[0].num, scores[1].num)}-${Math.max(scores[0].num, scores[1].num)}`
+      let bestCount = -1
+      for (const [k, c] of pairCount) {
+        if (c > bestCount) { bestCount = c; bestKey = k }
+      }
+      const [x, y] = bestKey.split("-").map(Number)
+      redoblona = `${pad(x)}-${pad(y)}`
+    }
 
     // Heatmap
     const heatmap = scores.slice(0, 10).map(s => ({
@@ -876,16 +831,39 @@ export async function GET(req: NextRequest) {
       ? Math.round((scores.slice(0, 10).reduce((sum, s) => sum + ((s as any).bayesianConfidence || s.confianza), 0) / 10))
       : Math.round((scores.slice(0, 10).reduce((sum, s) => sum + s.confianza, 0) / 10))
 
+    // Resumen IA (interpreta ranking ya calculado; timeout corto)
+    let aiSummary: { summary: string; provider: string } | null = null
+    try {
+      aiSummary = await generatePredictionSummary({
+        turno: turnoQuery,
+        top2: pred2,
+        confidence,
+        totalSorteos: sequences.length,
+        factoresDestacados: top20.slice(0, 3).flatMap((t: any) => t.factores || []).slice(0, 5),
+      }, 2000)
+    } catch {}
+
     const responsePayload = {
       ok: true,
       turno: turnoQuery,
       tier: userTier.role,
+      isPremium: userTier.isPremium,
+      isTrialActive: userTier.isTrialActive,
       trialExpired: userTier.trialExpired,
+      predictionsUsed: userTier.predictionsUsed,
+      predictionsRemaining: userTier.predictionsRemaining,
+      canAccessPremiumFeatures: userTier.canAccessPremiumFeatures,
+      upgradeHint: !userTier.canAccessPremiumFeatures
+        ? "Premium desbloquea 3 cifras, 4 cifras y redoblona con co-aparición histórica."
+        : null,
+      aiSummary: aiSummary?.summary || null,
+      aiProvider: aiSummary?.provider || null,
       debug: {
         elapsed_ms: elapsed(t0),
         factores_aplicados: 30,
         motores_activos: useFullPath ? 19 : 3,
         total_numeros: terminaciones2.length,
+        determinista: true,
         sorteos_analizados: sequences.length,
         sync: syncStatus ? { sincronizado: syncStatus.synced, nuevos_sorteos: syncStatus.newDraws } : null,
         cdm_model: {
@@ -942,20 +920,12 @@ export async function GET(req: NextRequest) {
       confidence,
       pred: {
         numeros_2: pred2,
-        numeros_3: userTier.isPremium ? pred3 : [],
-        numeros_4: userTier.isPremium ? pred4 : [],
-        redoblona: userTier.isPremium ? redoblona : null,
+        numeros_3: pred3,
+        numeros_4: pred4,
+        redoblona,
       },
-      redoblona: userTier.isPremium ? redoblona : null,
-      heatmap,
-      backtest: backtestSummary ? {
-        hit_at_1_pct: backtestSummary.hit_at_1_pct,
-        hit_at_5_pct: backtestSummary.hit_at_5_pct,
-        hit_at_10_pct: backtestSummary.hit_at_10_pct,
-        avg_roi: backtestSummary.avg_roi,
-        total_tests: backtestSummary.total_tests,
-        model_type: backtestSummary.model_type,
-      } : null,
+      redoblona,
+      heatmap: userTier.canAccessPremiumFeatures ? heatmap : heatmap.map(h => ({ n: h.n, f: h.f, s: h.s, pct: h.pct })),
       stats: {
         totalNumeros: terminaciones2.length,
         promedioPorSorteo: (terminaciones2.length / sequences.length).toFixed(2),
@@ -963,28 +933,16 @@ export async function GET(req: NextRequest) {
         terminacionesMasFrecuentes: scores.slice(0, 5).map(s => ({ terminacion: s.num, frecuencia: s.frecuencia, score: s.score.toFixed(2) })),
       },
       analysisInfo: {
-        metodo: `Motor avanzado: 19 motores + Monte Carlo + Ensemble dinámico + ML + Bayesian + Entropy/Survival/Markov Inter-Turno/Genetic - turno ${turnoQuery.toUpperCase()}`,
+        metodo: `Motor determinista: frecuencias/atrasos/secuencias + ensemble TS + CDM — turno ${turnoQuery.toUpperCase()}`,
         motores: [
           "1. 30 Factores estadísticos (frecuencia, ausencia, tendencia, ciclos, hot/cold, familias, entropía)",
-          "2. Monte Carlo (1,000,000 simulaciones, Wilson CI)",
+          "2. Distribución empírica ponderada (ex-Monte Carlo, cero aleatoriedad, Wilson CI)",
           "3. Cross-turno (arrastre Nocturna→Previa)",
           "4. Seasonal (mes, día, temporada)",
           "5. Bayesian (Dirichlet posterior, credible intervals)",
-          "6. Correlation (Chi-squared + Pearson)",
-          "7. Higher-order Markov (order 2-4)",
-          "8. Cyclic patterns (Fourier + Autocorrelation)",
-          "9. Graph analysis (PageRank, HITS, comunidades)",
-          "10. Deep Learning (LSTM + Transformer + BNN)",
-          "11. Feature Engineering (100+ variables por número)",
-          "12. Multi-level scoring (4D, 3D, 2D, posiciones)",
-          "13. PMI & Co-ocurrencia (matriz de afinidad)",
-          "14. Markov Avanzado (100x100 + 1000x1000 + pair transitions)",
-          "15. Análisis posiciones (miles/centenas/decenas/unidades)",
-          "16. Ensemble ML (ExtraTrees + GradientBoosting + HistogramGB)",
-          "17. Shannon Entropy Filter (predictibilidad/caos del sistema)",
-          "18. Survival Analysis Kaplan-Meier (zona crítica de riesgo por número)",
-          "19. Inter-Turno Markov (P(X_t | X_{t-1}, X_{t-2}) condicional)",
-          "20. Genetic Algorithm Optimization (pesos evolutivos del ensemble)"
+          "6. Correlation / Markov / Cyclic / Graph / Features",
+          "7. Entropy + Survival + Inter-turno Markov",
+          "8. Scores ML precalculados en Supabase (opcional)"
         ],
         datosUtilizados: `${sequences.length} sorteos con ${terminaciones2.length} terminaciones de 2 cifras + ${sorteos.length} sorteos para scoring de 3/4 cifras`,
         confianzaAvanzada: {

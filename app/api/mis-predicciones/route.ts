@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { resolveUserTier, FREE_MAX_PREDICTIONS } from "@/lib/auth/tier"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
@@ -8,26 +9,21 @@ export async function GET(req: NextRequest) {
   if (!token) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
   try {
-    const userRes = await fetch(`${SB()}/auth/v1/user`, {
-      headers: { "apikey": SK(), "Authorization": `Bearer ${token}` }
-    })
-    if (!userRes.ok) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    const user = await userRes.json()
-    if (!user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    const userId = user.id
+    const tier = await resolveUserTier(token)
+    if (!tier.userId) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    const userId = tier.userId
 
     const predRes = await fetch(
-      `${SB()}/rest/v1/user_predictions?user_id=eq.${userId}&select=id,date,turno,numeros,created_at&order=created_at.desc&limit=30`,
+      `${SB()}/rest/v1/user_predictions?user_id=eq.${userId}&select=id,date,turno,numeros,created_at&order=created_at.desc&limit=50`,
       { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` } }
     )
     const predictions = await predRes.json()
-    if (!Array.isArray(predictions)) return NextResponse.json({ predictions: [] })
-    if (predictions.length === 0) return NextResponse.json({ predictions: [] })
+    if (!Array.isArray(predictions)) return NextResponse.json({ predictions: [], tier })
+    if (predictions.length === 0) return NextResponse.json({ predictions: [], tier })
 
-    // === BATCH: fetch all draws for needed dates in ONE query (no turno filter — match in code) ===
     const uniqueDates = [...new Set(predictions.map((p: any) => (p.date || "").trim()).filter(Boolean))]
 
-    let drawsMap: Record<string, any> = {}
+    const drawsMap: Record<string, any> = {}
     if (uniqueDates.length > 0) {
       const batchSize = 20
       for (let i = 0; i < uniqueDates.length; i += batchSize) {
@@ -49,13 +45,12 @@ export async function GET(req: NextRequest) {
               }
             }
           }
-        } catch {}
+        } catch { /* noop */ }
       }
     }
 
-    // === FALLBACK: Also fetch prediction_history for already-verified results ===
     const predIds = predictions.map((p: any) => p.id).filter(Boolean)
-    let historyMap: Record<string, any> = {}
+    const historyMap: Record<string, any> = {}
     if (predIds.length > 0) {
       try {
         const batchSize = 50
@@ -74,10 +69,9 @@ export async function GET(req: NextRequest) {
             }
           }
         }
-      } catch {}
+      } catch { /* noop */ }
     }
 
-    // === Process predictions using drawsMap + historyMap fallback ===
     const results = []
     for (const pred of predictions) {
       const rawTurno = pred.turno || ""
@@ -97,21 +91,22 @@ export async function GET(req: NextRequest) {
 
       let numerosData: any = pred.numeros
       if (Array.isArray(numerosData) && numerosData.length === 1 && typeof numerosData[0] === "string") {
-        try { numerosData = JSON.parse(numerosData[0]) } catch {}
+        try { numerosData = JSON.parse(numerosData[0]) } catch { /* noop */ }
       }
       const pred2: string[] = Array.isArray(numerosData) ? numerosData : (numerosData?.["2"] || [])
       let pred3: string[] = []
       let pred4: string[] = []
-      if (!Array.isArray(numerosData)) {
+      if (!Array.isArray(numerosData) && tier.canAccessPremiumFeatures) {
         pred3 = numerosData?.["3"] || []
         pred4 = numerosData?.["4"] || []
       }
 
-      // Use verified history if available (most accurate)
       if (history) {
         aciertos = (history.aciertos_2 || []).map((a: any) => ({ ...a, tipo: 2 }))
-        aciertos3 = (history.aciertos_3 || []).map((a: any) => ({ ...a, tipo: 3 }))
-        aciertos4 = (history.aciertos_4 || []).map((a: any) => ({ ...a, tipo: 4 }))
+        if (tier.canAccessPremiumFeatures) {
+          aciertos3 = (history.aciertos_3 || []).map((a: any) => ({ ...a, tipo: 3 }))
+          aciertos4 = (history.aciertos_4 || []).map((a: any) => ({ ...a, tipo: 4 }))
+        }
         const resultNums = history.resultado_oficial || []
         numerosReales = resultNums.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
         numerosReales3 = resultNums.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
@@ -152,7 +147,7 @@ export async function GET(req: NextRequest) {
         resultado: hasResult && numerosReales.length > 0 ? numerosReales : null,
         resultado_3: hasResult && numerosReales3.length > 0 ? numerosReales3 : null,
         resultado_4: hasResult && numerosReales4.length > 0 ? numerosReales4 : null,
-        resultado_original: hasResult && (history?.resultado_oficial || draw?.numbers) || null,
+        resultado_original: (hasResult && (history?.resultado_oficial || draw?.numbers)) || null,
         aciertos: hasResult ? allAciertos : [],
         aciertos_2: hasResult ? aciertos : [],
         aciertos_3: hasResult ? aciertos3 : [],
@@ -163,7 +158,18 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    return NextResponse.json({ predictions: results })
+    return NextResponse.json({
+      predictions: results,
+      tier: {
+        role: tier.role,
+        isPremium: tier.isPremium,
+        isTrialActive: tier.isTrialActive,
+        trialExpired: tier.trialExpired,
+        predictionsUsed: tier.predictionsUsed,
+        predictionsRemaining: tier.predictionsRemaining,
+        maxFree: FREE_MAX_PREDICTIONS,
+      },
+    })
   } catch {
     return NextResponse.json({ predictions: [], error: "Error cargando predicciones" })
   }
@@ -173,82 +179,88 @@ export async function POST(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
   if (!token) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
-  const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-  const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
+  const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
+  const SK_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
 
   try {
-    const userRes = await fetch(`${SB}/auth/v1/user`, {
-      headers: { "apikey": SK, "Authorization": `Bearer ${token}` }
-    })
-    if (!userRes.ok) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    const user = await userRes.json()
-    if (!user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    const userId = user.id;
+    const tier = await resolveUserTier(token)
+    if (!tier.userId) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
-    // Check if user's trial has expired
-    const profRes = await fetch(
-      `${SB}/rest/v1/user_profiles?id=eq.${userId}&select=role,premium_until&limit=1`,
-      { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
-    )
-    const profiles = await profRes.json()
-    const profile = profiles?.[0]
-    const adminEmails = ["estudiowebpin@gmail.com"]
-    const isAdmin = adminEmails.includes(user.email?.toLowerCase?.() || "")
-    const role = isAdmin ? "admin" : (profile?.role === "admin" ? "free" : (profile?.role || "free"))
-    const isActive = role === "admin" ||
-      (role === "premium" && profile?.premium_until && new Date(profile.premium_until) > new Date()) ||
-      (role === "free" && profile?.premium_until && new Date(profile.premium_until) > new Date())
-
-    if (!isActive) {
-      return NextResponse.json({ error: "Tu período de prueba ha expirado. Actualizá a Premium para continuar.", trialExpired: true }, { status: 403 })
+    if (tier.trialExpired && !tier.isPremium) {
+      return NextResponse.json({
+        error: "Tu período de prueba ha expirado. Actualizá a Premium para continuar.",
+        trialExpired: true,
+      }, { status: 403 })
     }
 
+    if (!tier.canSavePrediction) {
+      return NextResponse.json({
+        error: `Límite free alcanzado (${FREE_MAX_PREDICTIONS} predicciones). Actualizá a Premium para guardar más.`,
+        limitReached: true,
+        predictionsUsed: tier.predictionsUsed,
+        max: FREE_MAX_PREDICTIONS,
+      }, { status: 403 })
+    }
+
+    const userId = tier.userId
     const { date, turno, numeros } = await req.json()
-    const hasNumeros = Array.isArray(numeros) ? numeros.length > 0 : numeros && typeof numeros === "object" && Object.keys(numeros).length > 0
+    const hasNumeros = Array.isArray(numeros)
+      ? numeros.length > 0
+      : numeros && typeof numeros === "object" && Object.keys(numeros).length > 0
     if (!date || !turno || !hasNumeros) {
       return NextResponse.json({ error: "Faltan campos" }, { status: 400 })
     }
 
+    let numerosToStore: any
+    if (tier.canAccessPremiumFeatures) {
+      numerosToStore = Array.isArray(numeros) ? numeros : [JSON.stringify(numeros)]
+    } else {
+      const only2 = Array.isArray(numeros)
+        ? numeros
+        : (numeros?.["2"] || numeros?.numeros_2 || [])
+      numerosToStore = only2
+    }
+
     const checkRes = await fetch(
-      `${SB}/rest/v1/user_predictions?user_id=eq.${userId}&date=eq.${date}&turno=eq.${turno}&select=id&limit=1`,
-      { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
+      `${SB_URL}/rest/v1/user_predictions?user_id=eq.${userId}&date=eq.${date}&turno=eq.${turno}&select=id&limit=1`,
+      { headers: { "apikey": SK_KEY, "Authorization": `Bearer ${SK_KEY}` } }
     )
     const existing = await checkRes.json()
     if (Array.isArray(existing) && existing.length > 0) {
       return NextResponse.json({ error: "Ya guardaste un análisis para este turno", duplicate: true }, { status: 409 })
     }
 
-    // Store: array for free users, JSON string in array for premium (object)
-    const numerosToStore = Array.isArray(numeros) ? numeros : [JSON.stringify(numeros)]
-
-    const insertData: any = {
+    const insertData = {
       user_id: userId,
-      date: date,
-      turno: turno,
+      date,
+      turno,
       numeros: numerosToStore,
     }
 
-    const r = await fetch(`${SB}/rest/v1/user_predictions`, {
+    const r = await fetch(`${SB_URL}/rest/v1/user_predictions`, {
       method: "POST",
       headers: {
-        "apikey": SK,
-        "Authorization": `Bearer ${SK}`,
+        "apikey": SK_KEY,
+        "Authorization": `Bearer ${SK_KEY}`,
         "Content-Type": "application/json",
-        "Prefer": "return=representation"
+        Prefer: "return=representation",
       },
-      body: JSON.stringify(insertData)
+      body: JSON.stringify(insertData),
     })
 
     const responseText = await r.text()
-
     if (!r.ok) {
       return NextResponse.json({ error: "Error guardando predicción" }, { status: 500 })
     }
 
     let inserted = null
-    try { inserted = JSON.parse(responseText) } catch {}
+    try { inserted = JSON.parse(responseText) } catch { /* noop */ }
 
-    return NextResponse.json({ ok: true, inserted })
+    return NextResponse.json({
+      ok: true,
+      prediction: Array.isArray(inserted) ? inserted[0] : inserted,
+      predictionsRemaining: tier.isPremium ? -1 : Math.max(0, FREE_MAX_PREDICTIONS - tier.predictionsUsed - 1),
+    })
   } catch {
     return NextResponse.json({ error: "Error interno" }, { status: 500 })
   }

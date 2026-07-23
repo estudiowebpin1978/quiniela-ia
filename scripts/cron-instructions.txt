@@ -1,0 +1,29 @@
+# Cron-job.org (ingesta cada 15–20 min, gratis)
+
+Base URL: https://TU-DOMINIO.vercel.app
+Header: Authorization: Bearer TU_CRON_SECRET
+(o query ?secret=TU_CRON_SECRET)
+
+## Jobs recomendados (lun–sáb, hora Argentina)
+
+1. Scraping principal
+   URL: /api/cron-scrape
+   Schedule: every 20 minutes between 10:00–22:30 ART
+   Method: GET
+
+2. Backfill opcional (1 vez/día)
+   URL: /api/cron?turno=todos&secret=TU_CRON_SECRET
+   Schedule: 23:30 ART
+
+3. Expiración premium (también en vercel.json)
+   URL: /api/cron-premium-expiry
+   Schedule: daily 09:00 ART
+
+Variables Vercel necesarias:
+- CRON_SECRET
+- NEXT_PUBLIC_SUPABASE_URL
+- SUPABASE_SERVICE_ROLE_KEY
+- GROQ_API_KEY (opcional, resumen IA)
+- NEXT_PUBLIC_BASE_URL
+
+NO configurar NEXT_PUBLIC_PYTHON_API_URL (arquitectura sin Python externo).

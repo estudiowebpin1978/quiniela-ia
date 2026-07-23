@@ -1,32 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-
-const SB_URL = () => (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/"/g, "").trim();
-const SB_KEY = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim();
-
-async function ensureUserProfile(userId: string, email: string) {
-  const sb = SB_URL();
-  const sk = SB_KEY();
-  if (!sb || !sk) return;
-  try {
-    const r = await fetch(`${sb}/rest/v1/user_profiles?id=eq.${userId}&select=id&limit=1`, {
-      headers: { "apikey": sk, Authorization: `Bearer ${sk}` },
-    });
-    const rows = await r.json();
-    if (!rows?.length) {
-      // New user: 30-day free trial
-      const trialUntil = new Date(Date.now() + 30 * 86400000).toISOString();
-      await fetch(`${sb}/rest/v1/user_profiles`, {
-        method: "POST",
-        headers: {
-          "apikey": sk, Authorization: `Bearer ${sk}`,
-          "Content-Type": "application/json", Prefer: "return=minimal",
-        },
-        body: JSON.stringify({ id: userId, email, role: "free", premium_until: trialUntil }),
-      });
-    }
-  } catch {}
-}
+import { ensureUserProfile } from "@/lib/auth/tier";
 
 export async function POST(req: NextRequest) {
   const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/"/g, "").trim();
