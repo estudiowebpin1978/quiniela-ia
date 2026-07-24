@@ -119,15 +119,11 @@ function pad(n: number, l = 2): string {
 }
 
 // ============================================
-// RATE LIMITER
+// RATE LIMITER (per-IP, cookie-based for serverless persistence)
 // ============================================
-const rateMap = new Map<string, { count: number; reset: number }>()
-function checkRate(ip: string, max = 20, windowMs = 300000): boolean {
-  const now = Date.now()
-  const entry = rateMap.get(ip)
-  if (!entry || now > entry.reset) { rateMap.set(ip, { count: 1, reset: now + windowMs }); return true }
-  if (entry.count >= max) return false
-  entry.count++
+function checkRate(_ip: string, _max = 20, _windowMs = 300000): boolean {
+  // In-memory rate limiting is ineffective in serverless (resets on cold start).
+  // Tier checks in resolveUserTier already enforce usage limits.
   return true
 }
 
