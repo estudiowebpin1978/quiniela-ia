@@ -1,5 +1,5 @@
 import { ScrapeResult, SourceStats, ParserFn } from "./types"
-import { parseLoteriaOficial, parseQuinielaNacional1, parseQuinieleando, parseNotitimba, parseLoteriasMundiales, verifyCabeza } from "./parsers"
+import { parseLoteriaOficial, parseQuinielaNacional1, parseQuinieleando, verifyCabeza } from "./parsers"
 import logger from "@/lib/logger"
 
 const FETCH_TIMEOUT = 8000
@@ -9,8 +9,6 @@ const PARSERS: { fn: ParserFn; name: string }[] = [
   { fn: parseQuinielaNacional1, name: "quinielanacional1.com.ar" },
   { fn: parseQuinieleando, name: "quinieleando.com.ar" },
   { fn: parseLoteriaOficial, name: "loteria-ciudad.gob.ar" },
-  { fn: parseNotitimba, name: "notitimba.com" },
-  { fn: parseLoteriasMundiales, name: "loteriasmundiales.com.ar" },
 ]
 
 // Game-specific parsers can be registered here
