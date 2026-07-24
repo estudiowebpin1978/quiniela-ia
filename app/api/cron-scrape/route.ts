@@ -52,8 +52,12 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
       "Content-Type": "application/json", 
       "Prefer": "resolution=merge-duplicates,return=minimal" 
     },
-    body: JSON.stringify({ date: fechaISO, turno, numbers: nums, source })
+    body: JSON.stringify({ date: fechaISO, turno, numbers: nums, source, game_id: "ac593199-c299-4f03-b1b7-8675fe4fa6d9" })
   })
+  if (!r.ok) {
+    const err = await r.text().catch(() => "unknown")
+    logger.error("cron-scrape: guardarDraw failed", { status: r.status, error: err, fecha: fechaISO, turno })
+  }
   return r.ok
 }
 

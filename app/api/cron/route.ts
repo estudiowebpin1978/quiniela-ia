@@ -34,7 +34,7 @@ async function save(fechaStr:string,turno:string,nums:number[]):Promise<boolean>
       "Content-Type":"application/json",
       "Prefer":"resolution=merge-duplicates,return=minimal"
     },
-    body:JSON.stringify({date:fechaStr,turno,numbers:nums,source:"cron-scraper"})
+    body:JSON.stringify({date:fechaStr,turno,numbers:nums,source:"cron-scraper",game_id:"ac593199-c299-4f03-b1b7-8675fe4fa6d9"})
   })
   return r.ok
 }

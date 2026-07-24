@@ -123,7 +123,7 @@ async function saveDraw(
       "Content-Type": "application/json",
       Prefer: "resolution=merge-duplicates,return=minimal",
     },
-    body: JSON.stringify({ date: fechaISO, turno, numbers: nums, source }),
+    body: JSON.stringify({ date: fechaISO, turno, numbers: nums, source, game_id: "ac593199-c299-4f03-b1b7-8675fe4fa6d9" }),
   })
   return r.ok
 }
