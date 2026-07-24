@@ -24,6 +24,8 @@ const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "")
 
 const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
+export const maxDuration = 300
+
 function fechaArgentina(): { fechaStr: string; diaSemana: number; fUrl: string } {
   const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format()
   const [yyyy, mm, dd] = p.split("-")
@@ -173,21 +175,6 @@ export async function GET(req: NextRequest) {
     logger.warn("cron-scrape: error limpiando predicciones", { error: String(e) })
   }
 
-  if (guardados > 0) {
-    // Entrenamiento TS local + analytics (sin microservicio Python)
-    import("@/lib/ml/auto-train").then(m => m.autoTrainAll()).catch((e) => {
-      logger.error("cron-scrape: error en auto-train", { error: String(e) })
-    })
-
-    const analyticsUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-analytics`
-    fetch(analyticsUrl, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${process.env.CRON_SECRET}`, "Content-Type": "application/json" },
-    }).catch((e) => {
-      logger.warn("cron-scrape: failed to trigger cron-analytics", { error: String(e) })
-    })
-  }
-
   const duration = Date.now() - start
 
   // Log cron execution
@@ -198,6 +185,36 @@ export async function GET(req: NextRequest) {
     eliminadas,
     sourceStats
   }, start)
+
+  // Background tasks (after response) - use after() for Next.js 15
+  const backgroundTasks = async () => {
+    if (guardados > 0) {
+      // Local TS training + analytics (no Python microservice)
+      try {
+        const { autoTrainAll } = await import("@/lib/ml/auto-train")
+        await autoTrainAll()
+      } catch (e) {
+        logger.error("cron-scrape: error en auto-train", { error: String(e) })
+      }
+
+      const analyticsUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-analytics`
+      fetch(analyticsUrl, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${process.env.CRON_SECRET}`, "Content-Type": "application/json" },
+      }).catch((e) => {
+        logger.warn("cron-scrape: failed to trigger cron-analytics", { error: String(e) })
+      })
+    }
+  }
+
+  // Use after() for background execution (Next.js 15)
+  try {
+    const { after } = await import("next/server")
+    after(backgroundTasks)
+  } catch {
+    // Fallback: execute inline if after() not available
+    backgroundTasks().catch(() => {})
+  }
 
   return NextResponse.json({
     ok: errores === 0,

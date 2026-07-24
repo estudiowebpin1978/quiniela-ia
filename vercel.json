@@ -1,12 +1,7 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron-scrape",
-      "schedule": "0 20 * * 1-6"
-    },
-    {
-      "path": "/api/cron-premium-expiry",
-      "schedule": "0 12 * * *"
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 300
     }
-  ]
+  }
 }
