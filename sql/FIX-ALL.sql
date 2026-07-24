@@ -95,28 +95,31 @@ DROP VIEW IF EXISTS backtest_summary CASCADE;
 
 -- ============================================================================
 -- PHASE 3: DROP EXISTING FUNCTIONS (before recreating with new signatures)
+-- Uses pg_proc to drop ALL overloads of each function
 -- ============================================================================
-DROP FUNCTION IF EXISTS to_2digit(INT);
-DROP FUNCTION IF EXISTS get_frequency_stats(TEXT, INT, TEXT);
-DROP FUNCTION IF EXISTS get_absence_recency_cycles(TEXT, TEXT);
-DROP FUNCTION IF EXISTS get_entropy_scores(TEXT, INT, TEXT);
-DROP FUNCTION IF EXISTS get_survival_scores(TEXT, INT, TEXT);
-DROP FUNCTION IF EXISTS get_markov_transitions(TEXT[], INT, INT, TEXT);
-DROP FUNCTION IF EXISTS get_cooccurrence_scores(TEXT, TEXT);
-DROP FUNCTION IF EXISTS get_ensemble_scores(TEXT, TEXT);
-DROP FUNCTION IF EXISTS compute_inter_turno_markov(TEXT);
-DROP FUNCTION IF EXISTS compute_shannon_entropy(TEXT);
-DROP FUNCTION IF EXISTS compute_survival_hazard(TEXT);
-DROP FUNCTION IF EXISTS get_latest_analytics(TEXT, TEXT);
-DROP FUNCTION IF EXISTS upsert_turn_analytics(TEXT, TEXT);
-DROP FUNCTION IF EXISTS compute_all_turn_analytics(TEXT);
-DROP FUNCTION IF EXISTS verify_predictions();
-DROP FUNCTION IF EXISTS compute_backtest(TEXT, TEXT, INT);
-DROP FUNCTION IF EXISTS run_daily_backtest(TEXT);
-DROP FUNCTION IF EXISTS get_motor_accuracy(TEXT, TEXT, TEXT);
-DROP FUNCTION IF EXISTS update_motor_performance(TEXT, TEXT, TEXT, NUMERIC);
-DROP FUNCTION IF EXISTS clear_old_motor_performance(INT);
-DROP FUNCTION IF EXISTS clean_old_predictions(INT);
+
+-- Drop all overloads of each function by name
+DO $$ DECLARE r RECORD;
+BEGIN
+  FOR r IN SELECT p.oid::regprocedure AS proc
+    FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public'
+      AND p.proname IN (
+        'to_2digit', 'get_frequency_stats', 'get_absence_recency_cycles',
+        'get_entropy_scores', 'get_survival_scores', 'get_markov_transitions',
+        'get_cooccurrence_scores', 'get_ensemble_scores',
+        'compute_inter_turno_markov', 'compute_shannon_entropy',
+        'compute_survival_hazard', 'get_latest_analytics',
+        'upsert_turn_analytics', 'compute_all_turn_analytics',
+        'verify_predictions', 'compute_backtest', 'run_daily_backtest',
+        'get_motor_accuracy', 'update_motor_performance',
+        'clear_old_motor_performance', 'clean_old_predictions'
+      )
+  LOOP
+    EXECUTE 'DROP FUNCTION IF EXISTS ' || r.proc || ' CASCADE';
+    RAISE NOTICE 'Dropped: %', r.proc;
+  END LOOP;
+END $$;
 
 -- ============================================================================
 -- PHASE 4: CREATE RPC FUNCTIONS
