@@ -28,15 +28,6 @@ function generateRandomDraw() {
   return nums.sort(function() { return Math.random() - 0.5 })
 }
 
-function generateRandomDraw() {
-  const nums = []
-  while (nums.length < 20) {
-    const n = Math.floor(Math.random() * 10000)
-    if (!nums.includes(n)) nums.push(n)
-  }
-  return nums.sort(function() { return Math.random() - 0.5 })
-}
-
 async function seedDatabase() {
   console.log("=== Seed Database Quiniela ===\n")
   

@@ -4,17 +4,30 @@ import { useState, useEffect } from "react"
 const WA_CHANNEL = "https://whatsapp.com/channel/0029VbB7O9B9cDDUtBY9GU1F"
 
 export default function ExpiryBanner({ premiumUntil }: { premiumUntil: string | null }) {
-  const [dismissed, setDismissed] = useState(false)
+  const [dismissed, setDismissed] = useState(() => {
+    if (!premiumUntil || typeof window === "undefined") return false
+    return !!localStorage.getItem(`expiry-dismissed-${premiumUntil}`)
+  })
+  const [daysLeft, setDaysLeft] = useState<number | null>(() => {
+    if (!premiumUntil) return null
+    if (typeof window !== "undefined" && localStorage.getItem(`expiry-dismissed-${premiumUntil}`)) return null
+    return Math.ceil((new Date(premiumUntil).getTime() - Date.now()) / 86400000)
+  })
 
   useEffect(() => {
     if (!premiumUntil) return
-    const key = `expiry-dismissed-${premiumUntil}`
-    if (localStorage.getItem(key)) setDismissed(true)
+
+    const timer = window.setTimeout(() => {
+      const diff = Math.ceil((new Date(premiumUntil).getTime() - Date.now()) / 86400000)
+      setDaysLeft(diff)
+    }, 0)
+
+    return () => window.clearTimeout(timer)
   }, [premiumUntil])
 
   if (!premiumUntil || dismissed) return null
 
-  const daysLeft = Math.ceil((new Date(premiumUntil).getTime() - Date.now()) / 86400000)
+  if (daysLeft === null) return null
 
   if (daysLeft > 7) return null
 

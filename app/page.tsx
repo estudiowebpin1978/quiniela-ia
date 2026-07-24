@@ -66,7 +66,7 @@ const SCREENSHOTS = [
 ]
 
 export default function Home() {
-  const [ready, setReady] = useState(false)
+  const [ready] = useState(() => typeof window !== "undefined" ? !(isLoggedIn() || isGuest()) : false)
   const [activeShot, setActiveShot] = useState(0)
   const carouselRef = useRef<HTMLDivElement>(null)
   const [touchStart, setTouchStart] = useState(0)
@@ -75,9 +75,7 @@ export default function Home() {
 
   useEffect(() => {
     if (isLoggedIn() || isGuest()) {
-      window.location.href = "/predictions"
-    } else {
-      setReady(true)
+      window.location.assign("/predictions")
     }
   }, [])
 

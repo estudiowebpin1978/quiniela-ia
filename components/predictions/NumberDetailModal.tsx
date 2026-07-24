@@ -30,9 +30,10 @@ export function NumberDetailModal({
   numHistoryLoading, 
   onClose 
 }: NumberDetailModalProps) {
-  if (!numDetail) return null;
+  const modalContent = useMemo(() => {
+    if (!numDetail) return null;
 
-  return useMemo(() => (
+    return (
     <div 
       style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,overflowY:"auto"}}
       onClick={onClose}
@@ -131,5 +132,10 @@ export function NumberDetailModal({
         <button onClick={onClose} style={{marginTop:16,width:"100%",padding:"10px",borderRadius:10,border:"none",background:"rgba(255,255,255,.06)",color:"var(--text)",fontWeight:700,cursor:"pointer",fontSize:12}}>Cerrar</button>
       </div>
     </div>
-  ), [numDetail, numHistory, numHistoryLoading, onClose]);
+    );
+  }, [numDetail, numHistory, numHistoryLoading, onClose]);
+
+  if (!numDetail) return null;
+
+  return modalContent;
 }

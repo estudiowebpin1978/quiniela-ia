@@ -412,6 +412,7 @@ async function _computePredictionInternal(input: PredictionInput): Promise<Predi
       const [x, y] = bestKey.split("-").map(Number)
       redoblona = `${pad(x)}-${pad(y)}`
     }
+  }
 
   // Heatmap
   const heatmap = baseScores.slice(0, 10).map(s => ({

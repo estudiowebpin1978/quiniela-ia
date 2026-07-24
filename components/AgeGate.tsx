@@ -2,12 +2,9 @@
 import { useState, useEffect } from "react"
 
 export default function AgeGate() {
-  const [show, setShow] = useState(false)
-
-  useEffect(() => {
-    const verified = localStorage.getItem("quiniela-ia-age-verified")
-    if (!verified) setShow(true)
-  }, [])
+  const [show, setShow] = useState(() => typeof window !== "undefined"
+    ? !localStorage.getItem("quiniela-ia-age-verified")
+    : false)
 
   function verify() {
     localStorage.setItem("quiniela-ia-age-verified", "true")

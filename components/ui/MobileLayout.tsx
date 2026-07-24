@@ -153,10 +153,9 @@ function ScrollToTop() {
 }
 
 function NetworkStatus() {
-  const [online, setOnline] = useState(true)
+  const [online, setOnline] = useState(() => typeof navigator !== "undefined" ? navigator.onLine : true)
 
   useEffect(() => {
-    setOnline(navigator.onLine)
     const handleOnline = () => setOnline(true)
     const handleOffline = () => setOnline(false)
     window.addEventListener("online", handleOnline)

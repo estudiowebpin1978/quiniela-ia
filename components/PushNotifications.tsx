@@ -21,15 +21,14 @@ async function registerSW(): Promise<ServiceWorkerRegistration | null> {
 
 export function usePushNotifications() {
   const [subscribed, setSubscribed] = useState(false)
-  const [supported, setSupported] = useState(true)
+  const [supported] = useState(() => typeof window !== "undefined"
+    ? "Notification" in window && "PushManager" in window && !!navigator.serviceWorker
+    : false)
   const [loading, setLoading] = useState(false)
   const swReg = useRef<ServiceWorkerRegistration | null>(null)
 
   useEffect(() => {
-    if (!("Notification" in window) || !("PushManager" in window) || !navigator.serviceWorker) {
-      setSupported(false)
-      return
-    }
+    if (!supported) return
     registerSW().then(reg => {
       if (reg) {
         swReg.current = reg

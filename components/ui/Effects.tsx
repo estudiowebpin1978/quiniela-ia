@@ -152,10 +152,10 @@ export function Sparkle({ count = 5 }: { count?: number }) {
   const sparkles = useMemo(() =>
     Array.from({ length: count }, (_, i) => ({
       id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      delay: Math.random() * 3,
-      duration: 1.5 + Math.random() * 2,
+      x: ((i * 37) % 100) + 1,
+      y: ((i * 53) % 100) + 1,
+      delay: ((i * 17) % 30) / 10,
+      duration: 1.5 + ((i * 19) % 20) / 10,
     })),
     [count]
   )
