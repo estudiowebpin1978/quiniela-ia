@@ -38,7 +38,7 @@ export function middleware(req: NextRequest) {
       const hasAuth = !!req.headers.get("authorization");
       const isVercelCron = req.headers.get("x-vercel-cron") === "1";
       const hasXCronSecret = !!req.headers.get("x-cron-secret");
-      const matchesCronSecret = process.env.CRON_SECRET && secretParam === process.env.CRON_SECRET;
+      const matchesCronSecret = process.env.CRON_SECRET && secretParam === (process.env.CRON_SECRET || "").replace(/^Bearer\s+/i, "");
 
       if (!hasAuth && !isVercelCron && !hasXCronSecret && !matchesCronSecret) {
         return NextResponse.json(

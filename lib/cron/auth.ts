@@ -36,7 +36,8 @@ export async function validateCronAuth(req: NextRequest): Promise<CronAuthResult
   // 2. CRON_SECRET (timing-safe comparison)
   const secret = req.nextUrl.searchParams.get("secret") || ""
   const authHeader = req.headers.get("authorization")?.replace("Bearer ", "") || ""
-  const expected = process.env.CRON_SECRET
+  // Normalize: strip "Bearer " prefix if user accidentally included it in env var
+  const expected = (process.env.CRON_SECRET || "").replace(/^Bearer\s+/i, "")
 
   if (expected) {
     if (secret && safeCompare(secret, expected)) {
