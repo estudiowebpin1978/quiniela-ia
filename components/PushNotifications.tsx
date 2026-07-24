@@ -1,7 +1,10 @@
 "use client"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { createClient } from "@supabase/supabase-js"
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ""
+const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+const SB_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
 function urlBase64ToUint8Array(base64: string): Uint8Array {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4)
@@ -60,9 +63,14 @@ export function usePushNotifications() {
           applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as any
         })
         const subJSON = subscription.toJSON()
+        const sbClient = createClient(SB_URL, SB_ANON)
+        const { data: { session } } = await sbClient.auth.getSession()
         await fetch("/api/push/subscribe", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+          },
           body: JSON.stringify({
             endpoint: subJSON.endpoint,
             p256dh: subJSON.keys!.p256dh,

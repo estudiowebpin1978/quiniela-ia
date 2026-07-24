@@ -2,10 +2,10 @@
  * Domain Service: Tier resolution business logic
  */
 import { UserProfile } from "../entities/user-profile"
+import { ADMIN_EMAILS } from "@/lib/config"
 
 const FREE_TRIAL_DAYS = 30
 const FREE_MAX_PREDICTIONS = 10
-const ADMIN_EMAILS = ["estudiowebpin@gmail.com"]
 
 export interface TierResolution {
   role: "free" | "premium" | "admin"

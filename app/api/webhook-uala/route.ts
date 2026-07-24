@@ -12,8 +12,11 @@ const PLAN_DAYS: Record<string, number> = {
 }
 
 function safeCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b))
+  if (!a || !b) return false
+  const maxLen = Math.max(a.length, b.length)
+  const bufA = Buffer.from(a.padEnd(maxLen, "\0"))
+  const bufB = Buffer.from(b.padEnd(maxLen, "\0"))
+  return timingSafeEqual(bufA, bufB)
 }
 
 /**
@@ -159,7 +162,7 @@ export async function POST(req: NextRequest) {
         }),
       })
     } catch {}
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: false, error: "Profile fetch failed" }, { status: 500 })
   }
 
   const profiles = await profRes.json()
@@ -176,7 +179,7 @@ export async function POST(req: NextRequest) {
       profile = created?.[0]
     } else {
       logger.error("[webhook-uala] Failed to create user_profiles", { status: createRes.status })
-      return NextResponse.json({ ok: true, message: "Could not create profile" })
+      return NextResponse.json({ ok: false, error: "Could not create profile" }, { status: 500 })
     }
   }
 

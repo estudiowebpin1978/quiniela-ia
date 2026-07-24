@@ -22,7 +22,7 @@ import { higherOrderMarkov } from "@/lib/analisis/markov-superior"
 import { detectCyclicPatterns } from "@/lib/analisis/cyclic"
 import { crossValidateWeights, MetaWeights } from "@/lib/analisis/meta-learner"
 import { multiWindowCDM } from "@/lib/analisis/cdm-model"
-import { getDeepLearningBoost, getPredictionUncertainty } from "@/lib/ml/deep-learning-loader"
+import { getDeepLearningBoost, getPredictionUncertainty, loadDeepLearningFromSupabase } from "@/lib/ml/deep-learning-loader"
 import { analyzeGraph } from "@/lib/analisis/graph"
 import { computeFeatureMatrix } from "@/lib/analisis/features-100"
 import { computeMultiLevelScores } from "@/lib/analisis/multilevel"
@@ -192,6 +192,9 @@ export async function GET(req: NextRequest) {
 
   // === PRE-PREDICTION SYNC: non-blocking, cached 5 min ===
   // First call may be slow; subsequent calls return instantly from cache
+  // Load deep learning models (non-blocking, cached after first load)
+  loadDeepLearningFromSupabase().catch(() => {})
+
   let syncStatus: any = null
   const syncPromise = syncBeforePrediction(targetDate || undefined).then(s => { syncStatus = s }).catch(() => {})
 
@@ -391,12 +394,26 @@ export async function GET(req: NextRequest) {
     if (!hc?.interTurnoScores && useFullPath && shouldRunMotorSync("interTurnoMarkov", turnoQuery)) {
       try {
         const allTurnoSeqs = new Map<string, number[][]>()
-        for (const t of ['Matutina', 'Vespertina', 'Nocturna']) {
-          allTurnoSeqs.set(t, sequences.slice(0, 100).map(s => s.map(n => n % 100)))
+        const otherTurnos = ['Matutina', 'Vespertina', 'Nocturna'].filter(t => t.toLowerCase() !== turnoQuery.toLowerCase())
+        for (const t of otherTurnos) {
+          const tUrl = `${SB}/rest/v1/draws?select=numbers&turno=ilike.*${encodeURIComponent(t)}*&order=date.desc&limit=100`
+          const tRes = await fetch(tUrl, { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } })
+          if (tRes.ok) {
+            const tRows = await tRes.json()
+            const tSeqs = tRows
+              .filter((r: any) => Array.isArray(r.numbers) && r.numbers.length >= 20)
+              .map((r: any) => r.numbers.map((n: number) => Number(n) % 100))
+            allTurnoSeqs.set(t, tSeqs)
+          }
         }
-        interTurnoResult = computeInterTurnoMarkov(allTurnoSeqs, 2)
-        const currentState = ['Matutina', 'Vespertina'].map(t => (allTurnoSeqs.get(t)?.[0]?.[0] ?? 0) % 100)
-        interTurnoScores = getMarkovScores(interTurnoResult, currentState)
+        if (allTurnoSeqs.size > 0) {
+          interTurnoResult = computeInterTurnoMarkov(allTurnoSeqs, 2)
+          const currentState = otherTurnos.slice(0, 2).map(t => {
+            const seqs = allTurnoSeqs.get(t)
+            return seqs?.[0]?.[0] ?? 0
+          })
+          interTurnoScores = getMarkovScores(interTurnoResult, currentState)
+        }
       } catch {}
     }
 

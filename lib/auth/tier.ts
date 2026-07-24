@@ -5,9 +5,11 @@
  * Premium/Admin: ilimitado + 3 cifras, 4 cifras y redoblona.
  */
 
+import { ADMIN_EMAILS } from "@/lib/config"
+export { ADMIN_EMAILS }
+
 export const FREE_TRIAL_DAYS = 30
 export const FREE_MAX_PREDICTIONS = 10
-export const ADMIN_EMAILS = ["estudiowebpin@gmail.com"]
 
 export type UserTier = {
   userId: string | null
@@ -154,9 +156,7 @@ export async function resolveUserTier(token: string): Promise<UserTier> {
     const predictionsUsed = await countUserPredictions(user.id)
     const predictionsRemaining = isPremiumRole
       ? Number.POSITIVE_INFINITY
-      : trialExpired
-        ? FREE_MAX_PREDICTIONS  // Expired trial gets full 10 predictions of 2 cifras
-        : Math.max(0, FREE_MAX_PREDICTIONS - predictionsUsed)
+      : Math.max(0, FREE_MAX_PREDICTIONS - predictionsUsed)
 
     const canSavePrediction =
       canAccess2Cifras && (isPremiumRole || predictionsRemaining > 0)

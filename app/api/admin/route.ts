@@ -21,7 +21,7 @@ function checkRate(ip: string, max = 10, windowMs = 60000): boolean {
 }
 
 async function isAdmin(token: string): Promise<boolean> {
-  const adminEmail = process.env.ADMIN_EMAIL || "estudiowebpin@gmail.com"
+  const adminEmail = (process.env.ADMIN_EMAILS || "estudiowebpin@gmail.com").split(",")[0].toLowerCase()
   try {
     const r1 = await fetch(`${SB()}/auth/v1/user`, {
       headers: { "apikey": SK(), "Authorization": `Bearer ${token}` }

@@ -157,18 +157,18 @@ BEGIN
     FROM recent WHERE unnest(numbers) BETWEEN 0 AND 9999 GROUP BY n
   ),
   freq_20 AS (
-    SELECT to_2digit(unnest(numbers)) AS n, COUNT(*)::NUMERIC AS cnt
+    SELECT to_2digit(val) AS n, COUNT(*)::NUMERIC AS cnt
     FROM (SELECT numbers FROM draws WHERE game_id = v_game_id AND turno ILIKE v_turno_filter
       AND array_length(numbers, 1) >= 20 ORDER BY date DESC LIMIT 20) sub,
-      unnest(sub.numbers) AS unnest(numbers)
-    WHERE unnest(numbers) BETWEEN 0 AND 9999 GROUP BY n
+      unnest(sub.numbers) AS val
+    WHERE val BETWEEN 0 AND 9999 GROUP BY n
   ),
   freq_hist AS (
-    SELECT to_2digit(unnest(numbers)) AS n, COUNT(*)::NUMERIC AS cnt
+    SELECT to_2digit(val) AS n, COUNT(*)::NUMERIC AS cnt
     FROM (SELECT numbers FROM draws WHERE game_id = v_game_id AND turno ILIKE v_turno_filter
       AND array_length(numbers, 1) >= 20 ORDER BY date DESC LIMIT 500) sub,
-      unnest(sub.numbers) AS unnest(numbers)
-    WHERE unnest(numbers) BETWEEN 0 AND 9999 GROUP BY n
+      unnest(sub.numbers) AS val
+    WHERE val BETWEEN 0 AND 9999 GROUP BY n
   ),
   nums AS (SELECT generate_series(0, 99) AS n)
   SELECT nums.n, COALESCE(fh.cnt/GREATEST(p_window,1),0), COALESCE(ff.cnt/GREATEST(p_window,1),0),
@@ -389,9 +389,8 @@ CREATE OR REPLACE FUNCTION get_motor_accuracy(p_motor TEXT, p_turno TEXT, p_game
 RETURNS NUMERIC LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE v_accuracy NUMERIC;
 BEGIN
-  SELECT COALESCE(SUM(CASE WHEN hit_at_1_2c THEN 1 ELSE 0 END)::NUMERIC/GREATEST(COUNT(*),1),0)
-  INTO v_accuracy FROM backtest_results
-  WHERE model_type=p_motor AND turno=p_turno AND game_id=(SELECT id FROM games WHERE slug=p_game_slug);
+  SELECT accuracy INTO v_accuracy FROM motor_performance
+  WHERE motor=p_motor AND turno=p_turno AND game_id=(SELECT id FROM games WHERE slug=p_game_slug);
   RETURN COALESCE(v_accuracy, 0);
 END;
 $$;

@@ -4,12 +4,20 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { timingSafeEqual } from "crypto"
 import logger from "@/lib/logger"
 
 export interface CronAuthResult {
   authorized: boolean
   reason?: string
   source: "vercel-cron" | "cron-secret" | "admin" | "unknown"
+}
+
+function safeCompare(a: string, b: string): boolean {
+  if (!a || !b) return false
+  const bufA = Buffer.from(a.padEnd(64, "\0"))
+  const bufB = Buffer.from(b.padEnd(64, "\0"))
+  return timingSafeEqual(bufA, bufB)
 }
 
 /**
@@ -25,16 +33,16 @@ export async function validateCronAuth(req: NextRequest): Promise<CronAuthResult
     return { authorized: true, source: "vercel-cron" }
   }
 
-  // 2. CRON_SECRET
+  // 2. CRON_SECRET (timing-safe comparison)
   const secret = req.nextUrl.searchParams.get("secret") || ""
   const authHeader = req.headers.get("authorization")?.replace("Bearer ", "") || ""
   const expected = process.env.CRON_SECRET
 
   if (expected) {
-    if (secret && secret === expected) {
+    if (secret && safeCompare(secret, expected)) {
       return { authorized: true, source: "cron-secret" }
     }
-    if (authHeader && authHeader === expected) {
+    if (authHeader && safeCompare(authHeader, expected)) {
       return { authorized: true, source: "cron-secret" }
     }
   }
@@ -46,7 +54,7 @@ export async function validateCronAuth(req: NextRequest): Promise<CronAuthResult
       const SB_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
       
       if (SB_URL && SB_KEY) {
-        const adminEmail = (process.env.ADMIN_EMAIL || "estudiowebpin@gmail.com").toLowerCase()
+        const adminEmail = (process.env.ADMIN_EMAILS || "estudiowebpin@gmail.com").split(",")[0].toLowerCase()
         const r = await fetch(`${SB_URL}/auth/v1/user`, {
           headers: { "apikey": SB_KEY, "Authorization": `Bearer ${authHeader}` },
           signal: AbortSignal.timeout(3000)
