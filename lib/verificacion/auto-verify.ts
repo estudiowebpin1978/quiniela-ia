@@ -30,9 +30,24 @@ function normalizeTurno(t: string): string {
   return base.charAt(0).toUpperCase() + base.slice(1)
 }
 
-export async function autoVerifyPredictions(fecha: string, turno: string): Promise<any[]> {
+export async function autoVerifyPredictions(fecha: string, turno: string, maxRetries = 2): Promise<any[]> {
   if (!SB_URL || !SK_KEY) return []
 
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await _autoVerifyInternal(fecha, turno)
+    } catch (err: any) {
+      if (attempt === maxRetries) {
+        logger.error("[auto-verify] Final attempt failed", { fecha, turno, attempt, error: err.message })
+        return []
+      }
+      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
+    }
+  }
+  return []
+}
+
+async function _autoVerifyInternal(fecha: string, turno: string): Promise<any[]> {
   const supabase = createClient(SB_URL, SK_KEY)
   const normalizedTurno = normalizeTurno(turno)
 

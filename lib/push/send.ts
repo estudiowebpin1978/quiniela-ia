@@ -5,21 +5,32 @@
 
 import { createClient } from "@supabase/supabase-js"
 import webPush from "web-push"
+import logger from "@/lib/logger"
 
 const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ""
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || ""
 
+let vapidConfigured = false
+
 function initPush() {
+  if (vapidConfigured) return true
   if (VAPID_PUBLIC && VAPID_PRIVATE) {
-    webPush.setVapidDetails(
-      "mailto:estudiowebpin@gmail.com",
-      VAPID_PUBLIC,
-      VAPID_PRIVATE
-    )
-    return true
+    try {
+      webPush.setVapidDetails(
+        "mailto:estudiowebpin@gmail.com",
+        VAPID_PUBLIC,
+        VAPID_PRIVATE
+      )
+      vapidConfigured = true
+      return true
+    } catch (err: any) {
+      logger.error("[push] Invalid VAPID keys", { error: err.message })
+      return false
+    }
   }
+  logger.warn("[push] VAPID keys not configured — push notifications disabled")
   return false
 }
 
