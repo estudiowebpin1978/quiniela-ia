@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { revalidateTag } from "next/cache"
 import { esDiaSinSorteo } from "@/lib/feriados"
 import { autoVerifyPredictions } from "@/lib/verificacion/auto-verify"
+import { enqueueVerification } from "@/lib/verification-queue"
 import { fetchWithFallback } from "@/lib/scrapers/orchestrator"
 import { SourceStats } from "@/lib/scrapers/types"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
@@ -160,9 +161,7 @@ export async function GET(req: NextRequest) {
 
     // Always trigger verification for this date/turno (covers predictions made after draw was saved)
     try {
-      autoVerifyPredictions(fechaISO, turno).catch(e => {
-        logger.error("cron-scrape: error auto-verify", { fecha: fechaISO, turno, error: String(e) })
-      })
+      await enqueueVerification(fechaISO, turno)
     } catch {}
   }
 
