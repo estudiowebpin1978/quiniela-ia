@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { resolveUserTier, FREE_MAX_PREDICTIONS } from "@/lib/auth/tier"
+import { autoVerifyPredictions } from "@/lib/verificacion/auto-verify"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
@@ -255,6 +256,19 @@ export async function POST(req: NextRequest) {
 
     let inserted = null
     try { inserted = JSON.parse(responseText) } catch { /* noop */ }
+
+    // Trigger auto-verification if official result already exists for this date/turno
+    try {
+      const checkDraw = await fetch(
+        `${SB_URL}/rest/v1/draws?date=eq.${encodeURIComponent(date)}&turno=eq.${encodeURIComponent(turno)}&select=id&limit=1`,
+        { headers: { "apikey": SK_KEY, "Authorization": `Bearer ${SK_KEY}` }, signal: AbortSignal.timeout(5000) }
+      )
+      const draws = await checkDraw.json()
+      if (Array.isArray(draws) && draws.length > 0) {
+        // Fire-and-forget verification
+        autoVerifyPredictions(date, turno).catch(e => console.error("[mis-predicciones] auto-verify error:", e))
+      }
+    } catch { /* noop - verification is best effort */ }
 
     return NextResponse.json({
       ok: true,

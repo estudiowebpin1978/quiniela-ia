@@ -129,43 +129,41 @@ export async function GET(req: NextRequest) {
   const sourceStats: SourceStats = {}
 
   for (const turno of TURNOS) {
-    if (await tieneDraw(fechaISO, turno)) {
-      logger.debug("cron-scrape: ya existe", { fecha: fechaISO, turno })
-      continue
-    }
+    const drawExists = await tieneDraw(fechaISO, turno)
+    
+    if (!drawExists) {
+      const result = await fetchWithFallback(fechaISO, fUrl, turno, sourceStats)
 
-    const result = await fetchWithFallback(fechaISO, fUrl, turno, sourceStats)
-
-    if (result.numbers.length >= 20) {
-      try {
-        if (await guardarDraw(fechaISO, turno, result.numbers, result.source)) {
-          guardados++
-          resultados[turno] = result.numbers
-          logger.info("cron-scrape: guardado", {
-            fecha: fechaISO, turno, cantidad: result.numbers.length,
-            source: result.source, cabezaMatch: result.cabezaMatch
-          })
-          autoVerifyPredictions(fechaISO, turno).catch(e => {
-            logger.error("cron-scrape: error auto-verify", { fecha: fechaISO, turno, error: String(e) })
-          })
-          // Invalidate prediction cache for this turno
-          try {
-            revalidateTag(`predictions-${turno.toLowerCase()}`, "max")
-            revalidateTag('predictions', "max")
-          } catch {}
-        } else {
-          logger.warn("cron-scrape: fallo al guardar", { fecha: fechaISO, turno })
+      if (result.numbers.length >= 20) {
+        try {
+          if (await guardarDraw(fechaISO, turno, result.numbers, result.source)) {
+            guardados++
+            resultados[turno] = result.numbers
+            logger.info("cron-scrape: guardado", {
+              fecha: fechaISO, turno, cantidad: result.numbers.length,
+              source: result.source, cabezaMatch: result.cabezaMatch
+            })
+          } else {
+            logger.warn("cron-scrape: fallo al guardar", { fecha: fechaISO, turno })
+            errores++
+          }
+        } catch (e) {
+          const errMsg = e instanceof Error ? e.message : String(e)
+          logger.error("cron-scrape: error guardando draw", { fecha: fechaISO, turno, error: errMsg })
           errores++
         }
-      } catch (e) {
-        const errMsg = e instanceof Error ? e.message : String(e)
-        logger.error("cron-scrape: error guardando draw", { fecha: fechaISO, turno, error: errMsg })
+      } else {
+        logger.warn("cron-scrape: todas las fuentes fallaron", { fecha: fechaISO, turno })
         errores++
       }
-    } else {
-      logger.warn("cron-scrape: todas las fuentes fallaron", { fecha: fechaISO, turno })
-      errores++
     }
+
+    // Always trigger verification for this date/turno (covers predictions made after draw was saved)
+    try {
+      autoVerifyPredictions(fechaISO, turno).catch(e => {
+        logger.error("cron-scrape: error auto-verify", { fecha: fechaISO, turno, error: String(e) })
+      })
+    } catch {}
   }
 
   // Limpiar predicciones de usuarios mayores a 24hs
