@@ -18,10 +18,6 @@ on:
         description: 'Saltar scrape y solo regenerar predicciones'
         required: false
         default: 'false'
-      with_xgboost:
-        description: 'Usar XGBoost (si disponible en el entorno)'
-        required: false
-        default: 'true'
 
 jobs:
   check-premium-expiry:
@@ -62,7 +58,6 @@ jobs:
           echo "HTTP status: $http_code"
           echo "$body"
           if [ "$http_code" -ne 200 ]; then echo "ERROR: Scrape API returned $http_code"; exit 1; fi
-          echo "SCRAPE_DONE=true" >> $GITHUB_ENV
 
       - name: Historical backfill (if triggered with history=true)
         if: inputs.history == 'true'
@@ -77,40 +72,22 @@ jobs:
           echo "$body"
           if [ "$http_code" -ne 200 ]; then echo "ERROR: History API returned $http_code"; exit 1; fi
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-
-      - name: Install Python dependencies
+      - name: Trigger ML training via API
         run: |
-          pip install -r requirements.txt
+          url="${{ secrets.APP_URL }}/api/cron-ml-training?secret=${{ secrets.CRON_SECRET }}"
+          echo "Calling: $url"
+          response=$(curl -s -w "\n%{http_code}" "$url")
+          http_code=$(tail -n1 <<< "$response")
+          body=$(sed '$d' <<< "$response")
+          echo "HTTP status: $http_code"
+          echo "$body"
 
-      - name: Regenerate predictions with quiniela_ml
+      - name: Run analytics computation
         run: |
-          python quiniela_ml/run_all.py
-
-      - name: Train LightGBM + XGBoost ensemble
-        run: |
-          python lib/ml/python/train_lightgbm_xgboost.py
-
-      - name: Check if predictions changed
-        id: check_changes
-        run: |
-          git add modelos_exportados/
-          if git diff --cached --quiet; then
-            echo "No changes in prediction files"
-            echo "HAS_CHANGES=false" >> $GITHUB_ENV
-          else
-            echo "Predictions changed"
-            echo "HAS_CHANGES=true" >> $GITHUB_ENV
-          fi
-
-      - name: Commit and push updated predictions
-        if: env.HAS_CHANGES == 'true'
-        run: |
-          git config user.name "quiniela-ml-bot"
-          git config user.email "bot@quiniela-ia.app"
-          git commit -m "auto: regenerate predictions [skip ci]"
-          git push
+          url="${{ secrets.APP_URL }}/api/cron-analytics?secret=${{ secrets.CRON_SECRET }}"
+          echo "Calling: $url"
+          response=$(curl -s -w "\n%{http_code}" "$url")
+          http_code=$(tail -n1 <<< "$response")
+          body=$(sed '$d' <<< "$response")
+          echo "HTTP status: $http_code"
+          echo "$body"

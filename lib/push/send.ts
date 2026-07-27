@@ -3,12 +3,10 @@
  * Sends web push notifications to subscribed users.
  */
 
-import { createClient } from "@supabase/supabase-js"
+import { getSupabaseAdmin } from "@/lib/supabase-client"
 import webPush from "web-push"
 import logger from "@/lib/logger"
 
-const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-const SK_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ""
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || ""
 
@@ -45,9 +43,8 @@ interface PushPayload {
 
 export async function sendPushToAll(payload: PushPayload): Promise<{ sent: number; failed: number }> {
   if (!initPush()) return { sent: 0, failed: 0 }
-  if (!SB_URL || !SK_KEY) return { sent: 0, failed: 0 }
 
-  const supabase = createClient(SB_URL, SK_KEY)
+  const supabase = getSupabaseAdmin()
   const { data: subs } = await supabase.from("push_subscriptions").select("endpoint, p256dh, auth")
 
   if (!subs?.length) return { sent: 0, failed: 0 }
@@ -87,9 +84,8 @@ export async function sendPushToAll(payload: PushPayload): Promise<{ sent: numbe
 
 export async function sendPushToUser(userId: string, payload: PushPayload): Promise<boolean> {
   if (!initPush()) return false
-  if (!SB_URL || !SK_KEY) return false
 
-  const supabase = createClient(SB_URL, SK_KEY)
+  const supabase = getSupabaseAdmin()
   const { data: subs } = await supabase
     .from("push_subscriptions")
     .select("endpoint, p256dh, auth")
@@ -123,8 +119,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
 }
 
 export async function getSubscriptionCount(): Promise<number> {
-  if (!SB_URL || !SK_KEY) return 0
-  const supabase = createClient(SB_URL, SK_KEY)
+  const supabase = getSupabaseAdmin()
   const { count } = await supabase.from("push_subscriptions").select("*", { count: "exact", head: true })
   return count || 0
 }

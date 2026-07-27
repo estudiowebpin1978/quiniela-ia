@@ -1,5 +1,5 @@
 /**
- * Resumen legible de predicciones vía Groq (gratis) o Gemini.
+ * Resumen legible de predicciones vía Ollama (local, gratis) → Groq (gratis) → Gemini.
  * No inventa números: solo interpreta el ranking matemático ya calculado.
  * Timeout estricto para no romper el presupuesto de Vercel Hobby.
  */
@@ -11,6 +11,14 @@ export type PredictionSummaryInput = {
   totalSorteos: number
   metodo?: string
   factoresDestacados?: string[]
+}
+
+function ollamaHost(): string {
+  return (process.env.OLLAMA_HOST || "http://localhost:11434").replace(/"/g, "").trim()
+}
+
+function ollamaModel(): string {
+  return (process.env.OLLAMA_MODEL || "llama3.2:3b").replace(/"/g, "").trim()
 }
 
 function groqKey() {
@@ -32,7 +40,7 @@ function fallbackSummary(input: PredictionSummaryInput): string {
 export async function generatePredictionSummary(
   input: PredictionSummaryInput,
   timeoutMs = 2500,
-): Promise<{ summary: string; provider: "groq" | "gemini" | "local" }> {
+): Promise<{ summary: string; provider: "ollama" | "groq" | "gemini" | "local" }> {
   const prompt =
     `Sos un analista estadístico de la Quiniela Nacional (Buenos Aires). ` +
     `Interpretá SOLO estos resultados ya calculados (no inventes números):\n` +
@@ -49,6 +57,38 @@ export async function generatePredictionSummary(
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
 
   try {
+    // Priority 1: Ollama (local, zero cost, no API limits)
+    const ollamaUrl = ollamaHost()
+    if (ollamaUrl) {
+      try {
+        const res = await fetch(`${ollamaUrl}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: ollamaModel(),
+            messages: [
+              { role: "system", content: "Analista estadístico. Respuestas breves en español." },
+              { role: "user", content: prompt },
+            ],
+            stream: false,
+            options: { temperature: 0.2, num_predict: 220 },
+          }),
+          signal: ctrl.signal,
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const text = data?.message?.content?.trim()
+          if (text) {
+            clearTimeout(timer)
+            return { summary: text, provider: "ollama" }
+          }
+        }
+      } catch {
+        // Ollama not available, fall through to cloud providers
+      }
+    }
+
+    // Priority 2: Groq (free tier, fast)
     const gk = groqKey()
     if (gk) {
       const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -78,6 +118,7 @@ export async function generatePredictionSummary(
       }
     }
 
+    // Priority 3: Gemini (free tier)
     const gem = geminiKey()
     if (gem) {
       const res = await fetch(

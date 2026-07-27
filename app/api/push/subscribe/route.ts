@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-import { getSupabaseUrl, getSupabaseKey } from "@/lib/config"
+import { getSupabaseAdmin } from "@/lib/supabase-client"
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,11 +8,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const SB_URL = getSupabaseUrl()
-    const SB_KEY = getSupabaseKey()
-    if (!SB_URL || !SB_KEY) return NextResponse.json({ error: "Config" }, { status: 500 })
-
-    const supabase = createClient(SB_URL, SB_KEY)
+    const supabase = getSupabaseAdmin()
     const { data: { user }, error: authErr } = await supabase.auth.getUser(authHeader)
     if (authErr || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

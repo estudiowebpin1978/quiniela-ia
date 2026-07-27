@@ -2,8 +2,8 @@
  * Auto-training module for ML models.
  * Trains Markov, Random Forest, and Neural Net from historical data.
  * Persists to Supabase ml_models table and caches in globalThis.
- * Supports AI-enhanced predictions via Groq, Gemini, CRSR, and SK APIs.
- * 
+ * Supports AI-enhanced predictions via Ollama (local) or Groq/Gemini (cloud).
+ *
  * Architecture:
  * - Heavy compute (training) is separated from API calls (AI enhancement)
  * - Heavy compute can be routed to Ollama for local inference
@@ -15,11 +15,10 @@ import { setModelos, getModelos } from "./cache"
 const SB_URL = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SB_KEY = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
 
-// AI API Keys (from .env.local)
+const OLLAMA_HOST = () => (process.env.OLLAMA_HOST || "http://localhost:11434").replace(/"/g, "").trim()
+const OLLAMA_MODEL = () => (process.env.OLLAMA_MODEL || "llama3.2:3b").replace(/"/g, "").trim()
 const GROQ_API_KEY = () => (process.env.GROQ_API_KEY || "").replace(/"/g, "").trim()
 const GEMINI_API_KEY = () => (process.env.GEMINI_API_KEY || "").replace(/"/g, "").trim()
-const CRSR_API_KEY = () => (process.env.CRSR_API_KEY || "").replace(/"/g, "").trim()
-const SK_API_KEY = () => (process.env.SK_API_KEY || "").replace(/"/g, "").trim()
 
 const TURNOS = ["previa", "primera", "matutina", "vespertina", "nocturna"]
 
@@ -30,10 +29,38 @@ interface TrainResult {
   proveedorIA?: string
 }
 
-// AI Model implementations
-class GroqAI {
+// AI Provider abstraction
+interface AIProvider {
+  name: string
+  generatePrediction(input: string, context?: string): Promise<any>
+}
+
+class OllamaAI implements AIProvider {
+  name = "ollama"
   async generatePrediction(input: string, context?: string): Promise<any> {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const res = await fetch(`${OLLAMA_HOST()}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: OLLAMA_MODEL(),
+        messages: [
+          { role: "system", content: "Eres un experto en análisis estadístico de quinielas. Proporciona predicciones basadas en datos." },
+          { role: "user", content: `${context ? `Contexto: ${context}\n\n` : ""}Analiza los datos históricos y predice el próximo sorteo: ${input}` }
+        ],
+        stream: false,
+        options: { temperature: 0.3, num_predict: 1024 }
+      })
+    })
+    if (!res.ok) throw new Error(`Ollama ${res.status}`)
+    const data = await res.json()
+    return { choices: [{ message: { content: data?.message?.content } }] }
+  }
+}
+
+class GroqAI implements AIProvider {
+  name = "groq"
+  async generatePrediction(input: string, context?: string): Promise<any> {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${GROQ_API_KEY()}`,
@@ -49,17 +76,16 @@ class GroqAI {
         max_tokens: 1024
       })
     })
-    return response.json()
+    return res.json()
   }
 }
 
-class GeminiAI {
+class GeminiAI implements AIProvider {
+  name = "gemini"
   async generatePrediction(input: string, context?: string): Promise<any> {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${GEMINI_API_KEY()}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${GEMINI_API_KEY()}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{
           parts: [{
@@ -69,56 +95,10 @@ class GeminiAI {
             Proporciona análisis estadístico detallado y predicción del próximo sorteo.`
           }]
         }],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 1024
-        }
+        generationConfig: { temperature: 0.3, maxOutputTokens: 1024 }
       })
     })
-    return response.json()
-  }
-}
-
-// Fallback AI implementation
-class CRSR_AI {
-  async generatePrediction(input: string, context?: string): Promise<any> {
-    const response = await fetch("https://api.crsr.io/v1/predict", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${CRSR_API_KEY()}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "ml-model-v1",
-        input: {
-          historical_data: context,
-          current_prediction_input: input
-        }
-      })
-    })
-    return response.json()
-  }
-}
-
-class SKAI {
-  async generatePrediction(input: string, context?: string): Promise<any> {
-    const response = await fetch("https://api.skymind.io/v1/predict", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${SK_API_KEY()}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "quiniela-forecast-v2",
-        query: input,
-        context: context,
-        parameters: {
-          prediction_type: "next_draw",
-          confidence_threshold: 0.7
-        }
-      })
-    })
-    return response.json()
+    return res.json()
   }
 }
 
@@ -175,7 +155,7 @@ export async function trainTurnoHeavyCompute(turno: string): Promise<{ modelos: 
 }
 
 /**
- * AI ENHANCEMENT ONLY: Generate AI predictions via external APIs.
+ * AI ENHANCEMENT ONLY: Generate AI predictions via Ollama (local) or cloud APIs.
  * This is the optional text formatting/enhancement layer.
  * Can be called independently after heavy compute.
  */
@@ -191,60 +171,41 @@ export async function enhanceWithAI(
     return { aiPredictions: null, proveedorIA: "" }
   }
 
+  const providerMap: Record<string, AIProvider> = {
+    ollama: new OllamaAI(),
+    groq: new GroqAI(),
+    gemini: new GeminiAI(),
+  }
+
   try {
-    const groq = new GroqAI()
-    const gemini = new GeminiAI()
-    const cersr = new CRSR_AI()
-    const sk = new SKAI()
+    const activeProviders = aiProviders
+      .filter(name => providerMap[name])
+      .map(name => providerMap[name])
 
-    const aiPromises: Promise<any>[] = []
-    const aiNames: string[] = []
-
-    if (aiProviders.includes("groq")) {
-      aiPromises.push(groq.generatePrediction(
-        JSON.stringify(sorteos.slice(-50)),
-        `Análisis de los últimos ${sorteos.length} sorteos de quiniela para turno ${turno}`
-      ))
-      aiNames.push("Groq")
+    if (activeProviders.length === 0) {
+      return { aiPredictions: null, proveedorIA: "" }
     }
 
-    if (aiProviders.includes("gemini")) {
-      aiPromises.push(gemini.generatePrediction(
-        JSON.stringify(sorteos.slice(-50)),
-        `Análisis de los últimos ${sorteos.length} sorteos de quiniela para turno ${turno}`
-      ))
-      aiNames.push("Gemini")
-    }
+    const inputData = JSON.stringify(sorteos.slice(-50))
+    const context = `Análisis de los últimos ${sorteos.length} sorteos de quiniela para turno ${turno}`
 
-    if (aiProviders.includes("crsr")) {
-      aiPromises.push(cersr.generatePrediction(
-        JSON.stringify(sorteos.slice(-50)),
-        `Análisis de los últimos ${sorteos.length} sorteos de quiniela para turno ${turno}`
-      ))
-      aiNames.push("CRSR")
-    }
+    const aiPromises = activeProviders.map(p => p.generatePrediction(inputData, context))
+    const aiResults = await Promise.allSettled(aiPromises)
 
-    if (aiProviders.includes("sk")) {
-      aiPromises.push(sk.generatePrediction(
-        JSON.stringify(sorteos.slice(-50)),
-        `Análisis de los últimos ${sorteos.length} sorteos de quiniela para turno ${turno}`
-      ))
-      aiNames.push("SK")
-    }
+    const successfulResults = aiResults
+      .filter(result => result.status === "fulfilled")
+      .map(result => result.value)
 
-    if (aiPromises.length > 0) {
-      const aiResults = await Promise.allSettled(aiPromises)
-      const successfulResults = aiResults
-        .filter(result => result.status === "fulfilled")
-        .map(result => result.value)
+    const successfulNames = activeProviders
+      .filter((_, idx) => aiResults[idx].status === "fulfilled")
+      .map(p => p.name)
 
-      if (successfulResults.length > 0) {
-        aiPredictions = {
-          predictions: successfulResults,
-          providers: aiNames.filter((_, idx) => aiResults[idx].status === "fulfilled")
-        }
-        proveedorIA = aiNames.filter((_, idx) => aiResults[idx].status === "fulfilled").join("+")
+    if (successfulResults.length > 0) {
+      aiPredictions = {
+        predictions: successfulResults,
+        providers: successfulNames
       }
+      proveedorIA = successfulNames.join("+")
     }
   } catch (e) {
     console.warn(`[AutoML AI] Error generating AI predictions:`, e)
@@ -289,8 +250,8 @@ async function trainTurnoConIA(
     ai_providers: proveedorIA
   }))
 
-  // Cache in globalThis
-  setModelos(turno, enhancedModelos)
+  // Cache in Supabase-backed store
+  await setModelos(turno, enhancedModelos)
 
   return { turno, modelos: enhancedModelos, tiempoMs: Date.now() - start, proveedorIA }
 }
@@ -305,7 +266,6 @@ async function persistToSupabase(turno: string, modelos: any[]): Promise<boolean
   if (!SB || !SK || !modelos.length) return false
 
   try {
-    // Try to upsert - if table doesn't exist, this will fail gracefully
     const res = await fetch(`${SB}/rest/v1/ml_models`, {
       method: "POST",
       headers: {
@@ -322,7 +282,6 @@ async function persistToSupabase(turno: string, modelos: any[]): Promise<boolean
     })
 
     if (!res.ok) {
-      // Table might not exist yet - try creating it via SQL
       console.log(`[AutoML] ml_models table might not exist, models cached in memory for ${turno}`)
       return false
     }
@@ -353,8 +312,7 @@ export async function loadFromSupabase(turno: string): Promise<any[] | null> {
     if (!rows?.length) return null
 
     const modelos = JSON.parse(rows[0].modelos)
-    // Re-cache in globalThis for fast access
-    setModelos(turno, modelos)
+    await setModelos(turno, modelos)
 
     console.log(`[AutoML] Loaded ${modelos.length} models for ${turno} from Supabase`)
     return modelos
@@ -369,7 +327,7 @@ export async function loadFromSupabase(turno: string): Promise<any[] | null> {
  */
 export async function autoTrainAll(conectarIA: boolean = false): Promise<TrainResult[]> {
   const results: TrainResult[] = []
-  const proveedoresIA = conectarIA ? ["groq", "gemini", "crsr", "sk"] : []
+  const proveedoresIA = conectarIA ? ["ollama", "groq", "gemini"] : []
 
   for (const turno of TURNOS) {
     const result = await trainTurnoConIA(turno, proveedoresIA)
@@ -389,7 +347,7 @@ export async function autoTrainAll(conectarIA: boolean = false): Promise<TrainRe
  */
 export async function autoTrainSingle(turno: string, conectarIA: boolean = false): Promise<any[] | null> {
   // Check cache first
-  const cached = getModelos(turno)
+  const cached = await getModelos(turno)
   if (cached && cached.length > 0) return cached
 
   // Check Supabase
@@ -400,7 +358,7 @@ export async function autoTrainSingle(turno: string, conectarIA: boolean = false
   }
 
   // Train from scratch with optional AI enhancement
-  const aiProviders = conectarIA ? ["groq", "gemini", "crsr", "sk"] : []
+  const aiProviders = conectarIA ? ["ollama", "groq", "gemini"] : []
   const result = await trainTurnoConIA(turno, aiProviders)
   if (result.modelos.length > 0) {
     await persistToSupabase(turno, result.modelos)

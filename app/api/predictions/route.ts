@@ -30,7 +30,7 @@ import { computeCooccurrence } from "@/lib/analisis/pmi"
 import { computeAdvancedMarkov } from "@/lib/analisis/markov-advanced"
 import { analyzePositions } from "@/lib/analisis/positions"
 import { trainEnsemble, predictEnsemble } from "@/lib/analisis/ensemble-advanced"
-import { syncBeforePrediction } from "@/lib/scraper/sync"
+import { syncBeforePrediction } from "@/lib/scrapers/sync"
 import { 
   shouldRunMotorSync, updateMotorPerformance, clearOldPerformance 
 } from "@/lib/analisis/motor-performance"
@@ -205,11 +205,8 @@ export async function GET(req: NextRequest) {
   recalibrar().catch(() => {})
 
   // Create Supabase client for RPC calls
-  const { createClient } = await import('@supabase/supabase-js')
-  const supabase = createClient(
-    (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim(),
-    (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
-  )
+  const { getSupabaseAdmin } = await import('@/lib/supabase-client')
+  const supabase = getSupabaseAdmin()
 
   const ctrl = new AbortController()
   const to = setTimeout(() => ctrl.abort(), 25000)
@@ -724,7 +721,7 @@ export async function GET(req: NextRequest) {
     if (useFullPath) {
       try {
         const { getModelos } = await import("@/lib/ml/cache")
-        let cached = getModelos(turnoQuery)
+        let cached = await getModelos(turnoQuery)
         
         if (!cached || cached.length === 0) {
           try {

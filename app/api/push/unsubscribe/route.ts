@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-import { getSupabaseUrl, getSupabaseKey } from "@/lib/config"
+import { getSupabaseAdmin } from "@/lib/supabase-client"
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,10 +7,8 @@ export async function POST(req: NextRequest) {
     if (!endpoint) {
       return NextResponse.json({ error: "Falta endpoint" }, { status: 400 })
     }
-    const SB_URL = getSupabaseUrl()
-    const SB_KEY = getSupabaseKey()
-    if (!SB_URL || !SB_KEY) return NextResponse.json({ error: "Config" }, { status: 500 })
-    const supabase = createClient(SB_URL, SB_KEY)
+
+    const supabase = getSupabaseAdmin()
     await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint)
     return NextResponse.json({ ok: true })
   } catch {

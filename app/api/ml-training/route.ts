@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const { setModelos } = await import("@/lib/ml/cache")
-      setModelos(turno, resultado.modelos.map(m => ({ tipo: m.tipo, nombre: m.nombre, modelo: m.modelo })))
+      await setModelos(turno, resultado.modelos.map(m => ({ tipo: m.tipo, nombre: m.nombre, modelo: m.modelo })))
     } catch {}
 
     return NextResponse.json({

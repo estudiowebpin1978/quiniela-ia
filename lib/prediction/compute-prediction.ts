@@ -26,7 +26,7 @@ import { computeCooccurrence } from "@/lib/analisis/pmi"
 import { computeAdvancedMarkov } from "@/lib/analisis/markov-advanced"
 import { analyzePositions } from "@/lib/analisis/positions"
 import { trainEnsemble, predictEnsemble } from "@/lib/analisis/ensemble-advanced"
-import { syncBeforePrediction } from "@/lib/scraper/sync"
+import { syncBeforePrediction } from "@/lib/scrapers/sync"
 import { 
   shouldRunMotorSync, updateMotorPerformance, clearOldPerformance 
 } from "@/lib/analisis/motor-performance"

@@ -30,6 +30,27 @@ export function sbHeaders(): Record<string, string> {
   return { "apikey": key, "Authorization": `Bearer ${key}` };
 }
 
+/** Ollama local AI configuration */
+export function getOllamaHost(): string {
+  return env("OLLAMA_HOST") || "http://localhost:11434";
+}
+
+export function getOllamaModel(): string {
+  return env("OLLAMA_MODEL") || "llama3.2:3b";
+}
+
+/** Check if Ollama is configured and reachable */
+export async function isOllamaAvailable(): Promise<boolean> {
+  try {
+    const res = await fetch(`${getOllamaHost()}/api/tags`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Check if env vars are configured */
 export function isConfigured(): boolean {
   return !!getSupabaseUrl() && !!getSupabaseKey();

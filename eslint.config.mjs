@@ -8,8 +8,6 @@ const eslintConfig = [
       "node_modules/**",
       "public/**",
       "logs/**",
-      "modelos_exportados/**",
-      "ml-backend/**",
     ],
     rules: {
       "@next/next/no-page-custom-font": "off",

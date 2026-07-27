@@ -49,29 +49,18 @@ function fechaArgentina(): { fechaStr: string; diaSemana: number; fUrl: string }
 }
 
 // ── Cache ──────────────────────────────────────────────────────────
-interface CacheEntry {
-  result: SyncResult
-  expiresAt: number
-}
+import { cacheGet, cacheSet } from "@/lib/cache"
 
 function getCacheKey(targetDate: string): string {
   return `sync:${targetDate}`
 }
 
-function getCached(key: string): SyncResult | null {
-  if (!globalThis.__syncCache) globalThis.__syncCache = {}
-  const entry = globalThis.__syncCache[key]
-  if (!entry) return null
-  if (Date.now() > entry.expiresAt) {
-    delete globalThis.__syncCache[key]
-    return null
-  }
-  return entry.result
+async function getCached(key: string): Promise<SyncResult | null> {
+  return cacheGet<SyncResult>(key)
 }
 
-function setCache(key: string, result: SyncResult): void {
-  if (!globalThis.__syncCache) globalThis.__syncCache = {}
-  globalThis.__syncCache[key] = { result, expiresAt: Date.now() + CACHE_TTL_MS }
+async function setCache(key: string, result: SyncResult): Promise<void> {
+  await cacheSet(key, result, CACHE_TTL_MS)
 }
 
 // ── Supabase helpers ───────────────────────────────────────────────
@@ -271,7 +260,7 @@ async function runSync(targetDate?: string, force: boolean = false): Promise<Syn
 
   // Check cache (skip if forced)
   if (!force) {
-    const cached = getCached(getCacheKey(fechaISO))
+    const cached = await getCached(getCacheKey(fechaISO))
     if (cached) return cached
   }
 
@@ -290,7 +279,7 @@ async function runSync(targetDate?: string, force: boolean = false): Promise<Syn
         TURNOS.map(t => [t.toLowerCase(), { exists: false, latest: null, scraped: false }])
       ) as SyncResult["details"],
     }
-    setCache(getCacheKey(fechaISO), result)
+    await setCache(getCacheKey(fechaISO), result)
     return result
   }
 
@@ -416,7 +405,7 @@ async function runSync(targetDate?: string, force: boolean = false): Promise<Syn
       : `Sync partial for ${fechaISO}: ${errors.length} errors`,
   })
 
-  setCache(getCacheKey(fechaISO), result)
+  await setCache(getCacheKey(fechaISO), result)
   return result
 }
 
@@ -435,9 +424,4 @@ export async function syncBeforePrediction(targetDate?: string): Promise<SyncRes
  */
 export async function forceSyncAll(): Promise<SyncResult> {
   return runSync(undefined, true)
-}
-
-// Extend globalThis type for TypeScript
-declare global {
-  var __syncCache: Record<string, { result: SyncResult; expiresAt: number }> | undefined
 }

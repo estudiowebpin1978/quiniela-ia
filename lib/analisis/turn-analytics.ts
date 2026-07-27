@@ -8,17 +8,12 @@
  * Designed to run in the cron-scrape webhook after scraping completes.
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseAdmin } from '@/lib/supabase-client'
 import { computeShannonEntropy, getEntropyScores } from './shannon-entropy'
 import { computeSurvivalAnalysis, getSurvivalScores } from './survival'
 import { computeInterTurnoMarkov, getMarkovScores, isLowEntropyState } from './inter-turno-markov'
 import { optimizeWeights } from './genetic-weights'
 import logger from '@/lib/logger'
-
-const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-const SK_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
-
-const supabase = createClient(SB_URL || 'http://localhost', SK_KEY || 'dummy')
 
 const TURNOS = ['Matutina', 'Vespertina', 'Nocturna']
 
@@ -40,7 +35,7 @@ async function fetchTurnSequences(
   turno: string,
   limit: number = 500
 ): Promise<number[][]> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseAdmin()
     .from('draws')
     .select('numbers')
     .ilike('turno', `%${turno}%`)
@@ -197,7 +192,7 @@ async function saveTurnAnalytics(data: TurnAnalyticsData): Promise<void> {
 
   // Upsert (one record per turno per day)
   const today = new Date().toISOString().split('T')[0]
-  const { error } = await supabase
+  const { error } = await getSupabaseAdmin()
     .from('turn_analytics')
     .upsert({ ...payload, fecha: today }, {
       onConflict: 'turno,fecha',
@@ -236,7 +231,7 @@ export async function computeAllTurnAnalytics(): Promise<void> {
  * Get latest analytics for a turno (for API consumption).
  */
 export async function getLatestAnalytics(turno: string) {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseAdmin()
     .from('turn_analytics')
     .select('*')
     .ilike('turno', `%${turno}%`)

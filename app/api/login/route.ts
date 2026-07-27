@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabase } from "@/lib/supabase-client";
 import { ensureUserProfile } from "@/lib/auth/tier";
 
 export async function POST(req: NextRequest) {
-  const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/"/g, "").trim();
-  const SB_ANON = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").replace(/"/g, "").trim();
-
-  if (!SB_URL || !SB_ANON) return NextResponse.json({ error: "Variables no configuradas." }, { status: 500 });
+  const supabase = getSupabase();
 
   let email: string, password: string, action: string;
   try {
@@ -18,8 +15,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
   if (!email || !password) return NextResponse.json({ error: "Faltan campos." }, { status: 400 });
-
-  const supabase = createClient(SB_URL, SB_ANON);
 
   try {
     if (action === "signup") {
