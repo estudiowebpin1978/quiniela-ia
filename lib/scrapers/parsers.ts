@@ -2,6 +2,7 @@ import { ScrapeResult } from "./types"
 import logger from "@/lib/logger"
 
 const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
+const TURNOS_ORDER = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -26,10 +27,43 @@ function extractNums(html: string, rx: RegExp, max = 20): number[] {
   return nums
 }
 
-// ─── Fuente 1: Lotería de la Ciudad (Oficial) ───────────────────────────────
-// POST a PHP endpoint, HTML con <div class="pos">NN</div> seguido de <div>NNNN</div>
-export async function parseLoteriaOficial(fechaISO: string, _fechaUrl: string, turno: string): Promise<ScrapeResult | null> {
-  const refDateStr = process.env.LOTERIA_REF_DATE || "2026-06-08"
+// Cache for dynamic sorteo code discovery
+let sorteoCodeCache: { code: number; fecha: string; expiresAt: number } | null = null
+
+async function discoverLatestSorteoCode(): Promise<number | null> {
+  if (sorteoCodeCache && Date.now() < sorteoCodeCache.expiresAt) {
+    return sorteoCodeCache.code
+  }
+
+  try {
+    const r = await fetch("https://quiniela.loteriadelaciudad.gob.ar/", {
+      headers: { "User-Agent": randomUA(), Accept: "text/html" },
+      signal: AbortSignal.timeout(8000)
+    })
+    if (!r.ok) return null
+    const html = await r.text()
+
+    const codes: number[] = []
+    const codeRx = /sorteo[=:]\s*(\d{5})/gi
+    let match: RegExpExecArray | null
+    while ((match = codeRx.exec(html)) !== null) {
+      const code = parseInt(match[1], 10)
+      if (code > 50000 && code < 99999) codes.push(code)
+    }
+
+    if (codes.length > 0) {
+      const latest = Math.max(...codes)
+      sorteoCodeCache = { code: latest, fecha: new Date().toISOString().split("T")[0], expiresAt: Date.now() + 1000 * 60 * 60 * 24 }
+      return latest
+    }
+  } catch (e) {
+    logger.debug("[scraper] sorteo code discovery failed", { error: String(e) })
+  }
+  return null
+}
+
+async function computeSorteoCodeFromDate(fechaISO: string, turno: string): Promise<number> {
+  const refDateStr = process.env.LOTERIA_REF_DATE || "2024-01-01"
   const refDate = new Date(refDateStr + "T12:00:00Z")
   const targetDate = new Date(fechaISO + "T12:00:00Z")
   const daysDiff = Math.round((targetDate.getTime() - refDate.getTime()) / 86400000)
@@ -38,12 +72,23 @@ export async function parseLoteriaOficial(fechaISO: string, _fechaUrl: string, t
     const d = new Date(refDate.getTime() + i * 86400000)
     if (d.getDay() === 0) continue
     const ds = d.toISOString().slice(0, 10)
-    const isHoliday = (await import("@/lib/feriados")).esFeriado(ds)
-    if (isHoliday) continue
+    if ((await import("@/lib/feriados")).esFeriado(ds)) continue
     weekdays++
   }
   const turnoIdx = TURNOS.indexOf(turno)
-  const sorteoCode = 52492 + weekdays * 5 + turnoIdx
+  return 52492 + weekdays * 5 + turnoIdx
+}
+
+export async function getSorteoCode(fechaISO: string, turno: string): Promise<number> {
+  const discovered = await discoverLatestSorteoCode()
+  if (discovered) return discovered
+  return computeSorteoCodeFromDate(fechaISO, turno)
+}
+
+// ─── Fuente 1: Lotería de la Ciudad (Oficial) ───────────────────────────────
+// POST a PHP endpoint, HTML con <div class="pos">NN</div> seguido de <div>NNNN</div>
+export async function parseLoteriaOficial(fechaISO: string, _fechaUrl: string, turno: string): Promise<ScrapeResult | null> {
+  const sorteoCode = await getSorteoCode(fechaISO, turno)
 
   try {
     const r = await fetch("https://quiniela.loteriadelaciudad.gob.ar/resultadosQuiniela/consultaResultados.php", {

@@ -1,8 +1,5 @@
-import { createClient } from "@supabase/supabase-js"
+import { getSupabaseAdmin } from "@/lib/supabase-client"
 import logger from "@/lib/logger"
-
-const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-const SK_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
 
 interface ParsedNumeros {
   numeros_2: string[]
@@ -31,11 +28,12 @@ function normalizeTurno(t: string): string {
 }
 
 export async function autoVerifyPredictions(fecha: string, turno: string, maxRetries = 2): Promise<any[]> {
-  if (!SB_URL || !SK_KEY) return []
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return []
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await _autoVerifyInternal(fecha, turno)
+      return await _autoVerifyInternal(supabase, fecha, turno)
     } catch (err: any) {
       if (attempt === maxRetries) {
         logger.error("[auto-verify] Final attempt failed", { fecha, turno, attempt, error: err.message })
@@ -47,8 +45,7 @@ export async function autoVerifyPredictions(fecha: string, turno: string, maxRet
   return []
 }
 
-async function _autoVerifyInternal(fecha: string, turno: string): Promise<any[]> {
-  const supabase = createClient(SB_URL, SK_KEY)
+async function _autoVerifyInternal(supabase: any, fecha: string, turno: string): Promise<any[]> {
   const normalizedTurno = normalizeTurno(turno)
 
   // Fetch draw — use ilike for case-insensitive matching
@@ -76,24 +73,24 @@ async function _autoVerifyInternal(fecha: string, turno: string): Promise<any[]>
   if (!allPredictions?.length) return []
 
   // Filter predictions whose normalized turno matches
-  const predictions = allPredictions.filter(p => normalizeTurno(p.turno || "") === normalizedTurno)
+  const predictions = allPredictions.filter((p: any) => normalizeTurno(p.turno || "") === normalizedTurno)
 
   if (!predictions.length) return []
 
-  const predIds = predictions.map(p => p.id).filter(Boolean)
+  const predIds = predictions.map((p: any) => p.id).filter(Boolean)
   const { data: existing } = await supabase
     .from("prediction_history")
     .select("prediction_id")
     .in("prediction_id", predIds)
 
-  const verifiedSet = new Set((existing || []).map(e => e.prediction_id))
+  const verifiedSet = new Set((existing || []).map((e: any) => e.prediction_id))
 
   const results: any[] = []
   const historyInserts: any[] = []
   const statsUpdates = new Map<string, { total_predictions: number; total_hits: number; current_streak: number; best_streak: number }>()
 
   // Pre-fetch all existing stats for affected users
-  const userIds = [...new Set(predictions.map(p => p.user_id).filter(Boolean))]
+  const userIds = [...new Set(predictions.map((p: any) => p.user_id).filter(Boolean))]
   const { data: allStats } = userIds.length > 0
     ? await supabase.from("user_stats").select("user_id, total_predictions, total_hits, best_streak, current_streak").in("user_id", userIds)
     : { data: [] }
@@ -186,9 +183,8 @@ async function _autoVerifyInternal(fecha: string, turno: string): Promise<any[]>
 }
 
 export async function getVerificationStats(userId?: string, days: number = 30) {
-  if (!SB_URL || !SK_KEY) return null
-
-  const supabase = createClient(SB_URL, SK_KEY)
+  const supabase = getSupabaseAdmin()
+  if (!supabase) return null
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - days)
 

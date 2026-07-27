@@ -1,14 +1,10 @@
-import { createClient } from "@supabase/supabase-js"
-
-const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-const SK_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
+import { getSupabaseAdmin } from "@/lib/supabase-client"
 
 const MAX_MOTORS = 16
 const MIN_ACCURACY = 0.3
 
 async function getSupabase() {
-  if (!SB_URL || !SK_KEY) return null
-  return createClient(SB_URL, SK_KEY)
+  return getSupabaseAdmin()
 }
 
 export async function getMotorAccuracy(motor: string, turno: string): Promise<number> {
@@ -141,7 +137,7 @@ export function shouldRunMotorSync(motor: string, turno: string): boolean {
   if (cached && Date.now() < cached.expiresAt) {
     return cached.accuracy >= MIN_ACCURACY
   }
-  // Fire-and-forget async refresh
+  // Trigger async refresh (fire-and-forget)
   getMotorAccuracy(motor, turno).then(accuracy => {
     perfCache.set(key, { accuracy, expiresAt: Date.now() + PERF_CACHE_TTL })
   }).catch(() => {})

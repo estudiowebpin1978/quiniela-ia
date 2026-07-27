@@ -64,7 +64,7 @@ export async function recalibrar(): Promise<void> {
     const freq = new Array(100).fill(0)
     for (const d of hist) for (const n of d) freq[n % 100]++
     const total = hist.length * 20
-    const top10 = Object.entries(freq).map(([k, v]) => ({ n: parseInt(k), s: (v / total) * 10000 })).sort((a, b) => b.s - a.s).slice(0, 10)
+    const top10 = Object.entries(freq).map(([k, v]) => ({ n: parseInt(k), s: (v / total) * 100 })).sort((a, b) => b.s - a.s).slice(0, 10)
     const realSet = new Set(Array.from(target, n => n % 100))
     for (const p of top10) {
       scores.push({ pred: p.s, real: realSet.has(p.n) })
@@ -73,7 +73,7 @@ export async function recalibrar(): Promise<void> {
 
   if (scores.length < 50) { curvaDinamica = null; return }
 
-  const buckets = [0, 20, 30, 40, 50, 60, 100]
+  const buckets = [0, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100]
   const nuevaCurva: CalibracionCurva[] = []
   for (let b = 0; b < buckets.length - 1; b++) {
     const enBucket = scores.filter(s => s.pred >= buckets[b] && s.pred < buckets[b + 1])

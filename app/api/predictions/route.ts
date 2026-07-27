@@ -118,14 +118,7 @@ function pad(n: number, l = 2): string {
   return String(n).padStart(l, '0')
 }
 
-// ============================================
-// RATE LIMITER (per-IP, cookie-based for serverless persistence)
-// ============================================
-function checkRate(_ip: string, _max = 20, _windowMs = 300000): boolean {
-  // In-memory rate limiting is ineffective in serverless (resets on cold start).
-  // Tier checks in resolveUserTier already enforce usage limits.
-  return true
-}
+import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limiter"
 
 // ============================================
 // MAIN API
@@ -133,8 +126,22 @@ function checkRate(_ip: string, _max = 20, _windowMs = 300000): boolean {
 export async function GET(req: NextRequest) {
   const t0 = Date.now()
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown"
-  if (!checkRate(ip)) {
-    return NextResponse.json({ error: "Demasiadas peticiones. Esperá unos minutos." }, { status: 429 })
+  
+  // Check rate limit using Supabase-backed sliding window
+  const rateLimitResult = await checkRateLimit(ip, RATE_LIMIT_PRESETS.PREDICTION_API)
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { error: "Demasiadas peticiones. Esperá unos minutos.", retryAfter: Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000) },
+      { 
+        status: 429,
+        headers: {
+          "X-RateLimit-Limit": "30",
+          "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+          "X-RateLimit-Reset": Math.ceil(rateLimitResult.resetAt / 1000).toString(),
+          "Retry-After": Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000).toString()
+        }
+      }
+    )
   }
 
   // === SERVER-SIDE TIER CHECK (fuente única: lib/auth/tier) ===

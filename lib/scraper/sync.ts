@@ -6,6 +6,7 @@
 
 import { esDiaSinSorteo, esSabadoSinPrevia, esFeriado } from "@/lib/feriados"
 import { logScrape, logScrape as logSync } from "./logger"
+import { getSorteoCode } from "@/lib/scrapers/parsers"
 
 export interface SyncResult {
   synced: boolean
@@ -130,21 +131,7 @@ async function saveDraw(
 
 // ── Scraping ───────────────────────────────────────────────────────
 async function scrapeTurnoOficial(fechaISO: string, turno: string): Promise<number[]> {
-  const TURNO_ORDER = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
-  const refDate = new Date("2026-06-08T12:00:00Z")
-  const targetDate = new Date(fechaISO + "T12:00:00Z")
-  const daysDiff = Math.round((targetDate.getTime() - refDate.getTime()) / 86400000)
-  let weekdays = 0
-  for (let i = 1; i <= daysDiff; i++) {
-    const d = new Date(refDate.getTime() + i * 86400000)
-    if (d.getDay() === 0) continue
-    const ds = d.toISOString().slice(0, 10)
-    if (esFeriado(ds)) continue
-    weekdays++
-  }
-  const turnoIdx = TURNO_ORDER.indexOf(turno)
-  if (turnoIdx < 0) return []
-  const sorteoCode = 52492 + weekdays * 5 + turnoIdx
+  const sorteoCode = await getSorteoCode(fechaISO, turno)
 
   try {
     const r = await fetch(
