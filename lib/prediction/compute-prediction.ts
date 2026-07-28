@@ -4,7 +4,6 @@
  */
 
 import { unstable_cache } from "next/cache"
-import { createClient } from "@supabase/supabase-js"
 import { calcularFactores30 } from "@/lib/analisis/factores30"
 import { analisisCrossTurno } from "@/lib/analisis/cross-turno"
 import { calcularPesosDinamicos, PesosDinamicos } from "@/lib/analisis/weights"
@@ -37,7 +36,8 @@ import { optimizeWeights } from "@/lib/analisis/genetic-weights"
 import { getLatestAnalytics } from "@/lib/analisis/turn-analytics"
 import { resolveUserTier, UserTier } from "@/lib/auth/tier"
 import { SUENOS, pad } from "@/lib/constants"
-import { createClient } from "@supabase/supabase-js"
+import { getSupabaseAdmin } from "@/lib/supabase-client"
+import { GAME_ID } from "@/lib/scrapers/types"
 import type { DrawRow } from "@/lib/analisis/factores30"
 
 export interface PredictionInput {
@@ -81,12 +81,34 @@ export interface PredictionOutput {
   confianza: any
 }
 
+// Get latest draw version for cache invalidation
+async function getLatestDrawVersion(): Promise<string> {
+  try {
+    const supabase = getSupabaseAdmin()
+    const { data } = await supabase
+      .from("draws")
+      .select("id, updated_at")
+      .eq("game_id", GAME_ID)
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    return data ? `${data.id}_${new Date(data.updated_at).getTime()}` : "v0"
+  } catch {
+    return "v0"
+  }
+}
+
 // Internal computation function (pure, no side effects on cache key inputs)
 async function _computePredictionInternal(input: PredictionInput): Promise<PredictionOutput> {
   const { turno, targetDate, sequences, rows, dates, userTier } = input
   const t0 = Date.now()
   
   const turnoQuery = turno.toLowerCase()
+
+  // Get latest draw version for cache invalidation
+  const latestDrawVersion = await getLatestDrawVersion()
   
   // Extract data
   const terminaciones2: number[] = []
@@ -104,12 +126,17 @@ async function _computePredictionInternal(input: PredictionInput): Promise<Predi
   }
 
   // === DETERMINE PATH ===
-  const fullCacheKey = `full:${turnoQuery}:${targetDate}`
+  const fullCacheKey = `full:${turnoQuery}:${targetDate}:${latestDrawVersion}`
   const gc = globalThis as any
   if (!gc.__fullCache) gc.__fullCache = {}
   const fullCached = gc.__fullCache[fullCacheKey]
-  const useFullPath = !!fullCached?.scores || fullCached?.warm === true
-  const hc = fullCached?.scores
+  // Validate cache TTL — never serve expired entries
+  if (fullCached && fullCached.expiresAt && fullCached.expiresAt <= Date.now()) {
+    delete gc.__fullCache[fullCacheKey]
+  }
+  const validCached = gc.__fullCache[fullCacheKey]
+  const useFullPath = !!validCached?.scores || validCached?.warm === true
+  const hc = validCached?.scores
 
   // === 30 FACTORS ===
   const runFactores30 = true // shouldRunMotorSync("factores30", turnoQuery)
@@ -315,13 +342,18 @@ async function _computePredictionInternal(input: PredictionInput): Promise<Predi
   }
 
   // === COMBINE SCORES ===
-  const baseScores = Array.from({ length: 100 }, (_, i) => ({
-    num: i,
-    score: factores30.scores[i] || 0.5,
-    frecuencia: 0,
-    confianza: 0,
-    factores: Object.entries(factores30.detail[i] || {}).filter(([,v]) => v > 0.6).map(([k]) => k)
-  }))
+  const baseScores = Array.from({ length: 100 }, (_, i) => {
+    const detail = factores30.detail[i] || {}
+    const detailValues = Object.values(detail) as number[]
+    const avgDetail = detailValues.length > 0 ? detailValues.reduce((s, v) => s + v, 0) / detailValues.length : 0.5
+    return {
+      num: i,
+      score: factores30.scores[i] || 0.5,
+      frecuencia: 0,
+      confianza: Math.round(avgDetail * 100),
+      factores: Object.entries(detail).filter(([,v]) => v > 0.6).map(([k]) => k)
+    }
+  })
 
   // Apply weights
   const W = { 
@@ -346,8 +378,31 @@ async function _computePredictionInternal(input: PredictionInput): Promise<Predi
     }
   }
 
-  addScore(hc?.monteCarloTop?.map(m => m.num) ? Object.fromEntries(monteCarloTop.map(m => [m.num, m.score])) : [], W.montecarlo)
-  // ... simplified for brevity - full weighted combination in original
+  addScore(monteCarloTop?.map((m: any) => m.score) || [], W.montecarlo)
+  addScore(crossTurnoScore as any, W.crossTurno)
+  addScore(correlationScores, W.correlation)
+  addScore(markovSuperScores, W.markovSuperior)
+  addScore(cyclicScores, W.cyclicPatterns)
+  addScore(graphScores, W.graphAnalysis)
+  addScore(featureScores, W.featureEngineering)
+  addScore(multilevelScores, W.multilevelScoring)
+  addScore(pmiScores, W.pmiCooccurrence)
+  addScore(advMarkovScores, W.advancedMarkov)
+  addScore(positionScores, W.positionAnalysis)
+  addScore(ensembleMLScores, W.ensembleML)
+  addScore(entropyScores, W.entropy)
+  addScore(survivalScores, W.survival)
+  addScore(interTurnoScores, W.interTurno)
+
+  // Apply genetic optimal weights if available
+  if (geneticOptimalWeights) {
+    addScore(geneticOptimalWeights, W.genetic)
+  }
+
+  // Apply pesos dinamicos boost
+  if (pesosDinamicos?.scores) {
+    addScore(pesosDinamicos.scores, W.pesosDinamicos)
+  }
 
   // Sort and normalize
   baseScores.sort((a, b) => b.score - a.score)
@@ -521,7 +576,7 @@ async function _computePredictionInternal(input: PredictionInput): Promise<Predi
       } as any,
       expiresAt: Date.now() + 3_600_000,
     }
-  } else if (!fullCached) {
+  } else if (!validCached) {
     gc.__fullCache[fullCacheKey] = { warm: true, expiresAt: Date.now() + 60_000 }
   }
 

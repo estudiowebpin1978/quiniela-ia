@@ -1,4 +1,5 @@
 "use client"
+
 import { useEffect, useState, useRef } from "react"
 import { isLoggedIn, isGuest } from "@/lib/auth"
 import AgeGate from "@/components/AgeGate"
@@ -7,6 +8,7 @@ import { GlowOrbs, NeonBackground } from "@/components/ui/Effects"
 import { ArgentinaFlag, SunOfMay, StatCard, Disclaimer } from "@/components/ui/ArgentinaBranding"
 import { useSound } from "@/lib/sound/audio-manager"
 import { useSettings } from "@/components/ui/Settings"
+import { MiNumeroAnalyzer } from "@/components/seo/MiNumeroAnalyzer"
 
 function CommunityTrends() {
   const [data, setData] = useState<{ trends: any[]; totalToday: number }>({ trends: [], totalToday: 0 })
@@ -269,6 +271,9 @@ export default function Home() {
 
       {/* Community Trends */}
       <CommunityTrends />
+
+      {/* Analizador de Mi Número */}
+      <MiNumeroAnalyzer />
 
       {/* Disclaimer */}
       <Disclaimer />

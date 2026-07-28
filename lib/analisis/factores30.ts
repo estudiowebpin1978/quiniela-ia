@@ -19,8 +19,8 @@ export interface FactorWeights {
   momentum: number
   persistencia: number
   rebote: number
-  hotNumbers: number
-  coldNumbers: number
+  trendAcceleration: number
+  intervalDeviation: number
   paresImpares: number
   bajosAltos: number
   sumaDigitos: number
@@ -52,8 +52,8 @@ export const DEFAULT_WEIGHTS: FactorWeights = {
   momentum: 0.05,
   persistencia: 0.03,
   rebote: 0.03,
-  hotNumbers: 0.04,
-  coldNumbers: 0.02,
+  trendAcceleration: 0.04,
+  intervalDeviation: 0.02,
   paresImpares: 0.02,
   bajosAltos: 0.02,
   sumaDigitos: 0.02,
@@ -353,34 +353,81 @@ function factorRebote(sequences: number[][]): Record<number, number> {
 }
 
 // ============================================
-// FACTOR 13: Hot Numbers (frecuencia total histórica)
+// FACTOR 13: Aceleración de Tendencia
+// Compara frecuencia en últimos 10 sorteos vs últimos 100 sorteos
+// Detecta números que están ganando o perdiendo momentum
 // ============================================
-function factorHotNumbers(sequences: number[][]): Record<number, number> {
-  const freq: Record<number, number> = {}
-  sequences.forEach(seq => {
-    for (const n of seq) { freq[n % 100] = (freq[n % 100] || 0) + 1 }
-  })
-  const maxFreq = Math.max(...Object.values(freq), 1)
+function factorTrendAcceleration(sequences: number[][]): Record<number, number> {
+  const recent10 = sequences.slice(0, Math.min(10, sequences.length))
+  const recent100 = sequences.slice(0, Math.min(100, sequences.length))
+
+  const freqRecent: Record<number, number> = {}
+  const freqHist: Record<number, number> = {}
+
+  for (const seq of recent10) {
+    for (const n of seq) {
+      const t = n % 100
+      freqRecent[t] = (freqRecent[t] || 0) + 1
+    }
+  }
+  for (const seq of recent100) {
+    for (const n of seq) {
+      const t = n % 100
+      freqHist[t] = (freqHist[t] || 0) + 1
+    }
+  }
+
   const scores: Record<number, number> = {}
   for (let i = 0; i < 100; i++) {
-    scores[i] = (freq[i] || 0) / maxFreq
+    const rateRecent = recent10.length > 0 ? (freqRecent[i] || 0) / recent10.length : 0
+    const rateHist = recent100.length > 0 ? (freqHist[i] || 0) / recent100.length : 0
+    // Acceleration = (recent_rate - historical_rate) / max(historical_rate, 0.001)
+    // Normalized to [0, 1] via sigmoid
+    const rawAccel = rateHist > 0 ? (rateRecent - rateHist) / Math.max(rateHist, 0.001) : rateRecent > 0 ? 1 : 0
+    scores[i] = 1 / (1 + Math.exp(-rawAccel * 3))
   }
   return scores
 }
 
 // ============================================
-// FACTOR 14: Cold Numbers
+// FACTOR 14: Desviación del Intervalo Medio
+// Relación entre el atraso actual y el promedio histórico de atrasos
+// Detecta números que llevan más o menos tiempo ausentes de lo esperado
 // ============================================
-function factorColdNumbers(sequences: number[][]): Record<number, number> {
+function factorIntervalDeviation(sequences: number[][]): Record<number, number> {
   const lastIdx: Record<number, number> = {}
+  const intervalSums: Record<number, number> = {}
+  const intervalCounts: Record<number, number> = {}
   const maxIdx = sequences.length - 1
+
+  // Track last position and intervals for each number
+  const lastSeen: Record<number, number> = {}
   sequences.forEach((seq, idx) => {
-    for (const n of seq) { lastIdx[n % 100] = idx }
+    for (const n of seq) {
+      const t = n % 100
+      lastIdx[t] = idx
+      if (lastSeen[t] !== undefined) {
+        const interval = idx - lastSeen[t]
+        intervalSums[t] = (intervalSums[t] || 0) + interval
+        intervalCounts[t] = (intervalCounts[t] || 0) + 1
+      }
+      lastSeen[t] = idx
+    }
   })
+
   const scores: Record<number, number> = {}
   for (let i = 0; i < 100; i++) {
-    const absence = maxIdx - (lastIdx[i] ?? -1)
-    scores[i] = Math.min(1, absence / Math.max(sequences.length, 1))
+    const currentAbsence = maxIdx - (lastIdx[i] ?? -1)
+    const avgInterval = intervalCounts[i] > 0
+      ? intervalSums[i] / intervalCounts[i]
+      : sequences.length * 0.5  // Default: assume average interval is half the dataset
+
+    // Deviation ratio: how much current absence exceeds historical average
+    // Ratio > 1 means number is "overdue", < 1 means "recent"
+    const deviation = avgInterval > 0 ? currentAbsence / avgInterval : 1
+    // Normalize: score high for overdue numbers, low for recent ones
+    // Use sigmoid centered at 1.0 (deviation = average)
+    scores[i] = 1 / (1 + Math.exp(-2 * (deviation - 1)))
   }
   return scores
 }
@@ -818,8 +865,8 @@ export function calcularFactores30(
   const f10 = factorMomentum(sequences)
   const f11 = factorPersistencia(sequences)
   const f12 = factorRebote(sequences)
-  const f13 = factorHotNumbers(sequences)
-  const f14 = factorColdNumbers(sequences)
+  const f13 = factorTrendAcceleration(sequences)
+  const f14 = factorIntervalDeviation(sequences)
   const f15 = factorParesImpares(sequences)
   const f16 = factorBajosAltos(sequences)
   const f17 = factorSumaDigitos(sequences)
@@ -851,8 +898,8 @@ export function calcularFactores30(
     { scores: f10, weight: weights.momentum },
     { scores: f11, weight: weights.persistencia },
     { scores: f12, weight: weights.rebote },
-    { scores: f13, weight: weights.hotNumbers },
-    { scores: f14, weight: weights.coldNumbers },
+    { scores: f13, weight: weights.trendAcceleration },
+    { scores: f14, weight: weights.intervalDeviation },
     { scores: f15, weight: weights.paresImpares },
     { scores: f16, weight: weights.bajosAltos },
     { scores: f17, weight: weights.sumaDigitos },
@@ -875,7 +922,7 @@ export function calcularFactores30(
     "frecuenciaHistorica", "frecuencia100", "frecuencia20", "ausenciaActual",
     "recenciaExponencial", "tendencia", "ciclos", "mediaIntervalos",
     "desviacionIntervalos", "momentum", "persistencia", "rebote",
-    "hotNumbers", "coldNumbers", "paresImpares", "bajosAltos",
+    "trendAcceleration", "intervalDeviation", "paresImpares", "bajosAltos",
     "sumaDigitos", "terminaciones", "raizDigital", "espejos",
     "vecinos", "familias", "coocurrencia", "markov",
     "turnoDia", "diaSemana", "mesAnio", "entropia",

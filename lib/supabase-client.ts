@@ -82,3 +82,24 @@ export function getSbHeaders(): Record<string, string> {
 export function getSbUrl(): string {
   return getSupabaseUrl()
 }
+
+/**
+ * Create a browser Supabase client for client components.
+ * Uses the anon key - safe for client-side usage.
+ */
+export function createBrowserClient(): SupabaseClient {
+  const url = getSupabaseUrl()
+  const key = getSupabaseAnonKey()
+  if (!url || !key) {
+    throw new Error("Supabase configuration missing: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
+  }
+  return createClient(url, key, {
+    auth: { persistSession: true, autoRefreshToken: true },
+    global: { fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(10000) }) }
+  })
+}
+
+/**
+ * Alias for createBrowserClient - client-side Supabase client
+ */
+export const supabaseBrowser = createBrowserClient()

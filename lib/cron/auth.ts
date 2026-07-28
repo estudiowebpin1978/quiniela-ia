@@ -55,14 +55,14 @@ export async function validateCronAuth(req: NextRequest): Promise<CronAuthResult
       const SB_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
       
       if (SB_URL && SB_KEY) {
-        const adminEmail = (process.env.ADMIN_EMAILS || "estudiowebpin@gmail.com").split(",")[0].toLowerCase()
+        const { ADMIN_EMAILS } = await import("@/lib/config")
         const r = await fetch(`${SB_URL}/auth/v1/user`, {
           headers: { "apikey": SB_KEY, "Authorization": `Bearer ${authHeader}` },
           signal: AbortSignal.timeout(3000)
         })
         if (r.ok) {
           const user = await r.json()
-          if (user.email?.toLowerCase() === adminEmail) {
+          if (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
             return { authorized: true, source: "admin" }
           }
         }

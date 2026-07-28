@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
+import { ADMIN_EMAILS } from "@/lib/config"
 import { autoVerifyPredictions, getVerificationStats } from "@/lib/verificacion/auto-verify"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
 
 async function isAdmin(token: string): Promise<boolean> {
-  const adminEmail = (process.env.ADMIN_EMAILS || "estudiowebpin@gmail.com").split(",")[0].toLowerCase()
   try {
     const r = await fetch(`${SB()}/auth/v1/user`, {
       headers: { "apikey": SK(), "Authorization": `Bearer ${token}` }
     })
     if (!r.ok) return false
     const user = await r.json()
-    return user.email?.toLowerCase() === adminEmail
+    return user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
   } catch { return false }
 }
 

@@ -1,8 +1,16 @@
-import { ScrapeResult } from "./types"
-import logger from "@/lib/logger"
+/**
+ * Quiniela parsers for 4 scraping sources.
+ * Each parser returns ScrapeResult with 20-number array or null on failure.
+ *
+ * Sources:
+ *   1. loteriadelaciudad.gob.ar  — Official API (POST, HTML response)
+ *   2. quinielanacional1.com.ar   — Primary HTML scraper
+ *   3. quinieleando.com.ar        — Fallback HTML scraper
+ *   4. quiniela22.com             — Cross-validation (cabeza only)
+ */
 
-const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
-const TURNOS_ORDER = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
+import { ScrapeResult, TurnoType, GAME_ID } from "./types"
+import logger from "@/lib/logger"
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -12,8 +20,11 @@ const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0",
 ]
 
-function randomUA(): string {
-  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]
+let uaIndex = 0
+function rotationUA(): string {
+  const ua = USER_AGENTS[uaIndex % USER_AGENTS.length]
+  uaIndex++
+  return ua
 }
 
 function extractNums(html: string, rx: RegExp, max = 20): number[] {
@@ -27,7 +38,6 @@ function extractNums(html: string, rx: RegExp, max = 20): number[] {
   return nums
 }
 
-// Cache for dynamic sorteo code discovery
 let sorteoCodeCache: { code: number; fecha: string; expiresAt: number } | null = null
 
 async function discoverLatestSorteoCode(): Promise<number | null> {
@@ -37,8 +47,8 @@ async function discoverLatestSorteoCode(): Promise<number | null> {
 
   try {
     const r = await fetch("https://quiniela.loteriadelaciudad.gob.ar/", {
-      headers: { "User-Agent": randomUA(), Accept: "text/html" },
-      signal: AbortSignal.timeout(8000)
+      headers: { "User-Agent": rotationUA(), Accept: "text/html" },
+      signal: AbortSignal.timeout(8000),
     })
     if (!r.ok) return null
     const html = await r.text()
@@ -53,7 +63,11 @@ async function discoverLatestSorteoCode(): Promise<number | null> {
 
     if (codes.length > 0) {
       const latest = Math.max(...codes)
-      sorteoCodeCache = { code: latest, fecha: new Date().toISOString().split("T")[0], expiresAt: Date.now() + 1000 * 60 * 60 * 24 }
+      sorteoCodeCache = {
+        code: latest,
+        fecha: new Date().toISOString().split("T")[0],
+        expiresAt: Date.now() + 1000 * 60 * 60 * 24,
+      }
       return latest
     }
   } catch (e) {
@@ -62,7 +76,7 @@ async function discoverLatestSorteoCode(): Promise<number | null> {
   return null
 }
 
-async function computeSorteoCodeFromDate(fechaISO: string, turno: string): Promise<number> {
+async function computeSorteoCodeFromDate(fechaISO: string, turno: TurnoType): Promise<number> {
   const refDateStr = process.env.LOTERIA_REF_DATE || "2024-01-01"
   const refDate = new Date(refDateStr + "T12:00:00Z")
   const targetDate = new Date(fechaISO + "T12:00:00Z")
@@ -75,33 +89,49 @@ async function computeSorteoCodeFromDate(fechaISO: string, turno: string): Promi
     if ((await import("@/lib/feriados")).esFeriado(ds)) continue
     weekdays++
   }
-  const turnoIdx = TURNOS.indexOf(turno)
+  const turnoIdx: number = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"].indexOf(turno)
   return 52492 + weekdays * 5 + turnoIdx
 }
 
-export async function getSorteoCode(fechaISO: string, turno: string): Promise<number> {
+export async function getSorteoCode(fechaISO: string, turno: TurnoType): Promise<number> {
   const discovered = await discoverLatestSorteoCode()
   if (discovered) return discovered
   return computeSorteoCodeFromDate(fechaISO, turno)
 }
 
-// ─── Fuente 1: Lotería de la Ciudad (Oficial) ───────────────────────────────
-// POST a PHP endpoint, HTML con <div class="pos">NN</div> seguido de <div>NNNN</div>
-export async function parseLoteriaOficial(fechaISO: string, _fechaUrl: string, turno: string): Promise<ScrapeResult | null> {
+// ─── Source 1: Lotería de la Ciudad (Official) ───────────────────────────────
+// POST to PHP endpoint, HTML response with <div class="pos">NN</div> + <div>NNNN</div>
+export async function parseLoteriaOficial(
+  fechaISO: string,
+  _fechaUrl: string,
+  turno: TurnoType
+): Promise<ScrapeResult | null> {
+  const start = Date.now()
   const sorteoCode = await getSorteoCode(fechaISO, turno)
 
   try {
-    const r = await fetch("https://quiniela.loteriadelaciudad.gob.ar/resultadosQuiniela/consultaResultados.php", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": randomUA() },
-      body: `codigo=0080&juridiccion=51&sorteo=${sorteoCode}`,
-      signal: AbortSignal.timeout(8000)
-    })
+    const r = await fetch(
+      "https://quiniela.loteriadelaciudad.gob.ar/resultadosQuiniela/consultaResultados.php",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": rotationUA(),
+          Referer: "https://www.loteriadelaciudad.gob.ar/",
+        },
+        body: `codigo=0080&juridiccion=51&sorteo=${sorteoCode}`,
+        signal: AbortSignal.timeout(8000),
+      }
+    )
     if (!r.ok) return null
     const html = await r.text()
-    if (html.includes("No hay Sorteo") || html.includes("Sorteo no realizado") || html.includes("sin resultado")) return null
+    if (
+      html.includes("No hay Sorteo") ||
+      html.includes("Sorteo no realizado") ||
+      html.includes("sin resultado")
+    )
+      return null
 
-    // Tolerant: multiple patterns for class="pos" with optional extra classes/attributes
     const patterns = [
       /<div\s+class\s*=\s*["'][^"']*pos[^"']*["']\s*>\s*\d{2}\s*<\/div>\s*<div[^>]*>\s*(\d{4})\s*<\/div>/gi,
       /<div[^>]*class\s*=\s*["'][^"']*pos[^"']*["'][^>]*>\s*(\d{4})\s*<\/div>/gi,
@@ -112,64 +142,99 @@ export async function parseLoteriaOficial(fechaISO: string, _fechaUrl: string, t
       if (nums.length >= 5) break
     }
     if (nums.length < 5) return null
-    return { numbers: nums, source: "loteria-ciudad.gob.ar", cabezaMatch: null }
+    return {
+      numbers: nums,
+      source: "loteria-ciudad.gob.ar",
+      cabezaMatch: null,
+      duration: Date.now() - start,
+      retries: 0,
+    }
   } catch (e) {
     logger.debug("[scraper] parseLoteriaOficial failed", { error: String(e) })
     return null
   }
 }
 
-// ─── Fuente 2: QuinielaNacional1 (Primaria rápida) ──────────────────────────
-// HTML con <div class="veintena"> y <div class="numero">NNNN</div>
-export async function parseQuinielaNacional1(_fechaISO: string, fechaUrl: string, turno: string): Promise<ScrapeResult | null> {
+// ─── Source 2: QuinielaNacional1 (Primary fast) ──────────────────────────────
+// HTML with <div class="veintena"> and <div class="numero">NNNN</div>
+export async function parseQuinielaNacional1(
+  _fechaISO: string,
+  fechaUrl: string,
+  turno: TurnoType
+): Promise<ScrapeResult | null> {
+  const start = Date.now()
   const url = `https://quinielanacional1.com.ar/${fechaUrl}/${turno}`
+
   for (let intento = 0; intento < 2; intento++) {
-    if (intento > 0) await new Promise(r => setTimeout(r, 3000))
+    if (intento > 0) await new Promise((r) => setTimeout(r, 3000))
     try {
-      const html = await (await fetch(url, {
-        headers: { "User-Agent": randomUA(), "Accept": "text/html" },
-        signal: AbortSignal.timeout(8000)
-      })).text()
+      const html = await (
+        await fetch(url, {
+          headers: { "User-Agent": rotationUA(), Accept: "text/html" },
+          signal: AbortSignal.timeout(8000),
+        })
+      ).text()
 
-      if (html.includes("Sorteo no realizado") || html.includes("sorteo no realizado")) return null
+      if (html.includes("Sorteo no realizado") || html.includes("sorteo no realizado"))
+        return null
 
-      // Tolerant veintena lookup: try multiple patterns
       let veintenaIdx = html.indexOf('class="veintena"')
       if (veintenaIdx < 0) veintenaIdx = html.indexOf("class='veintena'")
       if (veintenaIdx < 0) veintenaIdx = html.search(/class\s*=\s*["']veintena["']/)
       if (veintenaIdx < 0) continue
 
       const chunk = html.slice(veintenaIdx, veintenaIdx + 5000)
-      // Tolerant numero regex: allows extra classes, nested tags
-      const rx = /class\s*=\s*["']?numero["']?\s*>\s*(?:<(?:b|strong|span)[^>]*>)?\s*(\d{1,4})\s*(?:<\/(?:b|strong|span)>)?\s*<\/div>/gi
+      const rx =
+        /class\s*=\s*["']?numero["']?\s*>\s*(?:<(?:b|strong|span)[^>]*>)?\s*(\d{1,4})\s*(?:<\/(?:b|strong|span)>)?\s*<\/div>/gi
       const nums = extractNums(chunk, rx)
       if (nums.length >= 5) {
-        return { numbers: nums, source: "quinielanacional1.com.ar", cabezaMatch: null }
+        return {
+          numbers: nums,
+          source: "quinielanacional1.com.ar",
+          cabezaMatch: null,
+          duration: Date.now() - start,
+          retries: intento,
+        }
       }
     } catch (e) {
-      logger.debug("[scraper] parseQuinielaNacional1 attempt failed", { intento, error: String(e) })
+      logger.debug("[scraper] parseQuinielaNacional1 attempt failed", {
+        intento,
+        error: String(e),
+      })
     }
   }
   return null
 }
 
-// ─── Fuente 3: Quinieleando (Fallback 1) ─────────────────────────────────────
-// HTML con <span class="nro"><b>NNNN</b></span> (cabeza) y <span class="nro">NNNN</span>
-export async function parseQuinieleando(fechaISO: string, _fechaUrl: string, turno: string): Promise<ScrapeResult | null> {
+// ─── Source 3: Quinieleando (Fallback 1) ─────────────────────────────────────
+// HTML with <span class="nro"><b>NNNN</b></span> (cabeza) and <span class="nro">NNNN</span>
+export async function parseQuinieleando(
+  fechaISO: string,
+  _fechaUrl: string,
+  turno: TurnoType
+): Promise<ScrapeResult | null> {
+  const start = Date.now()
   try {
-    const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format()
+    const hoy = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format()
     if (fechaISO !== hoy) return null
 
     const url = `https://quinieleando.com.ar/quinielas/nacional/resultados-de-hoy`
-    const html = await (await fetch(url, {
-      headers: { "User-Agent": randomUA(), "Accept": "text/html" },
-      signal: AbortSignal.timeout(8000)
-    })).text()
+    const html = await (
+      await fetch(url, {
+        headers: { "User-Agent": rotationUA(), Accept: "text/html" },
+        signal: AbortSignal.timeout(8000),
+      })
+    ).text()
 
-    if (html.includes("Sorteo no realizado") || html.includes("sorteo no realizado")) return null
+    if (html.includes("Sorteo no realizado") || html.includes("sorteo no realizado"))
+      return null
 
     const turnoUpper = turno.toUpperCase()
-    // Tolerant header regex: allows extra whitespace, different separators, optional text
     const turnoHeaderRx = new RegExp(
       `<h3>\\s*${turnoUpper}\\s*[,:;\\-]?\\s*Quiniela\\s*Nacional[^<]*<\\/h3>`,
       "gi"
@@ -181,11 +246,17 @@ export async function parseQuinieleando(fechaISO: string, _fechaUrl: string, tur
     const tableEnd = afterHeader.indexOf("</table>")
     const chunk = tableEnd > 0 ? afterHeader.slice(0, tableEnd) : afterHeader.slice(0, 4000)
 
-    // Tolerant number regex: allows optional classes, nested tags, whitespace
-    const rx = /class\s*=\s*["']nro["']\s*>\s*(?:<(?:b|strong|span)[^>]*>)?\s*(\d{1,4})\s*(?:<\/(?:b|strong|span)>)?\s*<\/span>/gi
+    const rx =
+      /class\s*=\s*["']nro["']\s*>\s*(?:<(?:b|strong|span)[^>]*>)?\s*(\d{1,4})\s*(?:<\/(?:b|strong|span)>)?\s*<\/span>/gi
     const nums = extractNums(chunk, rx)
     if (nums.length >= 5) {
-      return { numbers: nums, source: "quinieleando.com.ar", cabezaMatch: null }
+      return {
+        numbers: nums,
+        source: "quinieleando.com.ar",
+        cabezaMatch: null,
+        duration: Date.now() - start,
+        retries: 0,
+      }
     }
   } catch (e) {
     logger.debug("[scraper] parseQuinieleando failed", { error: String(e) })
@@ -193,21 +264,35 @@ export async function parseQuinieleando(fechaISO: string, _fechaUrl: string, tur
   return null
 }
 
-// ─── Fuente 4: Quiniela22 (Fallback 2 - solo cabeza) ────────────────────────
-// Solo tiene la cabeza (1 número), útil para cross-validation
-export async function parseQuiniela22Cabeza(_fechaISO: string, fechaUrl: string, turno: string): Promise<number | null> {
+// ─── Source 4: Quiniela22 (Cabeza cross-validation only) ─────────────────────
+// Returns only the cabeza (first number) for cross-validation
+export async function parseQuiniela22Cabeza(
+  _fechaISO: string,
+  fechaUrl: string,
+  turno: TurnoType
+): Promise<number | null> {
   try {
     const [dd, mm, yy] = fechaUrl.split("-")
-    const dayNames = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"]
+    const dayNames = [
+      "Domingo",
+      "Lunes",
+      "Martes",
+      "Miercoles",
+      "Jueves",
+      "Viernes",
+      "Sabado",
+    ]
     const d = new Date(`20${yy}-${mm}-${dd}T12:00:00Z`)
     const dayName = dayNames[d.getUTCDay()]
     const url = `https://quiniela22.com/${turno}/Ciudad/${dayName}_${fechaUrl}`
-    const html = await (await fetch(url, {
-      headers: { "User-Agent": randomUA(), "Accept": "text/html" },
-      signal: AbortSignal.timeout(8000)
-    })).text()
-    // Tolerant: allows extra attributes on <a> tag, optional whitespace
-    const rx = /class\s*=\s*["']num["']\s*>\s*<a[^>]*>\s*(\d{3,4})\s*<\/a>\s*<\/div>/gi
+    const html = await (
+      await fetch(url, {
+        headers: { "User-Agent": rotationUA(), Accept: "text/html" },
+        signal: AbortSignal.timeout(8000),
+      })
+    ).text()
+    const rx =
+      /class\s*=\s*["']num["']\s*>\s*<a[^>]*>\s*(\d{3,4})\s*<\/a>\s*<\/div>/gi
     const mx = rx.exec(html)
     if (mx) return parseInt(mx[1])
   } catch (e) {
@@ -216,8 +301,12 @@ export async function parseQuiniela22Cabeza(_fechaISO: string, fechaUrl: string,
   return null
 }
 
-// ─── Verificador de cabeza ───────────────────────────────────────────────────
-export async function verifyCabeza(fechaUrl: string, turno: string, expectedNum: number): Promise<boolean | null> {
+// ─── Cross-validation helper ──────────────────────────────────────────────────
+export async function verifyCabeza(
+  fechaUrl: string,
+  turno: TurnoType,
+  expectedNum: number
+): Promise<boolean | null> {
   const cabeza = await parseQuiniela22Cabeza("", fechaUrl, turno)
   if (cabeza === null) return null
   return cabeza === expectedNum

@@ -1,26 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseUrl, getSupabaseKey } from "@/lib/config";
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth";
 
 const SB = getSupabaseUrl();
 const SK = getSupabaseKey();
-const CRON_SECRET = process.env.CRON_SECRET || "";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  if (!CRON_SECRET) {
-    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
-  }
   if (!SB || !SK) {
     return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
   }
 
-  // Accept secret via Authorization header (preferred) or query param (legacy)
-  const authHeader = req.headers.get("authorization")?.replace("Bearer ", "") || "";
-  const secret = authHeader || req.nextUrl.searchParams.get("secret") || "";
-
-  if (secret !== CRON_SECRET) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const authResult = await validateCronAuth(req)
+  if (!authResult.authorized) {
+    return unauthorizedResponse()
   }
 
   const { searchParams } = new URL(req.url);

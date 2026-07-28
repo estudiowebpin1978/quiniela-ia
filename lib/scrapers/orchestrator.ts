@@ -1,102 +1,215 @@
-import { ScrapeResult, SourceStats, ParserFn } from "./types"
-import { parseLoteriaOficial, parseQuinielaNacional1, parseQuinieleando, verifyCabeza } from "./parsers"
+/**
+ * Orchestrator: cascading fallback across 4 sources with retry + exponential backoff.
+ *
+ * Priority order:
+ *   1. loteriadelaciudad.gob.ar  (official API)
+ *   2. quinielanacional1.com.ar   (primary HTML)
+ *   3. quinieleando.com.ar        (fallback HTML)
+ *   4. quiniela22.com             (cabeza cross-validation only)
+ *
+ * Each source is tried with up to 2 attempts (exponential backoff).
+ * If a source returns < 20 numbers, cascade to the next.
+ * Cabeza cross-validation is performed after obtaining 20 numbers.
+ */
+
+import {
+  ScrapeResult,
+  SourceStats,
+  SourceAttempt,
+  OrchestratorResult,
+  ParserFn,
+  TurnoType,
+} from "./types"
+import {
+  parseLoteriaOficial,
+  parseQuinielaNacional1,
+  parseQuinieleando,
+  verifyCabeza,
+} from "./parsers"
 import logger from "@/lib/logger"
 
 const FETCH_TIMEOUT = 8000
+const MAX_RETRIES = 1
+const BASE_DELAY = 2000
 
-// Default parsers for quiniela (most common)
 const PARSERS: { fn: ParserFn; name: string }[] = [
+  { fn: parseLoteriaOficial, name: "loteria-ciudad.gob.ar" },
   { fn: parseQuinielaNacional1, name: "quinielanacional1.com.ar" },
   { fn: parseQuinieleando, name: "quinieleando.com.ar" },
-  { fn: parseLoteriaOficial, name: "loteria-ciudad.gob.ar" },
 ]
 
-// Game-specific parsers can be registered here
-const GAME_PARSERS: Record<string, { fn: ParserFn; name: string }[]> = {}
-
-interface OrchestratorResult {
-  numbers: number[]
-  source: string
-  cabezaMatch: boolean | null
-  gameSlug?: string
+function track(stats: SourceStats, src: string, ok: boolean, duration: number): void {
+  if (!stats[src]) stats[src] = { ok: 0, fail: 0, totalDuration: 0 }
+  stats[src][ok ? "ok" : "fail"]++
+  stats[src].totalDuration += duration
 }
 
-export async function fetchWithFallback(
+function delay(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
+/**
+ * Try a single parser with retry + exponential backoff.
+ */
+async function tryParserWithRetry(
+  fn: ParserFn,
+  name: string,
   fechaISO: string,
   fechaUrl: string,
-  turno: string,
+  turno: TurnoType,
   stats: SourceStats,
-  gameSlug: string = 'quiniela'
-): Promise<OrchestratorResult> {
-  const parsers = GAME_PARSERS[gameSlug] || PARSERS
-  
-  const track = (src: string, ok: boolean) => {
-    if (!stats[src]) stats[src] = { ok: 0, fail: 0 }
-    stats[src][ok ? "ok" : "fail"]++
-  }
+  budgetRemaining: number
+): Promise<{ result: ScrapeResult | null; attempt: SourceAttempt }> {
+  let lastError = ""
+  const attempts: number = MAX_RETRIES + 1
 
-  // Intentar cada fuente en orden de prioridad
-  for (const { fn, name } of parsers) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0) {
+      const backoff = BASE_DELAY * Math.pow(2, attempt - 1)
+      if (backoff > budgetRemaining) break
+      await delay(backoff)
+    }
+
+    const attemptStart = Date.now()
     try {
       const result = await Promise.race([
         fn(fechaISO, fechaUrl, turno),
         new Promise<null>((_, reject) =>
           setTimeout(() => reject(new Error("timeout")), FETCH_TIMEOUT)
-        )
+        ),
       ])
 
+      const attemptDuration = Date.now() - attemptStart
+
       if (result && result.numbers.length >= 20) {
-        // Cross-validate cabeza con quiniela22.com (only for quiniela)
-        let cabezaMatch: boolean | null = null
-        if (gameSlug === 'quiniela' && result.numbers.length > 0) {
-          try {
-            cabezaMatch = await verifyCabeza(fechaUrl, turno, result.numbers[0])
-          } catch {}
-        }
-
-        if (cabezaMatch === false) {
-          track(name, false)
-          logger.warn("cron-scrape: cabeza mismatch, rechazando datos", {
-            fecha: fechaISO, turno, source: name,
-            cabeza: result.numbers[0], game: gameSlug
-          })
-          continue
-        }
-
-        track(name, true)
-        logger.info("cron-scrape: fuente exitosa", {
-          fecha: fechaISO, turno, source: name,
-          count: result.numbers.length, cabezaMatch, game: gameSlug
-        })
-
+        track(stats, name, true, attemptDuration)
         return {
-          numbers: result.numbers,
-          source: name,
-          cabezaMatch,
-          gameSlug
+          result,
+          attempt: {
+            source: name,
+            ok: true,
+            duration: attemptDuration,
+            numbersFound: result.numbers.length,
+          },
         }
       }
 
-      // Fuente devolvió datos insuficientes
-      track(name, false)
-      logger.debug("cron-scrape: fuente sin datos", { fecha: fechaISO, turno, source: name, game: gameSlug })
+      lastError = result
+        ? `insufficient numbers: ${result.numbers.length}`
+        : "no data"
+      track(stats, name, false, attemptDuration)
     } catch (e) {
-      track(name, false)
-      const errMsg = e instanceof Error ? e.message : String(e)
-      logger.warn("cron-scrape: fuente falló", { fecha: fechaISO, turno, source: name, error: errMsg, game: gameSlug })
+      const attemptDuration = Date.now() - attemptStart
+      lastError = e instanceof Error ? e.message : String(e)
+      track(stats, name, false, attemptDuration)
     }
   }
 
-  // Todas las fuentes fallaron
-  return { numbers: [], source: "none", cabezaMatch: null, gameSlug }
+  return {
+    result: null,
+    attempt: {
+      source: name,
+      ok: false,
+      duration: 0,
+      numbersFound: 0,
+      error: lastError,
+    },
+  }
 }
 
 /**
- * Register a custom parser for a specific game.
+ * Main orchestrator: try each source in priority order, return first valid 20-number result.
+ * Performs cabeza cross-validation after obtaining results.
  */
-export function registerGameParser(gameSlug: string, fn: ParserFn, name: string): void {
-  if (!GAME_PARSERS[gameSlug]) {
-    GAME_PARSERS[gameSlug] = []
+export async function fetchWithFallback(
+  fechaISO: string,
+  fechaUrl: string,
+  turno: TurnoType,
+  stats: SourceStats,
+  gameSlug: string = "quiniela"
+): Promise<OrchestratorResult> {
+  const overallStart = Date.now()
+  const BUDGET = 25000
+  const attempts: SourceAttempt[] = []
+
+  for (const { fn, name } of PARSERS) {
+    const budgetRemaining = BUDGET - (Date.now() - overallStart)
+    if (budgetRemaining < 3000) {
+      attempts.push({
+        source: name,
+        ok: false,
+        duration: 0,
+        numbersFound: 0,
+        error: "budget exhausted",
+      })
+      break
+    }
+
+    const { result, attempt } = await tryParserWithRetry(
+      fn,
+      name,
+      fechaISO,
+      fechaUrl,
+      turno,
+      stats,
+      budgetRemaining
+    )
+    attempts.push(attempt)
+
+    if (result && result.numbers.length >= 20) {
+      let cabezaMatch: boolean | null = null
+      if (gameSlug === "quiniela" && result.numbers.length > 0) {
+        try {
+          cabezaMatch = await verifyCabeza(fechaUrl, turno, result.numbers[0])
+        } catch {
+          // Cross-validation failure is non-fatal
+        }
+      }
+
+      if (cabezaMatch === false) {
+        logger.warn("orchestrator: cabeza mismatch, rejecting source", {
+          fecha: fechaISO,
+          turno,
+          source: name,
+          cabeza: result.numbers[0],
+          game: gameSlug,
+        })
+        continue
+      }
+
+      logger.info("orchestrator: source succeeded", {
+        fecha: fechaISO,
+        turno,
+        source: name,
+        count: result.numbers.length,
+        cabezaMatch,
+        game: gameSlug,
+        duration: Date.now() - overallStart,
+      })
+
+      return {
+        numbers: result.numbers,
+        source: name,
+        cabezaMatch,
+        duration: Date.now() - overallStart,
+        attempts,
+      }
+    }
   }
-  GAME_PARSERS[gameSlug].push({ fn, name })
+
+  logger.warn("orchestrator: all sources failed", {
+    fecha: fechaISO,
+    turno,
+    game: gameSlug,
+    duration: Date.now() - overallStart,
+    attempts: attempts.length,
+  })
+
+  return {
+    numbers: [],
+    source: "none",
+    cabezaMatch: null,
+    duration: Date.now() - overallStart,
+    attempts,
+  }
 }

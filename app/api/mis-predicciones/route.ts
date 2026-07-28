@@ -187,12 +187,8 @@ export async function POST(req: NextRequest) {
     const tier = await resolveUserTier(token)
     if (!tier.userId) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
-    if (tier.trialExpired && !tier.isPremium) {
-      return NextResponse.json({
-        error: "Tu período de prueba ha expirado. Actualizá a Premium para continuar.",
-        trialExpired: true,
-      }, { status: 403 })
-    }
+    // Expired trial users can still save in limited free mode (2 cifras only)
+    // No 403 for expired trial — they fall back to free tier behavior
 
     if (!tier.canSavePrediction) {
       return NextResponse.json({

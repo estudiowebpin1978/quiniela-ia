@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 
 export const dynamic = "force-dynamic"
 
 export async function POST(req: NextRequest) {
-  // Auth check
-  const auth = req.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET || ""
-  if (cronSecret && auth !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const authResult = await validateCronAuth(req)
+  if (!authResult.authorized) {
+    return unauthorizedResponse()
   }
 
   const { searchParams } = new URL(req.url)

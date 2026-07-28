@@ -5,7 +5,7 @@
  * Premium/Admin: ilimitado + 3 cifras, 4 cifras y redoblona.
  */
 
-import { ADMIN_EMAILS } from "@/lib/config"
+import { ADMIN_EMAILS, getSupabaseUrl, getSupabaseKey } from "@/lib/config"
 export { ADMIN_EMAILS }
 
 export const FREE_TRIAL_DAYS = 30
@@ -44,20 +44,13 @@ const emptyTier = (overrides: Partial<UserTier> = {}): UserTier => ({
   ...overrides,
 })
 
-function sbUrl() {
-  return (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-}
-function sbKey() {
-  return (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
-}
-
 export function trialUntilISO(from = Date.now()): string {
   return new Date(from + FREE_TRIAL_DAYS * 86400000).toISOString()
 }
 
 export async function ensureUserProfile(userId: string, email: string): Promise<void> {
-  const SB = sbUrl()
-  const SK = sbKey()
+  const SB = getSupabaseUrl()
+  const SK = getSupabaseKey()
   if (!SB || !SK || !userId) return
   try {
     const r = await fetch(`${SB}/rest/v1/user_profiles?id=eq.${userId}&select=id&limit=1`, {
@@ -87,8 +80,8 @@ export async function ensureUserProfile(userId: string, email: string): Promise<
 }
 
 async function countUserPredictions(userId: string): Promise<number> {
-  const SB = sbUrl()
-  const SK = sbKey()
+  const SB = getSupabaseUrl()
+  const SK = getSupabaseKey()
   if (!SB || !SK) return 0
   try {
     const r = await fetch(
@@ -115,8 +108,8 @@ async function countUserPredictions(userId: string): Promise<number> {
  */
 export async function resolveUserTier(token: string): Promise<UserTier> {
   if (!token) return emptyTier()
-  const SB = sbUrl()
-  const SK = sbKey()
+  const SB = getSupabaseUrl()
+  const SK = getSupabaseKey()
   if (!SB || !SK) return emptyTier()
 
   try {

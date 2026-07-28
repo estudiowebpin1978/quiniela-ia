@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { ADMIN_EMAILS } from "@/lib/config"
 import logger from "@/lib/logger"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
@@ -21,14 +22,13 @@ function checkRate(ip: string, max = 10, windowMs = 60000): boolean {
 }
 
 async function isAdmin(token: string): Promise<boolean> {
-  const adminEmail = (process.env.ADMIN_EMAILS || "estudiowebpin@gmail.com").split(",")[0].toLowerCase()
   try {
     const r1 = await fetch(`${SB()}/auth/v1/user`, {
       headers: { "apikey": SK(), "Authorization": `Bearer ${token}` }
     })
     if (!r1.ok) return false
     const user = await r1.json()
-    return user.email?.toLowerCase() === adminEmail.toLowerCase()
+    return user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
   } catch {
     return false
   }

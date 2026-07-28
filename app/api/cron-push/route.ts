@@ -13,10 +13,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import logger from "@/lib/logger"
 import { sendPushToAll, getSubscriptionCount } from "@/lib/push/send"
-
-const CRON_SECRET = process.env.CRON_SECRET || ""
 
 const TURNOS = [
   { nombre: "Previa",     hora: 10, min: 15, notifHora: 9,  notifMin: 15, emoji: "🔮", nums: "2 cifras" },
@@ -37,11 +36,9 @@ function pad(n: number): string {
 }
 
 export async function GET(req: NextRequest) {
-  // Validar secret
-  const { searchParams } = new URL(req.url)
-  const secret = searchParams.get("secret") || req.headers.get("authorization")?.replace("Bearer ", "") || ""
-  if (!CRON_SECRET || secret !== CRON_SECRET) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+  const authResult = await validateCronAuth(req)
+  if (!authResult.authorized) {
+    return unauthorizedResponse()
   }
 
   const now = getArgentinaTime()

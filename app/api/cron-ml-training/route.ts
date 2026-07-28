@@ -7,20 +7,16 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import { autoTrainAll } from "@/lib/ml/auto-train"
 import logger from "@/lib/logger"
 
 export const dynamic = "force-dynamic"
 
 export async function POST(req: NextRequest) {
-  // Verify cron secret
-  const auth = req.headers.get("authorization")
-  const secret = process.env.CRON_SECRET || ""
-  if (!secret) {
-    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 })
-  }
-  if (auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const authResult = await validateCronAuth(req)
+  if (!authResult.authorized) {
+    return unauthorizedResponse()
   }
 
   logger.info("[CRON ML] Starting auto-training for all turnos...")

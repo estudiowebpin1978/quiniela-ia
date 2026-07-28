@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
-const SB=()=>(process.env.NEXT_PUBLIC_SUPABASE_URL||"").replace(/"/g,"").trim()
-const SK=()=>(process.env.SUPABASE_SERVICE_ROLE_KEY||"").replace(/"/g,"").trim()
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
+import { getSupabaseAdmin } from "@/lib/supabase-client"
 
 export async function GET(req:NextRequest){
-  const secret=req.nextUrl.searchParams.get("secret")
-  const expected=process.env.CRON_SECRET||""
-  if(!expected)return NextResponse.json({error:"CRON_SECRET not configured"},{status:500})
-  if(secret!==expected)return NextResponse.json({error:"No autorizado"},{status:401})
+  const authResult = await validateCronAuth(req)
+  if (!authResult.authorized) {
+    return unauthorizedResponse()
+  }
   try{
-    const r=await fetch(`${SB()}/rest/v1/draws?select=turno,numbers&limit=5000`,{
-      headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`}
-    })
-    const rows=await r.json()
+    const supabase = getSupabaseAdmin()
+    const { data: rows } = await supabase
+      .from("draws")
+      .select("turno, numbers, date")
+      .limit(5000)
     if(!rows?.length)return NextResponse.json({error:"Sin datos"},{status:500})
 
   // Calcular frecuencias por turno
@@ -60,25 +61,19 @@ export async function GET(req:NextRequest){
   }
 
   // Guardar en Supabase como configuración
-  await fetch(`${SB()}/rest/v1/config?key=eq.sesgos`,{
-    method:"DELETE",
-    headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`}
-  })
-  await fetch(`${SB()}/rest/v1/config`,{
-    method:"POST",
-    headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`,"Content-Type":"application/json","Prefer":"return=minimal"},
-    body:JSON.stringify({key:"sesgos",value:JSON.stringify(sesgos),updated_at:new Date().toISOString()})
+  await supabase.from("config").delete().eq("key", "sesgos")
+  await supabase.from("config").insert({
+    key: "sesgos",
+    value: JSON.stringify(sesgos),
+    updated_at: new Date().toISOString()
   })
   
   // Guardar sesgos mensuales
-  await fetch(`${SB()}/rest/v1/config?key=eq.sesgos_mensuales`,{
-    method:"DELETE",
-    headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`}
-  })
-  await fetch(`${SB()}/rest/v1/config`,{
-    method:"POST",
-    headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`,"Content-Type":"application/json","Prefer":"return=minimal"},
-    body:JSON.stringify({key:"sesgos_mensuales",value:JSON.stringify(sesgosMensuales),updated_at:new Date().toISOString()})
+  await supabase.from("config").delete().eq("key", "sesgos_mensuales")
+  await supabase.from("config").insert({
+    key: "sesgos_mensuales",
+    value: JSON.stringify(sesgosMensuales),
+    updated_at: new Date().toISOString()
   })
 
     return NextResponse.json({ok:true,sesgos,mensaje:"Sesgos actualizados correctamente"})

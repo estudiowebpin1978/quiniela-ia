@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-const SB=()=>(process.env.NEXT_PUBLIC_SUPABASE_URL||"").replace(/"/g,"").trim()
-const SK=()=>(process.env.SUPABASE_SERVICE_ROLE_KEY||process.env.SUPABASE_SERVICE_KEY||"").replace(/"/g,"").trim()
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
+import { getSupabaseAdmin } from "@/lib/supabase-client"
 
 const TURNOS_VALIDOS=["Previa","Primera","Matutina","Vespertina","Nocturna"]
 
@@ -24,32 +24,28 @@ async function scrape(fechaUrl:string,turno:string):Promise<number[]>{
   }catch{return[]}
 }
 
+import { GAME_ID } from "@/lib/scrapers/types"
+
 async function save(fechaStr:string,turno:string,nums:number[]):Promise<boolean>{
-  // Upsert atómico (sin DELETE previo) — requiere UNIQUE(date,turno) en draws
-  const r=await fetch(`${SB()}/rest/v1/draws`,{
-    method:"POST",
-    headers:{
-      "apikey":SK(),
-      "Authorization":`Bearer ${SK()}`,
-      "Content-Type":"application/json",
-      "Prefer":"resolution=merge-duplicates,return=minimal"
-    },
-    body:JSON.stringify({date:fechaStr,turno,numbers:nums,source:"cron-scraper",game_id:"ac593199-c299-4f03-b1b7-8675fe4fa6d9"})
-  })
-  return r.ok
+  try {
+    const supabase = getSupabaseAdmin()
+    const { error } = await supabase.from("draws").upsert(
+      { date: fechaStr, turno, numbers: nums, source: "cron-scraper", game_id: GAME_ID },
+      { onConflict: "date,turno,game_id" }
+    )
+    return !error
+  } catch {
+    return false
+  }
 }
   
-function authorizeCron(req: NextRequest): boolean {
-  const expected = process.env.CRON_SECRET
-  if (!expected) return false
-  const q = req.nextUrl.searchParams.get("secret")
-  const h = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? ""
-  const x = req.headers.get("x-cron-secret") ?? ""
-  return q === expected || h === expected || x === expected
-}
+export const maxDuration = 300
 
 export async function GET(req: NextRequest) {
-  if (!authorizeCron(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const authResult = await validateCronAuth(req)
+  if (!authResult.authorized) {
+    return unauthorizedResponse()
+  }
   
   const dateParam = req.nextUrl.searchParams.get("date")
   const daysParam = parseInt(req.nextUrl.searchParams.get("days") || "1")

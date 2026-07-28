@@ -16,14 +16,12 @@ import { esDiaSinSorteo } from "@/lib/feriados"
 import { autoVerifyPredictions } from "@/lib/verificacion/auto-verify"
 import { enqueueVerification } from "@/lib/verification-queue"
 import { fetchWithFallback } from "@/lib/scrapers/orchestrator"
-import { SourceStats } from "@/lib/scrapers/types"
+import { SourceStats, TURNOS, TurnoType } from "@/lib/scrapers/types"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import logger from "@/lib/logger"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
-
-const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
 export const maxDuration = 300
 
@@ -103,6 +101,7 @@ export async function GET(req: NextRequest) {
   logger.info("cron-scrape: authorized", { source: authResult.source })
 
   const overrideDate = req.nextUrl.searchParams.get("date")
+  const singleTurno = req.nextUrl.searchParams.get("turno")
   let fechaISO: string, diaSemana: number, fUrl: string
 
   if (overrideDate && /^\d{4}-\d{2}-\d{2}$/.test(overrideDate)) {
@@ -122,14 +121,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, message: "Sin sorteos", fecha: fechaISO })
   }
 
-  logger.info("cron-scrape: iniciando", { fecha: fechaISO, overrideDate: overrideDate || "none" })
+  // If singleTurno is provided, validate it's a valid turno
+  const turnosToScrape = singleTurno && TURNOS.includes(singleTurno as TurnoType)
+    ? [singleTurno as TurnoType]
+    : TURNOS
+
+  logger.info("cron-scrape: iniciando", { fecha: fechaISO, overrideDate: overrideDate || "none", turnos: turnosToScrape })
 
   const resultados: Record<string, number[]> = {}
   let guardados = 0
   let errores = 0
   const sourceStats: SourceStats = {}
 
-  for (const turno of TURNOS) {
+  for (const turno of turnosToScrape) {
     const drawExists = await tieneDraw(fechaISO, turno)
     
     if (!drawExists) {

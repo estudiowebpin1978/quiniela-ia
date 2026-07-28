@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 
 export async function GET(req: NextRequest) {
-  const isVercelCron = req.headers.get("x-vercel-cron") === "1"
-  const secret = req.nextUrl.searchParams.get("secret") || ""
-  const expected = process.env.CRON_SECRET
-  if (!isVercelCron && !(secret && expected && secret === expected)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const authResult = await validateCronAuth(req)
+  if (!authResult.authorized) {
+    return unauthorizedResponse()
   }
 
   const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ""

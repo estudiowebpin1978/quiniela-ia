@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 
 function getSK(): string {
   return (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
@@ -28,17 +29,13 @@ function parseNumeros(predNumeros: any): { n2: string[]; n3: string[]; n4: strin
 }
 
 export async function GET(req: NextRequest) {
-  const secret = req.nextUrl.searchParams.get("secret")
+  const authResult = await validateCronAuth(req)
+  if (!authResult.authorized) {
+    return unauthorizedResponse()
+  }
+
   const fecha = req.nextUrl.searchParams.get("fecha")
   const turno = req.nextUrl.searchParams.get("turno")
-  
-  const cronSecret = process.env.CRON_SECRET || ""
-  if (!cronSecret) {
-    return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 })
-  }
-  if (secret !== cronSecret) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
-  }
 
   const SB = getSB()
   const SK = getSK()

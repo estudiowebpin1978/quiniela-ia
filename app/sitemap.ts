@@ -1,40 +1,49 @@
-import type { MetadataRoute } from "next";
+import { MetadataRoute } from 'next';
 
-const BASE_URL = "https://quiniela-ia-two.vercel.app";
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const baseUrl = 'https://quiniela-ia-two.vercel.app';
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const staticPages: MetadataRoute.Sitemap = [
+  // Loterías y Turnos para generación programática de URLs (pSEO)
+  const loterias = ['ciudad', 'provincia', 'santa-fe', 'cordoba'];
+  const turnos = ['previa', 'primera', 'matutina', 'vespertina', 'nocturna'];
+
+  // 1. Rutas estáticas principales
+  const staticRoutes: MetadataRoute.Sitemap = [
     {
-      url: BASE_URL,
+      url: baseUrl,
       lastModified: new Date(),
-      changeFrequency: "daily",
-      priority: 1,
+      changeFrequency: 'always',
+      priority: 1.0,
     },
     {
-      url: `${BASE_URL}/predictions`,
+      url: `${baseUrl}/pronosticos`,
       lastModified: new Date(),
-      changeFrequency: "daily",
+      changeFrequency: 'hourly',
       priority: 0.9,
     },
     {
-      url: `${BASE_URL}/login`,
+      url: `${baseUrl}/resultados`,
       lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 0.5,
+      changeFrequency: 'hourly',
+      priority: 0.8,
     },
     {
-      url: `${BASE_URL}/privacidad`,
+      url: `${baseUrl}/estadisticas`,
       lastModified: new Date(),
-      changeFrequency: "yearly",
-      priority: 0.3,
-    },
-    {
-      url: `${BASE_URL}/terminos`,
-      lastModified: new Date(),
-      changeFrequency: "yearly",
-      priority: 0.3,
+      changeFrequency: 'daily',
+      priority: 0.7,
     },
   ];
 
-  return staticPages;
+  // 2. Rutas dinámicas por Lotería y Turno (ej: /pronosticos/ciudad/nocturna)
+  const dynamicTurnoRoutes: MetadataRoute.Sitemap = loterias.flatMap((loteria) =>
+    turnos.map((turno) => ({
+      url: `${baseUrl}/pronosticos/${loteria}/${turno}`,
+      lastModified: new Date(),
+      changeFrequency: 'hourly' as const,
+      priority: 0.8,
+    }))
+  );
+
+  return [...staticRoutes, ...dynamicTurnoRoutes];
 }

@@ -1,6 +1,7 @@
 /**
- * Rate Limiter using Supabase
+ * Rate Limiter using Supabase with in-memory fallback
  * Implements sliding window rate limiting with Redis-like behavior using Supabase
+ * Falls back to local memory when Supabase is unavailable
  */
 
 import { getSupabaseAdmin } from "@/lib/supabase-client"
@@ -23,9 +24,52 @@ interface RateLimitOptions {
   keyGenerator?: (identifier: string) => string
 }
 
+// In-memory fallback store (per-serverless-instance)
+const localFallbackStore = new Map<string, { count: number; resetAt: number }>()
+const LOCAL_MAX_ENTRIES = 10000
+
+function cleanupLocalStore(): void {
+  if (localFallbackStore.size > LOCAL_MAX_ENTRIES) {
+    const now = Date.now()
+    const entries = Array.from(localFallbackStore.entries())
+    for (const [key, val] of entries) {
+      if (now > val.resetAt) localFallbackStore.delete(key)
+    }
+  }
+}
+
+function checkLocalFallback(
+  identifier: string,
+  options: RateLimitOptions
+): RateLimitResult {
+  const now = Date.now()
+  const entry = localFallbackStore.get(identifier)
+
+  if (!entry || now > entry.resetAt) {
+    localFallbackStore.set(identifier, { count: 1, resetAt: now + options.windowMs })
+    cleanupLocalStore()
+    return {
+      allowed: true,
+      remaining: options.max - 1,
+      resetAt: now + options.windowMs,
+      totalHits: 1,
+    }
+  }
+
+  entry.count++
+  const allowed = entry.count <= options.max
+  return {
+    allowed,
+    remaining: Math.max(0, options.max - entry.count),
+    resetAt: entry.resetAt,
+    totalHits: entry.count,
+  }
+}
+
 /**
  * Rate limiter using Supabase as backing store
  * Uses a sliding window algorithm with atomic operations
+ * Falls back to in-memory rate limiting when Supabase is unavailable
  */
 export async function checkRateLimit(
   identifier: string,
@@ -33,13 +77,8 @@ export async function checkRateLimit(
 ): Promise<RateLimitResult> {
   const supabase = getSupabaseAdmin()
   if (!supabase) {
-    // Fail open - allow request if Supabase unavailable
-    return {
-      allowed: true,
-      remaining: options.max,
-      resetAt: Date.now() + options.windowMs,
-      totalHits: 0
-    }
+    // Supabase unavailable — use local memory fallback
+    return checkLocalFallback(identifier, options)
   }
 
   const prefix = options.prefix || "ratelimit"
@@ -59,24 +98,13 @@ export async function checkRateLimit(
     })
 
     if (error) {
-      console.error("[RateLimit] RPC error:", error.message)
-      // Fail open
-      return {
-        allowed: true,
-        remaining: options.max,
-        resetAt: (now + windowSec) * 1000,
-        totalHits: 0
-      }
+      console.error("[RateLimit] RPC error, falling back to local:", error.message)
+      return checkLocalFallback(identifier, options)
     }
 
     const result = data?.[0]
     if (!result) {
-      return {
-        allowed: true,
-        remaining: options.max,
-        resetAt: (now + windowSec) * 1000,
-        totalHits: 0
-      }
+      return checkLocalFallback(identifier, options)
     }
 
     return {
@@ -86,14 +114,8 @@ export async function checkRateLimit(
       totalHits: result.total_hits
     }
   } catch (err) {
-    console.error("[RateLimit] Error:", err)
-    // Fail open
-    return {
-      allowed: true,
-      remaining: options.max,
-      resetAt: (now + windowSec) * 1000,
-      totalHits: 0
-    }
+    console.error("[RateLimit] Error, falling back to local:", err)
+    return checkLocalFallback(identifier, options)
   }
 }
 

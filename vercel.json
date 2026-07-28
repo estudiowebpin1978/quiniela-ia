@@ -3,5 +3,27 @@
     "app/api/**/*.ts": {
       "maxDuration": 300
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron-scrape?turno=previa",
+      "schedule": "15 13 * * 1-6"
+    },
+    {
+      "path": "/api/cron-scrape?turno=primera",
+      "schedule": "15 15 * * 1-6"
+    },
+    {
+      "path": "/api/cron-scrape?turno=matutina",
+      "schedule": "15 18 * * 1-6"
+    },
+    {
+      "path": "/api/cron-scrape?turno=vespertina",
+      "schedule": "15 21 * * 1-6"
+    },
+    {
+      "path": "/api/cron-scrape?turno=nocturna",
+      "schedule": "15 0 * * 1-6"
+    }
+  ]
 }
