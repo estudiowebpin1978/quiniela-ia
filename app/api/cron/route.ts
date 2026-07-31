@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
   const forceParam = req.nextUrl.searchParams.get("force") === "true"
   
   const days = Math.min(Math.max(daysParam, 1), 90)
-  const results: any[] = []
+  const results: { fecha: string; turnos: { turno: string; ok: boolean; total: number }[] }[] = []
   let guardados = 0
   let errores = 0
   let saltados = 0
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
       const fechaStr = `${y}-${mo}-${d}`
       const fechaUrl = `${d}-${mo}-${String(y).slice(-2)}`
       
-      const dayResults: any = { fecha: fechaStr, turnos: [] }
+      const dayResults: { fecha: string; turnos: { turno: string; ok: boolean; total: number }[] } = { fecha: fechaStr, turnos: [] }
       
       for (const t of TURNOS_VALIDOS) {
         const nums = await scrape(fechaUrl, t)

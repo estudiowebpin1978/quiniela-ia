@@ -27,7 +27,7 @@ export class UserPrediction {
     return new UserPrediction(props)
   }
 
-  static fromRow(row: any): UserPrediction {
+  static fromRow(row: { id?: string; user_id?: string; game_id?: string; date?: string; turno?: string; numbers_2c?: number[]; numbers_3c?: number[]; numbers_4c?: number[]; redoblona?: string | null; confidence?: number | null }): UserPrediction {
     return UserPrediction.create({
       id: row.id,
       userId: row.user_id,

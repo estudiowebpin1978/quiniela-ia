@@ -9,9 +9,10 @@ interface SorteoHistorial {
 }
 
 interface PrediccionGuardada {
-  fecha: string
-  turno: string
-  numeros: string[]
+  [key: string]: any
+  fecha?: string
+  turno?: string
+  numeros?: string[] | any[]
   aciertos?: { numero: string; puesto: number; tipo: number }[]
 }
 

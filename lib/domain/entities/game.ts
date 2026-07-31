@@ -21,7 +21,7 @@ export class Game {
     return new Game(props)
   }
 
-  static fromRow(row: any): Game {
+  static fromRow(row: { id?: string; slug?: string; name?: string; number_count?: number; number_range_min?: number; number_range_max?: number; turns?: string[]; is_active?: boolean; config?: Record<string, unknown> }): Game {
     return Game.create({
       id: row.id,
       slug: row.slug,

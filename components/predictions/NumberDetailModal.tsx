@@ -100,7 +100,7 @@ export function NumberDetailModal({
               <div>
                 <div style={{fontSize:10,color:"var(--dim)",fontWeight:700,marginBottom:6}}>Últimas apariciones:</div>
                 <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                  {numHistory.appearances.slice(0, 12).map((a: any, i: number) => (
+                  {numHistory.appearances.slice(0, 12).map((a, i) => (
                     <div key={i} style={{background:"rgba(168,85,247,.1)",borderRadius:6,padding:"3px 8px",fontSize:9,color:"#c4b5fd"}}>
                       {a.date.substring(5)} <span style={{color:"#64748b"}}>{a.turno.substring(0,4)}</span>
                     </div>

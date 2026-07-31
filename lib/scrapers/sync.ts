@@ -224,6 +224,8 @@ async function runSync(targetDate?: string, force: boolean = false): Promise<Syn
             source: result.source,
             numbersCount: result.numbers.length,
           }
+          // Trigger Engine Omega recalculation (backup for trigger)
+          try { getSupabaseAdmin().rpc('refresh_cached_predictions', { turno_objetivo: turno }).then(() => {}, () => {}) } catch {}
           logScrape({
             action: "scrape",
             source: result.source,

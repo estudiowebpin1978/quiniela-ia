@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Faltan predicciones" }, { status: 400 });
   }
 
-  let preds: any[] = [];
+  let preds: { fecha?: string; turno?: string; numeros?: string[]; resultado?: string[]; aciertos?: { numero: string; puesto: number }[]; acerto?: boolean }[] = [];
   try {
     preds = JSON.parse(predictions);
   } catch {
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   }
 
   const actualizadas = await Promise.all(
-    preds.map(async (p: any) => {
+    preds.map(async (p: { fecha?: string; turno?: string; numeros?: string[]; resultado?: string[] }) => {
       if (p.resultado && p.resultado.length) return p;
 
       // Validate inputs
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
           const nums = rows[0].numbers.map((n: number) =>
             String(Number(n) % 100).padStart(2, "0")
           );
-          const aciertos = p.numeros
+          const aciertos = (p.numeros || [])
             .filter((n: string) => nums.includes(n))
             .map((n: string) => ({ numero: n, puesto: nums.indexOf(n) + 1 }));
           return { ...p, resultado: nums, aciertos, acerto: aciertos.length > 0 };

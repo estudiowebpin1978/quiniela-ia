@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { resolveUserTier, FREE_MAX_PREDICTIONS } from "@/lib/auth/tier"
 import { enqueueVerification } from "@/lib/verification-queue"
+import type { PredictionRow, PredictionHistoryRow, Acierto, DrawRow } from "@/lib/api/types"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
@@ -22,9 +23,9 @@ export async function GET(req: NextRequest) {
     if (!Array.isArray(predictions)) return NextResponse.json({ predictions: [], tier })
     if (predictions.length === 0) return NextResponse.json({ predictions: [], tier })
 
-    const uniqueDates = [...new Set(predictions.map((p: any) => (p.date || "").trim()).filter(Boolean))]
+    const uniqueDates = [...new Set(predictions.map((p: PredictionRow) => (p.date || "").trim()).filter(Boolean))]
 
-    const drawsMap: Record<string, any> = {}
+    const drawsMap: Record<string, DrawRow> = {}
     if (uniqueDates.length > 0) {
       const batchSize = 20
       for (let i = 0; i < uniqueDates.length; i += batchSize) {
@@ -50,8 +51,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const predIds = predictions.map((p: any) => p.id).filter(Boolean)
-    const historyMap: Record<string, any> = {}
+    const predIds = predictions.map((p: PredictionRow) => p.id).filter(Boolean)
+    const historyMap: Record<string, PredictionHistoryRow> = {}
     if (predIds.length > 0) {
       try {
         const batchSize = 50
@@ -83,18 +84,20 @@ export async function GET(req: NextRequest) {
       const history = historyMap[pred.id] || null
       const disponible = !!draw
 
-      let aciertos: any[] = []
-      let aciertos3: any[] = []
-      let aciertos4: any[] = []
+      let aciertos: Acierto[] = []
+      let aciertos3: Acierto[] = []
+      let aciertos4: Acierto[] = []
       let numerosReales: string[] = []
       let numerosReales3: string[] = []
       let numerosReales4: string[] = []
 
-      let numerosData: any = pred.numeros
+      let numerosData: number[] | Record<string, string[]> = pred.numeros as number[] | Record<string, string[]>
       if (Array.isArray(numerosData) && numerosData.length === 1 && typeof numerosData[0] === "string") {
-        try { numerosData = JSON.parse(numerosData[0]) } catch { /* noop */ }
+        try { numerosData = JSON.parse(numerosData[0] as string) as Record<string, string[]> } catch { /* noop */ }
       }
-      const pred2: string[] = Array.isArray(numerosData) ? numerosData : (numerosData?.["2"] || [])
+      const pred2: string[] = Array.isArray(numerosData)
+        ? numerosData.map((n: number | string) => String(n).padStart(2, "0"))
+        : (numerosData?.["2"] || [])
       let pred3: string[] = []
       let pred4: string[] = []
       if (!Array.isArray(numerosData) && tier.canAccessPremiumFeatures) {
@@ -103,10 +106,10 @@ export async function GET(req: NextRequest) {
       }
 
       if (history) {
-        aciertos = (history.aciertos_2 || []).map((a: any) => ({ ...a, tipo: 2 }))
+        aciertos = (history.aciertos_2 || []).map((a: Acierto) => ({ ...a, tipo: 2 as const }))
         if (tier.canAccessPremiumFeatures) {
-          aciertos3 = (history.aciertos_3 || []).map((a: any) => ({ ...a, tipo: 3 }))
-          aciertos4 = (history.aciertos_4 || []).map((a: any) => ({ ...a, tipo: 4 }))
+          aciertos3 = (history.aciertos_3 || []).map((a: Acierto) => ({ ...a, tipo: 3 as const }))
+          aciertos4 = (history.aciertos_4 || []).map((a: Acierto) => ({ ...a, tipo: 4 as const }))
         }
         const resultNums = history.resultado_oficial || []
         numerosReales = resultNums.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
@@ -208,7 +211,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Faltan campos" }, { status: 400 })
     }
 
-    let numerosToStore: any
+    let numerosToStore: number[] | string[]
     if (tier.canAccessPremiumFeatures) {
       numerosToStore = Array.isArray(numeros) ? numeros : [JSON.stringify(numeros)]
     } else {

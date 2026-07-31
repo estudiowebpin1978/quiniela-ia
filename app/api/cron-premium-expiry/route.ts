@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 
+interface PushSub {
+  endpoint: string
+  p256dh: string
+  auth: string
+}
+
+interface ExpiryUser {
+  id: string
+  email: string
+  premium_until: string
+  role?: string
+  push_subscriptions: PushSub[] | null
+}
+
 export async function GET(req: NextRequest) {
   const authResult = await validateCronAuth(req)
   if (!authResult.authorized) {
@@ -41,9 +55,9 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: "DB error: " + error.message }, { status: 500 })
 
   // Combine both lists
-  const allUsers = [
+  const allUsers: ExpiryUser[] = [
     ...(expiringUsers || []),
-    ...(expiredTrials || []).filter((u: any) => !(expiringUsers || []).some((e: any) => e.id === u.id))
+    ...(expiredTrials || []).filter((u: ExpiryUser) => !(expiringUsers || []).some((e: ExpiryUser) => e.id === u.id))
   ]
   if (!allUsers.length) return NextResponse.json({ ok: true, notificados: 0 })
 
@@ -51,8 +65,8 @@ export async function GET(req: NextRequest) {
   for (const user of allUsers) {
     const daysLeft = Math.ceil((new Date(user.premium_until).getTime() - Date.now()) / 86400000)
     const expired = daysLeft <= 0
-    const isTrialExpired = (user as any).role === "free" && expired
-    const subs = (user as any).push_subscriptions || []
+    const isTrialExpired = user.role === "free" && expired
+    const subs = user.push_subscriptions || []
     if (!Array.isArray(subs) || subs.length === 0) continue
 
     const title = expired ? (isTrialExpired ? "⏰ Prueba gratuita vencida" : "⏰ Premium vencido") : "⚠️ Premium próximo a vencer"
@@ -65,7 +79,7 @@ export async function GET(req: NextRequest) {
     const payload = JSON.stringify({ title, body, url: "/predictions" })
 
     const results = await Promise.allSettled(
-      subs.map((sub: any) =>
+      subs.map((sub: PushSub) =>
         webpush.sendNotification({
           endpoint: sub.endpoint,
           keys: { p256dh: sub.p256dh, auth: sub.auth }

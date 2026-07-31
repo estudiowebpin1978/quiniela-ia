@@ -1,13 +1,15 @@
 // Advanced Ensemble System - Pure TypeScript Implementation
 // Implements Extra Trees, Gradient Boosting, Histogram-based GB, and Stacking
 
+import logger from "@/lib/logger"
+
 export interface TrainingData {
   features: number[][];
   labels: number[];
 }
 
 export interface TrainedEnsemble {
-  models: any[];
+  models: (ExtraTrees | GradientBoosting | HistogramGradientBoosting)[];
   weights: number[];
   accuracy: number;
   featureImportance: Record<string, number>;
@@ -793,7 +795,7 @@ export function trainEnsemble(data: TrainingData): TrainedEnsemble {
   }
 
   const numFeatures = features[0].length;
-  const models: any[] = [];
+  const models: (ExtraTrees | GradientBoosting | HistogramGradientBoosting)[] = [];
   const weights: number[] = [0.3, 0.35, 0.35]; // ET, GB, HGB weights
 
   // Train Extra Trees
@@ -803,7 +805,7 @@ export function trainEnsemble(data: TrainingData): TrainedEnsemble {
     extraTrees.fit(features, labels);
     models.push(extraTrees);
   } catch (e) {
-    console.error("Extra Trees training failed:", e);
+    logger.error("Extra Trees training failed:", { error: String(e) });
     weights[0] = 0;
   }
 
@@ -814,7 +816,7 @@ export function trainEnsemble(data: TrainingData): TrainedEnsemble {
     gradientBoosting.fit(features, labels);
     models.push(gradientBoosting);
   } catch (e) {
-    console.error("Gradient Boosting training failed:", e);
+    logger.error("Gradient Boosting training failed:", { error: String(e) });
     weights[1] = 0;
   }
 
@@ -825,7 +827,7 @@ export function trainEnsemble(data: TrainingData): TrainedEnsemble {
     histogramGB.fit(features, labels);
     models.push(histogramGB);
   } catch (e) {
-    console.error("Histogram GB training failed:", e);
+    logger.error("Histogram GB training failed:", { error: String(e) });
     weights[2] = 0;
   }
 
@@ -924,7 +926,7 @@ export function predictEnsemble(
 
       allProbs.push(probs);
     } catch (e) {
-      console.error(`Model ${i} prediction failed:`, e);
+      logger.error(`Model ${i} prediction failed:`, { error: String(e) });
     }
   }
 

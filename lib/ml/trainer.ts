@@ -8,8 +8,8 @@ export interface ModeloEntrenado {
   tipo: 'random-forest' | 'markov' | 'neural';
   precision: number;
   fechaEntrenamiento: string;
-  config: any;
-  modelo: any;
+  config: Record<string, unknown>;
+  modelo: RandomForest | CadenaMarkov | RedNeuronal;
   metricas: MetricasModelo;
 }
 

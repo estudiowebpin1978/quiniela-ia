@@ -10,6 +10,7 @@
  */
 
 import { ScrapeResult, TurnoType, GAME_ID } from "./types"
+import { esFeriado } from "@/lib/feriados"
 import logger from "@/lib/logger"
 
 const USER_AGENTS = [
@@ -86,7 +87,7 @@ async function computeSorteoCodeFromDate(fechaISO: string, turno: TurnoType): Pr
     const d = new Date(refDate.getTime() + i * 86400000)
     if (d.getDay() === 0) continue
     const ds = d.toISOString().slice(0, 10)
-    if ((await import("@/lib/feriados")).esFeriado(ds)) continue
+    if (esFeriado(ds)) continue
     weekdays++
   }
   const turnoIdx: number = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"].indexOf(turno)

@@ -31,8 +31,8 @@ async function fetchDrawsForCalibration(): Promise<number[][]> {
     if (!res.ok) return []
     const rows = await res.json()
     return rows
-      .filter((r: any) => Array.isArray(r.numbers) && r.numbers.length >= 20)
-      .map((r: any) => r.numbers.map((n: number) => Number(n)).filter((n: number) => !isNaN(n)))
+      .filter((r: { numbers?: number[] }) => Array.isArray(r.numbers) && r.numbers.length >= 20)
+      .map((r: { numbers: number[] }) => r.numbers.map((n: number) => Number(n)).filter((n: number) => !isNaN(n)))
   } catch {
     return []
   }

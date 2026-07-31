@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
+import type { DrawRow, SorteoRow } from "@/lib/api/types"
+import type { CadenaMarkov } from "@/lib/ml/markov"
 
 export const dynamic = "force-dynamic"
 
@@ -33,16 +35,16 @@ export async function POST(req: NextRequest) {
     clearTimeout(to)
     if (!res.ok) return NextResponse.json({ error: `Error: ${res.status}` }, { status: 500 })
 
-    const rows: any[] = await res.json()
+    const rows: DrawRow[] = await res.json()
     if (!rows?.length || rows.length < 50)
       return NextResponse.json({ error: "Datos insuficientes (mínimo 50 sorteos)" }, { status: 500 })
 
     const sorteos = rows
-      .filter((r: any) => Array.isArray(r.numbers) && r.numbers.length >= 20)
-      .map((r: any) => ({
+      .filter((r: DrawRow) => Array.isArray(r.numbers) && r.numbers.length >= 20)
+      .map((r: DrawRow) => ({
         fecha: r.date,
         turno: r.turno,
-        numbers: r.numbers.map((n: any) => Number(n)).filter((n: number) => !isNaN(n))
+        numbers: r.numbers.map((n: number) => Number(n)).filter((n: number) => !isNaN(n))
       }))
 
     const { entrenarModelos, prepararPrediccion } = await import("@/lib/ml/trainer")
@@ -55,12 +57,12 @@ export async function POST(req: NextRequest) {
     const topPredictions: Record<string, { numero: string; confianza: number }[]> = {}
 
     if (resultado.mejorModelo) {
-      const ordenados = [...sorteos].sort((a: any, b: any) =>
+      const ordenados = [...sorteos].sort((a: SorteoRow, b: SorteoRow) =>
         new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
-      ).filter((s: any) => Array.isArray(s.numbers) && s.numbers.length > 0)
+      ).filter((s: SorteoRow) => Array.isArray(s.numbers) && s.numbers.length > 0)
       const vectorPrediccion = prepararPrediccion(ordenados)
 
-      const primerosDraws = ordenados.map((s: any) => s.numbers[0] % 100)
+      const primerosDraws = ordenados.map((s: SorteoRow) => s.numbers[0] % 100)
 
       for (const modelo of resultado.modelos) {
         const preds: { numero: string; confianza: number }[] = []
@@ -68,7 +70,7 @@ export async function POST(req: NextRequest) {
 
         if (modelo.tipo === "markov") {
           const estadoMarkov = [primerosDraws[primerosDraws.length - 2], primerosDraws[primerosDraws.length - 1]]
-          const markovPred = predecirSiguienteMarkov(modelo.modelo as any, estadoMarkov, 10)
+          const markovPred = predecirSiguienteMarkov(modelo.modelo as CadenaMarkov, estadoMarkov, 10)
           for (const p of markovPred.topK) {
             if (!seen.has(p.estado)) {
               seen.add(p.estado)
@@ -76,9 +78,9 @@ export async function POST(req: NextRequest) {
             }
           }
         } else if (modelo.tipo === "random-forest") {
-          const rfPred = predecirRandomForest(modelo.modelo as any, vectorPrediccion)
+          const rfPred = predecirRandomForest(modelo.modelo as Parameters<typeof predecirRandomForest>[0], vectorPrediccion)
           const probs = rfPred.probabilidades.map((p: number, i: number) => ({ estado: i, prob: p }))
-            .sort((a: any, b: any) => b.prob - a.prob)
+            .sort((a: { estado: number; prob: number }, b: { estado: number; prob: number }) => b.prob - a.prob)
           for (const p of probs.slice(0, 10)) {
             if (!seen.has(p.estado)) {
               seen.add(p.estado)
@@ -86,7 +88,7 @@ export async function POST(req: NextRequest) {
             }
           }
         } else if (modelo.tipo === "neural") {
-          const nnTop = predecirMultipleClases(modelo.modelo as any, vectorPrediccion, 10)
+          const nnTop = predecirMultipleClases(modelo.modelo as Parameters<typeof predecirMultipleClases>[0], vectorPrediccion, 10)
           for (const p of nnTop) {
             if (!seen.has(p.clase)) {
               seen.add(p.clase)
@@ -121,9 +123,10 @@ export async function POST(req: NextRequest) {
       tiempoMs: resultado.tiempoTotal,
       generado: new Date().toISOString()
     })
-  } catch (e: any) {
+  } catch (e: unknown) {
     clearTimeout(to)
-    return NextResponse.json({ error: e.message || "Error en ML" }, { status: 500 })
+    const err = e as { message?: string }
+    return NextResponse.json({ error: err.message || "Error en ML" }, { status: 500 })
   }
 }
 

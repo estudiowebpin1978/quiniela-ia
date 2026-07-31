@@ -21,7 +21,7 @@ export async function GET(req:NextRequest){
   const sesgosMensuales: Record<string, Record<number, number[]>> = {}
 
   for(const turno of turnos){
-    const rows_t=rows.filter((r:any)=>r.turno===turno)
+    const rows_t=rows.filter((r: {turno:string; numbers:number[]; date:string})=>r.turno===turno)
     const freq=new Array(100).fill(0)
     let total=0
     
@@ -29,7 +29,7 @@ export async function GET(req:NextRequest){
     const freqMensual: Record<number, number[]> = {}
     
     for(const row of rows_t){
-      const nums=(row.numbers||[]).map((n:any)=>Number(n)%100)
+      const nums=(row.numbers||[]).map((n:number)=>Number(n)%100)
       const mes=new Date(row.date).getMonth()+1
       if(!freqMensual[mes])freqMensual[mes]=new Array(100).fill(0)
       

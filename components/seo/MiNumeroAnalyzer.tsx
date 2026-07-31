@@ -168,7 +168,7 @@ export function MiNumeroAnalyzer() {
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

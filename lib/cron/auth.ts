@@ -86,7 +86,7 @@ export function unauthorizedResponse(): NextResponse {
  */
 export function logCronExecution(
   endpoint: string,
-  result: any,
+  result: Record<string, unknown>,
   startTime: number
 ): void {
   const elapsed = Date.now() - startTime

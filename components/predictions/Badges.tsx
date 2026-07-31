@@ -1,8 +1,9 @@
 "use client";
 import { useMemo } from "react";
+import type { SavedPrediction } from "@/lib/types/client";
 
 interface BadgesProps {
-  misPreds: any[];
+  misPreds: SavedPrediction[];
   misSummary: {
     totalAciertos: number;
     totalWithHits: number;

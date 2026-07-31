@@ -5,6 +5,7 @@
  */
 
 import { getSupabaseAdmin } from "@/lib/supabase-client"
+import logger from "@/lib/logger"
 
 interface RateLimitResult {
   allowed: boolean
@@ -98,7 +99,7 @@ export async function checkRateLimit(
     })
 
     if (error) {
-      console.error("[RateLimit] RPC error, falling back to local:", error.message)
+      logger.error("[RateLimit] RPC error, falling back to local", { error: error.message })
       return checkLocalFallback(identifier, options)
     }
 
@@ -114,7 +115,7 @@ export async function checkRateLimit(
       totalHits: result.total_hits
     }
   } catch (err) {
-    console.error("[RateLimit] Error, falling back to local:", err)
+    logger.error("[RateLimit] Error, falling back to local", { error: String(err) })
     return checkLocalFallback(identifier, options)
   }
 }

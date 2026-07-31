@@ -22,7 +22,7 @@ export class Draw {
     return new Draw(props)
   }
 
-  static fromRow(row: any): Draw {
+  static fromRow(row: { id?: number; game_id?: string; date: string; turno: string; numbers?: number[]; source?: string; html_hash?: string | null; confidence_score?: number | null; source_priority?: number }): Draw {
     return Draw.create({
       id: row.id,
       gameId: row.game_id,

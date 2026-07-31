@@ -7,7 +7,7 @@
 
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 
-interface CacheEntry<T = any> {
+interface CacheEntry<T = unknown> {
   value: T
   expiresAt: number
 }
@@ -15,10 +15,13 @@ interface CacheEntry<T = any> {
 const memoryStore = new Map<string, CacheEntry>()
 const MEMORY_MAX = 200
 
+// Supabase table "app_cache" not in generated types — `as any` required
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 /**
  * Get a cached value by key. Checks Supabase first, falls back to memory.
  */
-export async function cacheGet<T = any>(key: string): Promise<T | null> {
+export async function cacheGet<T = unknown>(key: string): Promise<T | null> {
   // 1. Check memory (instant)
   const memEntry = memoryStore.get(key)
   if (memEntry && Date.now() < memEntry.expiresAt) {
@@ -39,7 +42,6 @@ export async function cacheGet<T = any>(key: string): Promise<T | null> {
 
     const expiresAt = new Date(data.expires_at).getTime()
     if (Date.now() >= expiresAt) {
-      // Expired in DB, clean up
       supabase.from("app_cache" as any).delete().eq("key", key).then(() => {})
       return null
     }
@@ -55,12 +57,11 @@ export async function cacheGet<T = any>(key: string): Promise<T | null> {
 /**
  * Set a cached value with TTL. Writes to both memory and Supabase.
  */
-export async function cacheSet<T = any>(key: string, value: T, ttlMs: number): Promise<void> {
+export async function cacheSet<T = unknown>(key: string, value: T, ttlMs: number): Promise<void> {
   const expiresAt = Date.now() + ttlMs
 
   // 1. Write to memory (instant)
   if (memoryStore.size >= MEMORY_MAX) {
-    // Evict oldest
     const oldest = memoryStore.keys().next().value
     if (oldest) memoryStore.delete(oldest)
   }
@@ -89,6 +90,8 @@ export async function cacheDelete(key: string): Promise<void> {
     supabase.from("app_cache" as any).delete().eq("key", key).then(() => {})
   } catch {}
 }
+
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * Clear all cached entries (memory only, Supabase will expire naturally).

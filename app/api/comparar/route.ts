@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
+import type { PredictionRow, ComparisonResult, DrawRow } from "@/lib/api/types"
 
 function getSK(): string {
   return (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
@@ -13,18 +14,19 @@ function normalizeTurno(t: string): string {
   return t.replace(/-\d+cifras?$/i, "").toLowerCase().trim()
 }
 
-function parseNumeros(predNumeros: any): { n2: string[]; n3: string[]; n4: string[] } {
-  let data = predNumeros
+function parseNumeros(predNumeros: PredictionRow["numeros"]): { n2: string[]; n3: string[]; n4: string[] } {
+  let data: number[] | Record<string, string[]> | string = predNumeros
   if (Array.isArray(data) && data.length === 1 && typeof data[0] === "string") {
-    try { data = JSON.parse(data[0]) } catch {}
+    try { data = JSON.parse(data[0] as string) as Record<string, string[]> } catch {}
   }
   if (Array.isArray(data)) {
-    return { n2: data.map((n: string) => String(n).padStart(2, "0")), n3: [], n4: [] }
+    return { n2: data.map((n: number | string) => String(n).padStart(2, "0")), n3: [], n4: [] }
   }
+  const obj = data as Record<string, string[]>
   return {
-    n2: (data?.["2"] || []).map((n: string) => String(n).padStart(2, "0")),
-    n3: (data?.["3"] || []).map((n: string) => String(n).padStart(3, "0")),
-    n4: (data?.["4"] || []).map((n: string) => String(n).padStart(4, "0")),
+    n2: (obj["2"] || []).map((n: string) => String(n).padStart(2, "0")),
+    n3: (obj["3"] || []).map((n: string) => String(n).padStart(3, "0")),
+    n4: (obj["4"] || []).map((n: string) => String(n).padStart(4, "0")),
   }
 }
 
@@ -45,7 +47,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const results: any[] = []
+    const results: ComparisonResult[] = []
     
     let url = `${SB}/rest/v1/user_predictions?select=id,user_id,date,turno,numeros,created_at&order=date.desc,turno&limit=100`
     if (fecha) url += `&date=eq.${fecha}`
@@ -59,8 +61,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: "No hay análisis para comparar", results: [] })
     }
 
-    const fechas = [...new Set(predictions.map((p: any) => p.date))] as string[]
-    const turnos = [...new Set(predictions.map((p: any) => normalizeTurno(p.turno || "")))] as string[]
+    const fechas = [...new Set(predictions.map((p: PredictionRow) => p.date))] as string[]
+    const turnos = [...new Set(predictions.map((p: PredictionRow) => normalizeTurno(p.turno || "")))] as string[]
     
     const drawsMap: Record<string, number[]> = {}
     for (const f of fechas) {
@@ -92,15 +94,15 @@ export async function GET(req: NextRequest) {
       
       const aciertos2 = predNumeros2
         .filter((n: string) => nums2.includes(n))
-        .map((n: string) => ({ numero: n, posicion: nums2.indexOf(n) + 1, tipo: 2 }))
+        .map((n: string) => ({ numero: n, posicion: nums2.indexOf(n) + 1, tipo: 2 as const }))
 
       const aciertos3 = predNumeros3
         .filter((n: string) => nums3.includes(n))
-        .map((n: string) => ({ numero: n, posicion: nums3.indexOf(n) + 1, tipo: 3 }))
+        .map((n: string) => ({ numero: n, posicion: nums3.indexOf(n) + 1, tipo: 3 as const }))
 
       const aciertos4 = predNumeros4
         .filter((n: string) => nums4.includes(n))
-        .map((n: string) => ({ numero: n, posicion: nums4.indexOf(n) + 1, tipo: 4 }))
+        .map((n: string) => ({ numero: n, posicion: nums4.indexOf(n) + 1, tipo: 4 as const }))
 
       const allAciertos = [...aciertos2, ...aciertos3, ...aciertos4]
       

@@ -1,7 +1,7 @@
-import { FrecuenciaItem } from './frecuencia';
-import { AusenciaItem } from './ausencias';
-import { CicloItem } from './ciclos';
-import { TransicionItem } from './transicion';
+import { FrecuenciaItem, AnalisisFrecuencia } from './frecuencia';
+import { AusenciaItem, AnalisisAusencias } from './ausencias';
+import { CicloItem, AnalisisCiclos } from './ciclos';
+import { TransicionItem, AnalisisTransicion } from './transicion';
 
 export interface ScoreItem {
   numero: number;
@@ -112,20 +112,20 @@ export function calcularScore(
 
 export function generarRanking(
   sorteos: { fecha: string; turno: string; numbers: number[] }[],
-  analisisFrecuencia: any,
-  analisisAusencias: any,
-  analisisTransicion: any,
-  analisisCiclos: any,
+  analisisFrecuencia: AnalisisFrecuencia,
+  analisisAusencias: AnalisisAusencias,
+  analisisTransicion: AnalisisTransicion,
+  analisisCiclos: AnalisisCiclos,
   opciones: { topN?: number } = {}
 ): RankingCompleto {
   const { topN = 10 } = opciones;
   const totalSorteos = sorteos.length;
   const maxIdx = totalSorteos - 1;
 
-  const freqMap = new Map(analisisFrecuencia.dosCifras.map((f: any) => [f.numero, f]));
-  const ausenciaMap = new Map(analisisAusencias.numeros.map((a: any) => [a.numero, a]));
-  const transicionMap = new Map(analisisTransicion.transicionesMasProbables.map((t: any) => [t.hacia, t]));
-  const cicloMap = new Map(analisisCiclos.ciclos2Cifras.map((c: any) => [c.numero, c]));
+  const freqMap = new Map(analisisFrecuencia.dosCifras.map((f: FrecuenciaItem) => [f.numero, f]));
+  const ausenciaMap = new Map(analisisAusencias.numeros.map((a: AusenciaItem) => [a.numero, a]));
+  const transicionMap = new Map(analisisTransicion.transicionesMasProbables.map((t: TransicionItem) => [t.hacia, t]));
+  const cicloMap = new Map(analisisCiclos.ciclos2Cifras.map((c: CicloItem) => [c.numero, c]));
 
   const ultimosIndices: Map<number, number> = new Map();
   sorteos.forEach((sorteo, idx) => {
@@ -140,10 +140,10 @@ export function generarRanking(
   const scores2Cifras: ScoreItem[] = [];
   
   for (let n = 0; n < 100; n++) {
-    const freq = freqMap.get(n) as any || null;
-    const ausencia = ausenciaMap.get(n) as any || null;
-    const transicion = transicionMap.get(n) as any || null;
-    const ciclo = cicloMap.get(n) as any || null;
+    const freq = freqMap.get(n) ?? null;
+    const ausencia = ausenciaMap.get(n) ?? null;
+    const transicion = transicionMap.get(n) ?? null;
+    const ciclo = cicloMap.get(n) ?? null;
     const ultimoIdx = ultimosIndices.get(n) || 0;
 
     const score = calcularScore(n, freq, ausencia, transicion, ciclo, ultimoIdx, totalSorteos, maxIdx);
@@ -158,11 +158,11 @@ export function generarRanking(
     ? { a: top2[0].numero, b: top2[1].numero, score: top2[0].score * top2[1].score }
     : { a: 0, b: 1, score: 0 };
 
-  const tresCifrasMap = new Map(analisisFrecuencia.tresCifras.slice(0, 100).map((f: any) => [f.numero, f]));
+  const tresCifrasMap = new Map(analisisFrecuencia.tresCifras.slice(0, 100).map((f: FrecuenciaItem) => [f.numero, f]));
   const scores3Cifras: ScoreItem[] = [];
 
   for (let n = 0; n < 1000; n++) {
-    const freq = tresCifrasMap.get(n) as any;
+    const freq = tresCifrasMap.get(n) ?? undefined;
     if (freq) {
       scores3Cifras.push({
         numero: n,
@@ -178,10 +178,10 @@ export function generarRanking(
   scores3Cifras.sort((a, b) => b.score - a.score);
   scores3Cifras.forEach((s, i) => s.rank = i + 1);
 
-  const cuatroCifrasMap = new Map(analisisFrecuencia.cuatroCifras.slice(0, 50).map((f: any) => [f.numero, f]));
+  const cuatroCifrasMap = new Map(analisisFrecuencia.cuatroCifras.slice(0, 50).map((f: FrecuenciaItem) => [f.numero, f]));
   const scores4Cifras: ScoreItem[] = [];
 
-  for (const [num, freq] of cuatroCifrasMap as any) {
+  for (const [num, freq] of cuatroCifrasMap.entries()) {
     scores4Cifras.push({
       numero: num as number,
       score: freq.porcentaje / 100,
@@ -212,10 +212,10 @@ function sortable(n: unknown): number[] {
 export function generarRankingPorTurno(
   sorteos: { fecha: string; turno: string; numbers: number[] }[],
   turno: string,
-  analisisFrecuencia: any,
-  analisisAusencias: any,
-  analisisTransicion: any,
-  analisisCiclos: any
+  analisisFrecuencia: AnalisisFrecuencia,
+  analisisAusencias: AnalisisAusencias,
+  analisisTransicion: AnalisisTransicion,
+  analisisCiclos: AnalisisCiclos
 ): RankingCompleto {
   const sorteosTurno = sorteos.filter(s => s.turno.toLowerCase() === turno.toLowerCase());
   return generarRanking(sorteosTurno, analisisFrecuencia, analisisAusencias, analisisTransicion, analisisCiclos);

@@ -1,3 +1,4 @@
+import { SupabaseClient } from "@supabase/supabase-js"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import logger from "@/lib/logger"
 
@@ -7,18 +8,64 @@ interface ParsedNumeros {
   numeros_4: string[]
 }
 
-function parseNumeros(numeros: any): ParsedNumeros {
-  let data = numeros
+interface PredictionRow {
+  id: string
+  user_id: string
+  date: string
+  turno: string
+  numeros: unknown
+}
+
+interface VerificationResult {
+  id: string
+  fecha: string
+  turno: string
+  aciertos_2: { numero: string; puesto: number }[]
+  aciertos_3: { numero: string; puesto: number }[]
+  aciertos_4: { numero: string; puesto: number }[]
+  total_aciertos: number
+  resultado_oficial: number[]
+}
+
+interface HistoryInsert {
+  prediction_id: string
+  user_id: string
+  fecha: string
+  turno: string
+  numeros_2: string[]
+  numeros_3: string[]
+  numeros_4: string[]
+  resultado_oficial: number[]
+  aciertos_2: { numero: string; puesto: number }[]
+  aciertos_3: { numero: string; puesto: number }[]
+  aciertos_4: { numero: string; puesto: number }[]
+  total_aciertos: number
+  verified: boolean
+  verified_at: string
+}
+
+interface UserStats {
+  user_id: string
+  total_predictions: number
+  total_hits: number
+  current_streak: number
+  best_streak: number
+  last_verified?: string
+}
+
+function parseNumeros(numeros: unknown): ParsedNumeros {
+  let data: unknown = numeros
   if (Array.isArray(data) && data.length === 1 && typeof data[0] === "string") {
-    try { data = JSON.parse(data[0]) } catch {}
+    try { data = JSON.parse(data[0] as string) } catch {}
   }
   if (Array.isArray(data)) {
-    return { numeros_2: data.map((n: string) => String(n).padStart(2, "0")), numeros_3: [], numeros_4: [] }
+    return { numeros_2: data.map((n: unknown) => String(n).padStart(2, "0")), numeros_3: [], numeros_4: [] }
   }
+  const obj = data as Record<string, string[]> | null
   return {
-    numeros_2: (data?.["2"] || []).map((n: string) => String(n).padStart(2, "0")),
-    numeros_3: (data?.["3"] || []).map((n: string) => String(n).padStart(3, "0")),
-    numeros_4: (data?.["4"] || []).map((n: string) => String(n).padStart(4, "0")),
+    numeros_2: (obj?.["2"] || []).map((n: string) => String(n).padStart(2, "0")),
+    numeros_3: (obj?.["3"] || []).map((n: string) => String(n).padStart(3, "0")),
+    numeros_4: (obj?.["4"] || []).map((n: string) => String(n).padStart(4, "0")),
   }
 }
 
@@ -27,16 +74,17 @@ function normalizeTurno(t: string): string {
   return base.charAt(0).toUpperCase() + base.slice(1)
 }
 
-export async function autoVerifyPredictions(fecha: string, turno: string, maxRetries = 2): Promise<any[]> {
+export async function autoVerifyPredictions(fecha: string, turno: string, maxRetries = 2): Promise<VerificationResult[]> {
   const supabase = getSupabaseAdmin()
   if (!supabase) return []
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await _autoVerifyInternal(supabase, fecha, turno)
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (attempt === maxRetries) {
-        logger.error("[auto-verify] Final attempt failed", { fecha, turno, attempt, error: err.message })
+        const e = err as { message?: string }
+        logger.error("[auto-verify] Final attempt failed", { fecha, turno, attempt, error: e.message })
         return []
       }
       await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
@@ -45,10 +93,9 @@ export async function autoVerifyPredictions(fecha: string, turno: string, maxRet
   return []
 }
 
-async function _autoVerifyInternal(supabase: any, fecha: string, turno: string): Promise<any[]> {
+async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turno: string): Promise<VerificationResult[]> {
   const normalizedTurno = normalizeTurno(turno)
 
-  // Fetch draw — use ilike for case-insensitive matching
   const { data: draws } = await supabase
     .from("draws")
     .select("numbers, turno")
@@ -64,7 +111,6 @@ async function _autoVerifyInternal(supabase: any, fecha: string, turno: string):
   const nums3 = draw.numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
   const nums4 = draw.numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
 
-  // Fetch ALL predictions for this date (any turno variant), then filter by normalized match
   const { data: allPredictions } = await supabase
     .from("user_predictions")
     .select("id, user_id, date, turno, numeros")
@@ -72,29 +118,27 @@ async function _autoVerifyInternal(supabase: any, fecha: string, turno: string):
 
   if (!allPredictions?.length) return []
 
-  // Filter predictions whose normalized turno matches
-  const predictions = allPredictions.filter((p: any) => normalizeTurno(p.turno || "") === normalizedTurno)
+  const predictions = (allPredictions as PredictionRow[]).filter((p) => normalizeTurno(p.turno || "") === normalizedTurno)
 
   if (!predictions.length) return []
 
-  const predIds = predictions.map((p: any) => p.id).filter(Boolean)
+  const predIds = predictions.map((p) => p.id).filter(Boolean)
   const { data: existing } = await supabase
     .from("prediction_history")
     .select("prediction_id")
     .in("prediction_id", predIds)
 
-  const verifiedSet = new Set((existing || []).map((e: any) => e.prediction_id))
+  const verifiedSet = new Set((existing || []).map((e: { prediction_id: string }) => e.prediction_id))
 
-  const results: any[] = []
-  const historyInserts: any[] = []
-  const statsUpdates = new Map<string, { total_predictions: number; total_hits: number; current_streak: number; best_streak: number }>()
+  const results: VerificationResult[] = []
+  const historyInserts: HistoryInsert[] = []
+  const statsUpdates = new Map<string, UserStats>()
 
-  // Pre-fetch all existing stats for affected users
-  const userIds = [...new Set(predictions.map((p: any) => p.user_id).filter(Boolean))]
+  const userIds = [...new Set(predictions.map((p) => p.user_id).filter(Boolean))]
   const { data: allStats } = userIds.length > 0
     ? await supabase.from("user_stats").select("user_id, total_predictions, total_hits, best_streak, current_streak").in("user_id", userIds)
     : { data: [] }
-  const statsMap = new Map<string, any>()
+  const statsMap = new Map<string, UserStats>()
   for (const s of (allStats || [])) statsMap.set(s.user_id, s)
 
   for (const pred of predictions) {
@@ -158,7 +202,6 @@ async function _autoVerifyInternal(supabase: any, fecha: string, turno: string):
     })
   }
 
-  // Bulk insert prediction_history
   if (historyInserts.length > 0) {
     const { error: batchError } = await supabase.from("prediction_history").insert(historyInserts)
     if (batchError) {
@@ -166,7 +209,6 @@ async function _autoVerifyInternal(supabase: any, fecha: string, turno: string):
     }
   }
 
-  // Bulk upsert user_stats
   const statsArray = Array.from(statsMap.values()).filter(s => s.user_id)
   if (statsArray.length > 0) {
     const { error: statsBatchError } = await supabase.from("user_stats").upsert(statsArray, { onConflict: "user_id" })

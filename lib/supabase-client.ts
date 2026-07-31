@@ -5,20 +5,13 @@
  */
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js"
+import { getSupabaseUrl, getSupabaseKey } from "@/lib/config"
 
 let supabaseClient: SupabaseClient | null = null
 let supabaseAdminClient: SupabaseClient | null = null
 
-function getSupabaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-}
-
 function getSupabaseAnonKey(): string {
   return (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").replace(/"/g, "").trim()
-}
-
-function getSupabaseServiceKey(): string {
-  return (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
 }
 
 /**
@@ -47,7 +40,7 @@ export function getSupabase(): SupabaseClient {
 export function getSupabaseAdmin(): SupabaseClient {
   if (!supabaseAdminClient) {
     const url = getSupabaseUrl()
-    const key = getSupabaseServiceKey()
+    const key = getSupabaseKey()
     if (!url || !key) {
       throw new Error("Supabase configuration missing: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
     }
@@ -72,7 +65,7 @@ export function resetSupabaseClients(): void {
  * Use getSupabaseAdmin().from() instead when possible for type safety.
  */
 export function getSbHeaders(): Record<string, string> {
-  const key = getSupabaseServiceKey()
+  const key = getSupabaseKey()
   return { "apikey": key, "Authorization": `Bearer ${key}` }
 }
 

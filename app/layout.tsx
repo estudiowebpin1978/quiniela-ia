@@ -88,14 +88,18 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#ff3366",
+  themeColor: "#0a0a12",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
+    <html lang="es" className="dark" style={{ background: "#030307" }}>
       <head>
         <meta name="google-site-verification" content="mpFSw0SQRIk4wqUcbPB04-F3UTHZ9c_9yAoe0Yfr_t0" />
+        <style dangerouslySetInnerHTML={{ __html: `
+          html, body { background: #030307 !important; color: #f8fafc !important; }
+          body { min-height: 100vh; }
+        ` }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="icon" type="image/png" href="/favicon.png" />
@@ -106,7 +110,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="theme-color" content="#ff3366" />
+        <meta name="theme-color" content="#0a0a12" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

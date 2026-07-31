@@ -2,16 +2,28 @@
 import { useState, useEffect, useCallback } from "react"
 import { isLoggedIn, getAccessToken } from "@/lib/auth"
 import { xpForNextLevel, xpForCurrentLevel, ACHIEVEMENTS } from "@/lib/gamification"
+import type { Achievement } from "@/lib/types/client"
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyRecord = Record<string, any>
+
+interface GamificationResponse {
+  level: number
+  xp: number
+  streak: number
+  achievements: Achievement[]
+  newAchievements?: Achievement[]
+}
 
 interface Props {
   compact?: boolean
-  onNewAchievement?: (ach: any) => void
+  onNewAchievement?: (ach: Achievement) => void
 }
 
 export default function GamificationBadge({ compact = false, onNewAchievement }: Props) {
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<AnyRecord | null>(null)
   const [showDetails, setShowDetails] = useState(false)
-  const [newAchievement, setNewAchievement] = useState<any>(null)
+  const [newAchievement, setNewAchievement] = useState<AnyRecord | null>(null)
 
   const fetchData = useCallback(() => {
     if (!isLoggedIn()) return
@@ -147,7 +159,7 @@ export default function GamificationBadge({ compact = false, onNewAchievement }:
             <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", marginBottom: 10 }}>Logros</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {ACHIEVEMENTS.map(ach => {
-                const unlocked = (data.achievements || []).some((a: any) => a.id === ach.id)
+                const unlocked = (data.achievements || []).some((a: AnyRecord) => a.id === ach.id)
                 return (
                   <div key={ach.id} style={{
                     display: "flex", alignItems: "center", gap: 10,

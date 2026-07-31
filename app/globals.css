@@ -9,18 +9,20 @@
   --arg-sun: #f8b500;
   --arg-sun-glow: #f8b50080;
 
-  /* Quiniela IA Brand Colors */
-  --brand-pink: #ff3366;
-  --brand-pink-glow: #ff336680;
+  /* Quiniela IA Brand Colors — Casino Neon Palette */
+  --brand-pink: #ff2d55;
+  --brand-pink-glow: #ff2d5580;
   --brand-pink-deep: #cc0033;
-  --brand-purple: #a855f7;
-  --brand-purple-glow: #a855f780;
-  --brand-cyan: #06b6d4;
-  --brand-cyan-glow: #06b6d480;
-  --brand-green: #22c55e;
-  --brand-green-glow: #22c55e80;
-  --brand-orange: #f97316;
-  --brand-orange-glow: #f9731680;
+  --brand-purple: #bf5af2;
+  --brand-purple-glow: #bf5af280;
+  --brand-cyan: #00e5ff;
+  --brand-cyan-glow: #00e5ff80;
+  --brand-green: #30d158;
+  --brand-green-glow: #30d15880;
+  --brand-orange: #ff9f0a;
+  --brand-orange-glow: #ff9f0a80;
+  --brand-gold: #ffd60a;
+  --brand-gold-glow: #ffd60a80;
 
   /* Dark Theme - Modern & Premium */
   --bg-0: #030307;
@@ -35,8 +37,8 @@
 
   /* Text */
   --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
   --text-accent: #ffd700;
   --text-on-brand: #0a0a12;
 
@@ -93,26 +95,7 @@
   --font-display: 'Space Grotesk', var(--font-sans);
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg-0: #f8fafc;
-    --bg-1: #ffffff;
-    --bg-2: #f1f5f9;
-    --bg-3: #e2e8f0;
-    --bg-card: rgba(255, 255, 255, 0.9);
-    --bg-card-hover: rgba(248, 250, 252, 0.95);
-    --bg-glass: rgba(15, 23, 42, 0.04);
-    --bg-glass-strong: rgba(15, 23, 42, 0.08);
-    --bg-input: rgba(255, 255, 255, 0.9);
-    --text-primary: #0f172a;
-    --text-secondary: #475569;
-    --text-muted: #94a3b8;
-    --border-subtle: rgba(15, 23, 42, 0.06);
-    --border-default: rgba(15, 23, 42, 0.1);
-    /* Variables que necesitan override explícito en modo claro */
-    --border-glow-green: rgba(34, 197, 94, 0.35);
-  }
-}
+/* Dark mode forced — casino/neon aesthetic, no light mode override */
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -131,6 +114,10 @@ html {
 body {
   font-family: var(--font-sans);
   background: var(--bg-0);
+  background-image:
+    radial-gradient(circle at 20% 80%, rgba(191, 90, 242, 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(0, 229, 255, 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(255, 45, 85, 0.02) 0%, transparent 70%);
   color: var(--text-primary);
   min-height: 100vh;
   line-height: 1.6;
@@ -250,7 +237,7 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: gradient-shift 3s ease infinite;
+  animation: gradient-shift 4s ease infinite;
 }
 
 .gradient-text-gold {
@@ -276,7 +263,7 @@ body {
   background-size: 200% 200%;
   z-index: -1;
   opacity: 0;
-  animation: gradient-shift 3s ease infinite;
+  animation: gradient-shift 4s ease infinite;
   transition: opacity var(--transition-base);
 }
 
@@ -322,7 +309,7 @@ body {
 /* ============ FOCUS VISIBLE ============ */
 
 :focus-visible {
-  outline: 2px solid var(--brand-pink);
+  outline: 2px solid var(--brand-cyan);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
@@ -330,7 +317,7 @@ body {
 /* ============ SELECTION ============ */
 
 ::selection {
-  background: var(--brand-pink-glow);
+  background: var(--brand-cyan-glow);
   color: var(--text-primary);
 }
 
@@ -404,8 +391,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .input-field:focus {
-  border-color: var(--brand-pink);
-  box-shadow: 0 0 0 3px var(--brand-pink-glow);
+  border-color: var(--brand-cyan);
+  box-shadow: 0 0 0 3px var(--brand-cyan-glow);
   outline: none;
 }
 

@@ -17,7 +17,7 @@ export class UserProfile {
     return new UserProfile(props)
   }
 
-  static fromRow(row: any): UserProfile {
+  static fromRow(row: { id?: string; email?: string; role?: string; premium_until?: string | null; trial_ends_at?: string | null; predictions_used?: number }): UserProfile {
     return UserProfile.create({
       id: row.id,
       email: row.email ?? "",

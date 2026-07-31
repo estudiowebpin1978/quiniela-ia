@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button3D } from "@/components/ui/button-3d";
 import { NumberTile3D } from "@/components/ui/number-tile-3d";
 import { AnalysisParagraph, TurnoSummary } from "@/components/seo/AnalysisParagraph";
@@ -69,7 +69,7 @@ export default function PredictionPageContent({ fecha, draws }: Props) {
   const formattedDate = formatDate(fecha);
   const currentDraw = draws.find((d) => d.turno === selectedTurno);
 
-  const fetchPrediction = async (turno: string) => {
+  const fetchPrediction = useCallback(async (turno: string) => {
     if (predictions[turno] || loading[turno]) return;
     setLoading((prev) => ({ ...prev, [turno]: true }));
 
@@ -84,7 +84,7 @@ export default function PredictionPageContent({ fecha, draws }: Props) {
     } finally {
       setLoading((prev) => ({ ...prev, [turno]: false }));
     }
-  };
+  }, [fecha, predictions, loading]);
 
   const handleTurnoChange = (turno: string) => {
     setSelectedTurno(turno);
@@ -96,7 +96,7 @@ export default function PredictionPageContent({ fecha, draws }: Props) {
     if (!predictions[selectedTurno] && !loading[selectedTurno]) {
       fetchPrediction(selectedTurno);
     }
-  }, [selectedTurno, predictions, loading]);
+  }, [selectedTurno, predictions, loading, fetchPrediction]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">

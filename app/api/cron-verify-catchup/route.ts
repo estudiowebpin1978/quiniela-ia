@@ -23,7 +23,7 @@ async function getDrawsWithPredictions(daysBack: number = 7): Promise<Array<{ fe
     if (!res.ok) return []
     const draws = await res.json()
     if (!Array.isArray(draws)) return []
-    return draws.map((d: any) => ({ fecha: d.date, turno: d.turno }))
+    return draws.map((d: { date: string; turno: string }) => ({ fecha: d.date, turno: d.turno }))
   } catch {
     return []
   }

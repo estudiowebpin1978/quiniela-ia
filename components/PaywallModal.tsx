@@ -42,8 +42,9 @@ export default function PaywallModal({ open, onClose, userId }: Props) {
       } else {
         throw new Error("No se recibió la URL de pago")
       }
-    } catch (e: any) {
-      setError(e.message || "Error procesando el pago")
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error("Error procesando el pago")
+      setError(err.message)
       setLoading(null)
     }
   }

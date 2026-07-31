@@ -34,10 +34,10 @@ async function fetchDraws(turno: string, limit: number = 100): Promise<number[][
       signal: AbortSignal.timeout(8000)
     })
     if (!res.ok) return []
-    const rows: any[] = await res.json()
+    const rows: { numbers?: number[] }[] = await res.json()
     return rows
-      .filter((r: any) => Array.isArray(r.numbers) && r.numbers.length >= 5)
-      .map((r: any) => r.numbers.map((n: number) => Number(n)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999))
+      .filter((r): r is { numbers: number[] } => Array.isArray(r.numbers) && r.numbers.length >= 5)
+      .map((r) => r.numbers.map((n: number) => Number(n)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999))
   } catch {
     return []
   }

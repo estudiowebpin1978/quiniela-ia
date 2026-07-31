@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
+import Image from "next/image"
 import { isLoggedIn, isGuest } from "@/lib/auth"
 import AgeGate from "@/components/AgeGate"
 import Button3D from "@/components/ui/Button3D"
@@ -9,9 +10,15 @@ import { ArgentinaFlag, SunOfMay, StatCard, Disclaimer } from "@/components/ui/A
 import { useSound } from "@/lib/sound/audio-manager"
 import { useSettings } from "@/components/ui/Settings"
 import { MiNumeroAnalyzer } from "@/components/seo/MiNumeroAnalyzer"
+import type { TrendItem } from "@/lib/types/client"
+
+interface CommunityData {
+  trends: TrendItem[]
+  totalToday: number
+}
 
 function CommunityTrends() {
-  const [data, setData] = useState<{ trends: any[]; totalToday: number }>({ trends: [], totalToday: 0 })
+  const [data, setData] = useState<CommunityData>({ trends: [], totalToday: 0 })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -36,7 +43,7 @@ function CommunityTrends() {
       <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 12 }}>
         {data.totalToday} análisis realizados hoy
       </div>
-      {data.trends.filter((t: any) => t.hot_numbers?.length > 0).slice(0, 3).map((t: any, i: number) => (
+      {data.trends.filter((t) => t.hot_numbers?.length > 0).slice(0, 3).map((t, i) => (
         <div key={i} style={{
           marginBottom: 8, padding: "10px 12px", borderRadius: 12,
           background: "var(--bg-glass)", border: "1px solid var(--border-subtle)",
@@ -45,7 +52,7 @@ function CommunityTrends() {
             {turnoNames[t.turno] || t.turno} · {t.analysis_count} análisis
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {t.hot_numbers.slice(0, 5).map((n: any, j: number) => (
+            {t.hot_numbers.slice(0, 5).map((n: { num?: string; [key: string]: unknown }, j: number) => (
               <span key={j} style={{
                 fontSize: 12, fontWeight: 700, color: "var(--text-primary)",
                 background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.2)",
@@ -136,11 +143,13 @@ export default function Home() {
 
       {/* Subtitle */}
       <p style={{
-        fontSize: 15, color: "var(--text-secondary)", textAlign: "center",
-        maxWidth: 340, lineHeight: 1.6, marginBottom: 20,
+        fontSize: 16, color: "#e2e8f0", textAlign: "center",
+        maxWidth: 360, lineHeight: 1.7, marginBottom: 20,
+        fontWeight: 500,
       }}>
-        <strong style={{ color: "var(--text-primary)" }}>Analizá miles de sorteos en segundos</strong> con Inteligencia Artificial.
-        30 factores estadísticos · Machine Learning · Monte Carlo · Datos oficiales.
+        <strong style={{ color: "#ffffff", textShadow: "0 0 20px rgba(255,45,85,0.3)" }}>Analizá miles de sorteos en segundos</strong> con Inteligencia Artificial.
+        <br />
+        <span style={{ color: "#94a3b8", fontSize: 14 }}>30 factores estadísticos · Machine Learning · Monte Carlo · Datos oficiales.</span>
       </p>
 
       {/* Badge */}
@@ -240,10 +249,11 @@ export default function Home() {
           }}
         >
           {SCREENSHOTS.map((s, i) => (
-            <img
+            <Image
               key={i}
               src={s.src}
               alt={s.label}
+              fill
               style={{
                 position: "absolute", inset: 0, width: "100%", height: "100%",
                 objectFit: "cover",

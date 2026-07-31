@@ -157,9 +157,15 @@ export function analizarFrecuencia(
     tresCifras,
     cuatroCifras,
     porTurno,
-    porDia: Object.fromEntries(freqDia) as any,
-    porSemana: Object.fromEntries(freqSemana) as any,
-    porMes: Object.fromEntries(freqMes) as any,
+    porDia: Object.fromEntries(
+      Array.from(freqDia.entries()).map(([k, v]) => [k, Array.from(v.entries()).map(([num, f]) => ({ numero: num, frecuencia: f, porcentaje: 0, tendencia: 0, ultimoIdx: 0 }))])
+    ) as Record<string, FrecuenciaItem[]>,
+    porSemana: Object.fromEntries(
+      Array.from(freqSemana.entries()).map(([k, v]) => [k, Array.from(v.entries()).map(([num, f]) => ({ numero: num, frecuencia: f, porcentaje: 0, tendencia: 0, ultimoIdx: 0 }))])
+    ) as Record<string, FrecuenciaItem[]>,
+    porMes: Object.fromEntries(
+      Array.from(freqMes.entries()).map(([k, v]) => [k, Array.from(v.entries()).map(([num, f]) => ({ numero: num, frecuencia: f, porcentaje: 0, tendencia: 0, ultimoIdx: 0 }))])
+    ) as Record<string, FrecuenciaItem[]>,
     masFrecuente: dosCifras[0] || { numero: 0, frecuencia: 0, porcentaje: 0, tendencia: 0, ultimoIdx: 0 },
     menosFrecuente: dosCifras[dosCifras.length - 1] || { numero: 99, frecuencia: 0, porcentaje: 0, tendencia: 0, ultimoIdx: 0 },
     promedioFrecuencia: prom,

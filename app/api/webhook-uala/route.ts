@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { timingSafeEqual } from "crypto"
 import { revalidatePath } from "next/cache"
+import { getSupabaseAdmin } from "@/lib/supabase-client"
 import logger from "@/lib/logger"
-
-const SB_URL = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-const SB_KEY = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
 
 const PLAN_DAYS: Record<string, number> = {
   semanal: 7,
@@ -72,7 +70,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, message: "Invalid secret" }, { status: 401 })
   }
 
-  let rawBody: any
+  let rawBody: Record<string, unknown>
   try {
     rawBody = await req.json()
   } catch {
@@ -82,7 +80,7 @@ export async function POST(req: NextRequest) {
 
   logger.info("[webhook-uala] Received payment notification")
 
-  const body = rawBody?.data ? rawBody.data : rawBody
+  const body: Record<string, unknown> = rawBody?.data ? rawBody.data as Record<string, unknown> : rawBody
 
   const orderId = body?.id || body?.order_id || body?.payment_id || null
   const status = (body?.status || body?.state || body?.payment_status || "").toString().toUpperCase()
@@ -107,16 +105,16 @@ export async function POST(req: NextRequest) {
   // Idempotency: check if this orderId was already processed
   if (orderId) {
     try {
-      const existingLog = await fetch(
-        `${SB_URL()}/rest/v1/webhook_logs?payload=cs.${encodeURIComponent(JSON.stringify({ orderId }))}&select=id&limit=1`,
-        { headers: { apikey: SB_KEY(), Authorization: `Bearer ${SB_KEY()}` } }
-      )
-      if (existingLog.ok) {
-        const logs = await existingLog.json()
-        if (Array.isArray(logs) && logs.length > 0) {
-          logger.info("[webhook-uala] Duplicate orderId, skipping", { orderId })
-          return NextResponse.json({ ok: true, message: "Already processed" })
-        }
+      const supabase = getSupabaseAdmin()
+      const { data: existingLogs } = await supabase
+        .from("webhook_logs")
+        .select("id")
+        .contains("payload", JSON.stringify({ orderId }))
+        .limit(1)
+      
+      if (Array.isArray(existingLogs) && existingLogs.length > 0) {
+        logger.info("[webhook-uala] Duplicate orderId, skipping", { orderId })
+        return NextResponse.json({ ok: true, message: "Already processed" })
       }
     } catch {
       // If webhook_logs table doesn't exist, continue processing
@@ -143,44 +141,46 @@ export async function POST(req: NextRequest) {
   const premiumUntil = new Date(Date.now() + days * 86400000).toISOString()
 
   const safeId = String(userId).replace(/[^a-zA-Z0-9_-]/g, "")
-  const queryUrl = `${SB_URL()}/rest/v1/user_profiles?id=eq.${safeId}&select=id,role,premium_until&limit=1`
+  const supabase = getSupabaseAdmin()
 
-  const profRes = await fetch(queryUrl, {
-    headers: { "apikey": SB_KEY(), Authorization: `Bearer ${SB_KEY()}` },
-  })
+  const { data: profiles, error: profError } = await supabase
+    .from("user_profiles")
+    .select("id, role, premium_until")
+    .eq("id", safeId)
+    .limit(1)
 
-  if (!profRes.ok) {
-    const errText = await profRes.text()
-    logger.error("[webhook-uala] Failed to fetch user profile", { status: profRes.status, error: errText })
+  if (profError) {
+    logger.error("[webhook-uala] Failed to fetch user profile", { error: profError.message })
     try {
-      await fetch(`${SB_URL()}/rest/v1/webhook_logs`, {
-        method: "POST",
-        headers: { "apikey": SB_KEY(), Authorization: `Bearer ${SB_KEY()}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-        body: JSON.stringify({
-          source: "uala", payload: JSON.stringify({ orderId, status, amount }),
-          user_id: safeId, error: "Profile fetch failed", created_at: new Date().toISOString(),
-        }),
+      await supabase.from("webhook_logs").insert({
+        source: "uala",
+        payload: JSON.stringify({ orderId, status, amount }),
+        user_id: safeId,
+        error: "Profile fetch failed",
+        created_at: new Date().toISOString(),
       })
     } catch {}
     return NextResponse.json({ ok: false, error: "Profile fetch failed" }, { status: 500 })
   }
 
-  const profiles = await profRes.json()
-  let profile = profiles?.[0]
+  let profile = Array.isArray(profiles) ? profiles[0] : null
 
   if (!profile) {
-    const createRes = await fetch(`${SB_URL()}/rest/v1/user_profiles`, {
-      method: "POST",
-      headers: { "apikey": SB_KEY(), Authorization: `Bearer ${SB_KEY()}`, "Content-Type": "application/json", Prefer: "return=representation" },
-      body: JSON.stringify({ id: userId, email: "", role: "free" }),
-    })
-    if (createRes.ok) {
-      const created = await createRes.json()
-      profile = created?.[0]
-    } else {
-      logger.error("[webhook-uala] Failed to create user_profiles", { status: createRes.status })
+    const { data: created, error: createError } = await supabase
+      .from("user_profiles")
+      .insert({ id: userId, email: "", role: "free" })
+      .select()
+      .single()
+    
+    if (createError) {
+      logger.error("[webhook-uala] Failed to create user_profiles", { error: createError.message })
       return NextResponse.json({ ok: false, error: "Could not create profile" }, { status: 500 })
     }
+    profile = created
+  }
+
+  if (!profile) {
+    return NextResponse.json({ ok: false, error: "Profile not found" }, { status: 500 })
   }
 
   logger.info("[webhook-uala] Found user profile", { role: profile.role })
@@ -195,15 +195,13 @@ export async function POST(req: NextRequest) {
     finalPremiumUntil = new Date(currentExpiry.getTime() + days * 86400000).toISOString()
   }
 
-  const updateRes = await fetch(`${SB_URL()}/rest/v1/user_profiles?id=eq.${safeId}`, {
-    method: "PATCH",
-    headers: { "apikey": SB_KEY(), Authorization: `Bearer ${SB_KEY()}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-    body: JSON.stringify({ role: "premium", premium_until: finalPremiumUntil }),
-  })
+  const { error: updateError } = await supabase
+    .from("user_profiles")
+    .update({ role: "premium", premium_until: finalPremiumUntil })
+    .eq("id", safeId)
 
-  if (!updateRes.ok) {
-    const errText = await updateRes.text()
-    logger.error("[webhook-uala] Failed to update user profile", { status: updateRes.status, error: errText })
+  if (updateError) {
+    logger.error("[webhook-uala] Failed to update user profile", { error: updateError.message })
     return NextResponse.json({ ok: true })
   }
 

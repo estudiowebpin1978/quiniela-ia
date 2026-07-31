@@ -72,6 +72,7 @@ export async function ensureUserProfile(userId: string, email: string): Promise<
         email: email || "",
         role: "free",
         premium_until: trialUntilISO(),
+        trial_ends_at: trialUntilISO(),
         created_at: new Date().toISOString(),
       }),
       signal: AbortSignal.timeout(4000),
@@ -124,7 +125,7 @@ export async function resolveUserTier(token: string): Promise<UserTier> {
     await ensureUserProfile(user.id, user.email || "")
 
     const profRes = await fetch(
-      `${SB}/rest/v1/user_profiles?id=eq.${user.id}&select=role,premium_until,created_at&limit=1`,
+      `${SB}/rest/v1/user_profiles?id=eq.${user.id}&select=role,premium_until,trial_ends_at,created_at&limit=1`,
       { headers: { apikey: SK, Authorization: `Bearer ${SK}` }, signal: AbortSignal.timeout(4000) }
     )
     const profiles = await profRes.json()
@@ -134,7 +135,9 @@ export async function resolveUserTier(token: string): Promise<UserTier> {
     const dbRole = (profile?.role || "free") as string
     const role: UserTier["role"] = isAdmin ? "admin" : dbRole === "admin" ? "free" : (dbRole as UserTier["role"])
 
-    const until = profile?.premium_until ? new Date(profile.premium_until) : null
+    // Read premium_until first, fall back to trial_ends_at (set by DB trigger)
+    const untilRaw = profile?.premium_until || profile?.trial_ends_at || null
+    const until = untilRaw ? new Date(untilRaw) : null
     const untilValid = !!(until && until.getTime() > Date.now())
 
     const isPremiumRole = role === "admin" || (role === "premium" && untilValid)

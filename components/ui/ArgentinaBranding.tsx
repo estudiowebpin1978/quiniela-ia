@@ -141,11 +141,12 @@ export function StatCard({ icon, value, label, color = "var(--brand-pink)" }: {
   return (
     <div style={{
       padding: "14px 12px", borderRadius: 14,
-      background: "var(--bg-glass)",
-      border: `1px solid ${color}20`,
+      background: "rgba(255,255,255,0.06)",
+      border: `1px solid ${color}30`,
       textAlign: "center",
       flex: 1,
       minWidth: 70,
+      boxShadow: `0 4px 12px ${color}15`,
     }}>
       <div style={{ fontSize: 20, marginBottom: 4 }}>{icon}</div>
       <div style={{ fontSize: 20, fontWeight: 900, color, fontFamily: "var(--font-mono)" }}>{value}</div>

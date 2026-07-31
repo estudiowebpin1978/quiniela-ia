@@ -9,8 +9,14 @@ import { cacheGet, cacheSet } from "@/lib/cache"
 const CACHE_PREFIX = "ml:models:"
 const TTL = 1800000 // 30 minutes
 
+export interface MLCachedModel {
+  tipo: string
+  nombre: string
+  modelo: unknown
+}
+
 interface CacheEntry {
-  modelos: any[]
+  modelos: MLCachedModel[]
   timestamp: number
   turno: string
 }
@@ -18,7 +24,7 @@ interface CacheEntry {
 // In-memory layer for instant access during warm invocations
 const memStore = new Map<string, CacheEntry>()
 
-export async function getModelos(turno: string): Promise<any[] | null> {
+export async function getModelos(turno: string): Promise<MLCachedModel[] | null> {
   // 1. Check memory (instant)
   const memEntry = memStore.get(turno)
   if (memEntry && Date.now() - memEntry.timestamp < TTL) {
@@ -36,7 +42,7 @@ export async function getModelos(turno: string): Promise<any[] | null> {
   return null
 }
 
-export async function setModelos(turno: string, modelos: any[]): Promise<void> {
+export async function setModelos(turno: string, modelos: MLCachedModel[]): Promise<void> {
   const entry: CacheEntry = { modelos, timestamp: Date.now(), turno }
 
   // Write to memory

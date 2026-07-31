@@ -152,9 +152,12 @@ export function onlineWeightUpdate(
   for (const [factor, hits] of Object.entries(recentHits)) {
     if (factor in updated) {
       const contribution = hits / totalHits
-      const currentWeight = (updated as any)[factor]
-      const targetWeight = contribution
-      ;(updated as any)[factor] = currentWeight + learningRate * (targetWeight - currentWeight)
+      const key = factor as keyof Omit<MetaWeights, 'lastUpdated'>
+      const currentWeight = updated[key]
+      if (typeof currentWeight === 'number') {
+        const targetWeight = contribution
+        ;(updated[key] as number) = currentWeight + learningRate * (targetWeight - currentWeight)
+      }
     }
   }
 

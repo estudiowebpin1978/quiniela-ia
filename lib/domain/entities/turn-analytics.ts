@@ -22,7 +22,7 @@ export class TurnAnalytics {
     return new TurnAnalytics(props)
   }
 
-  static fromRow(row: any): TurnAnalytics {
+  static fromRow(row: { id?: number; game_id?: string; turno?: string; fecha?: string; entropy_value?: number | null; entropy_trend?: string | null; entropy_alert?: boolean; survival_hazard?: Record<string, unknown> | null; survival_critical?: unknown[] | null; markov_transitions?: Record<string, unknown> | null; composite_confidence?: number | null }): TurnAnalytics {
     return TurnAnalytics.create({
       id: row.id,
       gameId: row.game_id,

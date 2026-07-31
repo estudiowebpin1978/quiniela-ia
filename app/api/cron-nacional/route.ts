@@ -231,6 +231,8 @@ export async function GET(req: NextRequest) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ turno, numeros: nums, fecha: fechaISO })
           }).catch(() => {})
+          // Trigger Engine Omega recalculation (backup for trigger)
+          try { const { getSupabaseAdmin } = await import('@/lib/supabase-client'); getSupabaseAdmin().rpc('refresh_cached_predictions', { turno_objetivo: turno }).then(() => {}, () => {}) } catch {}
         }
       }
     }

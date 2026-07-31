@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { calcLevel, calcStreak, checkAchievements, XP_REWARDS, ACHIEVEMENTS } from "@/lib/gamification"
 import { getSupabaseUrl, getSupabaseKey, sbHeaders, isAdminEmail } from "@/lib/config"
 import logger from "@/lib/logger"
+import type { GamificationRow, AchievementRow, GamificationUpdate } from "@/lib/api/types"
 
 const SB_URL = getSupabaseUrl()
 const SB_KEY = getSupabaseKey()
@@ -48,10 +49,10 @@ async function getTurnosUsed(userId: string) {
   )
   if (!res.ok) return new Set<string>()
   const rows = await res.json()
-  return new Set<string>(rows.map((r: any) => r.turno?.replace(/\d+cifras$/, "").toLowerCase()).filter(Boolean))
+  return new Set<string>(rows.map((r: { turno: string }) => r.turno?.replace(/\d+cifras$/, "").toLowerCase()).filter(Boolean))
 }
 
-async function upsertGamification(userId: string, data: any) {
+async function upsertGamification(userId: string, data: GamificationUpdate) {
   await fetch(`${SB_URL}/rest/v1/user_gamification`, {
     method: "POST",
     headers: {
@@ -80,7 +81,7 @@ export async function GET(req: NextRequest) {
 
   const gam = await getGamification(userId)
   const achRows = await getAchievements(userId)
-  const unlockedIds = new Set<string>(achRows.map((a: any) => a.achievement_id))
+  const unlockedIds = new Set<string>(achRows.map((a: AchievementRow) => a.achievement_id))
   const turnosUsed = await getTurnosUsed(userId)
 
   const xp = gam?.xp || 0
@@ -94,7 +95,7 @@ export async function GET(req: NextRequest) {
       name: a.name,
       icon: a.icon,
       desc: a.desc,
-      unlocked_at: achRows.find((r: any) => r.achievement_id === a.id)?.unlocked_at || "",
+      unlocked_at: achRows.find((r: AchievementRow) => r.achievement_id === a.id)?.unlocked_at || "",
     }))
 
   return NextResponse.json({
@@ -145,7 +146,7 @@ export async function POST(req: NextRequest) {
   const newLevel = calcLevel(newXP)
 
   // Update counters
-  const updates: any = {
+  const updates: GamificationUpdate = {
     xp: newXP,
     level: newLevel,
     streak: newStreak,
@@ -162,7 +163,7 @@ export async function POST(req: NextRequest) {
   if (turno) turnosUsed.add(turno.toLowerCase().replace(/\d+cifras$/, ""))
 
   const achRows = await getAchievements(userId)
-  const unlockedIds = new Set<string>(achRows.map((a: any) => a.achievement_id))
+  const unlockedIds = new Set<string>(achRows.map((a: AchievementRow) => a.achievement_id))
 
   const gamData = {
     ...gam,

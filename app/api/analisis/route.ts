@@ -145,7 +145,8 @@ export async function GET(req: NextRequest) {
       }
     })
 
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    return NextResponse.json({ error: err.message || "Error" }, { status: 500 })
   }
 }

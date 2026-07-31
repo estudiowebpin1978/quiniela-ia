@@ -59,5 +59,5 @@ export function NumberCard({
       {post && <div style={{fontSize: 7, color: "#22c55e", marginTop: 2, fontWeight: 700}}>Post: {post}</div>}
       {bayesianPosterior && <div style={{fontSize: 7, color: "#f472b6", marginTop: 2, fontWeight: 700}}>Bayes: {(bayesianPosterior * 100).toFixed(2)}%</div>}
     </div>
-  ), [numero, significado, rank, score, confianza, bayesianPosterior, isCabeza, onClick, disabled, post]);
+  ), [numero, significado, rank, score, bayesianPosterior, isCabeza, onClick, disabled, post]);
 }

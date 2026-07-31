@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ejecutarAnalisisCompleto, AnalisisCompleto } from "@/lib/analisis/motor";
 import { resolveUserTier } from "@/lib/auth/tier";
 import logger from "@/lib/logger";
+import type { DrawRow } from "@/lib/api/types";
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" }, 
@@ -79,17 +80,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: `Error fetching data: ${res.status}` }, { status: 500 });
     }
 
-    const rows: any[] = await res.json();
+    const rows: DrawRow[] = await res.json();
     if (!rows?.length) {
       return NextResponse.json({ error: 'Sin datos disponibles' }, { status: 500 });
     }
 
     const sorteos = rows
-      .filter((row: any) => Array.isArray(row.numbers) && row.numbers.length >= 20)
-      .map((row: any) => ({
+      .filter((row: DrawRow) => Array.isArray(row.numbers) && row.numbers.length >= 20)
+      .map((row: DrawRow) => ({
         fecha: row.date,
         turno: row.turno,
-        numbers: row.numbers.map((n: any) => Number(n)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999)
+        numbers: row.numbers.map((n: number) => Number(n)).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999)
       }));
 
     logger.info(`[AnalisisAvanzado] Procesando ${sorteos.length} sorteos para ${turno}`);
@@ -115,7 +116,7 @@ export async function GET(req: NextRequest) {
 
     const pred4 = canPremium ? analisis.recomendaciones.cuatroCifras.map(p => ({
       numero: pad(parseInt(p.numero), 4),
-      probabilidad: (p as any).probabilidad || 0
+      probabilidad: ((p as Record<string, unknown>).probabilidad as number) || 0
     })) : [];
 
     const redoblona = canPremium ? analisis.recomendaciones.redoblona : null;
@@ -170,7 +171,7 @@ export async function GET(req: NextRequest) {
       metodologia: analisis.resumen.metodologia,
       generado: analisis.generado
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     clearTimeout(to);
     const err = e as { name?: string; message?: string };
     logger.error('[AnalisisAvanzado] Error:', { error: err?.message || String(e) });

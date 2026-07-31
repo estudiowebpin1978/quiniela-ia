@@ -41,7 +41,7 @@ export async function getTopMotors(turno: string, count: number = MAX_MOTORS): P
     p_count: count,
   })
 
-  return (data || []).map((d: any) => d.motor)
+  return (data || []).map((d: { motor: string }) => d.motor)
 }
 
 export async function getSkippedMotors(turno: string): Promise<string[]> {
@@ -52,7 +52,7 @@ export async function getSkippedMotors(turno: string): Promise<string[]> {
     p_turno: turno,
   })
 
-  return (data || []).map((d: any) => d.motor)
+  return (data || []).map((d: { motor: string }) => d.motor)
 }
 
 export async function shouldRunMotor(motor: string, turno: string): Promise<boolean> {

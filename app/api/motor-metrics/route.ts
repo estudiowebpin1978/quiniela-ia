@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getMotorPerformanceStats, ALL_MOTORS } from "@/lib/analisis/motor-performance"
 import { getSupabaseUrl, getSupabaseKey, isAdminEmail } from "@/lib/config"
+import type { DrawRow } from "@/lib/api/types"
 
 const SB = getSupabaseUrl()
 const SK = getSupabaseKey()
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - days)
 
-  let historicalAccuracy: any[] = []
+  let historicalAccuracy: { turno: string; totalDraws: number; dateRange: string; avgNumbers: number }[] = []
   try {
     const r = await fetch(
       `${SB}/rest/v1/draws?select=date,turno,numbers&date=gte.${cutoff.toISOString().split("T")[0]}&order=date.desc&limit=500`,
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
     if (r.ok) {
       const draws = await r.json()
       // Group by turno
-      const byTurno: Record<string, any[]> = {}
+      const byTurno: Record<string, DrawRow[]> = {}
       for (const d of draws) {
         const t = (d.turno || "").toLowerCase()
         if (!byTurno[t]) byTurno[t] = []
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
           turno: t,
           totalDraws: ds.length,
           dateRange: ds.length > 0 ? `${ds[ds.length - 1].date} → ${ds[0].date}` : "",
-          avgNumbers: ds.reduce((s: number, d: any) => s + (d.numbers?.length || 0), 0) / Math.max(ds.length, 1),
+          avgNumbers: ds.reduce((s: number, d: DrawRow) => s + (d.numbers?.length || 0), 0) / Math.max(ds.length, 1),
         })
       }
     }

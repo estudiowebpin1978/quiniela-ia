@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import type { DrawRow } from "@/lib/api/types"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
       })
     }
     
-    const uniqueDates = [...new Set(rows.map((r: any) => r.date))].sort()
+    const uniqueDates = [...new Set(rows.map((r: DrawRow) => r.date))].sort()
     const totalSorteos = rows.length
     
     const dates = uniqueDates
@@ -60,12 +61,13 @@ export async function GET(req: NextRequest) {
       mensaje,
       ultimosDias: dates.slice(0, 5)
     })
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const err = e as { message?: string }
     return NextResponse.json({ 
       totalSorteos: 0, 
       pct: "--", 
       racha: "--", 
-      mensaje: "Error: " + e.message 
+      mensaje: "Error: " + (err.message || "Unknown") 
     })
   }
 }

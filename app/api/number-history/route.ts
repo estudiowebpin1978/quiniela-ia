@@ -5,6 +5,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseUrl, getSupabaseKey } from "@/lib/config"
+import type { DrawRow } from "@/lib/api/types"
 
 export const dynamic = "force-dynamic"
 
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest) {
     const gaps: Record<string, number> = {}
     const turnos = ["Nocturna", "Matutina", "Vespertina", "Primera", "Previa"]
     for (const t of turnos) {
-      const tDraws = draws.filter((d: any) => d.turno === t)
+      const tDraws = draws.filter((d: DrawRow) => d.turno === t)
       let gap = 0
       for (const d of tDraws) {
         const nums = (d.numbers || []).map((n: number) => n % 100)
@@ -94,11 +95,11 @@ export async function GET(req: NextRequest) {
     // Recent trend (last 30 vs previous 30)
     const recent30 = draws.slice(0, 30)
     const prev30 = draws.slice(30, 60)
-    const recentHits = recent30.filter((d: any) => {
+    const recentHits = recent30.filter((d: DrawRow) => {
       const nums = (d.numbers || []).map((n: number) => n % 100)
       return nums.includes(targetNum)
     }).length
-    const prevHits = prev30.filter((d: any) => {
+    const prevHits = prev30.filter((d: DrawRow) => {
       const nums = (d.numbers || []).map((n: number) => n % 100)
       return nums.includes(targetNum)
     }).length
@@ -127,7 +128,8 @@ export async function GET(req: NextRequest) {
         change: recentHits - prevHits,
       },
     })
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    return NextResponse.json({ error: err.message || "Error" }, { status: 500 })
   }
 }

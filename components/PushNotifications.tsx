@@ -40,7 +40,7 @@ export function usePushNotifications() {
         })
       }
     })
-  }, [])
+  }, [supported])
 
   const toggle = useCallback(async () => {
     if (!swReg.current) return
@@ -60,7 +60,7 @@ export function usePushNotifications() {
         if (perm !== "granted") { setLoading(false); return }
         const subscription = await swReg.current.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as any
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as unknown as BufferSource
         })
         const subJSON = subscription.toJSON()
         const sbClient = createClient(SB_URL, SB_ANON)

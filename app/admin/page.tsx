@@ -1,5 +1,9 @@
 "use client"
 import { useState, useEffect, useCallback } from "react"
+import type { MLData, VerificationStats } from "@/lib/types/client"
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyRecord = Record<string, any>
 
 interface User {
   id: string
@@ -35,9 +39,9 @@ export default function AdminPage() {
   const [pending, setPending] = useState<PendingRequest[]>([])
   const [quickEmail, setQuickEmail] = useState("")
   const [tab, setTab] = useState<"dashboard" | "users" | "pending" | "scraper" | "ml" | "verificar" | "push">("dashboard")
-  const [mlData, setMlData] = useState<any>(null)
+  const [mlData, setMlData] = useState<AnyRecord | null>(null)
   const [mlLoading, setMlLoading] = useState(false)
-  const [verifStats, setVerifStats] = useState<any>(null)
+  const [verifStats, setVerifStats] = useState<AnyRecord | null>(null)
   const [verifLoading, setVerifLoading] = useState(false)
   const [pushCount, setPushCount] = useState(0)
   const [pushMsg, setPushMsg] = useState("")
@@ -81,7 +85,7 @@ export default function AdminPage() {
       const d = await r.json()
       if (!r.ok) { setErr(r.status === 401 ? "No tenes permisos de admin" : d.error); setLoading(false); return }
       setUsers(d.users || [])
-    } catch (e: any) { setErr(e.message) } finally { setLoading(false) }
+    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error") } finally { setLoading(false) }
   }
 
   async function loadMlMetrics(tk: string) {
@@ -122,7 +126,7 @@ export default function AdminPage() {
       const d = await r.json()
       if (d.ok) setPushMsg(`Enviado a ${d.sent} usuarios (${d.failed} fallos)`)
       else setErr(d.error)
-    } catch (e: any) { setErr(e.message) } finally { setPushBusy(false) }
+    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error") } finally { setPushBusy(false) }
   }
 
   async function testCronPush() {
@@ -134,7 +138,7 @@ export default function AdminPage() {
       const d = await r.json()
       if (d.ok) setPushTestResult(`[${d.action}] ${d.message || `${d.turno}: enviado a ${d.enviado} (${d.fallos} fallos)`}`)
       else setErr(d.error)
-    } catch (e: any) { setErr(e.message) } finally { setPushBusy(false) }
+    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error") } finally { setPushBusy(false) }
   }
 
   async function runAutoVerify(fecha: string, turno: string) {
@@ -148,7 +152,7 @@ export default function AdminPage() {
       const d = await r.json()
       if (d.ok) setMsg(`Verificadas ${d.verified} predicciones para ${turno} del ${fecha}`)
       else setErr(d.error)
-    } catch (e: any) { setErr(e.message) } finally { setVerifLoading(false) }
+    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error") } finally { setVerifLoading(false) }
   }
 
   async function activatePremium(userId: string, email: string, days: number, plan: string) {
@@ -164,7 +168,7 @@ export default function AdminPage() {
       setMsg(`✓ Premium ${plan} (${days}d) activado para ${email}`)
       removePending(email)
       load(token)
-    } catch (e: any) { setErr(e.message) } finally { setBusy(null) }
+    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error") } finally { setBusy(null) }
   }
 
   async function activateFree(userId: string, email: string) {
@@ -179,7 +183,7 @@ export default function AdminPage() {
       if (!r.ok) throw new Error(d.error)
       setMsg(`Premium removido de ${email}`)
       load(token)
-    } catch (e: any) { setErr(e.message) } finally { setBusy(null) }
+    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error") } finally { setBusy(null) }
   }
 
   async function quickActivate() {
@@ -192,7 +196,7 @@ export default function AdminPage() {
       if (!user) { setErr(`No se encontró usuario con email: ${quickEmail}`); setBusy(null); return }
       await activatePremium(user.id, user.email, 30, "Mensual")
       setQuickEmail("")
-    } catch (e: any) { setErr(e.message) } finally { setBusy(null) }
+    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error") } finally { setBusy(null) }
   }
 
   function removePending(email: string) {
@@ -528,10 +532,10 @@ export default function AdminPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(mlData.rankedEngines || []).map((e: any) => (
-                        <tr key={e.motor} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
-                          <td style={{ padding: "8px 6px", color: "#64748b" }}>{e.rank}</td>
-                          <td style={{ padding: "8px 6px", fontWeight: 600 }}>{e.motor}</td>
+                      {(mlData.rankedEngines || mlData.engines || []).map((e: AnyRecord, idx: number) => (
+                        <tr key={idx} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
+                          <td style={{ padding: "8px 6px", color: "#64748b" }}>{idx + 1}</td>
+                          <td style={{ padding: "8px 6px", fontWeight: 600 }}>{e.engine || e.motor}</td>
                           <td style={{ padding: "8px 6px", textAlign: "right", fontFamily: "monospace" }}>{e.accuracy}%</td>
                           <td style={{ padding: "8px 6px", textAlign: "center" }}>
                             <span className={`badge ${e.status === "excellent" ? "badge-g" : e.status === "good" ? "badge-y" : e.status === "fair" ? "badge-o" : "badge-r"}`}>
@@ -579,10 +583,10 @@ export default function AdminPage() {
                 {Object.keys(verifStats.byTurno || {}).length > 0 && (
                   <div style={{ marginTop: 12 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Por Turno:</div>
-                    {Object.entries(verifStats.byTurno).map(([t, v]: [string, any]) => (
+                    {Object.entries(verifStats.byTurno || {}).map(([t, v]) => (
                       <div key={t} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,.04)", fontSize: 12 }}>
                         <span style={{ textTransform: "capitalize" }}>{t}</span>
-                        <span style={{ color: "#94a3b8" }}>{v.preds} preds · {v.hits} hits</span>
+                        <span style={{ color: "#94a3b8" }}>{(v as AnyRecord).preds || (v as AnyRecord).total} preds · {(v as AnyRecord).hits || (v as AnyRecord).verified} hits</span>
                       </div>
                     ))}
                   </div>
@@ -664,7 +668,7 @@ function ScraperSection({ token }: { token: string }) {
         if (d.sourceStats) setSourceStats(d.sourceStats)
       }
       else { setMsg("Error: " + JSON.stringify(d)) }
-    } catch (e: any) { setMsg("Error: " + e.message) }
+    } catch (e: unknown) { setMsg("Error: " + (e instanceof Error ? e.message : "Unknown")) }
     setBusy(null)
   }
 

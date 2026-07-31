@@ -23,8 +23,9 @@ function initPush() {
       )
       vapidConfigured = true
       return true
-    } catch (err: any) {
-      logger.error("[push] Invalid VAPID keys", { error: err.message })
+    } catch (err: unknown) {
+      const e = err as { message?: string }
+      logger.error("[push] Invalid VAPID keys", { error: e.message })
       return false
     }
   }
@@ -38,7 +39,7 @@ interface PushPayload {
   icon?: string
   badge?: string
   url?: string
-  data?: Record<string, any>
+  data?: Record<string, unknown>
 }
 
 export async function sendPushToAll(payload: PushPayload): Promise<{ sent: number; failed: number }> {
@@ -69,10 +70,11 @@ export async function sendPushToAll(payload: PushPayload): Promise<{ sent: numbe
           notificationPayload
         )
         sent++
-      } catch (err: any) {
+      } catch (err: unknown) {
         failed++
         // Remove expired subscriptions
-        if (err?.statusCode === 404 || err?.statusCode === 410) {
+        const e = err as { statusCode?: number }
+        if (e?.statusCode === 404 || e?.statusCode === 410) {
           await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint)
         }
       }
@@ -108,8 +110,9 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
         notificationPayload
       )
-    } catch (err: any) {
-      if (err?.statusCode === 404 || err?.statusCode === 410) {
+    } catch (err: unknown) {
+      const e = err as { statusCode?: number }
+      if (e?.statusCode === 404 || e?.statusCode === 410) {
         await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint)
       }
     }

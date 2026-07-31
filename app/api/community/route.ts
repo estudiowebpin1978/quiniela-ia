@@ -33,10 +33,10 @@ export async function GET(req: NextRequest) {
     if (!res.ok) return NextResponse.json({ trends: [], totalToday: 0 })
     const rows = await res.json()
 
-    const totalToday = rows.reduce((sum: number, r: any) => sum + (r.analysis_count || 0), 0)
+    const totalToday = rows.reduce((sum: number, r: { analysis_count?: number }) => sum + (r.analysis_count || 0), 0)
 
     return NextResponse.json({
-      trends: rows.map((r: any) => ({
+      trends: rows.map((r: { turno: string; hot_numbers?: { num: string; count: number }[]; hot_correlations?: unknown[]; analysis_count?: number }) => ({
         turno: r.turno,
         hot_numbers: r.hot_numbers || [],
         hot_correlations: r.hot_correlations || [],
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const turno = body.turno as string
   const topNumbers = body.topNumbers as string[] | undefined
-  const correlations = body.correlations as any[] | undefined
+  const correlations = body.correlations as { num: string; count: number }[] | undefined
 
   if (!turno || !TURNOS_VALIDOS.includes(turno)) return NextResponse.json({ ok: true })
 

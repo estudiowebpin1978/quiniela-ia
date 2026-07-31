@@ -70,8 +70,9 @@ export async function GET(req:NextRequest){
       total:validNumbers.length
     })
 
-  }catch(e:any){
-    if(e?.name==="AbortError"){
+  }catch(e: unknown){
+    const err = e instanceof Error ? e : null
+    if(err?.name==="AbortError"){
       return NextResponse.json({found:false,error:"Timeout al consultar resultados"},{status:504})
     }
     return NextResponse.json({found:false,error:"Error consultando resultados"},{status:500})

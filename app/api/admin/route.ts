@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
   if (!await isAdmin(token)) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
-  let body: any
+  let body: { action?: string; userId?: string; days?: number; email?: string; password?: string; role?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: "JSON inválido" }, { status: 400 }) }
   const { action, userId, days, email, password, role } = body
 
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "ID de usuario inválido" }, { status: 400 })
   }
 
-  let update: any = {}
+  let update: { role?: string; premium_until?: string | null } = {}
   if (action === "premium") {
     const d = Number(days) || 30
     update = { role: "premium", premium_until: new Date(Date.now() + d * 86400000).toISOString() }

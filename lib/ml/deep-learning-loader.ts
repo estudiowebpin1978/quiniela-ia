@@ -34,7 +34,7 @@ export async function loadDeepLearningFromSupabase(): Promise<void> {
     for (const row of rows) {
       if (row.modelos) {
         const modelos = JSON.parse(row.modelos)
-        const dlModel = modelos.find((m: any) => m.tipo === "deep-learning")
+        const dlModel = modelos.find((m: { tipo?: string }) => m.tipo === "deep-learning")
         if (dlModel?.modelo) {
           const turno = row.turno.replace("dl_", "")
           const ensemble = dlModel.modelo.ensemble || {}

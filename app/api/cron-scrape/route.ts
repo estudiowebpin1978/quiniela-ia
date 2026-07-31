@@ -16,12 +16,10 @@ import { esDiaSinSorteo } from "@/lib/feriados"
 import { autoVerifyPredictions } from "@/lib/verificacion/auto-verify"
 import { enqueueVerification } from "@/lib/verification-queue"
 import { fetchWithFallback } from "@/lib/scrapers/orchestrator"
-import { SourceStats, TURNOS, TurnoType } from "@/lib/scrapers/types"
+import { SourceStats, TURNOS, TurnoType, GAME_ID } from "@/lib/scrapers/types"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
+import { getSupabaseAdmin } from "@/lib/supabase-client"
 import logger from "@/lib/logger"
-
-const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
 
 export const maxDuration = 300
 
@@ -33,59 +31,63 @@ function fechaArgentina(): { fechaStr: string; diaSemana: number; fUrl: string }
 
 async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
   try {
-    const r = await fetch(`${SB()}/rest/v1/draws?date=eq.${fechaISO}&turno=eq.${turno}&select=id&limit=1`, {
-      headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` },
-      signal: AbortSignal.timeout(5000)
-    })
-    const d = await r.json()
-    return Array.isArray(d) && d.length > 0
+    const supabase = getSupabaseAdmin()
+    const { data, error } = await supabase
+      .from("draws")
+      .select("id")
+      .eq("date", fechaISO)
+      .eq("turno", turno)
+      .limit(1)
+    if (error) return false
+    return Array.isArray(data) && data.length > 0
   } catch { return false }
 }
 
 async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string): Promise<boolean> {
-  const r = await fetch(`${SB()}/rest/v1/draws`, {
-    method: "POST",
-    headers: { 
-      "apikey": SK(), 
-      "Authorization": `Bearer ${SK()}`, 
-      "Content-Type": "application/json", 
-      "Prefer": "resolution=merge-duplicates,return=minimal" 
-    },
-    body: JSON.stringify({ date: fechaISO, turno, numbers: nums, source, game_id: "ac593199-c299-4f03-b1b7-8675fe4fa6d9" })
-  })
-  if (!r.ok) {
-    const err = await r.text().catch(() => "unknown")
-    logger.error("cron-scrape: guardarDraw failed", { status: r.status, error: err, fecha: fechaISO, turno })
+  try {
+    const supabase = getSupabaseAdmin()
+    const { error } = await supabase.from("draws").upsert(
+      { date: fechaISO, turno, numbers: nums, source, game_id: GAME_ID },
+      { onConflict: "date,turno,game_id" }
+    )
+    if (error) {
+      logger.error("cron-scrape: guardarDraw failed", { error: error.message, fecha: fechaISO, turno })
+    }
+    return !error
+  } catch (e) {
+    logger.error("cron-scrape: guardarDraw exception", { error: String(e), fecha: fechaISO, turno })
+    return false
   }
-  return r.ok
 }
 
 async function limpiarPrediccionesViejas(): Promise<number> {
-  const hace24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
   try {
-    const r = await fetch(
-      `${SB()}/rest/v1/user_predictions?created_at=lt.${hace24h}&select=id`,
-      { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` }, signal: AbortSignal.timeout(8000) }
-    )
-    const old = await r.json()
-    if (!Array.isArray(old) || old.length === 0) return 0
-    const ids = old.map((p: any) => p.id)
+    const supabase = getSupabaseAdmin()
+    const hace24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    
+    const { data: old, error: fetchError } = await supabase
+      .from("user_predictions")
+      .select("id")
+      .lt("created_at", hace24h)
+    
+    if (fetchError || !Array.isArray(old) || old.length === 0) return 0
+    const ids = old.map((p: { id: string }) => p.id)
 
-    const verifiedRes = await fetch(
-      `${SB()}/rest/v1/prediction_history?prediction_id=in.(${ids.join(",")})&select=prediction_id`,
-      { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` }, signal: AbortSignal.timeout(8000) }
-    )
-    const verified = await verifiedRes.json()
-    const verifiedIds = new Set((verified || []).map((v: any) => v.prediction_id))
-
+    const { data: verified } = await supabase
+      .from("prediction_history")
+      .select("prediction_id")
+      .in("prediction_id", ids)
+    
+    const verifiedIds = new Set((verified || []).map((v: { prediction_id: string }) => v.prediction_id))
     const deletableIds = ids.filter((id: string) => !verifiedIds.has(id))
     if (deletableIds.length === 0) return 0
 
-    const d = await fetch(
-      `${SB()}/rest/v1/user_predictions?id=in.(${deletableIds.join(",")})`,
-      { method: "DELETE", headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}`, "Prefer": "return=minimal" }, signal: AbortSignal.timeout(8000) }
-    )
-    return d.ok ? deletableIds.length : 0
+    const { error: deleteError } = await supabase
+      .from("user_predictions")
+      .delete()
+      .in("id", deletableIds)
+    
+    return deleteError ? 0 : deletableIds.length
   } catch { return 0 }
 }
 
@@ -148,6 +150,8 @@ export async function GET(req: NextRequest) {
               fecha: fechaISO, turno, cantidad: result.numbers.length,
               source: result.source, cabezaMatch: result.cabezaMatch
             })
+            // Trigger Engine Omega recalculation (backup for trigger)
+            getSupabaseAdmin().rpc('refresh_cached_predictions', { turno_objetivo: turno }).then(() => {}, () => {})
           } else {
             logger.warn("cron-scrape: fallo al guardar", { fecha: fechaISO, turno })
             errores++
@@ -202,13 +206,19 @@ export async function GET(req: NextRequest) {
         logger.error("cron-scrape: error en auto-train", { error: String(e) })
       }
 
-      const analyticsUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-analytics`
-      fetch(analyticsUrl, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${process.env.CRON_SECRET}`, "Content-Type": "application/json" },
-      }).catch((e) => {
-        logger.warn("cron-scrape: failed to trigger cron-analytics", { error: String(e) })
-      })
+      // Trigger analytics cron via internal fetch
+      try {
+        const analyticsUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-analytics`
+        const cronSecret = process.env.CRON_SECRET || ""
+        fetch(analyticsUrl, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${cronSecret}`, "Content-Type": "application/json" },
+        }).catch((e) => {
+          logger.warn("cron-scrape: failed to trigger cron-analytics", { error: String(e) })
+        })
+      } catch (e) {
+        logger.warn("cron-scrape: error triggering analytics", { error: String(e) })
+      }
     }
   }
 

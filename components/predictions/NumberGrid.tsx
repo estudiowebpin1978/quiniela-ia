@@ -1,5 +1,7 @@
 "use client"
 
+import type { NumeroItem, RankingItem } from "@/lib/types/client"
+
 const EMOJIS: Record<string, string> = {
   "00": "🥚", "01": "💧", "02": "🧒", "03": "⛪", "04": "🛏️", "05": "🐱", "06": "🐶", "07": "🔫", "08": "🔥", "09": "🏞️",
   "10": "🥛", "11": "🏏", "12": "💂", "13": "🍀", "14": "🥴", "15": "👧", "16": "💍", "17": "😭", "18": "🩸", "19": "🐟",
@@ -18,13 +20,13 @@ function getEmoji(num: string): string {
 }
 
 interface NumberGridProps {
-  predictions: any[];
-  ranking: any[];
+  predictions: NumeroItem[];
+  ranking: RankingItem[];
   dg: number;
   pr: boolean;
   guestMode: boolean;
   userRole: string;
-  onNumberClick: (num: any) => void;
+  onNumberClick: (num: NumeroItem | RankingItem) => void;
   onPaywall: () => void;
   onLogin: () => void;
 }
@@ -42,10 +44,10 @@ export default function NumberGrid({
         className="g5"
         style={isBlurred ? { filter: "blur(8px)", userSelect: "none", pointerEvents: "none" } : {}}
       >
-        {predictions.slice(0, 10).map((p: any, i: number) => {
-          const r = ranking?.find((r: any) => r.numero === p.numero)
+        {predictions.slice(0, 10).map((p, i) => {
+          const r = ranking?.find((r) => r.numero === p.numero)
           const isCabeza = i === 0
-          const post = r?.bayesianPosterior ? (r.bayesianPosterior * 100).toFixed(2) + "%" : ""
+          const post = r?.bayesianPosterior ? (Number(r.bayesianPosterior) * 100).toFixed(2) + "%" : ""
           return (
             <div className="cd" key={i} onClick={() => onNumberClick(r || p)} style={{ cursor: "pointer", position: "relative" }}>
               {isCabeza && <span className="cabeza-badge">CABEZA</span>}

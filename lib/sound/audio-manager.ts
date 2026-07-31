@@ -48,7 +48,7 @@ class AudioManager {
 
   private initAudioContext() {
     try {
-      this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      this.ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       this.createSounds();
       this.initialized = true;
     } catch (e) {

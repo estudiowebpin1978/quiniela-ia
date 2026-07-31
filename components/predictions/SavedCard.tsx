@@ -1,8 +1,9 @@
 "use client";
 import { getEmoji } from "@/app/predictions/page";
+import type { SavedPrediction } from "@/lib/types/client";
 
 interface SavedCardProps {
-  p: any;
+  p: SavedPrediction;
   pr: boolean;
   userRole: string;
   index: number;
@@ -43,7 +44,7 @@ export function SavedCard({ p, pr, userRole, index }: SavedCardProps) {
       </div>
       <div className="saved-numbers">
         {nums2.map((n: string, j: number) => {
-          const ac = p.aciertos?.some((a: any) => a.numero === n);
+          const ac = p.aciertos?.some((a) => a.numero === n);
           return (
             <span key={j} className={`saved-number ${ac ? "hit" : ""}`}>
               {n}
@@ -58,7 +59,7 @@ export function SavedCard({ p, pr, userRole, index }: SavedCardProps) {
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {nums3.map((n: string, j: number) => {
-              const hit3 = p.aciertos_3?.some((a: any) => a.numero === n);
+              const hit3 = p.aciertos_3?.some((a) => a.numero === n);
               return (
                 <span key={j} style={{ padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 700,
                   background: hit3 ? "rgba(34,197,94,.2)" : "rgba(245,158,11,.12)",
@@ -76,7 +77,7 @@ export function SavedCard({ p, pr, userRole, index }: SavedCardProps) {
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {nums4.map((n: string, j: number) => {
-              const hit4 = p.aciertos_4?.some((a: any) => a.numero === n);
+              const hit4 = p.aciertos_4?.some((a) => a.numero === n);
               return (
                 <span key={j} style={{ padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 700,
                   background: hit4 ? "rgba(34,197,94,.2)" : "rgba(168,85,247,.12)",
@@ -91,13 +92,13 @@ export function SavedCard({ p, pr, userRole, index }: SavedCardProps) {
         <div className="saved-results" style={{marginTop:8}}>
           <div style={{fontSize:10,color:"#64748b",marginBottom:4}}>RESULTADOS OFICIALES ({p.resultado_original.length} números):</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
-            {p.resultado_original.map((n:any,idx:number) => {
+            {p.resultado_original.map((n: string | number, idx: number) => {
               const n4 = String(Number(n) % 10000).padStart(4, "0")
               const n3 = String(Number(n) % 1000).padStart(3, "0")
               const n2 = String(Number(n) % 100).padStart(2, "0")
-              const hit4 = p.aciertos_4?.some((a:any) => a.numero === n4)
-              const hit3 = p.aciertos_3?.some((a:any) => a.numero === n3)
-              const hit2 = p.aciertos_2?.some((a:any) => a.numero === n2)
+              const hit4 = p.aciertos_4?.some((a) => a.numero === n4)
+              const hit3 = p.aciertos_3?.some((a) => a.numero === n3)
+              const hit2 = p.aciertos_2?.some((a) => a.numero === n2)
               const isHit = hit4 || hit3 || hit2
               const hitType = hit4 ? "4" : hit3 ? "3" : hit2 ? "2" : null
               return (
@@ -133,7 +134,7 @@ export function SavedCard({ p, pr, userRole, index }: SavedCardProps) {
       )}
       {p.aciertos?.length > 0 && (
         <div className="saved-results">
-          {p.aciertos.map((a: any) => (
+          {p.aciertos.map((a) => (
             <div key={a.numero} style={{color:"#22c55e",fontSize:11}}>
               🎉 {a.numero} → Puesto {a.puesto}
             </div>
@@ -142,7 +143,7 @@ export function SavedCard({ p, pr, userRole, index }: SavedCardProps) {
       )}
       {p.aciertos_3?.length > 0 && (
         <div className="saved-results">
-          {p.aciertos_3.map((a: any) => (
+          {p.aciertos_3.map((a) => (
             <div key={a.numero} style={{color:"#60a5fa",fontSize:11}}>
               🎯 {a.numero} (3 cifras) → Puesto {a.puesto}
             </div>
@@ -151,7 +152,7 @@ export function SavedCard({ p, pr, userRole, index }: SavedCardProps) {
       )}
       {p.aciertos_4?.length > 0 && (
         <div className="saved-results">
-          {p.aciertos_4.map((a: any) => (
+          {p.aciertos_4.map((a) => (
             <div key={a.numero} style={{color:"#22c55e",fontSize:11}}>
               💎 {a.numero} (4 cifras) → Puesto {a.puesto}
             </div>

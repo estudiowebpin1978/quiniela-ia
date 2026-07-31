@@ -10,7 +10,8 @@
  * - API calls are optional text formatting/enhancement layer
  */
 
-import { setModelos, getModelos } from "./cache"
+import { setModelos, getModelos, MLCachedModel } from "./cache"
+import type { SorteoRow } from "@/lib/api/types"
 
 const SB_URL = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SB_KEY = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
@@ -24,20 +25,25 @@ const TURNOS = ["previa", "primera", "matutina", "vespertina", "nocturna"]
 
 interface TrainResult {
   turno: string
-  modelos: any[]
+  modelos: MLCachedModel[]
   tiempoMs: number
   proveedorIA?: string
 }
 
 // AI Provider abstraction
+interface AIResponse {
+  choices?: { message: { content: string } }[]
+  candidates?: { content: { parts: { text: string }[] } }[]
+}
+
 interface AIProvider {
   name: string
-  generatePrediction(input: string, context?: string): Promise<any>
+  generatePrediction(input: string, context?: string): Promise<AIResponse>
 }
 
 class OllamaAI implements AIProvider {
   name = "ollama"
-  async generatePrediction(input: string, context?: string): Promise<any> {
+  async generatePrediction(input: string, context?: string): Promise<AIResponse> {
     const res = await fetch(`${OLLAMA_HOST()}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -59,7 +65,7 @@ class OllamaAI implements AIProvider {
 
 class GroqAI implements AIProvider {
   name = "groq"
-  async generatePrediction(input: string, context?: string): Promise<any> {
+  async generatePrediction(input: string, context?: string): Promise<AIResponse> {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -82,7 +88,7 @@ class GroqAI implements AIProvider {
 
 class GeminiAI implements AIProvider {
   name = "gemini"
-  async generatePrediction(input: string, context?: string): Promise<any> {
+  async generatePrediction(input: string, context?: string): Promise<AIResponse> {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${GEMINI_API_KEY()}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -105,7 +111,7 @@ class GeminiAI implements AIProvider {
 /**
  * Fetch historical draws for a turno from Supabase.
  */
-async function fetchDraws(turno: string, limit = 5000): Promise<any[]> {
+async function fetchDraws(turno: string, limit = 5000): Promise<SorteoRow[]> {
   const SB = SB_URL()
   const SK = SB_KEY()
   if (!SB || !SK) return []
@@ -118,11 +124,11 @@ async function fetchDraws(turno: string, limit = 5000): Promise<any[]> {
     if (!res.ok) return []
     const rows = await res.json()
     return rows
-      .filter((r: any) => Array.isArray(r.numbers) && r.numbers.length >= 20)
-      .map((r: any) => ({
+      .filter((r: { numbers?: number[] }) => Array.isArray(r.numbers) && r.numbers.length >= 20)
+      .map((r: { date: string; turno: string; numbers: number[] }) => ({
         fecha: r.date,
         turno: r.turno,
-        numbers: r.numbers.map((n: any) => Number(n)).filter((n: number) => !isNaN(n))
+        numbers: r.numbers.map((n: number) => Number(n)).filter((n: number) => !isNaN(n))
       }))
   } catch {
     return []
@@ -134,7 +140,7 @@ async function fetchDraws(turno: string, limit = 5000): Promise<any[]> {
  * This function is separated from API calls for Ollama routing.
  * Can be offloaded to local inference for cost optimization.
  */
-export async function trainTurnoHeavyCompute(turno: string): Promise<{ modelos: any[]; tiempoMs: number }> {
+export async function trainTurnoHeavyCompute(turno: string): Promise<{ modelos: MLCachedModel[]; tiempoMs: number }> {
   const start = Date.now()
 
   const { entrenarModelos } = await import("./trainer")
@@ -160,11 +166,11 @@ export async function trainTurnoHeavyCompute(turno: string): Promise<{ modelos: 
  * Can be called independently after heavy compute.
  */
 export async function enhanceWithAI(
-  sorteos: any[],
+  sorteos: SorteoRow[],
   turno: string,
   aiProviders: string[]
-): Promise<{ aiPredictions: any; proveedorIA: string }> {
-  let aiPredictions: any = null
+): Promise<{ aiPredictions: Record<string, unknown> | null; proveedorIA: string }> {
+  let aiPredictions: Record<string, unknown> | null = null
   let proveedorIA = ""
 
   if (!aiProviders || aiProviders.length === 0) {
@@ -232,7 +238,7 @@ async function trainTurnoConIA(
   }
 
   // Step 2: Optional AI enhancement (API calls)
-  let aiPredictions: any = null
+  let aiPredictions: Record<string, unknown> | null = null
   let proveedorIA = ""
 
   if (aiProviders && aiProviders.length > 0) {
@@ -260,7 +266,7 @@ async function trainTurnoConIA(
  * Persist trained models to Supabase ml_models table.
  * Creates the table if it doesn't exist (via upsert pattern).
  */
-async function persistToSupabase(turno: string, modelos: any[]): Promise<boolean> {
+async function persistToSupabase(turno: string, modelos: MLCachedModel[]): Promise<boolean> {
   const SB = SB_URL()
   const SK = SB_KEY()
   if (!SB || !SK || !modelos.length) return false
@@ -296,7 +302,7 @@ async function persistToSupabase(turno: string, modelos: any[]): Promise<boolean
 /**
  * Load models from Supabase ml_models table.
  */
-export async function loadFromSupabase(turno: string): Promise<any[] | null> {
+export async function loadFromSupabase(turno: string): Promise<MLCachedModel[] | null> {
   const SB = SB_URL()
   const SK = SB_KEY()
   if (!SB || !SK) return null
@@ -345,7 +351,7 @@ export async function autoTrainAll(conectarIA: boolean = false): Promise<TrainRe
  * Auto-train a single turno with optional AI enhancement.
  * Used for lazy initialization on prediction request.
  */
-export async function autoTrainSingle(turno: string, conectarIA: boolean = false): Promise<any[] | null> {
+export async function autoTrainSingle(turno: string, conectarIA: boolean = false): Promise<MLCachedModel[] | null> {
   // Check cache first
   const cached = await getModelos(turno)
   if (cached && cached.length > 0) return cached

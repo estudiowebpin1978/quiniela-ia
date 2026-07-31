@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseUrl, getSupabaseKey } from "@/lib/config"
+import type { DrawRow } from "@/lib/api/types"
 
 export const dynamic = "force-dynamic"
 
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
     const drawsRes = await fetch(`${SB}/rest/v1/draws?select=date,turno,numbers&order=date.desc&limit=5000`, {
       headers: { "apikey": SK, "Authorization": `Bearer ${SK}` }
     })
-    const rows: any[] = await drawsRes.json()
+    const rows: DrawRow[] = await drawsRes.json()
     if (!rows?.length) return NextResponse.json({ totalSorteos: 0, mensaje: "Sin datos" })
 
     const turnos = ["previa", "primera", "matutina", "vespertina", "nocturna"]
@@ -79,7 +80,8 @@ export async function GET(req: NextRequest) {
       ultimaActualizacion: rows[0]?.date || "N/A",
       mensaje: `${rows.length} sorteos · ${dates.size} fechas · ${porTurno[turnos[0]] || 0} previas · ${porTurno[turnos[1]] || 0} primeras · ${porTurno[turnos[2]] || 0} matutinas · ${porTurno[turnos[3]] || 0} vespertinas · ${porTurno[turnos[4]] || 0} nocturnas`
     })
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message || "Error" }, { status: 500 })
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    return NextResponse.json({ error: err.message || "Error" }, { status: 500 })
   }
 }

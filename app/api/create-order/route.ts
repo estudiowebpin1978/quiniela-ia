@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   }
   if (!authUserId) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
-  let body: any
+  let body: { plan?: string }
   try {
     body = await req.json()
   } catch {

@@ -13,7 +13,7 @@
  */
 
 "use client";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { usePushNotifications } from "@/components/PushNotifications";
 import PaywallModal from "@/components/PaywallModal";
@@ -38,6 +38,7 @@ import { useSound } from "@/lib/sound/audio-manager";
 import { useSettings } from "@/components/ui/Settings";
 import { ConfettiEffect, GlowOrbs, NeonBackground } from "@/components/ui/Effects";
 import { validatePredData } from "@/lib/api/predictions";
+import type { SavedPrediction, NumeroItem, ResultadoControl, DrawData, BacktestItem } from "@/lib/types/client";
 import "./predictions.css";
 
 const EMOJIS: Record<string, string> = {
@@ -58,6 +59,14 @@ function getEmoji(num: string): string {
   return EMOJIS[n] || "❓";
 }
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyRecord = Record<string, any>
+
 const CONTACT = "estudiowebpin@gmail.com";
 const WA = "https://api.whatsapp.com/send?phone=5493412500029";
 const APP_URL = "https://quiniela-ia-two.vercel.app";
@@ -69,26 +78,30 @@ const HORAS: Record<string, string> = {
   Vespertina: "18:00",
   Nocturna: "21:00",
 };
-type RankingItem = {
+type LocalRankingItem = {
+  [key: string]: unknown;
   numero: string;
-  score: number;
-  prob: number;
+  score?: number;
+  prob?: number;
 };
 
 type PredData = {
+  [key: string]: unknown
   numeros_2: string[];
-  numeros_3: string[];
-  numeros_4: string[];
-  redoblona: string;
-  ranking: RankingItem[];
-  numeros?: any[];
+  numeros_3?: string[];
+  numeros_4?: string[];
+  redoblona?: string;
+  ranking?: LocalRankingItem[];
+  numeros?: NumeroItem[];
   diasAnalisis?: number;
   totalSorteos?: number;
+  confidence?: number;
+  aiInsight?: string;
   stats?: {
     numeroMasFrecuente?: { numero: string; frecuencia: number; significado: string };
     numeroMayorRetraso?: { numero: string; retraso: number; significado: string };
   };
-  heatmap: { n: number; f: number; s: string; pct: number }[];
+  heatmap?: { n: number; f: number; s: unknown; pct: number }[];
 };
 
 function PageInner() {
@@ -106,13 +119,13 @@ function PageInner() {
   const [dn, setDn] = useState(false);
   const [er, setEr] = useState("");
   const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [backtestData, setBacktestData] = useState<any>(null);
+  const [backtestData, setBacktestData] = useState<AnyRecord | null>(null);
   const [backtestLoading, setBacktestLoading] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [dt, setDt] = useState<PredData | null>(null);
-  const [misPreds, setMisPreds] = useState<any[]>([]);
-  const [numDetail, setNumDetail] = useState<any>(null);
-  const [numHistory, setNumHistory] = useState<any>(null);
+  const [misPreds, setMisPreds] = useState<SavedPrediction[]>([]);
+  const [numDetail, setNumDetail] = useState<NumeroItem | null>(null);
+  const [numHistory, setNumHistory] = useState<Record<string, any> | null>(null);
   const [numHistoryLoading, setNumHistoryLoading] = useState(false);
 
   // Fetch number history when detail opens (abortable to avoid race conditions / leaks)
@@ -137,17 +150,17 @@ function PageInner() {
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [controlando, setControlando] = useState(false);
   const [showCalc, setShowCalc] = useState(false);
-  const [resultadoControl, setResultadoControl] = useState<any>(null);
+  const [resultadoControl, setResultadoControl] = useState<ResultadoControl | null>(null);
   const [aiInsight, setAiInsight] = useState("");
   const [confianzaTurnos, setConfianzaTurnos] = useState<Record<string, number>>(() => {
-    try { return JSON.parse(localStorage.getItem("confianzaTurnos") || "{}"); } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem("confianzaTurnos") || "{}") as Record<string, number>; } catch { return {}; }
   });
   const [userRole, setUserRole] = useState<"free" | "premium" | "admin">("free");
   const [userId, setUserId] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [premExpiry, setPremExpiry] = useState<{ premium_until: string | null; daysRemaining: number | null }>({ premium_until: null, daysRemaining: null });
   const [guestMode, setGuestMode] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstall, setShowInstall] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { subscribed: pushSubscribed, supported: pushSupported, loading: pushLoading, toggle: togglePush } = usePushNotifications();
@@ -158,16 +171,16 @@ function PageInner() {
 
   const misSummary = useMemo(() => {
     const totalSaved = misPreds.length;
-    const totalAciertos = misPreds.reduce((sum: any, p: any) => sum + (p.aciertos?.length || 0), 0);
-    const totalWithHits = misPreds.filter((p: any) => p.aciertos?.length > 0).length;
-    const totalWithResult = misPreds.filter((p: any) => p.resultado?.length).length;
+    const totalAciertos = misPreds.reduce((sum, p) => sum + (p.aciertos?.length || 0), 0);
+    const totalWithHits = misPreds.filter((p) => p.aciertos?.length > 0).length;
+    const totalWithResult = misPreds.filter((p) => p.resultado_original?.length).length;
     const successRate = totalSaved ? Math.round((totalWithHits / totalSaved) * 100) : 0;
     const avgHits = totalSaved ? Number((totalAciertos / totalSaved).toFixed(2)) : 0;
-    const hitsByTurno = misPreds.reduce((acc: any, p: any) => {
+    const hitsByTurno = misPreds.reduce<Record<string, number>>((acc, p) => {
       if (p.aciertos?.length) acc[p.turno] = (acc[p.turno] || 0) + 1;
       return acc;
-    }, {});
-    const bestTurno = Object.entries(hitsByTurno).sort((a: any, b: any) => b[1] - a[1])[0]?.[0] || "—";
+    }, {} as Record<string, number>);
+    const bestTurno = Object.entries(hitsByTurno).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
     const now = new Date();
     const thisWeek = misPreds.filter(p => {
       if (!p.fecha) return false;
@@ -195,12 +208,12 @@ function PageInner() {
   useEffect(() => {
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowInstall(true);
     };
-    window.addEventListener("beforeinstallprompt", handleBeforeInstall as any);
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall as unknown as EventListener);
     return () => {
-      window.removeEventListener("beforeinstallprompt", handleBeforeInstall as any);
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall as unknown as EventListener);
     };
   }, []);
 
@@ -208,6 +221,7 @@ function PageInner() {
     if (tab === "mis" && tkRef.current) {
       cargarMisPreds(tkRef.current);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
   async function installApp() {
@@ -345,7 +359,8 @@ function PageInner() {
       if (tk) cargarMisPreds(tk)
     }, 60000)
     return () => clearInterval(pollInterval)
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastDrawDate, router, toast]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -375,15 +390,17 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       sound.win();
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 3000);
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification("Quiniela IA", {
+          body: aciertos.length + " coincidencia" + (aciertos.length > 1 ? "s" : "") + ": " + aciertos.join(", ") + " en " + turno,
+          icon: "/icon-192.png",
+          silent: true,
+        });
+      }
     }
-    if (!("Notification" in window) || Notification.permission !== "granted") return;
-    const body = aciertos && aciertos.length > 0
-      ? "Coincidencia: " + aciertos.length + " número(s)! " + aciertos.join(", ") + " en " + turno
-      : "Resultados del " + turno + " disponibles.";
-    new Notification("Quiniela IA", { body, icon: "/icon-192.png" });
   }
 
-  async function gen() {
+  const gen = useCallback(async () => {
     setLd(true);
     setEr("");
     setDn(false);
@@ -431,7 +448,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       };
 
       // Strict runtime validation + type safety (protects against malformed API/DB responses)
-      let validatedPredData: any = null;
+      let validatedPredData: PredData | null = null;
       try {
         validatedPredData = validatePredData(predData);
       } catch (parseError) {
@@ -468,18 +485,19 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             turno: so,
-            topNumbers: (validatedPredData?.numeros || []).slice(0, 10).map((n: any) => n.num || n.numero),
+            topNumbers: (validatedPredData?.numeros || []).slice(0, 10).map((n) => (n as Record<string, unknown>).num || (n as Record<string, unknown>).numero),
           }),
         }).catch(() => {})
       }
-      if (validatedPredData?.confidence) setConfianzaTurnos(p => ({ ...p, [so]: validatedPredData.confidence }));
+      if (validatedPredData?.confidence) setConfianzaTurnos(p => ({ ...p, [so]: validatedPredData.confidence as number }));
       if (validatedPredData?.aiInsight) setAiInsight(validatedPredData.aiInsight);
-    } catch (e: any) {
-      setEr(e?.message || String(e));
+    } catch (e: unknown) {
+      setEr(e instanceof Error ? e.message : String(e));
     } finally {
       setLd(false);
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function logout() {
     clearAuth();
@@ -548,9 +566,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     return fechaActual
   }
 
-  async function cargarMisPreds(token: string) {
+  const cargarMisPreds = useCallback(async (token: string) => {
     setMisLoading(true);
-    let apiPreds: any[] | null = null;
+    let apiPreds: SavedPrediction[] | null = null;
     if (token) {
       try {
         const r = await fetch("/api/mis-predicciones", { headers: { Authorization: "Bearer " + token } });
@@ -560,9 +578,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     }
 
     // Merge 3/4 cifras from localStorage into API predictions
-    let storedPreds: any[] = [];
+    let storedPreds: SavedPrediction[] = [];
     try { const s = localStorage.getItem("misPreds"); if (s) storedPreds = JSON.parse(s); } catch {}
-    const localMap = new Map(storedPreds.map((p: any) => [(p.date || p.fecha) + "|" + (p.turno || ""), p]))
+    const localMap = new Map(storedPreds.map((p) => [(p.date || p.fecha) + "|" + (p.turno || ""), p]))
 
     if (apiPreds) {
       for (const p of apiPreds) {
@@ -589,14 +607,14 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       // que aún no están en la respuesta de la API, para que un análisis recién
       // guardado nunca desaparezca de "Mis Análisis".
       const apiKeys = new Set(
-        apiPreds.map((p: any) => (p.date || p.fecha || "") + "|" + (p.turno || ""))
+        apiPreds.map((p) => (p.date || p.fecha || "") + "|" + (p.turno || ""))
       )
-      const localOnly = storedPreds.filter((p: any) => {
+      const localOnly = storedPreds.filter((p) => {
         const key = (p.date || p.fecha || "") + "|" + (p.turno || "")
         return key.trim() !== "|" && !apiKeys.has(key)
       })
 
-      const enrichedLocal = await Promise.all(localOnly.map(async (p: any) => {
+      const enrichedLocal = await Promise.all(localOnly.map(async (p) => {
         if (p.resultado && p.resultado.length > 0) return p
         const fechaVal = (p.date || p.fecha || "").trim()
         const turnoVal = (p.turno || "").trim()
@@ -605,15 +623,15 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           const r = await fetch(`/api/resultado?date=${fechaVal}&turno=${encodeURIComponent(turnoVal)}`)
           const draw = await r.json()
           if (draw?.found && draw?.numbers?.length) {
-            const reales = draw.numbers.map((n: any) => String(Number(n) % 100).padStart(2, "0"))
-            const reales3 = draw.numbers.map((n: any) => String(Number(n) % 1000).padStart(3, "0"))
-            const reales4 = draw.numbers.map((n: any) => String(Number(n) % 10000).padStart(4, "0"))
+            const reales = draw.numbers.map((n: string | number) => String(Number(n) % 100).padStart(2, "0"))
+            const reales3 = draw.numbers.map((n: string | number) => String(Number(n) % 1000).padStart(3, "0"))
+            const reales4 = draw.numbers.map((n: string | number) => String(Number(n) % 10000).padStart(4, "0"))
             const pred2 = Array.isArray(p.numeros) ? p.numeros : (p.numeros?.["2"] || [])
             const pred3 = !Array.isArray(p.numeros) ? (p.numeros?.["3"] || []) : (p.numeros_3 || [])
             const pred4 = !Array.isArray(p.numeros) ? (p.numeros?.["4"] || []) : (p.numeros_4 || [])
-            const predichos2 = pred2.map((n: string) => String(n).padStart(2, "0"))
-            const predichos3 = pred3.map((n: string) => String(n).padStart(3, "0"))
-            const predichos4 = pred4.map((n: string) => String(n).padStart(4, "0"))
+            const predichos2 = (pred2 as string[]).map((n) => String(n).padStart(2, "0"))
+            const predichos3 = (pred3 as string[]).map((n) => String(n).padStart(3, "0"))
+            const predichos4 = (pred4 as string[]).map((n) => String(n).padStart(4, "0"))
             const aciertos2 = predichos2.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1, tipo: 2 }))
             const aciertos3 = predichos3.filter((n: string) => reales3.includes(n)).map((n: string) => ({ numero: n, puesto: reales3.indexOf(n) + 1, tipo: 3 }))
             const aciertos4 = predichos4.filter((n: string) => reales4.includes(n)).map((n: string) => ({ numero: n, puesto: reales4.indexOf(n) + 1, tipo: 4 }))
@@ -626,17 +644,22 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
       const merged = [...enrichedLocal, ...apiPreds]
 
-      const prevAciertos = misPreds.reduce((sum: number, p: any) => sum + (p.aciertos?.length || 0), 0)
-      const newAciertos = apiPreds.reduce((sum: number, p: any) => sum + (p.aciertos?.length || 0), 0)
+      const prevAciertos = misPreds.reduce((sum, p) => sum + (p.aciertos?.length || 0), 0)
+      const newAciertos = apiPreds.reduce((sum, p) => sum + (p.aciertos?.length || 0), 0)
       if (newAciertos > prevAciertos) {
         const diff = newAciertos - prevAciertos
-        toast(`¡${diff} nuevo${diff > 1 ? "s" : ""} acierto${diff > 1 ? "s" : ""} detectado${diff > 1 ? "s" : ""}!`, "success")
-        sound.win();
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 3000);
+        const notifiedKey = "notifiedAciertos"
+        const prevNotified = parseInt(localStorage.getItem(notifiedKey) || "0", 10)
+        if (newAciertos > prevNotified) {
+          toast(`¡${diff} nuevo${diff > 1 ? "s" : ""} acierto${diff > 1 ? "s" : ""}!`, "success")
+          sound.win();
+          setShowConfetti(true);
+          setTimeout(() => setShowConfetti(false), 3000);
+          localStorage.setItem(notifiedKey, String(newAciertos))
+        }
       }
       setMisPreds(merged)
-      localStorage.setItem("misPreds", JSON.stringify(merged.map((p: any) => {
+      localStorage.setItem("misPreds", JSON.stringify(merged.map((p) => {
         if (typeof p.numeros === "object" && !Array.isArray(p.numeros) && p.numeros?.["2"]) {
           return { ...p, numeros: p.numeros["2"], numeros_3: p.numeros["3"] || [], numeros_4: p.numeros["4"] || [] };
         }
@@ -648,7 +671,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
     // Fallback: localStorage + client-side comparison
     if (storedPreds.length > 0) {
-      const enriched = await Promise.all(storedPreds.map(async (p: any) => {
+      const enriched = await Promise.all(storedPreds.map(async (p) => {
         if (p.resultado && p.resultado.length > 0) return p
         const fechaVal = (p.date || p.fecha || "").trim()
         const turnoVal = (p.turno || "").trim()
@@ -657,11 +680,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           const r = await fetch(`/api/resultado?date=${fechaVal}&turno=${encodeURIComponent(turnoVal)}`)
           const draw = await r.json()
           if (draw?.found && draw?.numbers?.length) {
-            const reales = draw.numbers.map((n: any) => String(Number(n) % 100).padStart(2, "0"))
+            const reales = draw.numbers.map((n: string | number) => String(Number(n) % 100).padStart(2, "0"))
             const pred2 = Array.isArray(p.numeros) ? p.numeros : (p.numeros?.["2"] || [])
             const pred3 = !Array.isArray(p.numeros) ? (p.numeros?.["3"] || []) : (p.numeros_3 || [])
             const pred4 = !Array.isArray(p.numeros) ? (p.numeros?.["4"] || []) : (p.numeros_4 || [])
-            const predichos = pred2.map((n: string) => String(n).padStart(2, "0"))
+            const predichos = (pred2 as string[]).map((n) => String(n).padStart(2, "0"))
             const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }))
             return { ...p, numeros: pred2, numeros_3: pred3, numeros_4: pred4, resultado: reales, aciertos, acerto: aciertos.length > 0 }
           }
@@ -669,17 +692,23 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         return p
       }))
       setMisPreds(enriched)
-      const newHits = enriched.filter((p: any) => p.acerto).length
-      const prevHits = misPreds.filter((p: any) => p.acerto).length
+      const newHits = enriched.filter((p) => p.acerto).length
+      const prevHits = misPreds.filter((p) => p.acerto).length
       if (newHits > prevHits) {
         const diff = newHits - prevHits
-        toast(`¡${diff} predicción${diff > 1 ? "es" : ""} acertada${diff > 1 ? "s" : ""}!`, "success")
+        const notifiedKey = "notifiedAciertosLocal"
+        const prevNotified = parseInt(localStorage.getItem(notifiedKey) || "0", 10)
+        if (newHits > prevNotified) {
+          toast(`¡${diff} predicción${diff > 1 ? "es" : ""} acertada${diff > 1 ? "s" : ""}!`, "success")
+          localStorage.setItem(notifiedKey, String(newHits))
+        }
       }
     } else {
       setMisPreds([]);
     }
     setMisLoading(false);
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function controlarJugada() {
     if (!dt?.numeros_2?.length) {
@@ -697,13 +726,13 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         });
         return;
       }
-      const reales = drawData.numbers.map((n: any) => String(Number(n) % 100).padStart(2, "0"));
-      const predichos = cur.slice(0, 10).map((p: any) => p.numero);
+      const reales = drawData.numbers.map((n: string | number) => String(Number(n) % 100).padStart(2, "0"));
+      const predichos = cur.slice(0, 10).map((p) => p.numero);
       const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }));
-      setResultadoControl({ aciertos, predichos, reales, fecha: hoy, turno: so });
-      mostrarNotifResultado(so, reales, aciertos.map((a: any) => a.numero));
-    } catch (e: any) {
-      setResultadoControl({ error: "Error: " + e.message });
+      setResultadoControl({ aciertos, predichos, reales, fecha: hoy, turno: so } as ResultadoControl);
+      mostrarNotifResultado(so, reales, aciertos.map((a) => a.numero));
+    } catch (e: unknown) {
+      setResultadoControl({ error: "Error: " + (e instanceof Error ? e.message : "Unknown"), aciertos: [] });
     }
     setControlando(false);
   }
@@ -718,12 +747,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     }
     setGuardando(true);
     const fechaSorteoStr = fechaSorteo(so);
-    const nums = cur.slice(0, 10).map((p: any) => p.numero);
+    const nums = cur.slice(0, 10).map((p) => p.numero);
 
     // Check if already saved locally for this turno
     const storedRaw = localStorage.getItem("misPreds");
-    let todas = storedRaw ? JSON.parse(storedRaw) : [];
-    const yaExiste = todas.some((p: any) => p.fecha === fechaSorteoStr && p.turno === so);
+    let todas: SavedPrediction[] = storedRaw ? JSON.parse(storedRaw) : [];
+    const yaExiste = todas.some((p) => p.fecha === fechaSorteoStr && p.turno === so);
     if (yaExiste) {
       setGuardando(false);
       toast("Ya guardaste un análisis para este turno", "info");
@@ -733,13 +762,13 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     const nums3Save = (pr || userRole === "admin") ? nums3.slice(0, 5) : [];
     const nums4Save = (pr || userRole === "admin") ? nums4.slice(0, 5) : [];
 
-    const nuevaPred: any = {
+    const nuevaPred: SavedPrediction = {
       id: "local_" + Date.now(),
       fecha: fechaSorteoStr,
       turno: so,
-      numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3Save, "4": nums4Save } : nums,
+      numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3Save, "4": nums4Save } as Record<string, string[]> : nums,
       created_at: new Date().toISOString(),
-      resultado: null,
+      resultado_original: [],
       aciertos: [],
       acerto: false,
     };
@@ -804,7 +833,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     if (!dt?.numeros_2?.length) {
       return;
     }
-    const lineas = cur.slice(0, 10).map((p: any, i: number) => "#" + (i + 1) + " " + p.numero + " - " + p.significado).join("\n");
+    const lineas = cur.slice(0, 10).map((p, i) => "#" + (i + 1) + " " + p.numero + " - " + p.significado).join("\n");
     const rdblLine = dt?.redoblona ? "\nRedoblona: " + dt.redoblona : "";
     const txt = "QUINIELA IA ANÁLISIS - " + proximoSorteo(so) + "\n\n" + lineas + rdblLine + "\n\n" + APP_URL;
     navigator.clipboard
@@ -828,7 +857,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       navigator.clipboard.writeText(APP_URL).then(() => toast("Link copiado al portapapeles", "success"));
       return;
     }
-    const urls: any = {
+    const urls: Record<string, string> = {
       whatsapp: `https://wa.me/?text=${txt}%20${url}`,
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}`,
       twitter: `https://twitter.com/intent/tweet?text=${txt}&url=${url}`,
@@ -842,7 +871,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   const nums3 = useMemo(() => (dt?.numeros_3 ?? []).filter((n): n is string => typeof n === "string"), [dt?.numeros_3]);
   const nums4 = useMemo(() => (dt?.numeros_4 ?? []).filter((n): n is string => typeof n === "string"), [dt?.numeros_4]);
   const rdbl = useMemo(() => (dt?.redoblona ?? ""), [dt?.redoblona]);
-  const rankingData = useMemo<any[]>(() => (dt?.ranking ?? dt?.numeros ?? []), [dt?.ranking, dt?.numeros]);
+  const rankingData = useMemo<LocalRankingItem[]>(() => (dt?.ranking ?? []) as LocalRankingItem[], [dt?.ranking]);
   const ranking = rankingData;
 
 // Previously calculated numeric math heavy expressions (useMemo to prevent unnecessary recalculations)
@@ -852,7 +881,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     const rankList = rankingData;
     return target.map((number: string) => ({
       numero: number,
-      significado: (rankList || []).find((r: any) => r.numero === number)?.significado || ""
+      significado: String((rankList || []).find((r: LocalRankingItem) => r.numero === number)?.significado || "")
     }));
   }, [dg, nums2, nums3, nums4, rankingData]);
 
@@ -1437,10 +1466,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                         className="g5"
                         style={(guestMode || (userRole === "free" && dg > 2)) ? { filter: "blur(8px)", userSelect: "none", pointerEvents: "none" } : {}}
                       >
-                        {cur.slice(0, 10).map((p: any, i: number) => {
-                          const r = ranking?.find((r: any) => r.numero === p.numero);
+                        {cur.slice(0, 10).map((p, i) => {
+                          const r = ranking?.find((r) => r.numero === p.numero);
                           const isCabeza = i === 0;
-                          const post = r?.bayesianPosterior ? (r.bayesianPosterior * 100).toFixed(2) + "%" : "";
+                          const post = r?.bayesianPosterior ? (Number(r.bayesianPosterior) * 100).toFixed(2) + "%" : "";
                           return (
                           <div className="cd" key={i} onClick={() => setNumDetail(r || p)} style={{cursor:"pointer", position:"relative"}}>
                             {isCabeza && <span className="cabeza-badge">CABEZA</span>}
@@ -1544,7 +1573,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                             <div style={{ fontSize: 11, color: "#64748b" }}>Analizá la correlación entre ambos números en el mismo sorteo.</div>
                           </div>
                         )}
-                        {dt?.numeros?.slice(0, 5).map((r: any, i: number) => (
+                        {dt?.numeros?.slice(0, 5).map((r, i) => (
                           <div className="rc" key={i}>
                             <div className="rn">{r.numero}</div>
                             <div className="rk">{r.significado || ""}</div>
@@ -1587,7 +1616,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   <div className="sec">Mapa de calor - Frecuencia</div>
                   {dt?.heatmap && dt.heatmap.length > 0 ? (
                     <div className="heatmap-grid">
-                      {dt?.heatmap?.map((h: any, i: number) => {
+                      {dt?.heatmap?.map((h, i) => {
                         const intensity = Math.min(1, h.f / 10);
                         return (
                           <div
@@ -1644,7 +1673,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     </div>
                     
                     <div className="trend-bars">
-                      {dt?.numeros?.slice(0, 10).map((n: any, i: number) => (
+                      {dt?.numeros?.slice(0, 10).map((n, i) => (
                         <div key={i} className="trend-bar-row">
                           <div className="trend-bar-label">{n.numero}</div>
                           <div className="trend-bar-track">
@@ -1797,7 +1826,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                       </div>
                     );
                   })()}
-                  {misPreds.map((p: any, i: number) => {
+                  {misPreds.map((p, i) => {
                     const tieneAciertos = p.aciertos && p.aciertos.length > 0;
                     const fecha = p.date || p.fecha;
                     const fechaValida = fecha && !isNaN(Date.parse(fecha));
@@ -1866,13 +1895,13 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                           <div className="saved-results" style={{marginTop:8}}>
                             <div style={{fontSize:10,color:"#64748b",marginBottom:4}}>RESULTADOS OFICIALES ({p.resultado_original.length} números):</div>
                             <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
-                              {p.resultado_original.map((n:any,idx:number) => {
+                              {p.resultado_original.map((n: string | number, idx: number) => {
                                 const n4 = String(Number(n) % 10000).padStart(4, "0")
                                 const n3 = String(Number(n) % 1000).padStart(3, "0")
                                 const n2 = String(Number(n) % 100).padStart(2, "0")
-                                const hit4 = p.aciertos_4?.some((a:any) => a.numero === n4)
-                                const hit3 = p.aciertos_3?.some((a:any) => a.numero === n3)
-                                const hit2 = p.aciertos_2?.some((a:any) => a.numero === n2)
+                                const hit4 = p.aciertos_4?.some((a: any) => a.numero === n4)
+                                const hit3 = p.aciertos_3?.some((a: any) => a.numero === n3)
+                                const hit2 = p.aciertos_2?.some((a: any) => a.numero === n2)
                                 const isHit = hit4 || hit3 || hit2
                                 const hitType = hit4 ? "4" : hit3 ? "3" : hit2 ? "2" : null
                                 return (
@@ -2246,7 +2275,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   <div>
                     <div style={{fontSize:10,color:"var(--dim)",fontWeight:700,marginBottom:6}}>Últimas apariciones:</div>
                     <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                      {numHistory.appearances.slice(0, 12).map((a: any, i: number) => (
+                      {(numHistory.appearances as any[]).slice(0, 12).map((a: any, i: number) => (
                         <div key={i} style={{background:"rgba(168,85,247,.1)",borderRadius:6,padding:"3px 8px",fontSize:9,color:"#c4b5fd"}}>
                           {a.date.substring(5)} <span style={{color:"#64748b"}}>{a.turno.substring(0,4)}</span>
                         </div>
@@ -2269,9 +2298,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 <li>Ranking <strong style={{color:"#a855f7"}}>#{numDetail.rank || "—"}</strong> en el análisis general</li>
                 {numDetail.frecuencia != null && <li>Apareció <strong style={{color:"#4ade80"}}>{numDetail.frecuencia} veces</strong> en el histórico</li>}
                 {numDetail.confianza != null && <li>Confianza del <strong style={{color:"#818cf8"}}>{numDetail.confianza}%</strong></li>}
-                {numDetail.bayesianPosterior != null && <li>Posterior Bayesiano: <strong style={{color:"#f472b6"}}>{(numDetail.bayesianPosterior * 100).toFixed(3)}%</strong></li>}
-                {numDetail.score != null && <li>Score compuesto: <strong style={{color:"#a855f7"}}>{(numDetail.score * 100).toFixed(1)}%</strong></li>}
-                {numDetail.factores?.length > 0 && <li>Factores adicionales: {numDetail.factores.slice(0,3).join(", ")}{numDetail.factores.length > 3 ? "..." : ""}</li>}
+                {numDetail.bayesianPosterior != null && <li>Posterior Bayesiano: <strong style={{color:"#f472b6"}}>{(Number(numDetail.bayesianPosterior) * 100).toFixed(3)}%</strong></li>}
+                {numDetail.score != null && <li>Score compuesto: <strong style={{color:"#a855f7"}}>{(Number(numDetail.score) * 100).toFixed(1)}%</strong></li>}
+                {numDetail.factores && (Array.isArray(numDetail.factores) ? numDetail.factores.length > 0 : Object.keys(numDetail.factores).length > 0) && (
+                  <li>Factores adicionales: {Array.isArray(numDetail.factores) ? numDetail.factores.slice(0,3).join(", ") : Object.keys(numDetail.factores).slice(0,3).join(", ")}{(Array.isArray(numDetail.factores) ? numDetail.factores.length : Object.keys(numDetail.factores).length) > 3 ? "..." : ""}</li>
+                )}
               </ul>
             </div>
             <button onClick={() => {setNumDetail(null);setNumHistory(null)}} style={{marginTop:16,width:"100%",padding:"10px",borderRadius:10,border:"none",background:"rgba(255,255,255,.06)",color:"var(--text)",fontWeight:700,cursor:"pointer",fontSize:12}}>Cerrar</button>

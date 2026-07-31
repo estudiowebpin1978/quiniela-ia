@@ -4,6 +4,12 @@ function isUuid(v: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 }
 
+// Protected page routes that require authentication.
+// Note: Session validation is done client-side (localStorage JWT) since
+// Supabase auth tokens are stored in localStorage, not cookies.
+// Middleware can only do lightweight checks; full auth is in page components.
+const PROTECTED_ROUTES = ["/predictions", "/admin"];
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -15,7 +21,7 @@ export function middleware(req: NextRequest) {
   res.headers.set("X-XSS-Protection", "1; mode=block");
   res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
-  res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+  res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains, preload");
 
   // CSP — permissive enough for inline styles/scripts used by Next.js
   res.headers.set(
@@ -28,6 +34,12 @@ export function middleware(req: NextRequest) {
     "connect-src 'self' https://*.supabase.co https://*.vercel.app; " +
     "frame-ancestors 'none'"
   );
+
+  // --- Protected page routes: add no-cache header to prevent stale auth state ---
+  if (PROTECTED_ROUTES.some(route => pathname.startsWith(route))) {
+    res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.headers.set("Pragma", "no-cache");
+  }
 
   // --- API route protection ---
   if (pathname.startsWith("/api/")) {

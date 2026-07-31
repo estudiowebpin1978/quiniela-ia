@@ -23,9 +23,9 @@ export function generateCorrelationId(): string {
 /**
  * Create a child logger with a fixed correlation ID and optional context.
  */
-export function createLogger(correlationId: string, context?: Record<string, any>) {
+export function createLogger(correlationId: string, context?: Record<string, unknown>) {
   return {
-    error(msg: string, meta?: Record<string, any>) {
+    error(msg: string, meta?: Record<string, unknown>) {
       if (shouldLog("error")) {
         console.error(JSON.stringify({
           ts: new Date().toISOString(),
@@ -37,7 +37,7 @@ export function createLogger(correlationId: string, context?: Record<string, any
         }))
       }
     },
-    warn(msg: string, meta?: Record<string, any>) {
+    warn(msg: string, meta?: Record<string, unknown>) {
       if (shouldLog("warn")) {
         console.warn(JSON.stringify({
           ts: new Date().toISOString(),
@@ -49,7 +49,7 @@ export function createLogger(correlationId: string, context?: Record<string, any
         }))
       }
     },
-    info(msg: string, meta?: Record<string, any>) {
+    info(msg: string, meta?: Record<string, unknown>) {
       if (shouldLog("info")) {
         console.log(JSON.stringify({
           ts: new Date().toISOString(),
@@ -61,7 +61,7 @@ export function createLogger(correlationId: string, context?: Record<string, any
         }))
       }
     },
-    debug(msg: string, meta?: Record<string, any>) {
+    debug(msg: string, meta?: Record<string, unknown>) {
       if (shouldLog("debug")) {
         console.log(JSON.stringify({
           ts: new Date().toISOString(),
@@ -82,16 +82,16 @@ type Logger = ReturnType<typeof createLogger>
  * Default logger (no correlation ID). Use createLogger() for request-scoped logging.
  */
 const defaultLogger = {
-  error(msg: string, meta?: Record<string, any>) {
+  error(msg: string, meta?: Record<string, unknown>) {
     if (shouldLog("error")) console.error(JSON.stringify({ ts: new Date().toISOString(), level: "ERROR", msg, ...meta }))
   },
-  warn(msg: string, meta?: Record<string, any>) {
+  warn(msg: string, meta?: Record<string, unknown>) {
     if (shouldLog("warn")) console.warn(JSON.stringify({ ts: new Date().toISOString(), level: "WARN", msg, ...meta }))
   },
-  info(msg: string, meta?: Record<string, any>) {
+  info(msg: string, meta?: Record<string, unknown>) {
     if (shouldLog("info")) console.log(JSON.stringify({ ts: new Date().toISOString(), level: "INFO", msg, ...meta }))
   },
-  debug(msg: string, meta?: Record<string, any>) {
+  debug(msg: string, meta?: Record<string, unknown>) {
     if (shouldLog("debug")) console.log(JSON.stringify({ ts: new Date().toISOString(), level: "DEBUG", msg, ...meta }))
   },
 }
