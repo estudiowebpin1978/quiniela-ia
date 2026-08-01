@@ -121,20 +121,17 @@ BEGIN
     SELECT COALESCE(MAX(veces_en_turno), 1)::NUMERIC AS max_af FROM afinidad
   ),
 
-  -- FACTOR 4: Markov 1er Orden (transiciones desde el último número)
+  -- FACTOR 4: Markov 1er Orden (qué números salen DESPUÉS del último número sorteado)
   markov AS (
     SELECT
       MOD(d_next.numbers[1], 100) AS n,
       COUNT(*) AS transiciones
     FROM draws d_prev
     JOIN draws d_next
-      ON d_next.date > d_prev.date
-      OR (d_next.date = d_prev.date AND d_next.created_at > d_prev.created_at)
-    WHERE d_prev.id = (
-      SELECT id FROM draws
-      ORDER BY date DESC, created_at DESC
-      LIMIT 1
-    )
+      ON (d_next.date > d_prev.date OR (d_next.date = d_prev.date AND d_next.created_at > d_prev.created_at))
+      AND d_next.turno = d_prev.turno
+    WHERE d_prev.turno = turno_objetivo
+      AND MOD(d_prev.numbers[1], 100) = ultimo_numero_cabeza
     GROUP BY MOD(d_next.numbers[1], 100)
   ),
   max_markov AS (

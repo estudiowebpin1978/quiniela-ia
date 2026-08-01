@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     const userId = tier.userId
 
     const predRes = await fetch(
-      `${SB()}/rest/v1/user_predictions?user_id=eq.${userId}&select=id,date,turno,numeros,created_at&order=created_at.desc&limit=50`,
+      `${SB()}/rest/v1/user_predictions?user_id=eq.${userId}&select=id,date,turno,numeros,created_at,status,aciertos,verified_at&order=created_at.desc&limit=50`,
       { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` } }
     )
     const predictions = await predRes.json()
@@ -84,6 +84,9 @@ export async function GET(req: NextRequest) {
       const history = historyMap[pred.id] || null
       const disponible = !!draw
 
+      // FAST PATH: Use server-verified status/aciertos from trigger (user_predictions table)
+      const serverVerified = pred.status === 'won' || pred.status === 'lost'
+
       let aciertos: Acierto[] = []
       let aciertos3: Acierto[] = []
       let aciertos4: Acierto[] = []
@@ -105,7 +108,20 @@ export async function GET(req: NextRequest) {
         pred4 = numerosData?.["4"] || []
       }
 
-      if (history) {
+      if (serverVerified) {
+        // Use server-verified aciertos (from trigger auto_verify_saved_predictions)
+        if (pred.aciertos && Array.isArray(pred.aciertos)) {
+          aciertos = pred.aciertos.map((n: number) => ({
+            numero: String(n).padStart(2, "0"), puesto: 0, tipo: 2 as const
+          }))
+        }
+        // Get real numbers from draw for display
+        if (disponible && draw?.numbers) {
+          numerosReales = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
+          numerosReales3 = draw.numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
+          numerosReales4 = draw.numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
+        }
+      } else if (history) {
         aciertos = (history.aciertos_2 || []).map((a: Acierto) => ({ ...a, tipo: 2 as const }))
         if (tier.canAccessPremiumFeatures) {
           aciertos3 = (history.aciertos_3 || []).map((a: Acierto) => ({ ...a, tipo: 3 as const }))
@@ -141,7 +157,7 @@ export async function GET(req: NextRequest) {
       }
 
       const allAciertos = [...aciertos, ...aciertos3, ...aciertos4]
-      const hasResult = !!history || disponible
+      const hasResult = serverVerified || !!history || disponible
 
       results.push({
         id: pred.id, fecha: pred.date, turno: pred.turno,
@@ -156,7 +172,7 @@ export async function GET(req: NextRequest) {
         aciertos_2: hasResult ? aciertos : [],
         aciertos_3: hasResult ? aciertos3 : [],
         aciertos_4: hasResult ? aciertos4 : [],
-        acerto: hasResult ? allAciertos.length > 0 : false,
+        acerto: hasResult ? (serverVerified ? pred.status === 'won' : allAciertos.length > 0) : false,
         created_at: pred.created_at,
         sorteoRealizado: hasResult
       })
