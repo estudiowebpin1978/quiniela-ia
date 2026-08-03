@@ -31,10 +31,10 @@ export default function HistorialAciertos({ predictions = [] }: Props) {
 
   async function fetchDraws() {
     try {
-      const res = await fetch("/api/draw?limit=30")
+      const res = await fetch("/api/draws?limit=30")
       if (!res.ok) throw new Error("Error fetching draws")
       const data = await res.json()
-      setDraws(data.draws || data || [])
+      setDraws(Array.isArray(data) ? data : data.draws || [])
     } catch (err) {
     } finally {
       setLoading(false)
