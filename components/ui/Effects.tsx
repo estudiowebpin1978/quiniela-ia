@@ -186,7 +186,7 @@ export function ConfettiEffect({ active }: { active: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const particlesRef = useRef<Array<{
     x: number; y: number; vx: number; vy: number; rotation: number
-    rotationSpeed: number; color: string; size: number; life: number
+    rotationSpeed: number; size: number; life: number; shine: number
   }>>([])
 
   useEffect(() => {
@@ -199,17 +199,16 @@ export function ConfettiEffect({ active }: { active: boolean }) {
     canvas.width = window.innerWidth
     canvas.height = window.innerHeight
 
-    const colors = ["#ff3366", "#a855f7", "#06b6d4", "#ffd700", "#22c55e", "#f97316"]
-    particlesRef.current = Array.from({ length: 100 }, () => ({
+    particlesRef.current = Array.from({ length: 80 }, () => ({
       x: Math.random() * canvas.width,
-      y: -20 - Math.random() * 200,
-      vx: (Math.random() - 0.5) * 8,
-      vy: Math.random() * 4 + 2,
+      y: -30 - Math.random() * 300,
+      vx: (Math.random() - 0.5) * 6,
+      vy: Math.random() * 3 + 1.5,
       rotation: Math.random() * 360,
-      rotationSpeed: (Math.random() - 0.5) * 15,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      size: Math.random() * 8 + 4,
+      rotationSpeed: (Math.random() - 0.5) * 12,
+      size: Math.random() * 6 + 10,
       life: 1,
+      shine: Math.random() * 0.5 + 0.5,
     }))
 
     let frame = 0
@@ -220,10 +219,11 @@ export function ConfettiEffect({ active }: { active: boolean }) {
       for (const p of particlesRef.current) {
         p.x += p.vx
         p.y += p.vy
-        p.vy += 0.08
+        p.vy += 0.06
         p.vx *= 0.99
         p.rotation += p.rotationSpeed
-        p.life -= 0.008
+        p.life -= 0.006
+        p.shine = Math.min(1, p.shine + 0.02)
 
         if (p.life <= 0) continue
         alive = true
@@ -231,14 +231,39 @@ export function ConfettiEffect({ active }: { active: boolean }) {
         ctx.save()
         ctx.translate(p.x, p.y)
         ctx.rotate((p.rotation * Math.PI) / 180)
-        ctx.globalAlpha = Math.max(0, p.life)
-        ctx.fillStyle = p.color
-        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6)
+        ctx.globalAlpha = Math.max(0, p.life * 0.9)
+
+        // Gold coin gradient
+        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, p.size)
+        grad.addColorStop(0, "#fff7a0")
+        grad.addColorStop(0.3, "#ffd700")
+        grad.addColorStop(0.7, "#daa520")
+        grad.addColorStop(1, "#b8860b")
+
+        // Draw coin circle
+        ctx.beginPath()
+        ctx.arc(0, 0, p.size, 0, Math.PI * 2)
+        ctx.fillStyle = grad
+        ctx.fill()
+
+        // Shine highlight
+        ctx.beginPath()
+        ctx.arc(-p.size * 0.25, -p.size * 0.25, p.size * 0.35, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(255, 255, 255, ${0.3 * p.shine})`
+        ctx.fill()
+
+        // Coin edge shadow
+        ctx.beginPath()
+        ctx.arc(0, 0, p.size, 0, Math.PI * 2)
+        ctx.strokeStyle = `rgba(139, 101, 8, ${0.6 * p.life})`
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+
         ctx.restore()
       }
 
       frame++
-      if (alive && frame < 300) requestAnimationFrame(animate)
+      if (alive && frame < 350) requestAnimationFrame(animate)
       else ctx.clearRect(0, 0, canvas.width, canvas.height)
     }
 
