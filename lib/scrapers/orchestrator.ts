@@ -167,14 +167,13 @@ export async function fetchWithFallback(
       }
 
       if (cabezaMatch === false) {
-        logger.warn("orchestrator: cabeza mismatch, rejecting source", {
+        logger.warn("orchestrator: cabeza mismatch, treating as non-fatal", {
           fecha: fechaISO,
           turno,
           source: name,
           cabeza: result.numbers[0],
           game: gameSlug,
         })
-        continue
       }
 
       logger.info("orchestrator: source succeeded", {

@@ -43,20 +43,22 @@ async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
   } catch { return false }
 }
 
-async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string): Promise<boolean> {
+async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const supabase = getSupabaseAdmin()
-    const { error } = await supabase.from("draws").upsert(
+    const { data, error } = await supabase.from("draws").upsert(
       { date: fechaISO, turno, numbers: nums, source, game_id: GAME_ID },
       { onConflict: "date,turno,game_id" }
     )
     if (error) {
-      logger.error("cron-scrape: guardarDraw failed", { error: error.message, fecha: fechaISO, turno })
+      logger.error("cron-scrape: guardarDraw failed", { error: error.message, code: error.code, details: error.details, fecha: fechaISO, turno, source, numsCount: nums.length })
+      return { ok: false, error: error.message }
     }
-    return !error
+    return { ok: true }
   } catch (e) {
-    logger.error("cron-scrape: guardarDraw exception", { error: String(e), fecha: fechaISO, turno })
-    return false
+    const msg = String(e)
+    logger.error("cron-scrape: guardarDraw exception", { error: msg, fecha: fechaISO, turno })
+    return { ok: false, error: msg }
   }
 }
 
@@ -134,37 +136,46 @@ export async function GET(req: NextRequest) {
   let guardados = 0
   let errores = 0
   const sourceStats: SourceStats = {}
+  const saveErrors: string[] = []
 
   for (const turno of turnosToScrape) {
     const drawExists = await tieneDraw(fechaISO, turno)
     
-    if (!drawExists) {
-      const result = await fetchWithFallback(fechaISO, fUrl, turno, sourceStats)
+    if (drawExists) {
+      logger.info("cron-scrape: draw ya existe", { fecha: fechaISO, turno })
+      continue
+    }
 
-      if (result.numbers.length >= 20) {
-        try {
-          if (await guardarDraw(fechaISO, turno, result.numbers, result.source)) {
-            guardados++
-            resultados[turno] = result.numbers
-            logger.info("cron-scrape: guardado", {
-              fecha: fechaISO, turno, cantidad: result.numbers.length,
-              source: result.source, cabezaMatch: result.cabezaMatch
-            })
-            // Trigger Engine Omega recalculation (backup for trigger)
-            getSupabaseAdmin().rpc('refresh_cached_predictions', { turno_objetivo: turno }).then(() => {}, () => {})
-          } else {
-            logger.warn("cron-scrape: fallo al guardar", { fecha: fechaISO, turno })
-            errores++
-          }
-        } catch (e) {
-          const errMsg = e instanceof Error ? e.message : String(e)
-          logger.error("cron-scrape: error guardando draw", { fecha: fechaISO, turno, error: errMsg })
-          errores++
-        }
+    const result = await fetchWithFallback(fechaISO, fUrl, turno, sourceStats)
+
+    if (result.numbers.length < 20) {
+      logger.warn("cron-scrape: pocas fuentes", { fecha: fechaISO, turno, count: result.numbers.length })
+      saveErrors.push(`${turno}: sin datos suficientes (${result.numbers.length})`)
+      errores++
+      continue
+    }
+
+    try {
+      const saveResult = await guardarDraw(fechaISO, turno, result.numbers, result.source)
+      if (saveResult.ok) {
+        guardados++
+        resultados[turno] = result.numbers
+        logger.info("cron-scrape: guardado", {
+          fecha: fechaISO, turno, cantidad: result.numbers.length,
+          source: result.source, cabezaMatch: result.cabezaMatch
+        })
+        getSupabaseAdmin().rpc('refresh_cached_predictions', { turno_objetivo: turno }).then(() => {}, () => {})
       } else {
-        logger.warn("cron-scrape: todas las fuentes fallaron", { fecha: fechaISO, turno })
+        const errMsg = `${turno}: ${saveResult.error}`
+        logger.warn("cron-scrape: fallo al guardar", { fecha: fechaISO, turno, error: saveResult.error })
+        saveErrors.push(errMsg)
         errores++
       }
+    } catch (e) {
+      const errMsg = `${turno}: ${e instanceof Error ? e.message : String(e)}`
+      logger.error("cron-scrape: error guardando draw", { fecha: fechaISO, turno, error: errMsg })
+      saveErrors.push(errMsg)
+      errores++
     }
 
     // Always trigger verification for this date/turno (covers predictions made after draw was saved)
@@ -240,6 +251,7 @@ export async function GET(req: NextRequest) {
     duration,
     sourceStats,
     resultados,
+    saveErrors,
     message: guardados > 0
       ? `${guardados} sorteos guardados${errores > 0 ? `, ${errores} errores` : ""}`
       : errores > 0
