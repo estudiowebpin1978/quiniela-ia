@@ -577,6 +577,14 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       } catch {}
     }
 
+    // Clear stale localStorage when engine version changes
+    const ENGINE_VERSION = 2;
+    const storedVersion = parseInt(localStorage.getItem("engineVersion") || "0", 10);
+    if (storedVersion < ENGINE_VERSION) {
+      localStorage.removeItem("misPreds");
+      localStorage.setItem("engineVersion", String(ENGINE_VERSION));
+    }
+
     // Merge 3/4 cifras from localStorage into API predictions
     let storedPreds: SavedPrediction[] = [];
     try { const s = localStorage.getItem("misPreds"); if (s) storedPreds = JSON.parse(s); } catch {}
@@ -1167,7 +1175,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 8, textAlign: "center" }}>🎯 Elegí el sorteo que querés analizar:</div>
           <div className="sorteo-btns">
             {SORTEOS.map((s) => (
-              <button key={s} className={"sb" + (so === s ? " on" : "")} onClick={() => { sound.pop(); setSo(s); }}>
+              <button key={s} className={"sb" + (so === s ? " on" : "")} onClick={() => { sound.pop(); setSo(s); setDt(null); setDn(false); setEr(""); }}>
                 <span>{s === "Vespertina" ? "Vesp" : s === "Primera" ? "1era" : s === "Matutina" ? "Mat" : s === "Nocturna" ? "Noct" : s}</span>
                 <span className="sh">{HORAS[s]}</span>
                 {confianzaTurnos[s] != null && <span className="sc">{confianzaTurnos[s]}%</span>}
