@@ -23,6 +23,7 @@ import GamificationBadge from "@/components/GamificationBadge";
 import HistorialAciertos from "@/components/HistorialAciertos";
 import ExpiryBanner from "@/components/ExpiryBanner";
 import AgeGate from "@/components/AgeGate";
+import LiveSorteo from "@/components/LiveSorteo";
 import { ToastProvider, useToast } from "@/components/Toast";
 import { getAccessToken, clearAuth, getAuth, isGuest, clearGuest } from "@/lib/auth";
 import { STORAGE_KEYS } from "@/lib/storage";
@@ -1182,6 +1183,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               </button>
             ))}
           </div>
+          <LiveSorteo turno={so} />
           <button className="btn3d btn-gen" onClick={() => { sound.whoosh(); gen(); }} disabled={ld} style={{ opacity: ld ? 0.6 : 1 }}>
             {ld ? "⏳ Analizando datos..." : "⚡ Generar Análisis Ahora"}
           </button>
