@@ -45,35 +45,7 @@ async function discoverLatestSorteoCode(): Promise<number | null> {
   if (sorteoCodeCache && Date.now() < sorteoCodeCache.expiresAt) {
     return sorteoCodeCache.code
   }
-
-  try {
-    const r = await fetch("https://quiniela.loteriadelaciudad.gob.ar/", {
-      headers: { "User-Agent": rotationUA(), Accept: "text/html" },
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!r.ok) return null
-    const html = await r.text()
-
-    const codes: number[] = []
-    const codeRx = /sorteo[=:]\s*(\d{5})/gi
-    let match: RegExpExecArray | null
-    while ((match = codeRx.exec(html)) !== null) {
-      const code = parseInt(match[1], 10)
-      if (code > 50000 && code < 99999) codes.push(code)
-    }
-
-    if (codes.length > 0) {
-      const latest = Math.max(...codes)
-      sorteoCodeCache = {
-        code: latest,
-        fecha: new Date().toISOString().split("T")[0],
-        expiresAt: Date.now() + 1000 * 60 * 60 * 24,
-      }
-      return latest
-    }
-  } catch (e) {
-    logger.debug("[scraper] sorteo code discovery failed", { error: String(e) })
-  }
+  sorteoCodeCache = null
   return null
 }
 
@@ -95,8 +67,6 @@ async function computeSorteoCodeFromDate(fechaISO: string, turno: TurnoType): Pr
 }
 
 export async function getSorteoCode(fechaISO: string, turno: TurnoType): Promise<number> {
-  const discovered = await discoverLatestSorteoCode()
-  if (discovered) return discovered
   return computeSorteoCodeFromDate(fechaISO, turno)
 }
 
