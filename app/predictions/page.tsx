@@ -23,7 +23,6 @@ import GamificationBadge from "@/components/GamificationBadge";
 import HistorialAciertos from "@/components/HistorialAciertos";
 import ExpiryBanner from "@/components/ExpiryBanner";
 import AgeGate from "@/components/AgeGate";
-import LiveSorteo from "@/components/LiveSorteo";
 import { ToastProvider, useToast } from "@/components/Toast";
 import { getAccessToken, clearAuth, getAuth, isGuest, clearGuest } from "@/lib/auth";
 import { STORAGE_KEYS } from "@/lib/storage";
@@ -40,6 +39,7 @@ import { useSettings } from "@/components/ui/Settings";
 import { ConfettiEffect, GlowOrbs, NeonBackground } from "@/components/ui/Effects";
 import { validatePredData } from "@/lib/api/predictions";
 import { RealtimeResults, RealtimeBadge } from "@/components/RealtimeResults";
+import BettingSimulator from "@/components/predictions/BettingSimulator";
 import type { SavedPrediction, NumeroItem, ResultadoControl, DrawData, BacktestItem } from "@/lib/types/client";
 import "./predictions.css";
 
@@ -1185,7 +1185,16 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               </button>
             ))}
           </div>
-          <LiveSorteo turno={so} />
+          {rankingData.length > 0 && (
+            <BettingSimulator
+              predictions={rankingData.map((r, i) => ({
+                numero: r.numero,
+                score: r.score || 0.5,
+                rank: i + 1,
+              }))}
+              turno={so}
+            />
+          )}
           <button className="btn3d btn-gen" onClick={() => { sound.whoosh(); gen(); }} disabled={ld} style={{ opacity: ld ? 0.6 : 1 }}>
             {ld ? "⏳ Analizando datos..." : "⚡ Generar Análisis Ahora"}
           </button>
