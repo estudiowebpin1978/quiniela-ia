@@ -8,7 +8,7 @@
 import { NextRequest } from "next/server"
 import { ImageResponse } from "next/og"
 
-export const runtime = "edge"
+export const runtime = "nodejs"
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" },

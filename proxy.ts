@@ -4,47 +4,12 @@ function isUuid(v: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 }
 
-// Protected page routes that require authentication.
-// Note: Session validation is done client-side (localStorage JWT) since
-// Supabase auth tokens are stored in localStorage, not cookies.
-// Proxy can only do lightweight checks; full auth is in page components.
-const PROTECTED_ROUTES = ["/predictions", "/admin"];
-
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  const res = NextResponse.next();
-
-  // --- Security headers ---
-  res.headers.set("X-Content-Type-Options", "nosniff");
-  res.headers.set("X-Frame-Options", "DENY");
-  res.headers.set("X-XSS-Protection", "1; mode=block");
-  res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
-  res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains, preload");
-
-  // CSP — permissive enough for inline styles/scripts used by Next.js
-  res.headers.set(
-    "Content-Security-Policy",
-    "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-    "style-src 'self' 'unsafe-inline'; " +
-    "img-src 'self' data: https:; " +
-    "font-src 'self' data:; " +
-    "connect-src 'self' https://*.supabase.co https://*.vercel.app; " +
-    "frame-ancestors 'none'"
-  );
-
-  // --- Protected page routes: add no-cache header to prevent stale auth state ---
-  if (PROTECTED_ROUTES.some(route => pathname.startsWith(route))) {
-    res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
-    res.headers.set("Pragma", "no-cache");
-  }
-
-  // --- API route protection ---
+  // --- API route protection only (security headers moved to next.config.js) ---
   if (pathname.startsWith("/api/")) {
     // Block secret in query param when there's no other auth header
-    // Exception: if the secret matches CRON_SECRET, allow through (route handlers validate themselves)
     const secretParam = req.nextUrl.searchParams.get("secret");
     if (secretParam) {
       const hasAuth = !!req.headers.get("authorization");
@@ -69,15 +34,11 @@ export function proxy(req: NextRequest) {
     }
   }
 
-  return res;
+  return NextResponse.next();
 }
 
 export const config = {
   matcher: [
     "/api/:path*",
-    "/predictions",
-    "/admin",
-    "/login",
-    "/eliminar-cuenta",
   ],
 };
