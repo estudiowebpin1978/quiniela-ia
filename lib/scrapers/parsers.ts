@@ -1,12 +1,13 @@
 /**
- * Quiniela parsers for 4 scraping sources.
+ * Quiniela parsers for 5 scraping sources.
  * Each parser returns ScrapeResult with 20-number array or null on failure.
  *
  * Sources:
  *   1. loteriadelaciudad.gob.ar  — Official API (POST, HTML response)
  *   2. quinielanacional1.com.ar   — Primary HTML scraper
  *   3. quinieleando.com.ar        — Fallback HTML scraper
- *   4. quiniela22.com             — Cross-validation (cabeza only)
+ *   4. ruta1000.com.ar            — Fallback HTML scraper (simple table)
+ *   5. quiniela22.com             — Cross-validation (cabeza only)
  */
 
 import { ScrapeResult, TurnoType, GAME_ID } from "./types"
@@ -235,7 +236,62 @@ export async function parseQuinieleando(
   return null
 }
 
-// ─── Source 4: Quiniela22 (Cabeza cross-validation only) ─────────────────────
+// ─── Source 4: Ruta1000 (Fallback HTML) ───────────────────────────────────────
+// HTML with <td> cells containing 4-digit numbers, turno sections
+export async function parseRuta1000(
+  _fechaISO: string,
+  _fechaUrl: string,
+  turno: TurnoType
+): Promise<ScrapeResult | null> {
+  const start = Date.now()
+  try {
+    const html = await (
+      await fetch("https://quinieladelaciudad.ruta1000.com.ar/", {
+        headers: { "User-Agent": rotationUA(), Accept: "text/html" },
+        signal: AbortSignal.timeout(8000),
+      })
+    ).text()
+
+    const turnoMap: Record<TurnoType, string> = {
+      Previa: "LA PREVIA",
+      Primera: "LA PRIMERA",
+      Matutina: "LA MATUTINA",
+      Vespertina: "LA VESPERTINA",
+      Nocturna: "LA NOCTURNA",
+    }
+
+    const turnoHeader = turnoMap[turno]
+    const headerIdx = html.indexOf(turnoHeader)
+    if (headerIdx < 0) return null
+
+    // Find the next turno header to delimit the section
+    const nextHeaders = Object.values(turnoMap)
+      .map((h) => html.indexOf(h, headerIdx + turnoHeader.length))
+      .filter((i) => i > headerIdx)
+    const endIdx = nextHeaders.length > 0 ? Math.min(...nextHeaders) : headerIdx + 3000
+
+    const section = html.substring(headerIdx, endIdx)
+
+    // Extract 4-digit numbers from <td> cells
+    const tdRx = /<td[^>]*>\s*(\d{4})\s*<\/td>/gi
+    const nums = extractNums(section, tdRx)
+
+    if (nums.length >= 5) {
+      return {
+        numbers: nums,
+        source: "ruta1000.com.ar",
+        cabezaMatch: null,
+        duration: Date.now() - start,
+        retries: 0,
+      }
+    }
+  } catch (e) {
+    logger.debug("[scraper] parseRuta1000 failed", { error: String(e) })
+  }
+  return null
+}
+
+// ─── Source 5: Quiniela22 (Cabeza cross-validation only) ─────────────────────
 // Returns only the cabeza (first number) for cross-validation
 export async function parseQuiniela22Cabeza(
   _fechaISO: string,

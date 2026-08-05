@@ -1,11 +1,12 @@
 /**
- * Orchestrator: cascading fallback across 4 sources with retry + exponential backoff.
+ * Orchestrator: cascading fallback across 5 sources with retry + exponential backoff.
  *
  * Priority order:
  *   1. loteriadelaciudad.gob.ar  (official API)
  *   2. quinielanacional1.com.ar   (primary HTML)
  *   3. quinieleando.com.ar        (fallback HTML)
- *   4. quiniela22.com             (cabeza cross-validation only)
+ *   4. ruta1000.com.ar            (fallback HTML - simple table)
+ *   5. quiniela22.com             (cabeza cross-validation only)
  *
  * Each source is tried with up to 2 attempts (exponential backoff).
  * If a source returns < 20 numbers, cascade to the next.
@@ -24,6 +25,7 @@ import {
   parseLoteriaOficial,
   parseQuinielaNacional1,
   parseQuinieleando,
+  parseRuta1000,
   verifyCabeza,
 } from "./parsers"
 import logger from "@/lib/logger"
@@ -36,6 +38,7 @@ const PARSERS: { fn: ParserFn; name: string }[] = [
   { fn: parseLoteriaOficial, name: "loteria-ciudad.gob.ar" },
   { fn: parseQuinielaNacional1, name: "quinielanacional1.com.ar" },
   { fn: parseQuinieleando, name: "quinieleando.com.ar" },
+  { fn: parseRuta1000, name: "ruta1000.com.ar" },
 ]
 
 function track(stats: SourceStats, src: string, ok: boolean, duration: number): void {
