@@ -46,8 +46,9 @@ async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
 async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const supabase = getSupabaseAdmin()
+    const jurisdiccion = ["Primera", "Nocturna"].includes(turno) ? "provincia" : "nacional"
     const { data, error } = await supabase.from("draws").upsert(
-      { date: fechaISO, turno, numbers: nums, source, game_id: GAME_ID },
+      { date: fechaISO, turno, numbers: nums, source, game_id: GAME_ID, jurisdiccion },
       { onConflict: "date,turno,game_id" }
     )
     if (error) {
