@@ -372,7 +372,8 @@ export async function GET(req: NextRequest) {
       advanced_analytics: {
         entropy: null, survival: null, interTurno: null,
         genetic: null, cachedAnalytics: null,
-      }
+      },
+      dynamic_weights: advancedResult.data?.factor_weights || null,
     },
     numeros,
     totalSorteos,

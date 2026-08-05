@@ -24,6 +24,26 @@
     {
       "path": "/api/cron-scrape?turno=nocturna",
       "schedule": "15 0 * * 1-6"
+    },
+    {
+      "path": "/api/cron-feedback?turno=previa",
+      "schedule": "30 13 * * 1-6"
+    },
+    {
+      "path": "/api/cron-feedback?turno=primera",
+      "schedule": "30 15 * * 1-6"
+    },
+    {
+      "path": "/api/cron-feedback?turno=matutina",
+      "schedule": "30 18 * * 1-6"
+    },
+    {
+      "path": "/api/cron-feedback?turno=vespertina",
+      "schedule": "30 21 * * 1-6"
+    },
+    {
+      "path": "/api/cron-feedback?turno=nocturna",
+      "schedule": "30 0 * * 1-6"
     }
   ]
 }

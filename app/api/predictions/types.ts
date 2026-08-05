@@ -98,6 +98,7 @@ export interface DebugPayload {
     topNumeros: CDMTopItem[]
   }
   advanced_analytics: AdvancedAnalytics
+  dynamic_weights: Record<string, number> | null
 }
 
 // ── Score Item ───────────────────────────────────────────────────────
