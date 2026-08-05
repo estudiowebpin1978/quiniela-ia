@@ -44,6 +44,10 @@
     {
       "path": "/api/cron-feedback?turno=nocturna",
       "schedule": "30 0 * * 1-6"
+    },
+    {
+      "path": "/api/cron-learning",
+      "schedule": "0 3 * * 0"
     }
   ]
 }
