@@ -7,10 +7,10 @@ function isUuid(v: string): boolean {
 // Protected page routes that require authentication.
 // Note: Session validation is done client-side (localStorage JWT) since
 // Supabase auth tokens are stored in localStorage, not cookies.
-// Middleware can only do lightweight checks; full auth is in page components.
+// Proxy can only do lightweight checks; full auth is in page components.
 const PROTECTED_ROUTES = ["/predictions", "/admin"];
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const res = NextResponse.next();
