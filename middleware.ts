@@ -4,12 +4,11 @@ function isUuid(v: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 }
 
-export function proxy(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // --- API route protection only (security headers moved to next.config.js) ---
+  // --- API route protection ---
   if (pathname.startsWith("/api/")) {
-    // Block secret in query param when there's no other auth header
     const secretParam = req.nextUrl.searchParams.get("secret");
     if (secretParam) {
       const hasAuth = !!req.headers.get("authorization");
@@ -25,7 +24,6 @@ export function proxy(req: NextRequest) {
       }
     }
 
-    // Validate UUID format on common path params
     const segments = pathname.split("/");
     for (const seg of segments) {
       if (seg.length === 36 && seg.includes("-") && !isUuid(seg)) {

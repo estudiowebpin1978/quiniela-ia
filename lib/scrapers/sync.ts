@@ -92,6 +92,7 @@ async function saveDraw(
 ): Promise<boolean> {
   try {
     const supabase = getSupabaseAdmin()
+    const jurisdiccion = ["Primera", "Nocturna"].includes(turno) ? "provincia" : "nacional"
     const { error } = await supabase.from("draws").upsert(
       {
         date: fechaISO,
@@ -99,6 +100,7 @@ async function saveDraw(
         numbers: nums,
         source,
         game_id: GAME_ID,
+        jurisdiccion,
       },
       { onConflict: "date,turno,game_id" }
     )
