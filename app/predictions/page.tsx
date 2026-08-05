@@ -39,6 +39,7 @@ import { useSound } from "@/lib/sound/audio-manager";
 import { useSettings } from "@/components/ui/Settings";
 import { ConfettiEffect, GlowOrbs, NeonBackground } from "@/components/ui/Effects";
 import { validatePredData } from "@/lib/api/predictions";
+import { RealtimeResults, RealtimeBadge } from "@/components/RealtimeResults";
 import type { SavedPrediction, NumeroItem, ResultadoControl, DrawData, BacktestItem } from "@/lib/types/client";
 import "./predictions.css";
 
@@ -897,6 +898,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   return (
     <>
       <AgeGate />
+      <RealtimeResults />
       <NeonBackground intensity={settings.particlesEnabled ? "low" : "off"} />
       <GlowOrbs />
       <ConfettiEffect active={showConfetti} />
