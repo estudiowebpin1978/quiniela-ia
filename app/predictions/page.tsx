@@ -483,7 +483,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         }).then(() => { window.dispatchEvent(new Event("gamification-update")) }).catch(() => {})
         fetch("/api/community", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
           body: JSON.stringify({
             turno: so,
             topNumbers: (validatedPredData?.numeros || []).slice(0, 10).map((n) => (n as Record<string, unknown>).num || (n as Record<string, unknown>).numero),
