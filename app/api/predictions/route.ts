@@ -131,7 +131,8 @@ export async function GET(req: NextRequest) {
       .from("advanced_analysis")
       .select("top_numeros, factor_weights")
       .eq("turno", turnoCanonical)
-      .eq("analysis_date", todayArgentina)
+      .order("analysis_date", { ascending: false })
+      .limit(1)
       .maybeSingle(),
   ])
 
