@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
 
   // ── 2. If no cache for today, fire background refresh (non-blocking) ──
   if (!cached || cacheError) {
-    supabaseAdmin.rpc('refresh_cached_predictions', { turno_objetivo: turnoCanonical }).catch(() => {})
+    supabaseAdmin.rpc('refresh_cached_predictions', { turno_objetivo: turnoCanonical }).then(() => {}, () => {})
 
     return NextResponse.json({
       error: `Sin datos缓存ados para turno ${turnoQuery}. Refrescando... intentá de nuevo en 3 segundos.`,
