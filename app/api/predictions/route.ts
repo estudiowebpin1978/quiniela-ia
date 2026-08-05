@@ -199,30 +199,47 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3/4 cifras via TypeScript motor (premium only)
+    // 3/4 cifras via lightweight SQL (premium only, no heavy TS motor)
     try {
+      // 3 cifras: query last 150 draws for this turno, count all 3-digit sequences
       const { data: rawRows } = await supabaseAdmin
         .from("draws")
-        .select("date, turno, numbers")
+        .select("numbers")
         .ilike("turno", `%${turnoCanonical}%`)
         .order("date", { ascending: false })
         .limit(150)
 
       if (rawRows && rawRows.length > 0) {
-        const sorteos = rawRows
-          .filter((r: { numbers: number[] }) => Array.isArray(r.numbers) && r.numbers.length >= 20)
-          .map((r: { date: string; turno: string; numbers: number[] }) => ({
-            fecha: r.date,
-            turno: r.turno || turnoCanonical,
-            numbers: r.numbers.map(Number).filter((n: number) => !isNaN(n) && n >= 0 && n <= 9999)
-          }))
+        // Count 3-digit frequencies: "019" means draws containing 01 then 19 adjacent
+        const freq3 = new Map<string, number>()
+        const freq4 = new Map<string, number>()
 
-        if (sorteos.length > 0) {
-          const { ejecutarAnalisisCompleto } = await import("@/lib/analisis/motor")
-          const analisisAv = ejecutarAnalisisCompleto(sorteos, { topNRanking: 15 })
-          pred3 = analisisAv.recomendaciones.tresCifras.slice(0, 10).map((r: { numero: string }) => r.numero.padStart(3, '0'))
-          pred4 = analisisAv.recomendaciones.cuatroCifras.slice(0, 10).map((r: { numero: string }) => r.numero.padStart(4, '0'))
+        for (const row of rawRows) {
+          if (!Array.isArray(row.numbers) || row.numbers.length < 5) continue
+          const nums = row.numbers.map((n: number) => pad(n))
+
+          // 3 cifras: first 3 digits of each number (pad leading zero)
+          for (const n of nums) {
+            const key3 = n.substring(0, 3)
+            freq3.set(key3, (freq3.get(key3) || 0) + 1)
+          }
+
+          // 4 cifras: pairs of adjacent numbers
+          for (let i = 0; i < nums.length - 1; i++) {
+            const key4 = nums[i].substring(0, 2) + nums[i + 1].substring(0, 2)
+            freq4.set(key4, (freq4.get(key4) || 0) + 1)
+          }
         }
+
+        pred3 = [...freq3.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10)
+          .map(([num]) => num)
+
+        pred4 = [...freq4.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10)
+          .map(([num]) => num)
       }
     } catch {}
   }
