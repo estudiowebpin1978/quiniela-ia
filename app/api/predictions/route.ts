@@ -182,8 +182,6 @@ export async function GET(req: NextRequest) {
 
   const cachedRows: CachedRow[] = Array.isArray(cached.numeros) ? cached.numeros : []
   const advancedRows: AdvancedRow[] = Array.isArray(advancedResult.data?.top_numeros) ? advancedResult.data.top_numeros : []
-  const advancedError = advancedResult.error?.message || null
-  const advancedDataExists = !!advancedResult.data
   const totalSorteos = cached.total_sorteos_analizados || 0
 
   // Build lookup map: num_id -> advanced 12-factor data
@@ -369,9 +367,6 @@ export async function GET(req: NextRequest) {
       total_numeros: totalSorteos * 20,
       determinista: true,
       sorteos_analizados: totalSorteos,
-      advanced_source: advancedRows.length,
-      advanced_error: advancedError,
-      advanced_data_exists: advancedDataExists,
       sync: null,
       cdm_model: { activo: false, topNumeros: [] },
       advanced_analytics: {
