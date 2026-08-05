@@ -117,19 +117,29 @@ export async function GET(req: NextRequest) {
   const { getSupabaseAdmin } = await import('@/lib/supabase-client')
   const supabaseAdmin = getSupabaseAdmin()
 
-  // ── 1. Try cached_predictions first (instant < 50ms) ───────
+  // ── 1. Read cached (4-factor fast) + advanced (12-factor) in parallel ──
   const todayArgentina = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
 
-  let { data: cached, error: cacheError } = await supabaseAdmin
-    .from("cached_predictions")
-    .select("numeros, redoblona, total_sorteos_analizados, calculated_at")
-    .eq("turno", turnoCanonical)
-    .eq("prediction_date", todayArgentina)
-    .maybeSingle()
+  const [cachedResult, advancedResult] = await Promise.all([
+    supabaseAdmin
+      .from("cached_predictions")
+      .select("numeros, redoblona, total_sorteos_analizados, calculated_at")
+      .eq("turno", turnoCanonical)
+      .eq("prediction_date", todayArgentina)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("advanced_analysis")
+      .select("top_numeros, factor_weights")
+      .eq("turno", turnoCanonical)
+      .eq("analysis_date", todayArgentina)
+      .maybeSingle(),
+  ])
+
+  const cached = cachedResult.data
+  const cacheError = cachedResult.error
 
   // ── 2. If no cache for today, fire background refresh (non-blocking) ──
   if (!cached || cacheError) {
-    // Fire and forget — don't await, return 503 immediately
     supabaseAdmin.rpc('refresh_cached_predictions', { turno_objetivo: turnoCanonical }).catch(() => {})
 
     return NextResponse.json({
@@ -138,9 +148,22 @@ export async function GET(req: NextRequest) {
     }, { status: 503 })
   }
 
-  // ── 3. Parse RPC results (12-factor engine) ─────────────────
-  interface RPCRow {
+  // ── 3. Parse results from both tables ───────────────────────
+  interface CachedRow {
     numero: number
+    puntaje_total: number
+    f_calor: number
+    f_demora: number
+    f_afinidad: number
+    f_markov: number
+    desglose_calor?: number
+    desglose_demora?: number
+    desglose_turno?: number
+    desglose_markov?: number
+  }
+
+  interface AdvancedRow {
+    num_id: number
     puntaje_total: number
     f_calor: number
     f_demora: number
@@ -154,48 +177,76 @@ export async function GET(req: NextRequest) {
     f_correlation: number
     f_seasonal: number
     f_montecarlo: number
-    // Legacy field names from old engine
-    desglose_calor?: number
-    desglose_demora?: number
-    desglose_turno?: number
-    desglose_markov?: number
   }
 
-  const rpcRows: RPCRow[] = Array.isArray(cached.numeros) ? cached.numeros : []
+  const cachedRows: CachedRow[] = Array.isArray(cached.numeros) ? cached.numeros : []
+  const advancedRows: AdvancedRow[] = Array.isArray(advancedResult.data?.top_numeros) ? advancedResult.data.top_numeros : []
   const totalSorteos = cached.total_sorteos_analizados || 0
 
-  // ── 4. Build pred2 (2 cifras) from RPC results ──────────────
-  const pred2 = rpcRows.slice(0, 10).map((r: RPCRow) => pad(r.numero))
+  // Build lookup map: num_id -> advanced 12-factor data
+  const advancedMap = new Map<number, AdvancedRow>()
+  for (const row of advancedRows) {
+    advancedMap.set(row.num_id, row)
+  }
 
-  // ── 5. Build numeros (TopNumero[]) with suenos + 12 factors ─
-  const numeros: TopNumero[] = rpcRows.slice(0, 10).map((r: RPCRow, i: number) => ({
-    n: r.numero,
-    numero: pad(r.numero),
-    emoji: SUENOS[r.numero]?.emoji || "❓",
-    significado: SUENOS[r.numero]?.nombre || "",
-    score: r.puntaje_total / 100,
-    confianza: Math.min(95, Math.round(50 + r.puntaje_total * 0.45)),
-    rank: i + 1,
-    frecuencia: Math.round(r.f_calor || r.desglose_calor || 0),
-    factores: [
-      `Calor: ${(r.f_calor || r.desglose_calor || 0).toFixed(1)}%`,
-      `Demora: ${(r.f_demora || r.desglose_demora || 0).toFixed(1)}%`,
-      `Afinidad: ${(r.f_afinidad || r.desglose_turno || 0).toFixed(1)}%`,
-      `Markov: ${(r.f_markov || r.desglose_markov || 0).toFixed(1)}%`,
-      `Bayesian: ${(r.f_bayesian || 0).toFixed(1)}%`,
-      `Entropía: ${(r.f_entropy || 0).toFixed(1)}%`,
-      `Supervivencia: ${(r.f_survival || 0).toFixed(1)}%`,
-      `Cíclico: ${(r.f_cyclic || 0).toFixed(1)}%`,
-      `Drift: ${(r.f_drift || 0).toFixed(1)}%`,
-      `Correlación: ${(r.f_correlation || 0).toFixed(1)}%`,
-      `Estacional: ${(r.f_seasonal || 0).toFixed(1)}%`,
-      `MonteCarlo: ${(r.f_montecarlo || 0).toFixed(1)}%`,
-    ],
-  }))
+  // ── 4. Build pred2 (2 cifras) from cached results ───────────
+  const pred2 = cachedRows.slice(0, 10).map((r: CachedRow) => pad(r.numero))
+
+  // ── 5. Build numeros (TopNumero[]) merging 4-factor + 12-factor ─
+  const numeros: TopNumero[] = cachedRows.slice(0, 10).map((r: CachedRow, i: number) => {
+    const adv = advancedMap.get(r.numero)
+    const hasAdv = !!adv
+
+    // Use 12-factor scores when available, fallback to 4-factor
+    const fCalor = hasAdv ? adv.f_calor : (r.f_calor || r.desglose_calor || 0)
+    const fDemora = hasAdv ? adv.f_demora : (r.f_demora || r.desglose_demora || 0)
+    const fAfinidad = hasAdv ? adv.f_afinidad : (r.f_afinidad || r.desglose_turno || 0)
+    const fMarkov = hasAdv ? adv.f_markov : (r.f_markov || r.desglose_markov || 0)
+    const fBayesian = hasAdv ? adv.f_bayesian : 0
+    const fEntropy = hasAdv ? adv.f_entropy : 0
+    const fSurvival = hasAdv ? adv.f_survival : 0
+    const fCyclic = hasAdv ? adv.f_cyclic : 0
+    const fDrift = hasAdv ? adv.f_drift : 0
+    const fCorrelation = hasAdv ? adv.f_correlation : 0
+    const fSeasonal = hasAdv ? adv.f_seasonal : 0
+    const fMontecarlo = hasAdv ? adv.f_montecarlo : 0
+
+    // Score: use advanced puntaje_total when available
+    const score = hasAdv ? adv.puntaje_total : r.puntaje_total
+
+    return {
+      n: r.numero,
+      numero: pad(r.numero),
+      emoji: SUENOS[r.numero]?.emoji || "❓",
+      significado: SUENOS[r.numero]?.nombre || "",
+      score: (score || 0) / 100,
+      confianza: Math.min(95, Math.round(50 + (score || 0) * 0.45)),
+      rank: i + 1,
+      frecuencia: Math.round(fCalor),
+      factores: [
+        `Calor: ${fCalor.toFixed(1)}%`,
+        `Demora: ${fDemora.toFixed(1)}%`,
+        `Afinidad: ${fAfinidad.toFixed(1)}%`,
+        `Markov: ${fMarkov.toFixed(1)}%`,
+        `Bayesian: ${fBayesian.toFixed(1)}%`,
+        `Entropía: ${fEntropy.toFixed(1)}%`,
+        `Supervivencia: ${fSurvival.toFixed(1)}%`,
+        `Cíclico: ${fCyclic.toFixed(1)}%`,
+        `Drift: ${fDrift.toFixed(1)}%`,
+        `Correlación: ${fCorrelation.toFixed(1)}%`,
+        `Estacional: ${fSeasonal.toFixed(1)}%`,
+        `MonteCarlo: ${fMontecarlo.toFixed(1)}%`,
+      ],
+      ...(hasAdv ? {
+        bayesianConfidence: fBayesian,
+        bayesianPosterior: fBayesian / 100,
+      } : {}),
+    }
+  })
 
   // ── 6. Confidence from average of top 10 ────────────────────
-  const confidence = rpcRows.length > 0
-    ? Math.round(rpcRows.slice(0, 10).reduce((sum: number, r: RPCRow) => sum + r.puntaje_total, 0) / Math.min(10, rpcRows.length))
+  const confidence = numeros.length > 0
+    ? Math.round(numeros.slice(0, 10).reduce((sum, n) => sum + (n.score * 100), 0) / Math.min(10, numeros.length))
     : 50
 
   // ── 7. Redoblona (premium only) ─────────────────────────────
@@ -259,11 +310,11 @@ export async function GET(req: NextRequest) {
   }
 
   // ── 8. Heatmap ──────────────────────────────────────────────
-  const heatmap: HeatmapItem[] = rpcRows.slice(0, 10).map((r: RPCRow) => ({
-    n: r.numero,
-    f: Math.round(r.f_calor || r.desglose_calor || 0),
-    s: SUENOS[r.numero] || { emoji: "❓", nombre: "" },
-    pct: r.f_calor || r.desglose_calor || 0,
+  const heatmap: HeatmapItem[] = numeros.map((num) => ({
+    n: num.n,
+    f: num.frecuencia,
+    s: SUENOS[num.n] || { emoji: "❓", nombre: "" },
+    pct: num.score * 100,
   }))
 
   // ── 9. Stats ────────────────────────────────────────────────
@@ -273,10 +324,10 @@ export async function GET(req: NextRequest) {
     numeroMasFrecuente: numeros.length > 0
       ? { numero: numeros[0].numero, frecuencia: numeros[0].frecuencia, significado: numeros[0].significado }
       : { numero: "00", frecuencia: 0, significado: "" },
-    terminacionesMasFrecuentes: rpcRows.slice(0, 5).map((r: RPCRow) => ({
-      terminacion: r.numero,
-      frecuencia: Math.round(r.f_calor || r.desglose_calor || 0),
-      score: r.puntaje_total.toFixed(2),
+    terminacionesMasFrecuentes: numeros.slice(0, 5).map((n) => ({
+      terminacion: n.n,
+      frecuencia: n.frecuencia,
+      score: (n.score * 100).toFixed(2),
     })),
   }
 
@@ -310,8 +361,8 @@ export async function GET(req: NextRequest) {
     aiProvider: aiSummary?.provider || null,
     debug: {
       elapsed_ms: Date.now() - t0,
-      factores_aplicados: 4,
-      motores_activos: 1,
+      factores_aplicados: advancedRows.length > 0 ? 12 : 4,
+      motores_activos: advancedRows.length > 0 ? 12 : 4,
       total_numeros: totalSorteos * 20,
       determinista: true,
       sorteos_analizados: totalSorteos,
