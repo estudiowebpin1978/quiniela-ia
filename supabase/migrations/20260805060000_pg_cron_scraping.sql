@@ -13,14 +13,13 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   secret TEXT := 'MDM2ZDVjOGItMzk4Yi00Mjk2LTlmNmYtYjA1OTJkNWQwNGFm';
-  result TEXT;
+  req_id BIGINT;
 BEGIN
-  SELECT content INTO result
-  FROM net.http_get(
+  req_id := net.http_get(
     url := 'https://quiniela-ia-two.vercel.app/api/cron-scrape?turno=' || LOWER(turno) || '&secret=' || secret,
     timeout_milliseconds := 60000
   );
-  RAISE NOTICE 'Scrape % result: %', turno, result;
+  RAISE NOTICE 'Scrape %: request_id=%', turno, req_id;
 END;
 $$;
 
