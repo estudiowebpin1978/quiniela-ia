@@ -246,6 +246,7 @@ export async function GET(req: NextRequest) {
         bayesianConfidence: fBayesian,
         bayesianPosterior: fBayesian / 100,
       } : {}),
+      highConfidence: (score || 0) > 90,
     }
   })
 

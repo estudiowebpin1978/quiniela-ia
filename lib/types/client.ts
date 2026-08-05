@@ -17,6 +17,7 @@ export interface NumeroItem {
   factores?: Record<string, number> | string[]
   n?: number
   num?: string
+  highConfidence?: boolean
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

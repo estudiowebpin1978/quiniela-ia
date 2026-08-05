@@ -47,10 +47,19 @@ export default function NumberGrid({
         {predictions.slice(0, 10).map((p, i) => {
           const r = ranking?.find((r) => r.numero === p.numero)
           const isCabeza = i === 0
+          const isHighConf = p.highConfidence && userRole === "free"
           const post = r?.bayesianPosterior ? (Number(r.bayesianPosterior) * 100).toFixed(2) + "%" : ""
           return (
             <div className="cd" key={i} onClick={() => onNumberClick(r || p)} style={{ cursor: "pointer", position: "relative" }}>
               {isCabeza && <span className="cabeza-badge">CABEZA</span>}
+              {isHighConf && (
+                <span style={{
+                  position: "absolute", top: 4, right: 4, fontSize: 14, zIndex: 5,
+                  background: "linear-gradient(135deg, #f59e0b, #f97316)", borderRadius: "50%",
+                  width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center",
+                  boxShadow: "0 0 8px rgba(245,158,11,0.5)"
+                }}>🔒</span>
+              )}
               <div className="cr2">#{i + 1}</div>
               <div className="ce">{getEmoji(p.numero)}</div>
               <div className="cn">{p.numero}</div>

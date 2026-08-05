@@ -130,6 +130,7 @@ export interface TopNumero {
   factores: string[]
   bayesianConfidence?: number
   bayesianPosterior?: number
+  highConfidence?: boolean
 }
 
 // ── Heatmap ──────────────────────────────────────────────────────────
