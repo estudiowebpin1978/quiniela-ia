@@ -287,8 +287,15 @@ BEGIN
   SELECT COUNT(*) INTO total_draws FROM draws WHERE turno = turno_objetivo;
 
   -- Get dynamic weights
-  SELECT jsonb_object_agg(factor_name, weight) INTO dynamic_weights
-  FROM engine_factor_weights;
+  SELECT jsonb_build_object(
+    'calor', w_calor, 'demora', w_demora, 'afinidad', w_afinidad,
+    'markov', w_markov, 'bayesian', w_bayesian, 'entropy', w_entropy,
+    'survival', w_survival, 'cyclic', w_cyclic, 'drift', w_drift,
+    'correlation', w_correlation, 'seasonal', w_seasonal, 'montecarlo', w_montecarlo
+  ) INTO dynamic_weights
+  FROM engine_factor_weights
+  WHERE turno = turno_objetivo
+  LIMIT 1;
 
   -- Calculate Top 10 (4-factor fast for cache)
   SELECT jsonb_agg(row_to_json(t))
