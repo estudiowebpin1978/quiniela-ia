@@ -7,6 +7,9 @@
  *
  * "La Verdad Absoluta": mismo turno = mismos números para todos.
  * Solo cambia cuando un nuevo sorteo entra en la DB.
+ *
+ * ISR: revalidate cada 300s (5 min). Se invalida on-demand
+ * cuando cron-scrape guarda un nuevo sorteo.
  */
 
 import { NextRequest, NextResponse } from "next/server"
@@ -16,6 +19,7 @@ import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limiter"
 import type { PredictionResponse, TopNumero, HeatmapItem } from "./types"
 
 export const maxDuration = 30
+export const revalidate = 300 // ISR: 5 min cache
 
 const SUENOS: Record<number, { emoji: string; nombre: string }> = {
   0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" },
@@ -414,5 +418,11 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json(responsePayload)
+  return NextResponse.json(responsePayload, {
+    headers: {
+      "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+      "X-Prediction-Turno": turnoCanonical,
+      "X-Prediction-Date": todayArgentina,
+    },
+  })
 }

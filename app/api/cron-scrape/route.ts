@@ -165,6 +165,8 @@ export async function GET(req: NextRequest) {
           fecha: fechaISO, turno, cantidad: result.numbers.length,
           source: result.source, cabezaMatch: result.cabezaMatch
         })
+        // Invalidate ISR cache for predictions endpoint
+        revalidateTag("predictions", "max")
         getSupabaseAdmin().rpc('refresh_cached_predictions', { turno_objetivo: turno }).then(() => {}, () => {})
       } else {
         const errMsg = `${turno}: ${saveResult.error}`
