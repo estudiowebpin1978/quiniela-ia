@@ -127,32 +127,38 @@ export async function GET(req: NextRequest) {
     .eq("prediction_date", todayArgentina)
     .maybeSingle()
 
-  // ── 2. If no cache for today, trigger RPC and re-query ──────
+  // ── 2. If no cache for today, fire background refresh (non-blocking) ──
   if (!cached || cacheError) {
-    try {
-      await supabaseAdmin.rpc('refresh_cached_predictions', { turno_objetivo: turnoCanonical })
-      const { data: fresh } = await supabaseAdmin
-        .from("cached_predictions")
-        .select("numeros, redoblona, total_sorteos_analizados, calculated_at")
-        .eq("turno", turnoCanonical)
-        .eq("prediction_date", todayArgentina)
-        .maybeSingle()
-      if (fresh) cached = fresh
-    } catch {}
+    // Fire and forget — don't await, return 503 immediately
+    supabaseAdmin.rpc('refresh_cached_predictions', { turno_objetivo: turnoCanonical }).catch(() => {})
+
+    return NextResponse.json({
+      error: `Sin datos缓存ados para turno ${turnoQuery}. Refrescando... intentá de nuevo en 3 segundos.`,
+      refreshing: true, turno: turnoQuery,
+    }, { status: 503 })
   }
 
-  if (!cached) {
-    return NextResponse.json({ error: `Sin datos calculados para turno ${turnoQuery}. Esperá a que el CRON complete el cálculo.` }, { status: 503 })
-  }
-
-  // ── 3. Parse RPC results ────────────────────────────────────
+  // ── 3. Parse RPC results (12-factor engine) ─────────────────
   interface RPCRow {
     numero: number
     puntaje_total: number
-    desglose_calor: number
-    desglose_demora: number
-    desglose_turno: number
-    desglose_markov: number
+    f_calor: number
+    f_demora: number
+    f_afinidad: number
+    f_markov: number
+    f_bayesian: number
+    f_entropy: number
+    f_survival: number
+    f_cyclic: number
+    f_drift: number
+    f_correlation: number
+    f_seasonal: number
+    f_montecarlo: number
+    // Legacy field names from old engine
+    desglose_calor?: number
+    desglose_demora?: number
+    desglose_turno?: number
+    desglose_markov?: number
   }
 
   const rpcRows: RPCRow[] = Array.isArray(cached.numeros) ? cached.numeros : []
@@ -161,7 +167,7 @@ export async function GET(req: NextRequest) {
   // ── 4. Build pred2 (2 cifras) from RPC results ──────────────
   const pred2 = rpcRows.slice(0, 10).map((r: RPCRow) => pad(r.numero))
 
-  // ── 5. Build numeros (TopNumero[]) with suenos ──────────────
+  // ── 5. Build numeros (TopNumero[]) with suenos + 12 factors ─
   const numeros: TopNumero[] = rpcRows.slice(0, 10).map((r: RPCRow, i: number) => ({
     n: r.numero,
     numero: pad(r.numero),
@@ -170,12 +176,20 @@ export async function GET(req: NextRequest) {
     score: r.puntaje_total / 100,
     confianza: Math.min(95, Math.round(50 + r.puntaje_total * 0.45)),
     rank: i + 1,
-    frecuencia: Math.round(r.desglose_calor),
+    frecuencia: Math.round(r.f_calor || r.desglose_calor || 0),
     factores: [
-      `Calor: ${r.desglose_calor.toFixed(1)}%`,
-      `Demora: ${r.desglose_demora.toFixed(1)}%`,
-      `Afinidad: ${r.desglose_turno.toFixed(1)}%`,
-      `Markov: ${r.desglose_markov.toFixed(1)}%`,
+      `Calor: ${(r.f_calor || r.desglose_calor || 0).toFixed(1)}%`,
+      `Demora: ${(r.f_demora || r.desglose_demora || 0).toFixed(1)}%`,
+      `Afinidad: ${(r.f_afinidad || r.desglose_turno || 0).toFixed(1)}%`,
+      `Markov: ${(r.f_markov || r.desglose_markov || 0).toFixed(1)}%`,
+      `Bayesian: ${(r.f_bayesian || 0).toFixed(1)}%`,
+      `Entropía: ${(r.f_entropy || 0).toFixed(1)}%`,
+      `Supervivencia: ${(r.f_survival || 0).toFixed(1)}%`,
+      `Cíclico: ${(r.f_cyclic || 0).toFixed(1)}%`,
+      `Drift: ${(r.f_drift || 0).toFixed(1)}%`,
+      `Correlación: ${(r.f_correlation || 0).toFixed(1)}%`,
+      `Estacional: ${(r.f_seasonal || 0).toFixed(1)}%`,
+      `MonteCarlo: ${(r.f_montecarlo || 0).toFixed(1)}%`,
     ],
   }))
 
@@ -247,9 +261,9 @@ export async function GET(req: NextRequest) {
   // ── 8. Heatmap ──────────────────────────────────────────────
   const heatmap: HeatmapItem[] = rpcRows.slice(0, 10).map((r: RPCRow) => ({
     n: r.numero,
-    f: Math.round(r.desglose_calor),
+    f: Math.round(r.f_calor || r.desglose_calor || 0),
     s: SUENOS[r.numero] || { emoji: "❓", nombre: "" },
-    pct: r.desglose_calor,
+    pct: r.f_calor || r.desglose_calor || 0,
   }))
 
   // ── 9. Stats ────────────────────────────────────────────────
@@ -261,7 +275,7 @@ export async function GET(req: NextRequest) {
       : { numero: "00", frecuencia: 0, significado: "" },
     terminacionesMasFrecuentes: rpcRows.slice(0, 5).map((r: RPCRow) => ({
       terminacion: r.numero,
-      frecuencia: Math.round(r.desglose_calor),
+      frecuencia: Math.round(r.f_calor || r.desglose_calor || 0),
       score: r.puntaje_total.toFixed(2),
     })),
   }
@@ -323,13 +337,20 @@ export async function GET(req: NextRequest) {
     heatmap,
     stats,
     analysisInfo: {
-      metodo: `Engine PostgreSQL: Calor (25%) + Demora (35%) + Afinidad Turno (20%) + Markov (20%) — turno ${turnoCanonical.toUpperCase()}`,
+      metodo: `Engine Omega v3: 12-Factor Ensemble — ${turnoCanonical.toUpperCase()}`,
       motores: [
-        "1. Calor: frecuencia en últimos 100 sorteos de este turno (25%)",
-        "2. Demora: sorteos sin salir desde última aparición (35%)",
-        "3. Afinidad: frecuencia histórica total del turno (20%)",
-        "4. Markov: transiciones desde último número sorteado (20%)",
-        "5. Redoblona: matriz de co-ocurrencia premium",
+        "1. Calor: frecuencia en últimos 100 sorteos (12%)",
+        "2. Demora: atraso desde última aparición (14%)",
+        "3. Afinidad: frecuencia histórica del turno (8%)",
+        "4. Markov: transiciones desde último número (10%)",
+        "5. Bayesian: posterior Dirichlet-Multinomial (10%)",
+        "6. Entropía Shannon: predecibilidad del turno (8%)",
+        "7. Supervivencia: Kaplan-Meier overdue detection (10%)",
+        "8. Cíclico: periodicidad DFT (6%)",
+        "9. Drift: detección de cambio chi-cuadrado (8%)",
+        "10. Correlación: co-ocurrencia de pares (6%)",
+        "11. Estacional: patrones temporales (4%)",
+        "12. MonteCarlo: scoring con decaimiento exponencial (4%)",
       ],
       datosUtilizados: `${totalSorteos} sorteos analizados en PostgreSQL`,
       confianzaAvanzada: {
