@@ -168,6 +168,7 @@ export async function GET(req: NextRequest) {
         // Invalidate ISR cache for predictions endpoint
         revalidateTag("predictions", "max")
         getSupabaseAdmin().rpc('refresh_cached_predictions', { turno_objetivo: turno }).then(() => {}, () => {})
+        getSupabaseAdmin().rpc('refresh_cached_predictions_3_4', { turno_objetivo: turno }).then(() => {}, () => {})
       } else {
         const errMsg = `${turno}: ${saveResult.error}`
         logger.warn("cron-scrape: fallo al guardar", { fecha: fechaISO, turno, error: saveResult.error })

@@ -121,10 +121,10 @@ export async function GET(req: NextRequest) {
   const { getSupabaseAdmin } = await import('@/lib/supabase-client')
   const supabaseAdmin = getSupabaseAdmin()
 
-  // ── 1. Read cached (4-factor fast) + advanced (12-factor) in parallel ──
+  // ── 1. Read cached (4-factor fast) + advanced (12-factor) + 3/4 cifras in parallel ──
   const todayArgentina = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
 
-  const [cachedResult, advancedResult] = await Promise.all([
+  const [cachedResult, advancedResult, cached3Result, cached4Result] = await Promise.all([
     supabaseAdmin
       .from("cached_predictions")
       .select("numeros, redoblona, total_sorteos_analizados, calculated_at")
@@ -138,6 +138,18 @@ export async function GET(req: NextRequest) {
       .order("analysis_date", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabaseAdmin
+      .from("cached_predictions_3cifras")
+      .select("numeros, total_sorteos_analizados")
+      .eq("turno", turnoCanonical)
+      .eq("prediction_date", todayArgentina)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("cached_predictions_4cifras")
+      .select("numeros, total_sorteos_analizados")
+      .eq("turno", turnoCanonical)
+      .eq("prediction_date", todayArgentina)
+      .maybeSingle(),
   ])
 
   const cached = cachedResult.data
@@ -146,6 +158,7 @@ export async function GET(req: NextRequest) {
   // ── 2. If no cache for today, fire background refresh (non-blocking) ──
   if (!cached || cacheError) {
     supabaseAdmin.rpc('refresh_cached_predictions', { turno_objetivo: turnoCanonical }).then(() => {}, () => {})
+    supabaseAdmin.rpc('refresh_cached_predictions_3_4', { turno_objetivo: turnoCanonical }).then(() => {}, () => {})
 
     return NextResponse.json({
       error: `Sin datos缓存ados para turno ${turnoQuery}. Refrescando... intentá de nuevo en 3 segundos.`,
@@ -270,47 +283,15 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3/4 cifras via lightweight SQL (premium only, no heavy TS motor)
+    // 3/4 cifras from cached tables (factor-based analysis, all draws)
     try {
-      // 3 cifras: query last 150 draws for this turno, count all 3-digit sequences
-      const { data: rawRows } = await supabaseAdmin
-        .from("draws")
-        .select("numbers")
-        .ilike("turno", `%${turnoCanonical}%`)
-        .order("date", { ascending: false })
-        .limit(150)
-
-      if (rawRows && rawRows.length > 0) {
-        // Count 3-digit frequencies: "019" means draws containing 01 then 19 adjacent
-        const freq3 = new Map<string, number>()
-        const freq4 = new Map<string, number>()
-
-        for (const row of rawRows) {
-          if (!Array.isArray(row.numbers) || row.numbers.length < 5) continue
-          const nums = row.numbers.map((n: number) => pad(n))
-
-          // 3 cifras: first 3 digits of each number (pad leading zero)
-          for (const n of nums) {
-            const key3 = n.substring(0, 3)
-            freq3.set(key3, (freq3.get(key3) || 0) + 1)
-          }
-
-          // 4 cifras: pairs of adjacent numbers
-          for (let i = 0; i < nums.length - 1; i++) {
-            const key4 = nums[i].substring(0, 2) + nums[i + 1].substring(0, 2)
-            freq4.set(key4, (freq4.get(key4) || 0) + 1)
-          }
-        }
-
-        pred3 = [...freq3.entries()]
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 10)
-          .map(([num]) => num)
-
-        pred4 = [...freq4.entries()]
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 10)
-          .map(([num]) => num)
+      if (cached3Result.data && cached3Result.data.numeros) {
+        const rows3 = Array.isArray(cached3Result.data.numeros) ? cached3Result.data.numeros : []
+        pred3 = rows3.map((r: Record<string, unknown>) => String(r.numero).padStart(3, '0'))
+      }
+      if (cached4Result.data && cached4Result.data.numeros) {
+        const rows4 = Array.isArray(cached4Result.data.numeros) ? cached4Result.data.numeros : []
+        pred4 = rows4.map((r: Record<string, unknown>) => String(r.numero).padStart(4, '0'))
       }
     } catch {}
   }
