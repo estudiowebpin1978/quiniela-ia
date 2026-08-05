@@ -49,6 +49,7 @@ export interface OrchestratorResult {
   cabezaMatch: boolean | null
   duration: number
   attempts: SourceAttempt[]
+  consensusMethod?: "parallel_match" | "single_valid" | "tiebreak_majority" | "sequential_fallback"
 }
 
 export interface TurnoDetail {

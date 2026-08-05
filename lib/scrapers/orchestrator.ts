@@ -1,16 +1,20 @@
 /**
- * Orchestrator: cascading fallback across 5 sources with retry + exponential backoff.
+ * Orchestrator: parallel consensus across 5 sources with tiebreaker.
  *
  * Priority order:
  *   1. loteriadelaciudad.gob.ar  (official API)
  *   2. quinielanacional1.com.ar   (primary HTML)
- *   3. quinieleando.com.ar        (fallback HTML)
- *   4. ruta1000.com.ar            (fallback HTML - simple table)
+ *   3. quinieleando.com.ar        (fallback HTML - tiebreaker)
+ *   4. ruta1000.com.ar            (sequential fallback)
  *   5. quiniela22.com             (cabeza cross-validation only)
  *
- * Each source is tried with up to 2 attempts (exponential backoff).
- * If a source returns < 20 numbers, cascade to the next.
- * Cabeza cross-validation is performed after obtaining 20 numbers.
+ * Strategy:
+ *   - Sources 1 & 2 run in parallel (Promise.allSettled).
+ *   - If both succeed and top-5 match → consensus (fast path).
+ *   - If both succeed but diverge → source 3 as tiebreaker, majority wins.
+ *   - If only one succeeds → use it directly.
+ *   - If both fail → sequential fallback to source 4.
+ *   - Cabeza cross-validation after obtaining final result.
  */
 
 import {
@@ -33,6 +37,7 @@ import logger from "@/lib/logger"
 const FETCH_TIMEOUT = 8000
 const MAX_RETRIES = 1
 const BASE_DELAY = 2000
+const TOP_N_CONSENSUS = 5
 
 const PARSERS: { fn: ParserFn; name: string }[] = [
   { fn: parseLoteriaOficial, name: "loteria-ciudad.gob.ar" },
@@ -51,9 +56,24 @@ function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
 }
 
-/**
- * Try a single parser with retry + exponential backoff.
- */
+// ── Consensus helpers ──────────────────────────────────────────────────────
+
+function compareTopN(a: number[], b: number[], n: number = TOP_N_CONSENSUS): { match: boolean; matchedCount: number; details: string } {
+  const sliceA = a.slice(0, n)
+  const sliceB = b.slice(0, n)
+  let matched = 0
+  for (let i = 0; i < n; i++) {
+    if (sliceA[i] === sliceB[i]) matched++
+  }
+  return {
+    match: matched >= n,
+    matchedCount: matched,
+    details: `top-${n}: [${sliceA}] vs [${sliceB}] → ${matched}/${n} match`,
+  }
+}
+
+// ── Single parser with retry ───────────────────────────────────────────────
+
 async function tryParserWithRetry(
   fn: ParserFn,
   name: string,
@@ -120,10 +140,88 @@ async function tryParserWithRetry(
   }
 }
 
-/**
- * Main orchestrator: try each source in priority order, return first valid 20-number result.
- * Performs cabeza cross-validation after obtaining results.
- */
+// ── Parallel fetch (first 2 sources) ──────────────────────────────────────
+
+async function runParsersParallel(
+  parsers: { fn: ParserFn; name: string }[],
+  fechaISO: string,
+  fechaUrl: string,
+  turno: TurnoType,
+  stats: SourceStats,
+  budgetRemaining: number
+): Promise<{ results: (ScrapeResult | null)[]; attempts: SourceAttempt[] }> {
+  const start = Date.now()
+
+  const settled = await Promise.allSettled(
+    parsers.map(({ fn, name }) =>
+      tryParserWithRetry(fn, name, fechaISO, fechaUrl, turno, stats, budgetRemaining)
+    )
+  )
+
+  const results: (ScrapeResult | null)[] = []
+  const attempts: SourceAttempt[] = []
+
+  for (let i = 0; i < settled.length; i++) {
+    const outcome = settled[i]
+    if (outcome.status === "fulfilled") {
+      results.push(outcome.value.result)
+      attempts.push(outcome.value.attempt)
+    } else {
+      results.push(null)
+      attempts.push({
+        source: parsers[i].name,
+        ok: false,
+        duration: Date.now() - start,
+        numbersFound: 0,
+        error: outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
+      })
+    }
+  }
+
+  return { results, attempts }
+}
+
+// ── Cabeza cross-validation ────────────────────────────────────────────────
+
+async function validateCabeza(
+  result: ScrapeResult,
+  fechaISO: string,
+  fechaUrl: string,
+  turno: TurnoType,
+  sourceName: string,
+  gameSlug: string,
+  totalAttempts: SourceAttempt[]
+): Promise<OrchestratorResult> {
+  let cabezaMatch: boolean | null = null
+  if (gameSlug === "quiniela" && result.numbers.length > 0) {
+    try {
+      cabezaMatch = await verifyCabeza(fechaUrl, turno, result.numbers[0])
+    } catch {
+      // Cross-validation failure is non-fatal
+    }
+  }
+
+  if (cabezaMatch === false) {
+    logger.warn("orchestrator: cabeza mismatch, treating as non-fatal", {
+      fecha: fechaISO,
+      turno,
+      source: sourceName,
+      cabeza: result.numbers[0],
+      game: gameSlug,
+    })
+  }
+
+  return {
+    numbers: result.numbers,
+    source: sourceName,
+    cabezaMatch,
+    duration: 0, // caller fills
+    attempts: totalAttempts,
+  }
+}
+
+// ── Main orchestrator ──────────────────────────────────────────────────────
+
 export async function fetchWithFallback(
   fechaISO: string,
   fechaUrl: string,
@@ -133,78 +231,203 @@ export async function fetchWithFallback(
 ): Promise<OrchestratorResult> {
   const overallStart = Date.now()
   const BUDGET = 25000
-  const attempts: SourceAttempt[] = []
+  const allAttempts: SourceAttempt[] = []
 
-  for (const { fn, name } of PARSERS) {
-    const budgetRemaining = BUDGET - (Date.now() - overallStart)
-    if (budgetRemaining < 3000) {
-      attempts.push({
-        source: name,
-        ok: false,
-        duration: 0,
-        numbersFound: 0,
-        error: "budget exhausted",
+  // ── Step 1: Parallel fetch — sources 1 & 2 ────────────────────────────
+  const [primary, secondary] = PARSERS.slice(0, 2)
+  const budgetStep1 = BUDGET - (Date.now() - overallStart)
+
+  logger.info("orchestrator: parallel fetch started", {
+    fecha: fechaISO,
+    turno,
+    sources: [primary.name, secondary.name],
+  })
+
+  const { results: parallelResults, attempts: parallelAttempts } = await runParsersParallel(
+    [primary, secondary],
+    fechaISO,
+    fechaUrl,
+    turno,
+    stats,
+    budgetStep1
+  )
+  allAttempts.push(...parallelAttempts)
+
+  const [res1, res2] = parallelResults
+  const ok1 = res1 !== null && res1.numbers.length >= 20
+  const ok2 = res2 !== null && res2.numbers.length >= 20
+
+  // ── Both succeeded: check consensus ──────────────────────────────────
+  if (ok1 && ok2) {
+    const comparison = compareTopN(res1!.numbers, res2!.numbers)
+
+    if (comparison.match) {
+      // Fast path: parallel consensus
+      logger.info("orchestrator: parallel consensus", {
+        fecha: fechaISO,
+        turno,
+        src1: primary.name,
+        src2: secondary.name,
+        comparison: comparison.details,
+        duration: Date.now() - overallStart,
       })
-      break
+
+      const result = await validateCabeza(res1!, fechaISO, fechaUrl, turno, primary.name, gameSlug, allAttempts)
+      result.duration = Date.now() - overallStart
+      result.consensusMethod = "parallel_match"
+      return result
     }
 
-    const { result, attempt } = await tryParserWithRetry(
-      fn,
-      name,
+    // Divergence: need tiebreaker
+    logger.warn("orchestrator: parallel divergence", {
+      fecha: fechaISO,
+      turno,
+      src1: primary.name,
+      src2: secondary.name,
+      comparison: comparison.details,
+      action: "tiebreak",
+    })
+
+    // ── Step 2: Tiebreaker — source 3 ──────────────────────────────────
+    const tiebreaker = PARSERS[2]
+    const budgetStep2 = BUDGET - (Date.now() - overallStart)
+
+    if (budgetStep2 >= 3000) {
+      const { result: res3, attempt: attempt3 } = await tryParserWithRetry(
+        tiebreaker.fn,
+        tiebreaker.name,
+        fechaISO,
+        fechaUrl,
+        turno,
+        stats,
+        budgetStep2
+      )
+      allAttempts.push(attempt3)
+
+      const ok3 = res3 !== null && res3.numbers.length >= 20
+
+      if (ok3) {
+        const cmp3v1 = compareTopN(res3!.numbers, res1!.numbers)
+        const cmp3v2 = compareTopN(res3!.numbers, res2!.numbers)
+
+        // Majority: tiebreaker matches source 1 → source 1 wins
+        //            tiebreaker matches source 2 → source 2 wins
+        //            neither matches → source 1 wins (original priority)
+        const matchedSource = cmp3v1.matchedCount >= cmp3v2.matchedCount ? primary : secondary
+        const matchedResult = cmp3v1.matchedCount >= cmp3v2.matchedCount ? res1! : res2!
+
+        logger.info("orchestrator: tiebreak result", {
+          fecha: fechaISO,
+          turno,
+          tiebreaker: tiebreaker.name,
+          tiebreakerTop5: res3!.numbers.slice(0, 5),
+          src1Top5: res1!.numbers.slice(0, 5),
+          src2Top5: res2!.numbers.slice(0, 5),
+          matchWith: matchedSource.name,
+          matchScore: Math.max(cmp3v1.matchedCount, cmp3v2.matchedCount),
+          decision: `majority → ${matchedSource.name}`,
+          duration: Date.now() - overallStart,
+        })
+
+        const result = await validateCabeza(matchedResult, fechaISO, fechaUrl, turno, matchedSource.name, gameSlug, allAttempts)
+        result.duration = Date.now() - overallStart
+        result.consensusMethod = "tiebreak_majority"
+        return result
+      }
+
+      // Tiebreaker failed to return valid data — fall back to source 1
+      logger.warn("orchestrator: tiebreaker failed, falling back to source 1", {
+        fecha: fechaISO,
+        turno,
+        tiebreaker: tiebreaker.name,
+        error: attempt3.error,
+      })
+    }
+
+    // Fallback: source 1 wins by priority
+    const result = await validateCabeza(res1!, fechaISO, fechaUrl, turno, primary.name, gameSlug, allAttempts)
+    result.duration = Date.now() - overallStart
+    result.consensusMethod = "single_valid"
+    return result
+  }
+
+  // ── One succeeded: use it directly ────────────────────────────────────
+  if (ok1) {
+    logger.info("orchestrator: single valid (only primary)", {
+      fecha: fechaISO,
+      turno,
+      source: primary.name,
+      duration: Date.now() - overallStart,
+    })
+
+    const result = await validateCabeza(res1!, fechaISO, fechaUrl, turno, primary.name, gameSlug, allAttempts)
+    result.duration = Date.now() - overallStart
+    result.consensusMethod = "single_valid"
+    return result
+  }
+
+  if (ok2) {
+    logger.info("orchestrator: single valid (only secondary)", {
+      fecha: fechaISO,
+      turno,
+      source: secondary.name,
+      duration: Date.now() - overallStart,
+    })
+
+    const result = await validateCabeza(res2!, fechaISO, fechaUrl, turno, secondary.name, gameSlug, allAttempts)
+    result.duration = Date.now() - overallStart
+    result.consensusMethod = "single_valid"
+    return result
+  }
+
+  // ── Both failed: sequential fallback to source 4 ──────────────────────
+  logger.warn("orchestrator: parallel failed, sequential fallback", {
+    fecha: fechaISO,
+    turno,
+    reason: "both parallel sources failed",
+    src1Attempt: parallelAttempts[0],
+    src2Attempt: parallelAttempts[1],
+  })
+
+  const fallbackParser = PARSERS[3]
+  const budgetStep3 = BUDGET - (Date.now() - overallStart)
+
+  if (budgetStep3 >= 3000) {
+    const { result: fallbackResult, attempt: fallbackAttempt } = await tryParserWithRetry(
+      fallbackParser.fn,
+      fallbackParser.name,
       fechaISO,
       fechaUrl,
       turno,
       stats,
-      budgetRemaining
+      budgetStep3
     )
-    attempts.push(attempt)
+    allAttempts.push(fallbackAttempt)
 
-    if (result && result.numbers.length >= 20) {
-      let cabezaMatch: boolean | null = null
-      if (gameSlug === "quiniela" && result.numbers.length > 0) {
-        try {
-          cabezaMatch = await verifyCabeza(fechaUrl, turno, result.numbers[0])
-        } catch {
-          // Cross-validation failure is non-fatal
-        }
-      }
-
-      if (cabezaMatch === false) {
-        logger.warn("orchestrator: cabeza mismatch, treating as non-fatal", {
-          fecha: fechaISO,
-          turno,
-          source: name,
-          cabeza: result.numbers[0],
-          game: gameSlug,
-        })
-      }
-
-      logger.info("orchestrator: source succeeded", {
+    if (fallbackResult && fallbackResult.numbers.length >= 20) {
+      logger.info("orchestrator: sequential fallback succeeded", {
         fecha: fechaISO,
         turno,
-        source: name,
-        count: result.numbers.length,
-        cabezaMatch,
-        game: gameSlug,
+        source: fallbackParser.name,
+        count: fallbackResult.numbers.length,
         duration: Date.now() - overallStart,
       })
 
-      return {
-        numbers: result.numbers,
-        source: name,
-        cabezaMatch,
-        duration: Date.now() - overallStart,
-        attempts,
-      }
+      const result = await validateCabeza(fallbackResult, fechaISO, fechaUrl, turno, fallbackParser.name, gameSlug, allAttempts)
+      result.duration = Date.now() - overallStart
+      result.consensusMethod = "sequential_fallback"
+      return result
     }
   }
 
+  // ── All sources exhausted ─────────────────────────────────────────────
   logger.warn("orchestrator: all sources failed", {
     fecha: fechaISO,
     turno,
     game: gameSlug,
     duration: Date.now() - overallStart,
-    attempts: attempts.length,
+    attempts: allAttempts.length,
+    attemptSummary: allAttempts.map(a => `${a.source}:${a.ok ? "ok" : "fail"}`),
   })
 
   return {
@@ -212,6 +435,7 @@ export async function fetchWithFallback(
     source: "none",
     cabezaMatch: null,
     duration: Date.now() - overallStart,
-    attempts,
+    attempts: allAttempts,
+    consensusMethod: "sequential_fallback",
   }
 }
