@@ -525,7 +525,9 @@ $$;
 
 -- ── 6. Create verification queue RPCs ───────────────────────
 -- enqueue_verification: stores job in a table for async processing
-CREATE TABLE IF NOT EXISTS verification_queue (
+DROP FUNCTION IF EXISTS enqueue_verification(text);
+DROP TABLE IF EXISTS verification_queue;
+CREATE TABLE verification_queue (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   payload JSONB NOT NULL,
   status TEXT DEFAULT 'pending',
