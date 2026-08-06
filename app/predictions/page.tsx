@@ -235,6 +235,8 @@ function PageInner() {
   }
 
   const tkRef = useRef("");
+  const soRef = useRef(so);
+  soRef.current = so;
   const isAdminRef = useRef(false);
 
   useEffect(() => {
@@ -408,23 +410,24 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     setDn(false);
     setDt(null);
     try {
-      const predDate = fechaSorteo(so);
+      const currentTurno = soRef.current;
+      const predDate = fechaSorteo(currentTurno);
       const hoy = hoyArgentina();
       const artNow = ahoraArgentina();
       const diaSemana = artNow.getDay();
       const esFeriadoHoy = esFeriado(hoy);
       const esDomingo = diaSemana === 0;
-      const esSabadoPrevia = diaSemana === 6 && so === "Previa";
+      const esSabadoPrevia = diaSemana === 6 && currentTurno === "Previa";
       const noHaySorteoHoy = esFeriadoHoy || esDomingo || esSabadoPrevia;
 
       if (noHaySorteoHoy && predDate === hoy) {
         const motivo = esFeriadoHoy ? "feriado" : esDomingo ? "domingo" : "sábado (no hay Previa)";
-        setEr(`Hoy es ${motivo}, no hay sorteo ${so.toLowerCase()}. Elegí otro turno o esperá al próximo sorteo.`);
+        setEr(`Hoy es ${motivo}, no hay sorteo ${currentTurno.toLowerCase()}. Elegí otro turno o esperá al próximo sorteo.`);
         setLd(false);
         return;
       }
 
-      const url = "/api/predictions?sorteo=" + encodeURIComponent(so) + "&date=" + predDate + "&t=" + Date.now();
+      const url = "/api/predictions?sorteo=" + encodeURIComponent(currentTurno) + "&date=" + predDate + "&t=" + Date.now();
       const r = await fetch(url, {
         headers: { Authorization: "Bearer " + tkRef.current },
       });
@@ -480,18 +483,18 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         fetch("/api/gamification", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
-          body: JSON.stringify({ action: "analysis", turno: so }),
+          body: JSON.stringify({ action: "analysis", turno: currentTurno }),
         }).then(() => { window.dispatchEvent(new Event("gamification-update")) }).catch(() => {})
         fetch("/api/community", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
           body: JSON.stringify({
-            turno: so,
+            turno: currentTurno,
             topNumbers: (validatedPredData?.numeros || []).slice(0, 10).map((n) => (n as Record<string, unknown>).num || (n as Record<string, unknown>).numero),
           }),
         }).catch(() => {})
       }
-      if (validatedPredData?.confidence) setConfianzaTurnos(p => ({ ...p, [so]: validatedPredData.confidence as number }));
+      if (validatedPredData?.confidence) setConfianzaTurnos(p => ({ ...p, [currentTurno]: validatedPredData.confidence as number }));
       if (validatedPredData?.aiInsight) setAiInsight(validatedPredData.aiInsight);
     } catch (e: unknown) {
       setEr(e instanceof Error ? e.message : String(e));
