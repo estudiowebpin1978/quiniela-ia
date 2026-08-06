@@ -93,6 +93,11 @@ export function createBrowserClient(): SupabaseClient {
 }
 
 /**
- * Alias for createBrowserClient - client-side Supabase client
+ * Lazy browser client — creates on first call, caches thereafter.
+ * Do NOT call at module level (crashes in SSR).
  */
-export const supabaseBrowser = createBrowserClient()
+let _browserClient: SupabaseClient | null = null
+export function supabaseBrowser(): SupabaseClient {
+  if (!_browserClient) _browserClient = createBrowserClient()
+  return _browserClient
+}

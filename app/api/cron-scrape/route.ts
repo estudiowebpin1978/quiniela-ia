@@ -14,7 +14,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { revalidateTag } from "next/cache"
 import { esDiaSinSorteo } from "@/lib/feriados"
 import { autoVerifyPredictions } from "@/lib/verificacion/auto-verify"
-import { enqueueVerification } from "@/lib/verification-queue"
 import { fetchWithFallback } from "@/lib/scrapers/orchestrator"
 import { SourceStats, TURNOS, TurnoType, GAME_ID } from "@/lib/scrapers/types"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
@@ -182,10 +181,15 @@ export async function GET(req: NextRequest) {
       errores++
     }
 
-    // Always trigger verification for this date/turno (covers predictions made after draw was saved)
+    // Verify predictions directly for this date/turno
     try {
-      await enqueueVerification(fechaISO, turno)
-    } catch {}
+      const verifyResults = await autoVerifyPredictions(fechaISO, turno)
+      if (verifyResults.length > 0) {
+        logger.info("cron-scrape: verified predictions", { fecha: fechaISO, turno, count: verifyResults.length })
+      }
+    } catch (e) {
+      logger.warn("cron-scrape: verification failed", { fecha: fechaISO, turno, error: String(e) })
+    }
   }
 
   // Limpiar predicciones de usuarios mayores a 24hs
