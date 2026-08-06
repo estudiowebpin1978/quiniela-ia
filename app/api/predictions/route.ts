@@ -218,18 +218,18 @@ export async function GET(req: NextRequest) {
     const hasAdv = !!adv
 
     // Use 12-factor scores when available, fallback to 4-factor
-    const fCalor = hasAdv ? adv.f_calor : (r.f_calor || r.desglose_calor || 0)
-    const fDemora = hasAdv ? adv.f_demora : (r.f_demora || r.desglose_demora || 0)
-    const fAfinidad = hasAdv ? adv.f_afinidad : (r.f_afinidad || r.desglose_turno || 0)
-    const fMarkov = hasAdv ? adv.f_markov : (r.f_markov || r.desglose_markov || 0)
-    const fBayesian = hasAdv ? adv.f_bayesian : 0
-    const fEntropy = hasAdv ? adv.f_entropy : 0
-    const fSurvival = hasAdv ? adv.f_survival : 0
-    const fCyclic = hasAdv ? adv.f_cyclic : 0
-    const fDrift = hasAdv ? adv.f_drift : 0
-    const fCorrelation = hasAdv ? adv.f_correlation : 0
-    const fSeasonal = hasAdv ? adv.f_seasonal : 0
-    const fMontecarlo = hasAdv ? adv.f_montecarlo : 0
+    const fCalor = hasAdv ? (adv.f_calor ?? 0) : (r.f_calor || r.desglose_calor || 0)
+    const fDemora = hasAdv ? (adv.f_demora ?? 0) : (r.f_demora || r.desglose_demora || 0)
+    const fAfinidad = hasAdv ? (adv.f_afinidad ?? 0) : (r.f_afinidad || r.desglose_turno || 0)
+    const fMarkov = hasAdv ? (adv.f_markov ?? 0) : (r.f_markov || r.desglose_markov || 0)
+    const fBayesian = hasAdv ? (adv.f_bayesian ?? 0) : 0
+    const fEntropy = hasAdv ? (adv.f_entropy ?? 0) : 0
+    const fSurvival = hasAdv ? (adv.f_survival ?? 0) : 0
+    const fCyclic = hasAdv ? (adv.f_cyclic ?? 0) : 0
+    const fDrift = hasAdv ? (adv.f_drift ?? 0) : 0
+    const fCorrelation = hasAdv ? (adv.f_correlation ?? 0) : 0
+    const fSeasonal = hasAdv ? (adv.f_seasonal ?? 0) : 0
+    const fMontecarlo = hasAdv ? (adv.f_montecarlo ?? 0) : 0
 
     // Score: use advanced puntaje_total when available
     const score = hasAdv ? adv.puntaje_total : r.puntaje_total
