@@ -78,6 +78,8 @@ export async function GET(req: NextRequest) {
   const t0 = Date.now()
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown"
 
+  try {
+
   // ── Rate limit ──────────────────────────────────────────────
   const rl = await checkRateLimit(ip, RATE_LIMIT_PRESETS.PREDICTION_API)
   if (!rl.allowed) {
@@ -407,4 +409,12 @@ export async function GET(req: NextRequest) {
       "X-Prediction-Date": todayArgentina,
     },
   })
+
+  } catch (err) {
+    console.error("[predictions] UNHANDLED ERROR:", err)
+    return NextResponse.json(
+      { error: "Internal server error", detail: String(err) },
+      { status: 500 }
+    )
+  }
 }
