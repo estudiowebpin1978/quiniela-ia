@@ -4,6 +4,8 @@ node_modules
 out
 build
 dist
+.venv-py312
+__pycache__
 
 # Control de versiones y configuraciones locales
 .git
