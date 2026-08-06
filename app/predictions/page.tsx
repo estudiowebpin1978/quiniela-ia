@@ -1193,6 +1193,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 rank: i + 1,
               }))}
               turno={so}
+              isPremium={pr}
+              onPremiumClick={() => setShowPaywall(true)}
             />
           )}
           <button className="btn3d btn-gen" onClick={() => { sound.whoosh(); gen(); }} disabled={ld} style={{ opacity: ld ? 0.6 : 1 }}>
