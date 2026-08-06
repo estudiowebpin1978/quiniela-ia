@@ -141,47 +141,46 @@ export async function GET(req: NextRequest) {
   for (const turno of turnosToScrape) {
     const drawExists = await tieneDraw(fechaISO, turno)
     
-    if (drawExists) {
-      logger.info("cron-scrape: draw ya existe", { fecha: fechaISO, turno })
-      continue
-    }
+    if (!drawExists) {
+      const result = await fetchWithFallback(fechaISO, fUrl, turno, sourceStats)
 
-    const result = await fetchWithFallback(fechaISO, fUrl, turno, sourceStats)
+      if (result.numbers.length < 20) {
+        logger.warn("cron-scrape: pocas fuentes", { fecha: fechaISO, turno, count: result.numbers.length })
+        saveErrors.push(`${turno}: sin datos suficientes (${result.numbers.length})`)
+        errores++
+        continue
+      }
 
-    if (result.numbers.length < 20) {
-      logger.warn("cron-scrape: pocas fuentes", { fecha: fechaISO, turno, count: result.numbers.length })
-      saveErrors.push(`${turno}: sin datos suficientes (${result.numbers.length})`)
-      errores++
-      continue
-    }
-
-    try {
-      const saveResult = await guardarDraw(fechaISO, turno, result.numbers, result.source)
-      if (saveResult.ok) {
-        guardados++
-        resultados[turno] = result.numbers
-        logger.info("cron-scrape: guardado", {
-          fecha: fechaISO, turno, cantidad: result.numbers.length,
-          source: result.source, cabezaMatch: result.cabezaMatch
-        })
-        // Invalidate ISR cache for predictions endpoint
-        revalidateTag("predictions", "max")
-        getSupabaseAdmin().rpc('refresh_cached_predictions', { turno_objetivo: turno }).then(() => {}, () => {})
-        getSupabaseAdmin().rpc('refresh_cached_predictions_3_4', { turno_objetivo: turno }).then(() => {}, () => {})
-      } else {
-        const errMsg = `${turno}: ${saveResult.error}`
-        logger.warn("cron-scrape: fallo al guardar", { fecha: fechaISO, turno, error: saveResult.error })
+      try {
+        const saveResult = await guardarDraw(fechaISO, turno, result.numbers, result.source)
+        if (saveResult.ok) {
+          guardados++
+          resultados[turno] = result.numbers
+          logger.info("cron-scrape: guardado", {
+            fecha: fechaISO, turno, cantidad: result.numbers.length,
+            source: result.source, cabezaMatch: result.cabezaMatch
+          })
+          // Invalidate ISR cache for predictions endpoint
+          revalidateTag("predictions", "max")
+          getSupabaseAdmin().rpc('refresh_cached_predictions', { turno_objetivo: turno }).then(() => {}, () => {})
+          getSupabaseAdmin().rpc('refresh_cached_predictions_3_4', { turno_objetivo: turno }).then(() => {}, () => {})
+        } else {
+          const errMsg = `${turno}: ${saveResult.error}`
+          logger.warn("cron-scrape: fallo al guardar", { fecha: fechaISO, turno, error: saveResult.error })
+          saveErrors.push(errMsg)
+          errores++
+        }
+      } catch (e) {
+        const errMsg = `${turno}: ${e instanceof Error ? e.message : String(e)}`
+        logger.error("cron-scrape: error guardando draw", { fecha: fechaISO, turno, error: errMsg })
         saveErrors.push(errMsg)
         errores++
       }
-    } catch (e) {
-      const errMsg = `${turno}: ${e instanceof Error ? e.message : String(e)}`
-      logger.error("cron-scrape: error guardando draw", { fecha: fechaISO, turno, error: errMsg })
-      saveErrors.push(errMsg)
-      errores++
+    } else {
+      resultados[turno] = []
     }
 
-    // Verify predictions directly for this date/turno
+    // ALWAYS verify predictions for this date/turno (even if draw already existed)
     try {
       const verifyResults = await autoVerifyPredictions(fechaISO, turno)
       if (verifyResults.length > 0) {
@@ -237,6 +236,30 @@ export async function GET(req: NextRequest) {
         })
       } catch (e) {
         logger.warn("cron-scrape: error triggering analytics", { error: String(e) })
+      }
+
+      // Process any pending verification queue entries
+      try {
+        const sb = getSupabaseAdmin()
+        const { data: pending } = await sb
+          .from("verification_queue")
+          .select("id, payload")
+          .eq("status", "pending")
+          .limit(10)
+
+        if (pending && pending.length > 0) {
+          for (const entry of pending) {
+            const fecha = entry.payload?.fecha as string | undefined
+            const turno = entry.payload?.turno as string | undefined
+            if (fecha && turno) {
+              await autoVerifyPredictions(fecha, turno)
+              await sb.from("verification_queue").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", entry.id)
+            }
+          }
+          logger.info("cron-scrape: processed verification queue", { count: pending.length })
+        }
+      } catch (e) {
+        logger.warn("cron-scrape: error processing verification queue", { error: String(e) })
       }
     }
   }
