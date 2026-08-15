@@ -1,20 +1,16 @@
 /**
- * Orchestrator: parallel consensus across 5 sources with tiebreaker.
+ * Orchestrator: parallel consensus across sources with fallback.
  *
  * Priority order:
- *   1. loteriadelaciudad.gob.ar  (official API)
- *   2. quinielanacional1.com.ar   (primary HTML)
- *   3. quinieleando.com.ar        (fallback HTML - tiebreaker)
- *   4. ruta1000.com.ar            (sequential fallback)
- *   5. quiniela22.com             (cabeza cross-validation only)
+ *   1. quinieleando.com.ar       (static HTML, all turnos)
+ *   2. loteria-ciudad.gob.ar     (official CABA AJAX)
+ *   3. quinielanacionaln.com.ar  (HTTP homepage, all turnos)
+ *   4. loteriasantafe.gov.ar     (official Santa Fe, 1 turno per fetch)
  *
  * Strategy:
- *   - Sources 1 & 2 run in parallel (Promise.allSettled).
- *   - If both succeed and top-5 match → consensus (fast path).
- *   - If both succeed but diverge → source 3 as tiebreaker, majority wins.
- *   - If only one succeeds → use it directly.
- *   - If both fail → sequential fallback to source 4.
- *   - Cabeza cross-validation after obtaining final result.
+ *   - Sources run in parallel (Promise.allSettled).
+ *   - First successful result with >= 5 numbers wins.
+ *   - All sources return null → fallback cascade.
  */
 
 import {
@@ -26,10 +22,9 @@ import {
   TurnoType,
 } from "./types"
 import {
-  parseLoteriaOficial,
-  parseQuinielaNacional1,
   parseQuinieleando,
-  parseRuta1000,
+  parseLoteriaOficial,
+  parseQuinielaNacionalN,
   verifyCabeza,
 } from "./parsers"
 import logger from "@/lib/logger"
@@ -40,10 +35,9 @@ const BASE_DELAY = 2000
 const TOP_N_CONSENSUS = 5
 
 const PARSERS: { fn: ParserFn; name: string }[] = [
-  { fn: parseLoteriaOficial, name: "loteria-ciudad.gob.ar" },
-  { fn: parseQuinielaNacional1, name: "quinielanacional1.com.ar" },
   { fn: parseQuinieleando, name: "quinieleando.com.ar" },
-  { fn: parseRuta1000, name: "ruta1000.com.ar" },
+  { fn: parseLoteriaOficial, name: "loteria-ciudad.gob.ar" },
+  { fn: parseQuinielaNacionalN, name: "quinielanacionaln.com.ar" },
 ]
 
 function track(stats: SourceStats, src: string, ok: boolean, duration: number): void {
@@ -388,37 +382,6 @@ export async function fetchWithFallback(
     src1Attempt: parallelAttempts[0],
     src2Attempt: parallelAttempts[1],
   })
-
-  const fallbackParser = PARSERS[3]
-  const budgetStep3 = BUDGET - (Date.now() - overallStart)
-
-  if (budgetStep3 >= 3000) {
-    const { result: fallbackResult, attempt: fallbackAttempt } = await tryParserWithRetry(
-      fallbackParser.fn,
-      fallbackParser.name,
-      fechaISO,
-      fechaUrl,
-      turno,
-      stats,
-      budgetStep3
-    )
-    allAttempts.push(fallbackAttempt)
-
-    if (fallbackResult && fallbackResult.numbers.length >= 20) {
-      logger.info("orchestrator: sequential fallback succeeded", {
-        fecha: fechaISO,
-        turno,
-        source: fallbackParser.name,
-        count: fallbackResult.numbers.length,
-        duration: Date.now() - overallStart,
-      })
-
-      const result = await validateCabeza(fallbackResult, fechaISO, fechaUrl, turno, fallbackParser.name, gameSlug, allAttempts)
-      result.duration = Date.now() - overallStart
-      result.consensusMethod = "sequential_fallback"
-      return result
-    }
-  }
 
   // ── All sources exhausted ─────────────────────────────────────────────
   logger.warn("orchestrator: all sources failed", {
