@@ -91,13 +91,14 @@ export async function POST(req: NextRequest) {
     const orderBody = {
       amount: planData.amount,
       description: planData.description,
-      notification_url: `${baseUrl}/api/webhook-uala`,
+      userName: "",
       callback_success: `${baseUrl}/predictions?payment=success`,
       callback_fail: `${baseUrl}/predictions?payment=failed`,
+      notification_url: `${baseUrl}/api/webhook-uala`,
       external_reference: userId,
     }
 
-    const orderRes = await fetch("https://checkout.developers.ar.ua.la/v2/api/checkout", {
+    const orderRes = await fetch("https://checkout.developers.ar.ua.la/v2/api/orders", {
       method: "POST",
       headers: { Authorization: `Bearer ${access_token}`, "Content-Type": "application/json" },
       body: JSON.stringify(orderBody),
@@ -115,7 +116,12 @@ export async function POST(req: NextRequest) {
       orderData.links?.checkoutLink ||
       orderData.checkout_url ||
       orderData.payment_url ||
-      orderData.url
+      orderData.url ||
+      orderData.data?.checkout_link ||
+      orderData.data?.checkoutLink ||
+      orderData.data?.checkout_url ||
+      orderData.data?.payment_url ||
+      orderData.data?.url
 
     if (!checkoutUrl) {
       logger.error("[create-order] No checkout URL in response")
