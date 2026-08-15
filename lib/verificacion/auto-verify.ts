@@ -232,7 +232,9 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
     const statusUpdates = historyInserts.map(h => ({
       id: h.prediction_id,
       status: h.total_aciertos > 0 ? "WON" : "LOST",
-      aciertos: Array.isArray(h.aciertos_2) ? h.aciertos_2.map((a: { numero: string }) => parseInt(a.numero)) : [],
+      aciertos: Array.isArray(h.aciertos_2)
+        ? [...new Set(h.aciertos_2.map((a: { puesto: number }) => a.puesto).filter((p: number) => p >= 1 && p <= 20))]
+        : [],
       verified_at: h.verified_at,
     }))
     for (const u of statusUpdates) {
