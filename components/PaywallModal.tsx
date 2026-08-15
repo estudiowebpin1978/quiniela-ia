@@ -13,7 +13,7 @@ const PLANS = [
   { key: "mensual", label: "Pase Mensual", price: "$10.000", days: "30 días · Ahorrás 40%", color: "#22c55e", badge: "" },
 ]
 
-const ALIAS = "quiniela.ia"
+const ALIAS = "quinielaia"
 const WA_LINK = "https://api.whatsapp.com/send?phone=5493412500029"
 
 export default function PaywallModal({ open, onClose, userId }: Props) {

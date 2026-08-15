@@ -39,7 +39,7 @@ import { useSettings } from "@/components/ui/Settings";
 import { ConfettiEffect, GlowOrbs, NeonBackground } from "@/components/ui/Effects";
 import { validatePredData } from "@/lib/api/predictions";
 import { RealtimeResults, RealtimeBadge } from "@/components/RealtimeResults";
-import BettingSimulator from "@/components/predictions/BettingSimulator";
+
 import type { SavedPrediction, NumeroItem, ResultadoControl, DrawData, BacktestItem } from "@/lib/types/client";
 import "./predictions.css";
 
@@ -455,7 +455,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       // Strict runtime validation + type safety (protects against malformed API/DB responses)
       let validatedPredData: PredData | null = null;
       try {
-        validatedPredData = validatePredData(predData);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        validatedPredData = validatePredData(predData) as any;
       } catch (parseError) {
         // Non-fatal fallback: keep the raw payload if it has the minimum required fields
         if (Array.isArray(predData?.numeros_2)) {
@@ -590,72 +591,15 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       localStorage.setItem("engineVersion", String(ENGINE_VERSION));
     }
 
-    // Merge 3/4 cifras from localStorage into API predictions
-    let storedPreds: SavedPrediction[] = [];
-    try { const s = localStorage.getItem("misPreds"); if (s) storedPreds = JSON.parse(s); } catch {}
-    const localMap = new Map(storedPreds.map((p) => [(p.date || p.fecha) + "|" + (p.turno || ""), p]))
-
     if (apiPreds) {
+      // API is the SINGLE source of truth — no localStorage merge
       for (const p of apiPreds) {
-        const key = (p.date || p.fecha || "") + "|" + (p.turno || "")
-        const local = localMap.get(key)
-        // Normalize numeros to always be an array
         if (typeof p.numeros === "object" && !Array.isArray(p.numeros) && p.numeros?.["2"]) {
           p.numeros_3 = p.numeros_3 || p.numeros["3"] || []
           p.numeros_4 = p.numeros_4 || p.numeros["4"] || []
           p.numeros = p.numeros["2"]
         }
-        // Extract 2-cifras from numeros (handles both flat array and structured object)
-        if (Array.isArray(p.numeros)) {
-          // flat array from free user — already correct
-        } else if (p.numeros?.["2"]) {
-          // structured object from premium — API already extracted pred2/3/4 into numeros/numeros_3/numeros_4
-        }
-        if (local) {
-          if (!p.numeros_3?.length && local.numeros_3) p.numeros_3 = local.numeros_3
-          if (!p.numeros_4?.length && local.numeros_4) p.numeros_4 = local.numeros_4
-        }
       }
-      // Merge local-only predictions (recién guardadas o pendientes de sync en la nube)
-      // que aún no están en la respuesta de la API, para que un análisis recién
-      // guardado nunca desaparezca de "Mis Análisis".
-      const apiKeys = new Set(
-        apiPreds.map((p) => (p.date || p.fecha || "") + "|" + (p.turno || ""))
-      )
-      const localOnly = storedPreds.filter((p) => {
-        const key = (p.date || p.fecha || "") + "|" + (p.turno || "")
-        return key.trim() !== "|" && !apiKeys.has(key)
-      })
-
-      const enrichedLocal = await Promise.all(localOnly.map(async (p) => {
-        if (p.resultado && p.resultado.length > 0) return p
-        const fechaVal = (p.date || p.fecha || "").trim()
-        const turnoVal = (p.turno || "").trim()
-        if (!fechaVal || !turnoVal) return p
-        try {
-          const r = await fetch(`/api/resultado?date=${fechaVal}&turno=${encodeURIComponent(turnoVal)}`)
-          const draw = await r.json()
-          if (draw?.found && draw?.numbers?.length) {
-            const reales = draw.numbers.map((n: string | number) => String(Number(n) % 100).padStart(2, "0"))
-            const reales3 = draw.numbers.map((n: string | number) => String(Number(n) % 1000).padStart(3, "0"))
-            const reales4 = draw.numbers.map((n: string | number) => String(Number(n) % 10000).padStart(4, "0"))
-            const pred2 = Array.isArray(p.numeros) ? p.numeros : (p.numeros?.["2"] || [])
-            const pred3 = !Array.isArray(p.numeros) ? (p.numeros?.["3"] || []) : (p.numeros_3 || [])
-            const pred4 = !Array.isArray(p.numeros) ? (p.numeros?.["4"] || []) : (p.numeros_4 || [])
-            const predichos2 = (pred2 as string[]).map((n) => String(n).padStart(2, "0"))
-            const predichos3 = (pred3 as string[]).map((n) => String(n).padStart(3, "0"))
-            const predichos4 = (pred4 as string[]).map((n) => String(n).padStart(4, "0"))
-            const aciertos2 = predichos2.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1, tipo: 2 }))
-            const aciertos3 = predichos3.filter((n: string) => reales3.includes(n)).map((n: string) => ({ numero: n, puesto: reales3.indexOf(n) + 1, tipo: 3 }))
-            const aciertos4 = predichos4.filter((n: string) => reales4.includes(n)).map((n: string) => ({ numero: n, puesto: reales4.indexOf(n) + 1, tipo: 4 }))
-            const allAciertos = [...aciertos2, ...aciertos3, ...aciertos4]
-            return { ...p, numeros: pred2, numeros_3: pred3, numeros_4: pred4, resultado: reales, resultado_3: reales3, resultado_4: reales4, aciertos: allAciertos, aciertos_2: aciertos2, aciertos_3: aciertos3, aciertos_4: aciertos4, acerto: allAciertos.length > 0, sorteoRealizado: true }
-          }
-        } catch {}
-        return p
-      }))
-
-      const merged = [...enrichedLocal, ...apiPreds]
 
       const prevAciertos = misPreds.reduce((sum, p) => sum + (p.aciertos?.length || 0), 0)
       const newAciertos = apiPreds.reduce((sum, p) => sum + (p.aciertos?.length || 0), 0)
@@ -671,8 +615,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           localStorage.setItem(notifiedKey, String(newAciertos))
         }
       }
-      setMisPreds(merged)
-      localStorage.setItem("misPreds", JSON.stringify(merged.map((p) => {
+      setMisPreds(apiPreds)
+      localStorage.setItem("misPreds", JSON.stringify(apiPreds.map((p) => {
         if (typeof p.numeros === "object" && !Array.isArray(p.numeros) && p.numeros?.["2"]) {
           return { ...p, numeros: p.numeros["2"], numeros_3: p.numeros["3"] || [], numeros_4: p.numeros["4"] || [] };
         }
@@ -682,7 +626,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       return
     }
 
-    // Fallback: localStorage + client-side comparison
+    // Fallback: localStorage only (no token or API failed)
+    let storedPreds: SavedPrediction[] = [];
+    try { const s = localStorage.getItem("misPreds"); if (s) storedPreds = JSON.parse(s); } catch {}
     if (storedPreds.length > 0) {
       const enriched = await Promise.all(storedPreds.map(async (p) => {
         if (p.resultado && p.resultado.length > 0) return p
@@ -762,24 +708,23 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     const fechaSorteoStr = fechaSorteo(so);
     const nums = cur.slice(0, 10).map((p) => p.numero);
 
-    // Check if already saved locally for this turno
-    const storedRaw = localStorage.getItem("misPreds");
-    let todas: SavedPrediction[] = storedRaw ? JSON.parse(storedRaw) : [];
-    const yaExiste = todas.some((p) => p.fecha === fechaSorteoStr && p.turno === so);
+    // Check if already saved in state (synced from API)
+    const yaExiste = misPreds.some((p) => (p.date || p.fecha) === fechaSorteoStr && p.turno === so);
     if (yaExiste) {
       setGuardando(false);
       toast("Ya guardaste un análisis para este turno", "info");
       return;
     }
 
-    const nums3Save = (pr || userRole === "admin") ? nums3.slice(0, 5) : [];
-    const nums4Save = (pr || userRole === "admin") ? nums4.slice(0, 5) : [];
+    const nums3Save = (pr || userRole === "admin") ? nums3.slice(0, 10) : [];
+    const nums4Save = (pr || userRole === "admin") ? nums4.slice(0, 10) : [];
+    const rdblSave = (pr || userRole === "admin") && rdbl ? [rdbl] : [];
 
     const nuevaPred: SavedPrediction = {
       id: "local_" + Date.now(),
       fecha: fechaSorteoStr,
       turno: so,
-      numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3Save, "4": nums4Save } as Record<string, string[]> : nums,
+      numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3Save, "4": nums4Save, "r": rdblSave } as Record<string, string[]> : nums,
       created_at: new Date().toISOString(),
       resultado_original: [],
       aciertos: [],
@@ -797,41 +742,50 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         const res = await fetch("/api/mis-predicciones", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
-          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3Save, "4": nums4Save } : nums }),
+          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3Save, "4": nums4Save, "r": rdblSave } : nums }),
         });
         const data = await res.json();
         if (res.status === 409) {
           setGuardando(false);
-          if (data?.duplicate) {
-            toast("Ya guardaste un análisis para este turno", "info");
-          } else {
-            toast("Error guardando, intenta más tarde", "error");
-          }
+          toast(data?.error || "Ya guardaste un análisis para este turno", "info");
           return;
         }
-        if (res.ok) {
-          cloudSaved = true
-          // Gamification: record save
-          fetch("/api/gamification", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
-            body: JSON.stringify({ action: "save", turno: so }),
-          }).then(() => { window.dispatchEvent(new Event("gamification-update")) }).catch(() => {})
+        if (res.status === 403) {
+          setGuardando(false);
+          toast(data?.error || "Límite de predicciones alcanzado. Actualizá a Premium.", "error");
+          return;
         }
+        if (!res.ok) {
+          setGuardando(false);
+          toast(data?.error || "Error guardando predicción", "error");
+          return;
+        }
+        cloudSaved = true
+        // Gamification: record save
+        fetch("/api/gamification", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
+          body: JSON.stringify({ action: "save", turno: so }),
+        }).then(() => { window.dispatchEvent(new Event("gamification-update")) }).catch(() => {})
       } catch (e) {
+        // Network error — will fall through to localStorage
       }
     }
 
-    // Guardar siempre en localStorage si no existe
-    todas = [nuevaPred, ...todas].slice(0, 30);
-    localStorage.setItem("misPreds", JSON.stringify(todas));
-    setMisPreds(todas);
-
-    // Refrescar desde la nube para reconciliar el estado (aciertos, id real, etc.)
-    // El merge en cargarMisPreds preserva esta predicción local aunque el
-    // guardado en la nube todavía no se haya propagado.
     if (cloudSaved && tkRef.current) {
+      // API saved — reload from API (single source of truth)
       cargarMisPreds(tkRef.current);
+    } else if (!tkRef.current) {
+      // No token — save to localStorage as offline fallback (append, don't overwrite)
+      const existing = JSON.parse(localStorage.getItem("misPreds") || "[]") as SavedPrediction[];
+      const todas = [nuevaPred, ...existing.filter(p => !(p.fecha === fechaSorteoStr && p.turno === so))].slice(0, 30);
+      localStorage.setItem("misPreds", JSON.stringify(todas));
+      setMisPreds(todas);
+    } else {
+      // API failed with token — show error, don't silently save to localStorage
+      toast("Error guardando en servidor. Intentá de nuevo.", "error");
+      setGuardando(false);
+      return;
     }
 
     if (!silent) {
@@ -1188,18 +1142,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               </button>
             ))}
           </div>
-          {rankingData.length > 0 && (
-            <BettingSimulator
-              predictions={rankingData.map((r, i) => ({
-                numero: r.numero,
-                score: r.score || 0.5,
-                rank: i + 1,
-              }))}
-              turno={so}
-              isPremium={pr}
-              onPremiumClick={() => setShowPaywall(true)}
-            />
-          )}
           <button className="btn3d btn-gen" onClick={() => { sound.whoosh(); gen(); }} disabled={ld} style={{ opacity: ld ? 0.6 : 1 }}>
             {ld ? "⏳ Analizando datos..." : "⚡ Generar Análisis Ahora"}
           </button>
@@ -1631,7 +1573,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                         <a href={WA} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "#94a3b8", textDecoration: "none" }}>
                           Activar Premium
                         </a>
-                        <div style={{ fontSize: 10, color: "#475569" }}>Alias: quiniela.ia — $10.000</div>
+                        <div style={{ fontSize: 10, color: "#475569" }}>Alias: quinielaia — $10.000</div>
                       </div>
                     )}
                   </div>
@@ -2104,7 +2046,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     <div style={{fontSize:10,color:"#4ade80",marginTop:1,fontWeight:600}}>Inmediato</div>
                   </button>
                   <button
-                    onClick={() => {navigator.clipboard.writeText("quiniela.ia").then(() => toast("Alias copiado","success"))}}
+                    onClick={() => {navigator.clipboard.writeText("quinielaia").then(() => toast("Alias copiado","success"))}}
                     style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",border:"none",borderRadius:12,
                       background:"linear-gradient(135deg,#f59e0b,#d97706)",
                       boxShadow:"0 4px 0 #92400e,0 6px 16px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.15)",
@@ -2148,7 +2090,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     <div style={{fontSize:10,color:"#4ade80",marginTop:1,fontWeight:600}}>Inmediato</div>
                   </button>
                   <button
-                    onClick={() => {navigator.clipboard.writeText("quiniela.ia").then(() => toast("Alias copiado","success"))}}
+                    onClick={() => {navigator.clipboard.writeText("quinielaia").then(() => toast("Alias copiado","success"))}}
                     style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",border:"none",borderRadius:12,
                       background:"linear-gradient(135deg,#f59e0b,#d97706)",
                       boxShadow:"0 4px 0 #92400e,0 6px 16px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.15)",
@@ -2167,12 +2109,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
                 <div style={{flex:1,height:1,background:"rgba(255,255,255,.08)"}}/>
-                <span style={{fontSize:10,color:"#475569"}}>Alias: <strong style={{color:"#818cf8"}}>quiniela.ia</strong> · Pago único · Sin renovación</span>
+                <span style={{fontSize:10,color:"#475569"}}>Alias: <strong style={{color:"#818cf8"}}>quinielaia</strong> · Pago único · Sin renovación</span>
                 <div style={{flex:1,height:1,background:"rgba(255,255,255,.08)"}}/>
               </div>
 
               <button
-                onClick={() => {navigator.clipboard.writeText("quiniela.ia").then(() => { window.open(WA, "_blank"); })}}
+                onClick={() => {navigator.clipboard.writeText("quinielaia").then(() => { window.open(WA, "_blank"); })}}
                 style={{
                   width:"100%",padding:"14px",borderRadius:14,border:"none",
                   background:"linear-gradient(135deg,#25D366,#128C7E,#075E54)",color:"#fff",

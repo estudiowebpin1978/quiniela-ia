@@ -7,8 +7,9 @@ export default function WhatsAppFAB() {
   const [showTooltip, setShowTooltip] = useState(false)
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowTooltip(true), 3000)
-    return () => clearTimeout(timer)
+    const show = setTimeout(() => setShowTooltip(true), 500)
+    const hide = setTimeout(() => setShowTooltip(false), 3500)
+    return () => { clearTimeout(show); clearTimeout(hide) }
   }, [])
 
   return (

@@ -18,7 +18,7 @@ export const PredDataSchema = z.object({
   numeros_2: z.array(z.string()),
   numeros_3: z.array(z.string()).optional(),
   numeros_4: z.array(z.string()).optional(),
-  redoblona: z.string(),
+  redoblona: z.string().nullable().optional(),
   ranking: z.array(RankingItemSchema).optional(),
   numeros: z.array(RankingItemSchema).optional(),
   heatmap: z.array(z.object({
@@ -58,7 +58,7 @@ export const PredDataSchema = z.object({
     numeros_2: z.array(z.string()),
     numeros_3: z.array(z.string()).optional(),
     numeros_4: z.array(z.string()).optional(),
-    redoblona: z.string(),
+    redoblona: z.string().nullable().optional(),
   }).optional(),
   debug: z.record(z.string(), z.unknown()).optional(),
 }).passthrough();

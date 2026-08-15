@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 const SB=()=>(process.env.NEXT_PUBLIC_SUPABASE_URL||"").replace(/"/g,"").trim()
-const SK=()=>(process.env.SUPABASE_SERVICE_ROLE_KEY||"").replace(/"/g,"").trim()
+const SK=()=>(process.env.SUPABASE_SERVICE_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY||"").replace(/"/g,"").trim()
 
 export async function GET(req:NextRequest){
   const{searchParams}=new URL(req.url)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { resolveUserTier, FREE_MAX_PREDICTIONS } from "@/lib/auth/tier"
-import { enqueueVerification } from "@/lib/verification-queue"
+import { GAME_ID } from "@/lib/scrapers/types"
 import type { PredictionRow, PredictionHistoryRow, Acierto, DrawRow } from "@/lib/api/types"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
     const predRes = await fetch(
       `${SB()}/rest/v1/user_predictions?user_id=eq.${userId}&select=id,date,turno,numeros,created_at,status,aciertos,verified_at&order=created_at.desc&limit=50`,
-      { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` } }
+      { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` }, signal: AbortSignal.timeout(10000) }
     )
     const predictions = await predRes.json()
     if (!Array.isArray(predictions)) return NextResponse.json({ predictions: [], tier })
@@ -85,7 +85,8 @@ export async function GET(req: NextRequest) {
       const disponible = !!draw
 
       // FAST PATH: Use server-verified status/aciertos from trigger (user_predictions table)
-      const serverVerified = pred.status === 'won' || pred.status === 'lost'
+      const statusUpper = (pred.status || '').toUpperCase()
+      const serverVerified = statusUpper === 'WON' || statusUpper === 'LOST'
 
       let aciertos: Acierto[] = []
       let aciertos3: Acierto[] = []
@@ -109,17 +110,23 @@ export async function GET(req: NextRequest) {
       }
 
       if (serverVerified) {
-        // Use server-verified aciertos (from trigger auto_verify_saved_predictions)
-        if (pred.aciertos && Array.isArray(pred.aciertos)) {
-          aciertos = pred.aciertos.map((n: number) => ({
-            numero: String(n).padStart(2, "0"), puesto: 0, tipo: 2 as const
-          }))
-        }
-        // Get real numbers from draw for display
-        if (disponible && draw?.numbers) {
-          numerosReales = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
-          numerosReales3 = draw.numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
-          numerosReales4 = draw.numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
+        // Use server-verified aciertos from trigger — these are POSITIONS (1-20)
+        // Look up actual numbers from the draw
+        if (disponible && draw?.numbers && pred.aciertos && Array.isArray(pred.aciertos)) {
+          const officialNums2 = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
+          const officialNums3 = draw.numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
+          const officialNums4 = draw.numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
+          // aciertos = positions [1, 14, 3] → map to actual numbers at those positions
+          aciertos = pred.aciertos
+            .filter((pos: number) => pos >= 1 && pos <= 20)
+            .map((pos: number) => ({
+              numero: officialNums2[pos - 1] || String(pos).padStart(2, "0"),
+              puesto: pos,
+              tipo: 2 as const
+            }))
+          numerosReales = officialNums2
+          numerosReales3 = officialNums3
+          numerosReales4 = officialNums4
         }
       } else if (history) {
         aciertos = (history.aciertos_2 || []).map((a: Acierto) => ({ ...a, tipo: 2 as const }))
@@ -172,7 +179,7 @@ export async function GET(req: NextRequest) {
         aciertos_2: hasResult ? aciertos : [],
         aciertos_3: hasResult ? aciertos3 : [],
         aciertos_4: hasResult ? aciertos4 : [],
-        acerto: hasResult ? (serverVerified ? pred.status === 'won' : allAciertos.length > 0) : false,
+        acerto: hasResult ? (serverVerified ? statusUpper === 'WON' : allAciertos.length > 0) : false,
         created_at: pred.created_at,
         sorteoRealizado: hasResult
       })
@@ -251,6 +258,7 @@ export async function POST(req: NextRequest) {
       date,
       turno,
       numeros: numerosToStore,
+      game_id: GAME_ID,
     }
 
     const r = await fetch(`${SB_URL}/rest/v1/user_predictions`, {
@@ -280,8 +288,9 @@ export async function POST(req: NextRequest) {
       )
       const draws = await checkDraw.json()
       if (Array.isArray(draws) && draws.length > 0) {
-        // Queue verification instead of fire-and-forget
-        await enqueueVerification(date, turno)
+        // Draw already exists — verify directly using the trigger's logic
+        const { autoVerifyPredictions } = await import("@/lib/verificacion/auto-verify")
+        await autoVerifyPredictions(date, turno)
       }
     } catch { /* noop - verification is best effort */ }
 

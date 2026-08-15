@@ -6,6 +6,7 @@ interface ParsedNumeros {
   numeros_2: string[]
   numeros_3: string[]
   numeros_4: string[]
+  redoblonas: string[]
 }
 
 interface PredictionRow {
@@ -23,6 +24,7 @@ interface VerificationResult {
   aciertos_2: { numero: string; puesto: number }[]
   aciertos_3: { numero: string; puesto: number }[]
   aciertos_4: { numero: string; puesto: number }[]
+  aciertos_redoblona: { cabeza: string; acompanante: string }[]
   total_aciertos: number
   resultado_oficial: number[]
 }
@@ -35,10 +37,12 @@ interface HistoryInsert {
   numeros_2: string[]
   numeros_3: string[]
   numeros_4: string[]
+  redoblonas: string[]
   resultado_oficial: number[]
   aciertos_2: { numero: string; puesto: number }[]
   aciertos_3: { numero: string; puesto: number }[]
   aciertos_4: { numero: string; puesto: number }[]
+  aciertos_redoblona: { cabeza: string; acompanante: string }[]
   total_aciertos: number
   verified: boolean
   verified_at: string
@@ -59,13 +63,14 @@ function parseNumeros(numeros: unknown): ParsedNumeros {
     try { data = JSON.parse(data[0] as string) } catch {}
   }
   if (Array.isArray(data)) {
-    return { numeros_2: data.map((n: unknown) => String(n).padStart(2, "0")), numeros_3: [], numeros_4: [] }
+    return { numeros_2: data.map((n: unknown) => String(n).padStart(2, "0")), numeros_3: [], numeros_4: [], redoblonas: [] }
   }
   const obj = data as Record<string, string[]> | null
   return {
     numeros_2: (obj?.["2"] || []).map((n: string) => String(n).padStart(2, "0")),
     numeros_3: (obj?.["3"] || []).map((n: string) => String(n).padStart(3, "0")),
     numeros_4: (obj?.["4"] || []).map((n: string) => String(n).padStart(4, "0")),
+    redoblonas: (obj?.["r"] || []).map((n: string) => String(n)),
   }
 }
 
@@ -144,7 +149,7 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
   for (const pred of predictions) {
     if (verifiedSet.has(pred.id)) continue
 
-    const { numeros_2, numeros_3, numeros_4 } = parseNumeros(pred.numeros)
+    const { numeros_2, numeros_3, numeros_4, redoblonas } = parseNumeros(pred.numeros)
 
     const aciertos2 = numeros_2
       .filter((n: string) => nums2.includes(n))
@@ -158,7 +163,20 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
       .filter((n: string) => nums4.includes(n))
       .map((n: string) => ({ numero: n, puesto: nums4.indexOf(n) + 1 }))
 
-    const totalAciertos = aciertos2.length + aciertos3.length + aciertos4.length
+    // Verify redoblonas: check if both cabeza and acompanante appear in official results
+    const aciertosRedoblona: { cabeza: string; acompanante: string }[] = []
+    for (const rb of redoblonas) {
+      const parts = rb.split("-")
+      if (parts.length === 2) {
+        const cabeza = parts[0].padStart(2, "0")
+        const acompanante = parts[1].padStart(2, "0")
+        if (nums2.includes(cabeza) && nums2.includes(acompanante)) {
+          aciertosRedoblona.push({ cabeza, acompanante })
+        }
+      }
+    }
+
+    const totalAciertos = aciertos2.length + aciertos3.length + aciertos4.length + aciertosRedoblona.length
 
     historyInserts.push({
       prediction_id: pred.id,
@@ -168,10 +186,12 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
       numeros_2,
       numeros_3,
       numeros_4,
+      redoblonas,
       resultado_oficial: draw.numbers,
       aciertos_2: aciertos2,
       aciertos_3: aciertos3,
       aciertos_4: aciertos4,
+      aciertos_redoblona: aciertosRedoblona,
       total_aciertos: totalAciertos,
       verified: true,
       verified_at: new Date().toISOString(),
@@ -197,6 +217,7 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
       aciertos_2: aciertos2,
       aciertos_3: aciertos3,
       aciertos_4: aciertos4,
+      aciertos_redoblona: aciertosRedoblona,
       total_aciertos: totalAciertos,
       resultado_oficial: draw.numbers,
     })
@@ -206,6 +227,16 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
     const { error: batchError } = await supabase.from("prediction_history").insert(historyInserts)
     if (batchError) {
       logger.error("[auto-verify] Batch insert error", { error: batchError.message })
+    }
+
+    const statusUpdates = historyInserts.map(h => ({
+      id: h.prediction_id,
+      status: h.total_aciertos > 0 ? "WON" : "LOST",
+      aciertos: Array.isArray(h.aciertos_2) ? h.aciertos_2.map((a: { numero: string }) => parseInt(a.numero)) : [],
+      verified_at: h.verified_at,
+    }))
+    for (const u of statusUpdates) {
+      await supabase.from("user_predictions").update({ status: u.status, aciertos: u.aciertos, verified_at: u.verified_at }).eq("id", u.id)
     }
   }
 

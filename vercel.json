@@ -23,7 +23,7 @@
     },
     {
       "path": "/api/cron-scrape?turno=nocturna",
-      "schedule": "15 0 * * 1-6"
+      "schedule": "15 0 * * 0,1-6"
     },
     {
       "path": "/api/cron-feedback?turno=previa",
@@ -43,7 +43,7 @@
     },
     {
       "path": "/api/cron-feedback?turno=nocturna",
-      "schedule": "30 0 * * 1-6"
+      "schedule": "30 0 * * 0,1-6"
     },
     {
       "path": "/api/cron-learning",

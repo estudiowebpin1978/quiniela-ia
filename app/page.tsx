@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
-import Image from "next/image"
+import { useEffect, useState } from "react"
+
 import { isLoggedIn, isGuest } from "@/lib/auth"
 import AgeGate from "@/components/AgeGate"
 import Button3D from "@/components/ui/Button3D"
@@ -9,7 +9,7 @@ import { GlowOrbs, NeonBackground } from "@/components/ui/Effects"
 import { ArgentinaFlag, SunOfMay, StatCard, Disclaimer } from "@/components/ui/ArgentinaBranding"
 import { useSound } from "@/lib/sound/audio-manager"
 import { useSettings } from "@/components/ui/Settings"
-import { MiNumeroAnalyzer } from "@/components/seo/MiNumeroAnalyzer"
+
 import type { TrendItem } from "@/lib/types/client"
 
 interface CommunityData {
@@ -66,19 +66,8 @@ function CommunityTrends() {
   )
 }
 
-const SCREENSHOTS = [
-  { src: "/screenshots/IMG_6097.png", label: "Análisis con 30 factores + IA" },
-  { src: "/screenshots/IMG_6098.png", label: "Tendencias y correlaciones" },
-  { src: "/screenshots/IMG_6099.png", label: "Mis Análisis guardados" },
-  { src: "/screenshots/IMG_6100.png", label: "Elegí tu sorteo" },
-  { src: "/screenshots/IMG_6101.png", label: "Planes Premium" },
-]
-
 export default function Home() {
   const [ready] = useState(() => typeof window !== "undefined" ? !(isLoggedIn() || isGuest()) : false)
-  const [activeShot, setActiveShot] = useState(0)
-  const carouselRef = useRef<HTMLDivElement>(null)
-  const [touchStart, setTouchStart] = useState(0)
   const sound = useSound()
   const { settings } = useSettings()
 
@@ -86,13 +75,6 @@ export default function Home() {
     if (isLoggedIn() || isGuest()) {
       window.location.assign("/predictions")
     }
-  }, [])
-
-  useEffect(() => {
-    const iv = setInterval(() => {
-      setActiveShot(p => (p + 1) % SCREENSHOTS.length)
-    }, 4000)
-    return () => clearInterval(iv)
   }, [])
 
   if (!ready) return (
@@ -223,67 +205,8 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Screenshots */}
-      <div style={{ width: "100%", maxWidth: 380, marginTop: 36 }}>
-        <h3 style={{
-          fontSize: 17, fontWeight: 800, color: "var(--text-primary)",
-          textAlign: "center", marginBottom: 16, fontFamily: "var(--font-display)",
-        }}>Así se ve el análisis</h3>
-        <div
-          ref={carouselRef}
-          style={{
-            position: "relative", width: "100%", aspectRatio: "9/16", maxHeight: 420,
-            borderRadius: 20, overflow: "hidden",
-            background: "var(--bg-glass)", border: "1px solid var(--border-subtle)",
-          }}
-          onTouchStart={(e) => setTouchStart(e.touches[0].clientX)}
-          onTouchEnd={(e) => {
-            const diff = touchStart - e.changedTouches[0].clientX
-            if (Math.abs(diff) > 50) {
-              sound.whoosh()
-              setActiveShot(p => diff > 0
-                ? (p + 1) % SCREENSHOTS.length
-                : (p - 1 + SCREENSHOTS.length) % SCREENSHOTS.length
-              )
-            }
-          }}
-        >
-          {SCREENSHOTS.map((s, i) => (
-            <Image
-              key={i}
-              src={s.src}
-              alt={s.label}
-              fill
-              style={{
-                position: "absolute", inset: 0, width: "100%", height: "100%",
-                objectFit: "cover",
-                opacity: i === activeShot ? 1 : 0,
-                transform: i === activeShot ? "scale(1)" : "scale(1.05)",
-                transition: "opacity 0.5s ease, transform 0.5s ease",
-              }}
-              loading="lazy"
-            />
-          ))}
-        </div>
-        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12 }}>
-          {SCREENSHOTS.map((_, i) => (
-            <button key={i} onClick={() => { sound.pop(); setActiveShot(i) }} style={{
-              width: i === activeShot ? 24 : 8, height: 8, borderRadius: 4,
-              background: i === activeShot ? "var(--brand-pink)" : "rgba(255,255,255,0.15)",
-              border: "none", cursor: "pointer", transition: "all 0.3s",
-            }} />
-          ))}
-        </div>
-        <div style={{ textAlign: "center", fontSize: 12, color: "var(--text-muted)", marginTop: 8, fontWeight: 600 }}>
-          {SCREENSHOTS[activeShot].label}
-        </div>
-      </div>
-
       {/* Community Trends */}
       <CommunityTrends />
-
-      {/* Analizador de Mi Número */}
-      <MiNumeroAnalyzer />
 
       {/* Disclaimer */}
       <Disclaimer />

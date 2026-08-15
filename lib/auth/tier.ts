@@ -173,7 +173,7 @@ export async function resolveUserTier(token: string): Promise<UserTier> {
       canAccessPremiumFeatures,
       canSavePrediction,
       predictionsUsed,
-      predictionsRemaining: isPremiumRole ? -1 : predictionsRemaining,
+      predictionsRemaining: isPremiumRole ? 9999 : predictionsRemaining,
       premium_until: profile?.premium_until || null,
       daysRemaining,
     }

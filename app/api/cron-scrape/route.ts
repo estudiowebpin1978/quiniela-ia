@@ -1,19 +1,20 @@
 /**
  * Fast scraper endpoint - solo scrapea turnos de HOY.
- * Diseñado para ser llamado cada 15 min por cron-job.org o Vercel Cron.
+ * Diseñado para ser llamado cada 15 min por Vercel Cron.
  * No hace backfill (para eso usar /api/cron-nacional?fill=deep).
  *
  * Orquestador de scraping con fallback en cascada:
- *   1. quinielanacional1.com.ar (primaria rápida)
- *   2. quinieleando.com.ar (fallback 1)
- *   3. loteria-ciudad.gob.ar (fallback 2 - oficial)
- *   Cross-validation: quiniela22.com (verificación de cabeza)
+ *   1. quinieleando.com.ar       (PRIMARY — static HTML)
+ *   2. loteria-ciudad.gob.ar     (Official CABA AJAX)
+ *   3. quinielanacionaln.com.ar  (Fallback — HTTP homepage)
+ *
+ * Verificación: el trigger trg_verify_predictions se encarga
+ * automáticamente al INSERTar en draws. NO llamar autoVerifyPredictions.
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { revalidateTag } from "next/cache"
+
 import { esDiaSinSorteo } from "@/lib/feriados"
-import { autoVerifyPredictions } from "@/lib/verificacion/auto-verify"
 import { fetchWithFallback } from "@/lib/scrapers/orchestrator"
 import { SourceStats, TURNOS, TurnoType, GAME_ID } from "@/lib/scrapers/types"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
@@ -46,10 +47,17 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
   try {
     const supabase = getSupabaseAdmin()
     const jurisdiccion = ["Primera", "Nocturna"].includes(turno) ? "provincia" : "nacional"
-    const { data, error } = await supabase.from("draws").upsert(
-      { date: fechaISO, turno, numbers: nums, source, game_id: GAME_ID, jurisdiccion },
-      { onConflict: "date,turno,game_id" }
-    )
+
+    // Use .rpc() to avoid int4[] ↔ text[] type mismatch with PostgREST
+    const { error } = await supabase.rpc("upsert_draw" as never, {
+      p_date: fechaISO,
+      p_turno: turno,
+      p_numbers: nums,
+      p_source: source,
+      p_game_id: GAME_ID,
+      p_jurisdiccion: jurisdiccion,
+    } as never)
+
     if (error) {
       logger.error("cron-scrape: guardarDraw failed", { error: error.message, code: error.code, details: error.details, fecha: fechaISO, turno, source, numsCount: nums.length })
       return { ok: false, error: error.message }
@@ -65,12 +73,19 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
 async function limpiarPrediccionesViejas(): Promise<number> {
   try {
     const supabase = getSupabaseAdmin()
-    const hace24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    // Use Buenos Aires time for cutoff (24h ago)
+    const now = new Date()
+    const bueNow = new Date(now.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }))
+    const hace24h = new Date(bueNow.getTime() - 24 * 60 * 60 * 1000)
+    const cutoffISO = hace24h.toISOString()
+    const todayBUE = now.toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
     
     const { data: old, error: fetchError } = await supabase
       .from("user_predictions")
-      .select("id")
-      .lt("created_at", hace24h)
+      .select("id, date")
+      .lt("created_at", cutoffISO)
+      .lt("date", todayBUE)
+      .limit(200)
     
     if (fetchError || !Array.isArray(old) || old.length === 0) return 0
     const ids = old.map((p: { id: string }) => p.id)
@@ -160,10 +175,7 @@ export async function GET(req: NextRequest) {
             fecha: fechaISO, turno, cantidad: result.numbers.length,
             source: result.source, cabezaMatch: result.cabezaMatch
           })
-          // Invalidate ISR cache for predictions endpoint
-          revalidateTag("predictions", "max")
-          getSupabaseAdmin().rpc('refresh_cached_predictions', { turno_objetivo: turno }).then(() => {}, () => {})
-          getSupabaseAdmin().rpc('refresh_cached_predictions_3_4', { turno_objetivo: turno }).then(() => {}, () => {})
+
         } else {
           const errMsg = `${turno}: ${saveResult.error}`
           logger.warn("cron-scrape: fallo al guardar", { fecha: fechaISO, turno, error: saveResult.error })
@@ -178,16 +190,6 @@ export async function GET(req: NextRequest) {
       }
     } else {
       resultados[turno] = []
-    }
-
-    // ALWAYS verify predictions for this date/turno (even if draw already existed)
-    try {
-      const verifyResults = await autoVerifyPredictions(fechaISO, turno)
-      if (verifyResults.length > 0) {
-        logger.info("cron-scrape: verified predictions", { fecha: fechaISO, turno, count: verifyResults.length })
-      }
-    } catch (e) {
-      logger.warn("cron-scrape: verification failed", { fecha: fechaISO, turno, error: String(e) })
     }
   }
 
@@ -236,30 +238,6 @@ export async function GET(req: NextRequest) {
         })
       } catch (e) {
         logger.warn("cron-scrape: error triggering analytics", { error: String(e) })
-      }
-
-      // Process any pending verification queue entries
-      try {
-        const sb = getSupabaseAdmin()
-        const { data: pending } = await sb
-          .from("verification_queue")
-          .select("id, payload")
-          .eq("status", "pending")
-          .limit(10)
-
-        if (pending && pending.length > 0) {
-          for (const entry of pending) {
-            const fecha = entry.payload?.fecha as string | undefined
-            const turno = entry.payload?.turno as string | undefined
-            if (fecha && turno) {
-              await autoVerifyPredictions(fecha, turno)
-              await sb.from("verification_queue").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", entry.id)
-            }
-          }
-          logger.info("cron-scrape: processed verification queue", { count: pending.length })
-        }
-      } catch (e) {
-        logger.warn("cron-scrape: error processing verification queue", { error: String(e) })
       }
     }
   }

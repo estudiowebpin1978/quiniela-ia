@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
   const userId = await verifyUser(req)
   if (!userId) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
-  const body = await req.json()
+  let body: Record<string, unknown>
+  try { body = await req.json() } catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }) }
   const turno = body.turno as string
   const topNumbers = body.topNumbers as string[] | undefined
   const correlations = body.correlations as { num: string; count: number }[] | undefined

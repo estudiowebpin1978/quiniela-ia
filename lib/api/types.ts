@@ -18,6 +18,9 @@ export interface PredictionRow {
   turno: string;
   numeros: number[] | Record<string, string[]> | string;
   created_at: string;
+  status?: string;
+  aciertos?: number[];
+  verified_at?: string;
 }
 
 /** Row from Supabase `prediction_history` table */

@@ -1,12 +1,12 @@
 /**
  * Quiniela parsers — Multi-source with fallback cascade.
  * Each parser returns ScrapeResult with 20-number array or null on failure.
+ * ALL parsers validate that the scraped date matches the target date.
  *
  * Sources (priority order):
  *   1. quinieleando.com.ar       — Static HTML, all turnos (PRIMARY)
  *   2. loteria-ciudad.gob.ar     — Official CABA AJAX endpoint
- *   3. quinielanacionaln.com.ar  — HTTP homepage parser (all turnos)
- *   4. loteriasantafe.gov.ar     — Official Santa Fe (1 turno per fetch)
+ *   3. quinielanacionaln.com.ar  — HTTP homepage parser (all turnos, FALLBACK)
  */
 
 import { ScrapeResult, TurnoType, GAME_ID } from "./types"

@@ -205,9 +205,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  // Revalidate dashboard after successful payment
+  // Revalidate predictions page after successful payment
   try {
-    revalidatePath('/dashboard', 'page')
     revalidatePath('/predictions', 'page')
   } catch (error) {
     logger.warn("[webhook-uala] Failed to revalidate paths", { error: String(error) })

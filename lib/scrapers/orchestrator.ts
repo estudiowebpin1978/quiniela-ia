@@ -2,15 +2,15 @@
  * Orchestrator: parallel consensus across sources with fallback.
  *
  * Priority order:
- *   1. quinieleando.com.ar       (static HTML, all turnos)
+ *   1. quinieleando.com.ar       (static HTML, all turnos — PRIMARY)
  *   2. loteria-ciudad.gob.ar     (official CABA AJAX)
- *   3. quinielanacionaln.com.ar  (HTTP homepage, all turnos)
- *   4. loteriasantafe.gov.ar     (official Santa Fe, 1 turno per fetch)
+ *   3. quinielanacionaln.com.ar  (HTTP homepage, all turnos — FALLBACK)
  *
  * Strategy:
- *   - Sources run in parallel (Promise.allSettled).
- *   - First successful result with >= 5 numbers wins.
- *   - All sources return null → fallback cascade.
+ *   - Sources 1 & 2 run in parallel (Promise.allSettled).
+ *   - First successful result with >= 20 numbers wins.
+ *   - Both fail → sequential fallback to source 3.
+ *   - Date validation: parsers reject data from wrong dates.
  */
 
 import {
@@ -374,7 +374,7 @@ export async function fetchWithFallback(
     return result
   }
 
-  // ── Both failed: sequential fallback to source 4 ──────────────────────
+  // ── Both failed: sequential fallback to source 3 ──────────────────────
   logger.warn("orchestrator: parallel failed, sequential fallback", {
     fecha: fechaISO,
     turno,
