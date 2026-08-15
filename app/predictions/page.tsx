@@ -550,22 +550,16 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
   function fechaSorteo(sorteo: string): string {
     const ahora = ahoraArgentina()
-    const horaActual = ahora.getHours()
     const diaActual = ahora.getDay()
     const fechaActual = hoyArgentina()
     const feriados = todosLosFeriados()
     
-    // Check if the draw for today has already passed
-    const horarioSorteo = HORARIOS_SORTEOS[sorteo] || 12
-    if (horaActual >= horarioSorteo) {
-      // Draw already happened today -> predict for next valid day
-      return nextValidDate(sorteo)
-    }
-    
-    // Check holidays, weekends
+    // If today has no draws at all (Sunday or holiday), skip to next valid day
     if (feriados.includes(fechaActual)) return nextValidDate(sorteo)
     if (diaActual === 0) return nextValidDate(sorteo)
     
+    // Today is a valid draw day (Mon-Sat, non-holiday) — always show today
+    // Even if the specific turno already happened, user should see today's page
     return fechaActual
   }
 
