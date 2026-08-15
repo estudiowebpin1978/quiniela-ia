@@ -93,22 +93,55 @@ function computeHmac(body: string, secret: string): string {
   return createHmac("sha256", secret).update(body, "utf8").digest("hex")
 }
 
+/** Obtiene token de acceso de Ualá Bis */
+async function getUalaToken(): Promise<string | null> {
+  const userName = process.env.UALA_USERNAME || process.env.UALABIS_USER_NAME
+  const clientId = process.env.UALA_CLIENT_ID || process.env.UALABIS_CLIENT_ID
+  const clientSecret = process.env.UALA_CLIENT_SECRET || process.env.UALABIS_CLIENT_SECRET
+
+  if (!userName || !clientId || !clientSecret) {
+    logger.error("[webhook-uala] UALA auth credentials not configured")
+    return null
+  }
+
+  try {
+    const response = await fetch("https://ua.la", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_name: userName,
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: "client_credentials",
+      }),
+      signal: AbortSignal.timeout(10000),
+    })
+
+    if (!response.ok) {
+      logger.error("[webhook-uala] Ualá auth failed", { status: response.status })
+      return null
+    }
+
+    const data = await response.json()
+    return data.access_token || null
+  } catch (error) {
+    logger.error("[webhook-uala] Ualá auth error", { error: String(error) })
+    return null
+  }
+}
+
 /** Verifica el pago contra la API de Ualá Bis */
 async function verifyUalaPayment(paymentId: string): Promise<PaymentVerification> {
-  const ualaApiKey = process.env.UALA_API_KEY
-  const ualaBaseUrl = process.env.UALA_BASE_URL || "https://api.uala.com.ar"
-
-  if (!ualaApiKey) {
-    logger.error("[webhook-uala] UALA_API_KEY not configured — cannot verify payment")
+  const accessToken = await getUalaToken()
+  if (!accessToken) {
     return { verified: false, status: "UNVERIFIED" }
   }
 
   try {
-    const response = await fetch(`${ualaBaseUrl}/payments/${paymentId}`, {
+    const response = await fetch(`https://ua.la/orders/${paymentId}`, {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${ualaApiKey}`,
-        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
       },
       signal: AbortSignal.timeout(10000),
     })
@@ -145,7 +178,8 @@ export async function POST(req: NextRequest) {
 
   // ── 3. Verify HMAC signature ──────────────────────────────────────────
   // Ualá Bis sends the signature in x-ualabis-signature header
-  const incomingSignature = req.headers.get("x-ualabis-signature")
+  const incomingSignature = req.headers.get("x-uala-signature")
+    || req.headers.get("x-ualabis-signature")
     || req.headers.get("x-webhook-secret")
     || ""
 
@@ -188,7 +222,7 @@ export async function POST(req: NextRequest) {
   const amount = parseFloat(String(amountRaw).replace(",", "."))
 
   // ── 6. Reject non-approved payments (return 200 per spec) ─────────────
-  if (status !== "APPROVED" && status !== "COMPLETED") {
+  if (status !== "APPROVED" && status !== "COMPLETED" && status !== "PROCESSED") {
     logger.info("[webhook-uala] Non-approved status, ignoring", { status, orderId })
     return NextResponse.json({ ok: true, message: `Status ${status} ignored` })
   }
