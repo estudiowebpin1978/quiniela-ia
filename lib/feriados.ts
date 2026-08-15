@@ -1,6 +1,9 @@
 /**
  * Feriados argentinos — single source of truth.
  * Importado por predictions/page.tsx, cron-scrape, mis-predicciones, etc.
+ *
+ * Sábados: solo Matutina (15:00), Vespertina (18:00), Nocturna (21:00).
+ * Previa y Primera NO se sortean los sábados.
  */
 
 const FERIADOS: Record<number, string[]> = {
@@ -28,11 +31,14 @@ export function esDiaSinSorteo(dateStr: string, diaSemana: number): boolean {
   return esFeriado(dateStr);
 }
 
-export function esSabadoSinPrevia(_diaSemana: number, _turno: string): boolean {
-  return false;
+/** Sábados: Previa y Primera no se sortean */
+export function esSabadoSinTurnos(diaSemana: number, turno: string): boolean {
+  if (diaSemana !== 6) return false;
+  return turno === "Previa" || turno === "Primera";
 }
 
-export function motivoDiaSinSorteo(dateStr: string, diaSemana: number, _turno: string): string | null {
+export function motivoDiaSinSorteo(dateStr: string, diaSemana: number, turno: string): string | null {
+  if (esSabadoSinTurnos(diaSemana, turno)) return "sábado (solo Matutina, Vespertina, Nocturna)";
   if (diaSemana === 0) return "domingo";
   if (esFeriado(dateStr)) return "feriado";
   return null;

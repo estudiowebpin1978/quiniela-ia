@@ -6,7 +6,7 @@
  * Flow: Check cache → Check DB exists → Scrape via orchestrator → Save to draws → Queue verification
  */
 
-import { esDiaSinSorteo, esSabadoSinPrevia } from "@/lib/feriados"
+import { esDiaSinSorteo, esSabadoSinTurnos } from "@/lib/feriados"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { logScrape } from "./logger"
 import { fetchWithFallback } from "./orchestrator"
@@ -191,6 +191,12 @@ async function runSync(targetDate?: string, force: boolean = false): Promise<Syn
 
   for (const turno of TURNOS) {
     const alreadyExpired = Date.now() - start > TIMEOUT
+
+    // Skip Previa and Primera on Saturdays
+    if (esSabadoSinTurnos(diaSemana, turno)) {
+      details[turno] = { exists: false, latest: null, scraped: false }
+      continue
+    }
 
     const exists = alreadyExpired ? true : await hasDrawForDate(fechaISO, turno)
     const latest = await getLatestDrawForTurno(turno)

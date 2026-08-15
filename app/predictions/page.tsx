@@ -27,7 +27,7 @@ import { ToastProvider, useToast } from "@/components/Toast";
 import { getAccessToken, clearAuth, getAuth, isGuest, clearGuest } from "@/lib/auth";
 import { STORAGE_KEYS } from "@/lib/storage";
 import { isAdminEmail } from "@/lib/config";
-import { esFeriado, esDiaSinSorteo, motivoDiaSinSorteo, todosLosFeriados } from "@/lib/feriados";
+import { esFeriado, esDiaSinSorteo, esSabadoSinTurnos, motivoDiaSinSorteo, todosLosFeriados } from "@/lib/feriados";
 import NumberGrid from "@/components/predictions/NumberGrid";
 import HeatmapGrid from "@/components/predictions/HeatmapGrid";
 import TrendBars from "@/components/predictions/TrendBars";
@@ -417,10 +417,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       const diaSemana = artNow.getDay();
       const esFeriadoHoy = esFeriado(hoy);
       const esDomingo = diaSemana === 0;
-      const noHaySorteoHoy = esFeriadoHoy || esDomingo;
+      const esSabadoBloqueado = esSabadoSinTurnos(diaSemana, currentTurno);
+      const noHaySorteoHoy = esFeriadoHoy || esDomingo || esSabadoBloqueado;
 
       if (noHaySorteoHoy && predDate === hoy) {
-        const motivo = esFeriadoHoy ? "feriado" : "domingo";
+        const motivo = esSabadoBloqueado ? "sábado (solo Matutina, Vespertina, Nocturna)" : esFeriadoHoy ? "feriado" : "domingo";
         setEr(`Hoy es ${motivo}, no hay sorteo ${currentTurno.toLowerCase()}. Elegí otro turno o esperá al próximo sorteo.`);
         setLd(false);
         return;
@@ -543,6 +544,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       const fecha = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(d)
       if (dia === 0) continue;
       if (feriados.includes(fecha)) continue;
+      if (esSabadoSinTurnos(dia, sorteo)) continue;
       return fecha
     }
     return hoyArgentina()
@@ -558,8 +560,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     if (feriados.includes(fechaActual)) return nextValidDate(sorteo)
     if (diaActual === 0) return nextValidDate(sorteo)
     
-    // Today is a valid draw day (Mon-Sat, non-holiday) — always show today
-    // Even if the specific turno already happened, user should see today's page
+    // Saturday: Previa and Primera don't happen — skip to next valid day
+    if (esSabadoSinTurnos(diaActual, sorteo)) return nextValidDate(sorteo)
+    
+    // Today is a valid draw day for this turno — show today
     return fechaActual
   }
 
