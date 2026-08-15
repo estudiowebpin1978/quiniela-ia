@@ -192,11 +192,6 @@ async function runSync(targetDate?: string, force: boolean = false): Promise<Syn
   for (const turno of TURNOS) {
     const alreadyExpired = Date.now() - start > TIMEOUT
 
-    if (turno === "Previa" && esSabadoSinPrevia(diaSemana, turno)) {
-      details[turno] = { exists: false, latest: null, scraped: false }
-      continue
-    }
-
     const exists = alreadyExpired ? true : await hasDrawForDate(fechaISO, turno)
     const latest = await getLatestDrawForTurno(turno)
     if (latest) lastDraw = latest

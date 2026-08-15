@@ -417,11 +417,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       const diaSemana = artNow.getDay();
       const esFeriadoHoy = esFeriado(hoy);
       const esDomingo = diaSemana === 0;
-      const esSabadoPrevia = diaSemana === 6 && currentTurno === "Previa";
-      const noHaySorteoHoy = esFeriadoHoy || esDomingo || esSabadoPrevia;
+      const noHaySorteoHoy = esFeriadoHoy || esDomingo;
 
       if (noHaySorteoHoy && predDate === hoy) {
-        const motivo = esFeriadoHoy ? "feriado" : esDomingo ? "domingo" : "sábado (no hay Previa)";
+        const motivo = esFeriadoHoy ? "feriado" : "domingo";
         setEr(`Hoy es ${motivo}, no hay sorteo ${currentTurno.toLowerCase()}. Elegí otro turno o esperá al próximo sorteo.`);
         setLd(false);
         return;
@@ -543,7 +542,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       const dia = diaSemanaART(d);
       const fecha = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(d)
       if (dia === 0) continue;
-      if (sorteo === "Previa" && dia === 6) continue;
       if (feriados.includes(fecha)) continue;
       return fecha
     }
@@ -567,7 +565,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     // Check holidays, weekends
     if (feriados.includes(fechaActual)) return nextValidDate(sorteo)
     if (diaActual === 0) return nextValidDate(sorteo)
-    if (sorteo === "Previa" && diaActual === 6) return nextValidDate(sorteo)
     
     return fechaActual
   }

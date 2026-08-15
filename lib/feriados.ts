@@ -28,12 +28,11 @@ export function esDiaSinSorteo(dateStr: string, diaSemana: number): boolean {
   return esFeriado(dateStr);
 }
 
-export function esSabadoSinPrevia(diaSemana: number, turno: string): boolean {
-  return diaSemana === 6 && turno === "Previa";
+export function esSabadoSinPrevia(_diaSemana: number, _turno: string): boolean {
+  return false;
 }
 
-export function motivoDiaSinSorteo(dateStr: string, diaSemana: number, turno: string): string | null {
-  if (esSabadoSinPrevia(diaSemana, turno)) return "sábado (no hay Previa)";
+export function motivoDiaSinSorteo(dateStr: string, diaSemana: number, _turno: string): string | null {
   if (diaSemana === 0) return "domingo";
   if (esFeriado(dateStr)) return "feriado";
   return null;
