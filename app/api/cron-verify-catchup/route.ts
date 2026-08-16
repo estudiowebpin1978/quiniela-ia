@@ -69,13 +69,33 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Sweep expired predictions (no draw exists → LOST)
+  let swept = 0
+  try {
+    const sweepRes = await fetch(
+      `${SB()}/rest/v1/rpc/sweep_expired_predictions`,
+      {
+        method: "POST",
+        headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+        signal: AbortSignal.timeout(15000),
+      }
+    )
+    if (sweepRes.ok) {
+      swept = await sweepRes.json()
+    }
+  } catch (e) {
+    logger.error("cron-verify-catchup: sweep failed", { error: String(e) })
+  }
+
   const duration = Date.now() - start
-  logCronExecution("cron-verify-catchup", { verified: totalVerified, drawsChecked: uniqueDraws.length, errors: errors.length }, start)
+  logCronExecution("cron-verify-catchup", { verified: totalVerified, swept, drawsChecked: uniqueDraws.length, errors: errors.length }, start)
 
   return NextResponse.json({
     ok: errors.length === 0,
     fecha: new Date().toISOString().split("T")[0],
     verified: totalVerified,
+    swept,
     drawsChecked: uniqueDraws.length,
     errors,
     duration,
