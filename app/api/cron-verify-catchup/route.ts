@@ -1,33 +1,23 @@
+/**
+ * Daily sweep endpoint.
+ * Runs at 09:00 UTC (06:00 Argentina) via Vercel Cron.
+ *
+ * Primary job: sweep_expired_predictions() marks old PENDING predictions as LOST
+ * when no draw exists (Sunday/holiday/Saturday-Previa-Primera).
+ * Also re-verifies predictions where draw exists but trigger never fired.
+ *
+ * The trigger trg_verify_predictions handles real-time verification on INSERT.
+ * This endpoint is the safety net for edge cases.
+ */
+
 import { NextRequest, NextResponse } from "next/server"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
-import { autoVerifyPredictions } from "@/lib/verificacion/auto-verify"
 import logger from "@/lib/logger"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
 
-const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
-
 export const maxDuration = 300
-
-async function getDrawsWithPredictions(daysBack: number = 7): Promise<Array<{ fecha: string; turno: string }>> {
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - daysBack)
-  const cutoffStr = cutoff.toISOString().split("T")[0]
-
-  try {
-    const res = await fetch(
-      `${SB()}/rest/v1/draws?date=gte.${cutoffStr}&select=date,turno&order=date.desc`,
-      { headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` }, signal: AbortSignal.timeout(10000) }
-    )
-    if (!res.ok) return []
-    const draws = await res.json()
-    if (!Array.isArray(draws)) return []
-    return draws.map((d: { date: string; turno: string }) => ({ fecha: d.date, turno: d.turno }))
-  } catch {
-    return []
-  }
-}
 
 export async function GET(req: NextRequest) {
   const start = Date.now()
@@ -39,37 +29,7 @@ export async function GET(req: NextRequest) {
 
   logger.info("cron-verify-catchup: authorized", { source: authResult.source })
 
-  const url = new URL(req.url)
-  const daysBack = Math.min(Number(url.searchParams.get("days") || "7"), 30)
-
-  const draws = await getDrawsWithPredictions(daysBack)
-  if (!draws.length) {
-    return NextResponse.json({ ok: true, message: "No draws found in range", verified: 0 })
-  }
-
-  // Deduplicate by fecha|turno
-  const uniqueDraws = Array.from(
-    new Map(draws.map(d => [`${d.fecha}|${d.turno}`, d])).values()
-  )
-
-  let totalVerified = 0
-  const errors: string[] = []
-
-  for (const { fecha, turno } of uniqueDraws) {
-    try {
-      const results = await autoVerifyPredictions(fecha, turno, 1)
-      totalVerified += results.length
-      if (results.length > 0) {
-        logger.info("cron-verify-catchup: verified", { fecha, turno, count: results.length })
-      }
-    } catch (e) {
-      const err = e instanceof Error ? e.message : String(e)
-      errors.push(`${fecha}|${turno}: ${err}`)
-      logger.error("cron-verify-catchup: error", { fecha, turno, error: err })
-    }
-  }
-
-  // Sweep expired predictions (no draw exists → LOST)
+  // Sweep expired predictions
   let swept = 0
   try {
     const sweepRes = await fetch(
@@ -83,22 +43,21 @@ export async function GET(req: NextRequest) {
     )
     if (sweepRes.ok) {
       swept = await sweepRes.json()
+    } else {
+      logger.error("cron-verify-catchup: sweep HTTP error", { status: sweepRes.status })
     }
   } catch (e) {
     logger.error("cron-verify-catchup: sweep failed", { error: String(e) })
   }
 
   const duration = Date.now() - start
-  logCronExecution("cron-verify-catchup", { verified: totalVerified, swept, drawsChecked: uniqueDraws.length, errors: errors.length }, start)
+  logCronExecution("cron-verify-catchup", { swept }, start)
 
   return NextResponse.json({
-    ok: errors.length === 0,
+    ok: true,
     fecha: new Date().toISOString().split("T")[0],
-    verified: totalVerified,
     swept,
-    drawsChecked: uniqueDraws.length,
-    errors,
     duration,
-    message: totalVerified > 0 ? `${totalVerified} predicciones verificadas` : errors.length > 0 ? `${errors.length} errores` : "Sin nuevas verificaciones"
+    message: swept > 0 ? `${swept} predicciones procesadas` : "Sin predicciones pendientes"
   })
 }

@@ -93,17 +93,17 @@ async function saveDraw(
   try {
     const supabase = getSupabaseAdmin()
     const jurisdiccion = ["Primera", "Nocturna"].includes(turno) ? "provincia" : "nacional"
-    const { error } = await supabase.from("draws").upsert(
-      {
-        date: fechaISO,
-        turno,
-        numbers: nums,
-        source,
-        game_id: GAME_ID,
-        jurisdiccion,
-      },
-      { onConflict: "date,turno,game_id" }
-    )
+
+    // Use .rpc() to avoid int4[] ↔ text[] type mismatch with PostgREST
+    const { error } = await supabase.rpc("upsert_draw" as never, {
+      p_date: fechaISO,
+      p_turno: turno,
+      p_numbers: nums,
+      p_source: source,
+      p_game_id: GAME_ID,
+      p_jurisdiccion: jurisdiccion,
+    } as never)
+
     return !error
   } catch {
     return false
