@@ -303,9 +303,18 @@ export async function getSorteoCode(fechaISO: string, turno: TurnoType): Promise
 
 // ─── Source 3: QuinielaNacionalN (Homepage parser — HTTP only) ────────────────
 // Parses all 5 turnos from http://quinielanacionaln.com.ar/ homepage
-// Homepage has <div id="Turno_SorteoCode" class="turno"> sections with Nacional numbers
-// CRITICAL: Must validate that the HTML date matches the target date to avoid
-// saving yesterday's data with today's date.
+// Actual HTML structure:
+//   <div id="Nocturna_5000001459" class="turno">
+//     <h2>Sábado 15/08/26</h2>
+//   </div>
+//   <div class="columna">
+//     <p class="h3">Nacional</p>
+//     <div class="veintena">
+//       <div class="orden">1</div><div class="numero">7647</div>
+//       ...
+//     </div>
+//   </div>
+// CRITICAL: Must validate that the HTML date matches the target date.
 export async function parseQuinielaNacionalN(
   fechaISO: string,
   _fechaUrl: string,
@@ -320,50 +329,98 @@ export async function parseQuinielaNacionalN(
       })
     ).text()
 
-    // Find the turno section: <div id="Turno_SorteoCode" class="turno">
+    // Step 1: Find turno section by id prefix: id="Nocturna_..."
     const turnoIdx = html.indexOf(`id="${turno}_`)
     if (turnoIdx < 0) return null
 
-    // Extract the date from the <h2> tag: <h2>Viernes 14/08/26</h2>
+    // Step 2: Extract date from <h2> inside the turno div
+    // <h2>S&aacute;bado 15/08/26</h2> — may have HTML entities
     const afterTurno = html.substring(turnoIdx, turnoIdx + 500)
     const dateMatch = afterTurno.match(/<h2>[^<]*?(\d{2})\/(\d{2})\/(\d{2})[^<]*<\/h2>/)
-    if (dateMatch) {
-      const [, dd, mm, yy] = dateMatch
-      const htmlDate = `20${yy}-${mm}-${dd}` // Convert to ISO: 2026-08-14
-      if (htmlDate !== fechaISO) {
-        logger.debug("[scraper] parseQuinielaNacionalN: date mismatch", {
-          htmlDate, targetDate: fechaISO, turno
-        })
-        return null // Data is from a different date, skip
+    if (!dateMatch) return null
+    const [, dd, mm, yy] = dateMatch
+    const htmlDate = `20${yy}-${mm}-${dd}`
+    if (htmlDate !== fechaISO) {
+      logger.debug("[scraper] parseQuinielaNacionalN: date mismatch", {
+        htmlDate, targetDate: fechaISO, turno
+      })
+      return null
+    }
+
+    // Step 3: Find Nacional section after the turno header
+    // Each turno div is self-closing: <div id="Nocturna_..." class="turno"><h2>...</h2></div>
+    // Then comes <div class="columna"> with <p class="h3">Nacional</p> or <h3 class="h3">Nacional</h3>
+    // We must find Nacional AFTER the turno's </div> to avoid matching previous turnos' Nacional
+    const afterDate = html.substring(turnoIdx)
+
+    // Find the turno's closing </div> first
+    const turnoCloseDiv = afterDate.indexOf("</div>")
+    if (turnoCloseDiv < 0) return null
+
+    // Search for Nacional AFTER the turno div closes
+    const searchStart = turnoCloseDiv
+    let nacionalIdx = -1
+    const h3Idx = afterDate.indexOf("Nacional</h3>", searchStart)
+    const pIdx = afterDate.indexOf("Nacional</p>", searchStart)
+    if (h3Idx >= 0 && pIdx >= 0) nacionalIdx = Math.min(h3Idx, pIdx)
+    else if (h3Idx >= 0) nacionalIdx = h3Idx
+    else if (pIdx >= 0) nacionalIdx = pIdx
+    if (nacionalIdx < 0) return null
+
+    // Step 4: Extract from Nacional to next .turno section or end
+    const searchFrom = nacionalIdx + 10
+    const nextTurnoIdx = afterDate.indexOf('class="turno"', searchFrom)
+    const nextColumnaIdx = afterDate.indexOf('class="columna"', searchFrom)
+    let endIdx = afterDate.length
+    if (nextTurnoIdx > 0) endIdx = Math.min(endIdx, nextTurnoIdx)
+    if (nextColumnaIdx > 0) endIdx = Math.min(endIdx, nextColumnaIdx)
+    const chunk = afterDate.substring(nacionalIdx, endIdx)
+
+    // Step 5: Extract orden+numero pairs: <div class="orden">1</div><div class="numero">7647</div>
+    const pairRx = /class="orden">\s*(\d{1,2})\s*<\/div>\s*<div class="numero">\s*(\d{1,4})\s*<\/div>/gi
+    const pairs: { pos: number; num: number }[] = []
+    let pmx: RegExpExecArray | null
+    while ((pmx = pairRx.exec(chunk)) !== null) {
+      const pos = parseInt(pmx[1])
+      const num = parseInt(pmx[2])
+      if (pos >= 1 && pos <= 20 && num >= 0 && num <= 9999) {
+        pairs.push({ pos, num })
       }
     }
 
-    // Find Nacional section after this turno (supports both <p> and <h3>)
-    const pIdx = afterTurno.indexOf("Nacional</p>")
-    const h3Idx = afterTurno.indexOf("Nacional</h3>")
-    let nacionalIdx = -1
-    if (pIdx >= 0 && h3Idx >= 0) nacionalIdx = Math.min(pIdx, h3Idx)
-    else if (pIdx >= 0) nacionalIdx = pIdx
-    else if (h3Idx >= 0) nacionalIdx = h3Idx
-    if (nacionalIdx < 0) return null
-
-    // Extract from Nacional to next turno section or end
-    const nextTurnoIdx = afterTurno.indexOf('class="turno"', nacionalIdx + 10)
-    const chunk = afterTurno.substring(nacionalIdx, nextTurnoIdx > 0 ? nextTurnoIdx : nacionalIdx + 3000)
-
-    // Extract numbers from .numero divs
-    const rx = /class\s*=\s*["']?numero["']?\s*>\s*(\d{1,4})\s*<\/div>/gi
-    const nums: number[] = []
-    let m: RegExpExecArray | null
-    while ((m = rx.exec(chunk)) !== null) {
-      const n = parseInt(m[1])
-      if (n >= 0 && n <= 9999 && !nums.includes(n)) nums.push(n)
-      if (nums.length >= 20) break
+    if (pairs.length >= 5) {
+      pairs.sort((a, b) => a.pos - b.pos)
+      const seen = new Set<number>()
+      const nums: number[] = []
+      for (const p of pairs) {
+        if (!seen.has(p.pos)) {
+          seen.add(p.pos)
+          nums.push(p.num)
+        }
+      }
+      if (nums.length >= 5) {
+        return {
+          numbers: nums,
+          source: "quinielanacionaln.com.ar",
+          cabezaMatch: null,
+          duration: Date.now() - start,
+          retries: 0,
+        }
+      }
     }
 
-    if (nums.length >= 5) {
+    // Fallback: extract any .numero values (without position)
+    const numRx = /class="numero">\s*(\d{1,4})\s*<\/div>/gi
+    const nums2: number[] = []
+    let mx: RegExpExecArray | null
+    while ((mx = numRx.exec(chunk)) !== null) {
+      const n = parseInt(mx[1])
+      if (n >= 0 && n <= 9999 && !nums2.includes(n)) nums2.push(n)
+      if (nums2.length >= 20) break
+    }
+    if (nums2.length >= 5) {
       return {
-        numbers: nums,
+        numbers: nums2,
         source: "quinielanacionaln.com.ar",
         cabezaMatch: null,
         duration: Date.now() - start,
