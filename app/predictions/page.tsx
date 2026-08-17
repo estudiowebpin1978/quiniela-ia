@@ -2015,14 +2015,14 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 Desbloqueá análisis de <strong style={{color:"#a855f7"}}>3 y 4 cifras</strong> con Machine Learning
               </div>
 
-              {/* Plan Semanal */}
+              {/* Plan 15 Días */}
               <div style={{borderRadius:14,overflow:"hidden",marginBottom:14,background:"linear-gradient(135deg,rgba(168,85,247,.1),rgba(99,102,241,.06))",border:"1px solid rgba(168,85,247,.25)",boxShadow:"0 4px 16px rgba(168,85,247,.15)"}}>
                 <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div>
-                    <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase Semanal</div>
-                    <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>7 días de acceso</div>
+                    <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase 15 Días</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>15 días de acceso</div>
                   </div>
-                  <div style={{fontSize:22,fontWeight:900,color:"#a855f7"}}>$3.500</div>
+                  <div style={{fontSize:22,fontWeight:900,color:"#a855f7"}}>$5.000</div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,padding:"0 10px 10px"}}>
                   <button
@@ -2058,12 +2058,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 </div>
               </div>
 
-              {/* Plan Mensual */}
+              {/* Plan 30 Días */}
               <div style={{borderRadius:14,overflow:"hidden",marginBottom:16,position:"relative",background:"linear-gradient(135deg,rgba(34,197,94,.08),rgba(16,163,74,.04))",border:"1px solid rgba(34,197,94,.3)",boxShadow:"0 4px 16px rgba(34,197,94,.12)"}}>
                 <div style={{position:"absolute",top:0,right:0,background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",fontSize:9,fontWeight:800,padding:"4px 10px",borderRadius:"0 14px 0 8px",letterSpacing:0.5,boxShadow:"0 2px 8px rgba(34,197,94,.4)"}}>AHORRÁ 40%</div>
                 <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div>
-                    <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase Mensual</div>
+                    <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase 30 Días</div>
                     <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>30 días de acceso</div>
                   </div>
                   <div style={{fontSize:22,fontWeight:900,color:"#22c55e"}}>$10.000</div>
