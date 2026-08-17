@@ -1,6 +1,6 @@
 "use client"
 import { useState } from "react"
-import { getAccessToken } from "@/lib/auth"
+import { getValidToken } from "@/lib/auth"
 
 type Props = {
   open: boolean
@@ -29,7 +29,7 @@ export default function PaywallModal({ open, onClose, userId }: Props) {
     if (!userId) { setError("Iniciá sesión para continuar"); return }
     setLoading(plan); setError("")
     try {
-      const token = getAccessToken()
+      const token = await getValidToken()
       const res = await fetch("/api/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },

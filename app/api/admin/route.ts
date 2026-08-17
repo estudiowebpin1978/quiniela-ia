@@ -96,8 +96,25 @@ export async function POST(req: NextRequest) {
     update = { role: "premium", premium_until: new Date(Date.now() + d * 86400000).toISOString() }
   } else if (action === "free") {
     update = { role: "free", premium_until: null }
+  } else if (action === "delete") {
+    // Delete user from Supabase Auth + user_profiles
+    try {
+      // Delete from auth
+      await fetch(`${SB()}/auth/v1/admin/users/${userId}`, {
+        method: "DELETE",
+        headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` },
+      })
+      // Delete from user_profiles
+      await fetch(`${SB()}/rest/v1/user_profiles?id=eq.${userId}`, {
+        method: "DELETE",
+        headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` },
+      })
+      return NextResponse.json({ ok: true })
+    } catch {
+      return NextResponse.json({ error: "Error eliminando usuario" }, { status: 500 })
+    }
   } else {
-    return NextResponse.json({ error: "Acción inválida. Solo: premium, free" }, { status: 400 })
+    return NextResponse.json({ error: "Acción inválida. Solo: premium, free, delete" }, { status: 400 })
   }
 
   try {

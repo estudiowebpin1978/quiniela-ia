@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
+import { updateMotorPerformance, ALL_MOTORS } from "@/lib/analisis/motor-performance"
 import logger from "@/lib/logger"
 
 interface ParsedNumeros {
@@ -252,6 +253,12 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
 
   if (results.length > 0) {
     logger.info("[auto-verify] Verified predictions", { fecha, turno: normalizedTurno, count: results.length })
+
+    // Update motor performance: each motor gets the ensemble hit rate for this turno
+    const avgHitRate = results.reduce((sum, r) => sum + (r.total_aciertos / 10), 0) / results.length
+    for (const motor of ALL_MOTORS) {
+      updateMotorPerformance(motor, normalizedTurno, avgHitRate).catch(() => {})
+    }
   }
 
   return results

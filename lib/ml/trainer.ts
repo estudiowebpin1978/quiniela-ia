@@ -176,14 +176,29 @@ export async function entrenarModelos(
 
     const markovEntrenado = entrenarCadenaMarkov(markov, secuencias);
 
+    // Evaluate Markov on test data
+    const markovPredicciones: number[] = [];
+    for (const t of test) {
+      try {
+        const estado = Array.isArray(t.features) ? t.features.slice(0, markovEntrenado.orden) : [t.features[0] || 0];
+        const pred = predecirSiguienteMarkov(markovEntrenado, estado, 10);
+        markovPredicciones.push(pred.proximoEstado);
+      } catch {
+        markovPredicciones.push(0);
+      }
+    }
+    const metricasMarkov = markovPredicciones.length > 0
+      ? calcularMetricas(markovPredicciones, test.map(d => d.etiqueta))
+      : { precisionTop1: 0, precisionTop5: 0, precisionTop10: 0 };
+
     modelos.push({
       nombre: 'Cadena de Markov',
       tipo: 'markov',
-      precision: 0,
+      precision: metricasMarkov.precisionTop1,
       fechaEntrenamiento: new Date().toISOString(),
       config: { orden: 2 },
       modelo: markovEntrenado,
-      metricas: { precisionTop1: 0, precisionTop5: 0, precisionTop10: 0 }
+      metricas: metricasMarkov
     });
   }
 

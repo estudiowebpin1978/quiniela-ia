@@ -6,7 +6,7 @@
 CREATE TABLE IF NOT EXISTS backtest_results (
   id SERIAL PRIMARY KEY,
   run_date TIMESTAMP DEFAULT now(),
-  model_name TEXT NOT NULL,
+  model_name TEXT NOT NULL DEFAULT 'Omega_v4_Hybrid',
   turno TEXT NOT NULL,
   test_date DATE NOT NULL,
   predicted_numbers INT[] NOT NULL,
@@ -17,6 +17,12 @@ CREATE TABLE IF NOT EXISTS backtest_results (
   hits_top1 INT DEFAULT 0,
   hit_rate NUMERIC DEFAULT 0
 );
+
+-- Add model_name column if table existed without it
+DO $$ BEGIN
+  ALTER TABLE backtest_results ADD COLUMN IF NOT EXISTS model_name TEXT NOT NULL DEFAULT 'Omega_v4_Hybrid';
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_backtest_model ON backtest_results(model_name, turno);
 CREATE INDEX IF NOT EXISTS idx_backtest_date ON backtest_results(test_date);

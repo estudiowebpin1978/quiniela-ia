@@ -186,6 +186,22 @@ export default function AdminPage() {
     } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error") } finally { setBusy(null) }
   }
 
+  async function deleteUser(userId: string, email: string) {
+    if (!confirm(`Eliminar usuario ${email}? Esta acción no se puede deshacer.`)) return
+    setBusy(userId + "delete"); setMsg(""); setErr("")
+    try {
+      const r = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ userId, action: "delete" })
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error)
+      setMsg(`Usuario ${email} eliminado`)
+      load(token)
+    } catch (e: unknown) { setErr(e instanceof Error ? e.message : "Error") } finally { setBusy(null) }
+  }
+
   async function quickActivate() {
     if (!quickEmail || !token) return
     setBusy("quick"); setMsg(""); setErr("")
@@ -369,6 +385,9 @@ export default function AdminPage() {
                         <button className="btn btn-w" onClick={() => sendWhatsAppConfirmation(u.email, "renovación", 30)}>
                           📲
                         </button>
+                        <button className="btn btn-r" style={{ fontSize: 11 }} disabled={busy === u.id + "free"} onClick={() => activateFree(u.id, u.email)} title="Remover premium">
+                          {busy === u.id + "free" ? <span className="sp" /> : "✕"}
+                        </button>
                       </div>
                     </div>
                   )
@@ -491,6 +510,9 @@ export default function AdminPage() {
                           {busy === u.id + "free" ? <span className="sp" /> : "✕"}
                         </button>
                       )}
+                      <button className="btn btn-r" style={{ fontSize: 11, marginLeft: 2 }} disabled={busy === u.id + "delete"} onClick={() => deleteUser(u.id, u.email)} title="Eliminar usuario">
+                        {busy === u.id + "delete" ? <span className="sp" /> : "🗑"}
+                      </button>
                     </div>
                   </div>
                 )
