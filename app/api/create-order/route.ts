@@ -26,13 +26,18 @@ export async function POST(req: NextRequest) {
   try {
     const userRes = await fetch(`${sbUrl}/auth/v1/user`, {
       headers: { "apikey": sbKey, "Authorization": `Bearer ${token}` },
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(5000),
     })
-    if (!userRes.ok) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    if (!userRes.ok) {
+      const errBody = await userRes.text().catch(() => "")
+      logger.error("[create-order] JWT validation failed", { status: userRes.status, body: errBody.substring(0, 200), hasToken: !!token, tokenLen: token.length })
+      return NextResponse.json({ error: "No autorizado", detail: `JWT status ${userRes.status}` }, { status: 401 })
+    }
     const user = await userRes.json()
     authUserId = user?.id || null
-  } catch {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+  } catch (e) {
+    logger.error("[create-order] JWT validation error", { error: String(e) })
+    return NextResponse.json({ error: "No autorizado", detail: String(e) }, { status: 401 })
   }
   if (!authUserId) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
@@ -74,8 +79,9 @@ export async function POST(req: NextRequest) {
     })
 
     if (!authRes.ok) {
-      logger.error("[create-order] Auth failed", { status: authRes.status })
-      return NextResponse.json({ error: "Error autenticando con proveedor" }, { status: 502 })
+      const errBody = await authRes.text().catch(() => "")
+      logger.error("[create-order] Uala auth failed", { status: authRes.status, body: errBody.substring(0, 300), hasUsername: !!username, hasClientId: !!clientId, hasSecret: !!clientSecret })
+      return NextResponse.json({ error: "Error autenticando con proveedor", detail: `Uala auth ${authRes.status}` }, { status: 502 })
     }
 
     const authData = await authRes.json()
@@ -105,8 +111,9 @@ export async function POST(req: NextRequest) {
     })
 
     if (!orderRes.ok) {
-      logger.error("[create-order] Order failed", { status: orderRes.status })
-      return NextResponse.json({ error: "Error creando orden de pago" }, { status: 502 })
+      const errBody = await orderRes.text().catch(() => "")
+      logger.error("[create-order] Order failed", { status: orderRes.status, body: errBody.substring(0, 300) })
+      return NextResponse.json({ error: "Error creando orden de pago", detail: `Order ${orderRes.status}` }, { status: 502 })
     }
 
     const orderData = await orderRes.json()
