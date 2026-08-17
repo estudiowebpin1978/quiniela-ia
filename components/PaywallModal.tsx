@@ -9,8 +9,8 @@ type Props = {
 }
 
 const PLANS = [
-  { key: "semanal", label: "Pase Semanal", price: "$3.500", days: "7 días de acceso completo", color: "#a855f7", badge: "MÁS ELEGIDO" },
-  { key: "mensual", label: "Pase Mensual", price: "$10.000", days: "30 días · Ahorrás 40%", color: "#22c55e", badge: "" },
+  { key: "15_days", label: "Pase 15 Días", price: "$5.000", days: "15 días de acceso", color: "#a855f7", badge: "" },
+  { key: "30_days", label: "Pase 30 Días", price: "$10.000", days: "30 días · Ahorrás 40%", color: "#22c55e", badge: "MÁS ELEGIDO" },
 ]
 
 const ALIAS = "quinielaia"
@@ -30,10 +30,10 @@ export default function PaywallModal({ open, onClose, userId }: Props) {
     setLoading(plan); setError("")
     try {
       const token = await getValidToken()
-      const res = await fetch("/api/create-order", {
+      const res = await fetch("/api/checkout/ualabis", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ plan, userId }),
+        body: JSON.stringify({ plan }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "Error creando la orden")

@@ -71,6 +71,8 @@ interface PaymentVerification {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const PLAN_DAYS: Record<string, number> = {
+  "15_days": 15,
+  "30_days": 30,
   semanal: 7,
   mensual: 30,
 }
@@ -269,8 +271,14 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 10. Determine plan and premium duration ────────────────────────────
+  // Priority: explicit plan field > amount-based fallback
+  const explicitPlan = body.plan ? String(body.plan).toLowerCase() : null
   let plan = "mensual"
-  if (amount > 0 && amount <= 3600) plan = "semanal"
+  if (explicitPlan && PLAN_DAYS[explicitPlan]) {
+    plan = explicitPlan
+  } else if (amount > 0 && amount <= 3600) {
+    plan = "semanal"
+  }
   const requestedDays = PLAN_DAYS[plan] || 30
   const premiumUntil = new Date(Date.now() + requestedDays * 86400000).toISOString()
 
