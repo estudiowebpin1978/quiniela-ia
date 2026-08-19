@@ -24,7 +24,7 @@ import HistorialAciertos from "@/components/HistorialAciertos";
 import ExpiryBanner from "@/components/ExpiryBanner";
 import AgeGate from "@/components/AgeGate";
 import { ToastProvider, useToast } from "@/components/Toast";
-import { getAccessToken, clearAuth, getAuth, isGuest, clearGuest } from "@/lib/auth";
+import { getAccessToken, clearAuth, getAuth, isGuest, clearGuest, getValidToken } from "@/lib/auth";
 import { STORAGE_KEYS } from "@/lib/storage";
 import { isAdminEmail } from "@/lib/config";
 import { esFeriado, esDiaSinSorteo, esSabadoSinTurnos, motivoDiaSinSorteo, todosLosFeriados } from "@/lib/feriados";
@@ -2026,7 +2026,19 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,padding:"0 10px 10px"}}>
                   <button
-                    onClick={() => window.location.href = "https://pagar.ualabis.com.ar/order/ccf7ad12fbae52943ac1701df9f4881dfd32bd12d67e68e1"}
+                    onClick={async () => {
+                      try {
+                        const token = await getValidToken()
+                        const res = await fetch("/api/checkout/ualabis", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                          body: JSON.stringify({ plan: "15_days" }),
+                        })
+                        const data = await res.json()
+                        if (data.checkoutUrl) window.location.href = data.checkoutUrl
+                        else alert(data.error || "Error creando pago")
+                      } catch { alert("Error procesando pago") }
+                    }}
                     style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",border:"none",borderRadius:12,
                       background:"linear-gradient(135deg,#6366f1,#8b5cf6)",
                       boxShadow:"0 4px 0 #4338ca,0 6px 16px rgba(99,102,241,.3),inset 0 1px 0 rgba(255,255,255,.2)",
@@ -2070,7 +2082,19 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,padding:"0 10px 10px"}}>
                   <button
-                    onClick={() => window.location.href = "https://pagar.ualabis.com.ar/order/c36ca5f566e2c2651761bde064e7b36e11eedeb7a5727382"}
+                    onClick={async () => {
+                      try {
+                        const token = await getValidToken()
+                        const res = await fetch("/api/checkout/ualabis", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                          body: JSON.stringify({ plan: "30_days" }),
+                        })
+                        const data = await res.json()
+                        if (data.checkoutUrl) window.location.href = data.checkoutUrl
+                        else alert(data.error || "Error creando pago")
+                      } catch { alert("Error procesando pago") }
+                    }}
                     style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",border:"none",borderRadius:12,
                       background:"linear-gradient(135deg,#6366f1,#8b5cf6)",
                       boxShadow:"0 4px 0 #4338ca,0 6px 16px rgba(99,102,241,.3),inset 0 1px 0 rgba(255,255,255,.2)",
