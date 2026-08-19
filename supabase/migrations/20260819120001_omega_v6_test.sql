@@ -24,14 +24,14 @@ DECLARE
   v_top10 TEXT[];
 BEGIN
   FOR r IN
-    SELECT DISTINCT date, turno
-    FROM draws
-    WHERE game_id = 'ac593199-c299-4f03-b1b7-8675fe4fa6d9'
-      AND date >= (SELECT MAX(date) FROM draws) - INTERVAL '1 day' * p_test_days
-      AND (p_turno IS NULL OR turno = p_turno)
-    ORDER BY date DESC, turno
+    SELECT DISTINCT date, d.turno AS t_turno
+    FROM draws d
+    WHERE d.game_id = 'ac593199-c299-4f03-b1b7-8675fe4fa6d9'
+      AND d.date >= (SELECT MAX(date) FROM draws) - INTERVAL '1 day' * p_test_days
+      AND (p_turno IS NULL OR d.turno = p_turno)
+    ORDER BY d.date DESC, d.turno
   LOOP
-    SELECT calculate_omega_v6_quantum(r.turno, 'free', r.date - INTERVAL '1 day')
+    SELECT calculate_omega_v6_quantum(r.t_turno, 'free', r.date - INTERVAL '1 day')
     INTO v_pred;
 
     SELECT ARRAY(
@@ -43,14 +43,14 @@ BEGIN
 
     RETURN QUERY SELECT
       r.date,
-      r.turno,
+      r.t_turno AS turno,
       LPAD(MOD((d.numbers)[1], 100)::TEXT, 2, '0') AS winner_t2,
       v_top10,
       LPAD(MOD((d.numbers)[1], 100)::TEXT, 2, '0') = ANY(v_top10) AS hit
     FROM draws d
     WHERE d.id = (
       SELECT id FROM draws
-      WHERE date = r.date AND turno = r.turno
+      WHERE date = r.date AND turno = r.t_turno
       ORDER BY created_at DESC LIMIT 1
     );
   END LOOP;
