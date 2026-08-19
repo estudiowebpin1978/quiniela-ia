@@ -7,6 +7,7 @@
 
 import { ADMIN_EMAILS, getSupabaseUrl, getSupabaseKey } from "@/lib/config"
 import { validateJwt } from "@/lib/auth/jwt"
+import logger from "@/lib/logger"
 export { ADMIN_EMAILS }
 
 export const FREE_TRIAL_DAYS = 30
@@ -60,7 +61,7 @@ export async function ensureUserProfile(userId: string, email: string): Promise<
     })
     const rows = await r.json()
     if (Array.isArray(rows) && rows.length > 0) return
-    await fetch(`${SB}/rest/v1/user_profiles`, {
+    const createRes = await fetch(`${SB}/rest/v1/user_profiles`, {
       method: "POST",
       headers: {
         apikey: SK,
@@ -78,7 +79,13 @@ export async function ensureUserProfile(userId: string, email: string): Promise<
       }),
       signal: AbortSignal.timeout(4000),
     })
-  } catch { /* noop */ }
+    if (!createRes.ok) {
+      const errText = await createRes.text().catch(() => "")
+      logger.error("[ensureUserProfile] INSERT failed", { userId, status: createRes.status, error: errText.substring(0, 200) })
+    }
+  } catch (e) {
+    logger.error("[ensureUserProfile] error", { userId, error: String(e) })
+  }
 }
 
 async function countUserPredictions(userId: string): Promise<number> {
@@ -146,7 +153,7 @@ export async function resolveUserTier(token: string): Promise<UserTier> {
 
     const predictionsUsed = await countUserPredictions(userId)
     const predictionsRemaining = isPremiumRole
-      ? Number.POSITIVE_INFINITY
+      ? 9999
       : Math.max(0, FREE_MAX_PREDICTIONS - predictionsUsed)
 
     const canSavePrediction =
@@ -168,7 +175,7 @@ export async function resolveUserTier(token: string): Promise<UserTier> {
       canAccessPremiumFeatures,
       canSavePrediction,
       predictionsUsed,
-      predictionsRemaining: isPremiumRole ? 9999 : predictionsRemaining,
+      predictionsRemaining,
       premium_until: profile?.premium_until || null,
       daysRemaining,
     }

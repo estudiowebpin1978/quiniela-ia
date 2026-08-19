@@ -14,7 +14,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 
-import { esDiaSinSorteo } from "@/lib/feriados"
+import { esDiaSinSorteo, esSabadoSinTurnos } from "@/lib/feriados"
 import { fetchWithFallback } from "@/lib/scrapers/orchestrator"
 import { SourceStats, TURNOS, TurnoType, GAME_ID } from "@/lib/scrapers/types"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
@@ -154,6 +154,12 @@ export async function GET(req: NextRequest) {
   const saveErrors: string[] = []
 
   for (const turno of turnosToScrape) {
+    // Skip Saturday Previa/Primera (only Matutina, Vespertina, Nocturna on Saturdays)
+    if (!overrideDate && esSabadoSinTurnos(diaSemana, turno)) {
+      logger.info("cron-scrape: skip Saturday turno", { fecha: fechaISO, turno })
+      continue
+    }
+
     const drawExists = await tieneDraw(fechaISO, turno)
     
     if (!drawExists) {

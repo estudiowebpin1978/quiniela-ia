@@ -302,7 +302,7 @@ export async function getSorteoCode(fechaISO: string, turno: TurnoType): Promise
 }
 
 // ─── Source 3: QuinielaNacionalN (Homepage parser — HTTP only) ────────────────
-// Parses all 5 turnos from http://quinielanacionaln.com.ar/ homepage
+// Parses all 5 turnos from https://quinielanacionaln.com.ar/ homepage
 // Actual HTML structure:
 //   <div id="Nocturna_5000001459" class="turno">
 //     <h2>Sábado 15/08/26</h2>
@@ -323,7 +323,7 @@ export async function parseQuinielaNacionalN(
   const start = Date.now()
   try {
     const html = await (
-      await fetch("http://quinielanacionaln.com.ar/", {
+      await fetch("https://quinielanacionaln.com.ar/", {
         headers: { "User-Agent": rotationUA(), Accept: "text/html" },
         signal: AbortSignal.timeout(10000),
       })

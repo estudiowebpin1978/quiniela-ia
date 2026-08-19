@@ -375,13 +375,42 @@ export async function fetchWithFallback(
   }
 
   // ── Both failed: sequential fallback to source 3 ──────────────────────
-  logger.warn("orchestrator: parallel failed, sequential fallback", {
+  logger.warn("orchestrator: parallel failed, trying source 3 fallback", {
     fecha: fechaISO,
     turno,
     reason: "both parallel sources failed",
     src1Attempt: parallelAttempts[0],
     src2Attempt: parallelAttempts[1],
   })
+
+  const fallback = PARSERS[2]
+  const fallbackAttempt: SourceAttempt = { source: fallback.name, ok: false, error: undefined, duration: 0, numbersFound: 0 }
+  try {
+    const fbStart = Date.now()
+    const { result: fbResult, attempt: fbAttempt } = await tryParserWithRetry(fallback.fn, fallback.name, fechaISO, fechaUrl, turno, stats, 10000)
+    fallbackAttempt.duration = Date.now() - fbStart
+    fallbackAttempt.error = fbAttempt.error
+    allAttempts.push(fallbackAttempt)
+
+    if (fbResult && fbResult.numbers.length >= 20) {
+      logger.info("orchestrator: source 3 fallback succeeded", {
+        fecha: fechaISO,
+        turno,
+        source: fallback.name,
+        numbers: fbResult.numbers.length,
+        duration: fallbackAttempt.duration,
+      })
+      fallbackAttempt.ok = true
+      const result = await validateCabeza(fbResult, fechaISO, fechaUrl, turno, fallback.name, gameSlug, allAttempts)
+      result.duration = Date.now() - overallStart
+      result.consensusMethod = "sequential_fallback"
+      return result
+    }
+    fallbackAttempt.error = fbAttempt.error || "insufficient data"
+  } catch (e) {
+    fallbackAttempt.error = String(e)
+    allAttempts.push(fallbackAttempt)
+  }
 
   // ── All sources exhausted ─────────────────────────────────────────────
   logger.warn("orchestrator: all sources failed", {

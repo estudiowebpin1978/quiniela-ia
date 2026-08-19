@@ -253,7 +253,8 @@ function PageInner() {
     let email = auth.user?.email || "";
     if (!email) {
       try {
-        const payload = JSON.parse(atob(auth.access_token.split(".")[1]));
+        const b64 = auth.access_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+        const payload = JSON.parse(atob(b64));
         email = payload.email || "";
       } catch {}
     }

@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const payload = JSON.parse(Buffer.from(data.session!.access_token.split(".")[1], "base64").toString());
+    const payload = JSON.parse(Buffer.from(data.session!.access_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString());
     logger.info(`[login] signin OK ${Date.now() - start}ms`);
     return NextResponse.json({
       access_token: data.session!.access_token,

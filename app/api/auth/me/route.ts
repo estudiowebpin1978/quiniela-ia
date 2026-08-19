@@ -4,18 +4,13 @@ import { resolveUserTier } from "@/lib/auth/tier"
 export async function GET(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "")
   if (!token) {
-    return NextResponse.json({
-      isPremium: false,
-      role: "free",
-      isTrialActive: false,
-      trialExpired: false,
-      canAccessPremiumFeatures: false,
-      predictionsUsed: 0,
-      predictionsRemaining: 0,
-    })
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 
   const tier = await resolveUserTier(token)
+  if (!tier.userId) {
+    return NextResponse.json({ error: "Token inválido" }, { status: 401 })
+  }
 
   return NextResponse.json({
     isPremium: tier.isPremium,
