@@ -388,6 +388,9 @@ export default function AdminPage() {
                         <button className="btn btn-r" style={{ fontSize: 11 }} disabled={busy === u.id + "free"} onClick={() => activateFree(u.id, u.email)} title="Remover premium">
                           {busy === u.id + "free" ? <span className="sp" /> : "✕"}
                         </button>
+                        <button className="btn btn-r" style={{ fontSize: 11, marginLeft: 2 }} disabled={busy === u.id + "delete"} onClick={() => deleteUser(u.id, u.email)} title="Eliminar usuario">
+                          {busy === u.id + "delete" ? <span className="sp" /> : "🗑"}
+                        </button>
                       </div>
                     </div>
                   )
