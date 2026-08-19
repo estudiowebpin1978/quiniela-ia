@@ -54,6 +54,24 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: "DB error: " + error.message }, { status: 500 })
 
+  // ── DOWNGRADE expired premium users ──────────────────────────────────
+  const { data: expiredPremium } = await supabase
+    .from("user_profiles")
+    .select("id")
+    .eq("role", "premium")
+    .lt("premium_until", ahora.toISOString())
+    .not("premium_until", "is", null)
+
+  let downgraded = 0
+  if (expiredPremium && expiredPremium.length > 0) {
+    const ids = expiredPremium.map((u: { id: string }) => u.id)
+    const { error: downErr } = await supabase
+      .from("user_profiles")
+      .update({ role: "free" })
+      .in("id", ids)
+    if (!downErr) downgraded = ids.length
+  }
+
   // Combine both lists
   const allUsers: ExpiryUser[] = [
     ...(expiringUsers || []),
@@ -88,5 +106,5 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  return NextResponse.json({ ok: true, notificados, totalUsers: allUsers.length })
+  return NextResponse.json({ ok: true, notificados, totalUsers: allUsers.length, downgraded })
 }
