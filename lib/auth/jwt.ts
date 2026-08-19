@@ -1,12 +1,13 @@
 /**
  * JWT validation — HMAC signature verification (synchronous, zero network).
- * If SUPABASE_JWT_SECRET is set: verifies HMAC signature + expiry.
- * Otherwise: decode only (fallback, not recommended for production).
+ *
+ * Strategy: try raw secret first (most common), then base64-decoded.
+ * Supabase JWT secrets are typically used as-is string keys.
  */
 
 import { createHmac, timingSafeEqual } from "crypto"
 
-const JWT_SECRET = (process.env.SUPABASE_JWT_SECRET || "").trim()
+const JWT_SECRET_RAW = (process.env.SUPABASE_JWT_SECRET || "").trim()
 
 function base64UrlDecode(str: string): Buffer {
   const base64 = str.replace(/-/g, "+").replace(/_/g, "/")
@@ -14,9 +15,9 @@ function base64UrlDecode(str: string): Buffer {
   return Buffer.from(padded, "base64")
 }
 
-function verifyHmac(headerB64: string, payloadB64: string, signatureB64: string, secret: string): boolean {
+function verifyHmac(headerB64: string, payloadB64: string, signatureB64: string, key: string | Buffer): boolean {
   const data = `${headerB64}.${payloadB64}`
-  const expectedSig = createHmac("sha256", secret).update(data).digest()
+  const expectedSig = createHmac("sha256", key).update(data).digest()
   const actualSig = base64UrlDecode(signatureB64)
   if (expectedSig.length !== actualSig.length) return false
   return timingSafeEqual(expectedSig, actualSig)
@@ -37,7 +38,7 @@ export function decodeJwtPayload(token: string): Record<string, unknown> | null 
 
 /**
  * Validate JWT — synchronous, zero network calls.
- * Verifies HMAC signature if SUPABASE_JWT_SECRET is set, otherwise decode-only.
+ * Tries raw secret, then base64-decoded secret for HMAC verification.
  */
 export function validateJwt(token: string): { userId: string; email: string } | null {
   if (!token) return null
@@ -45,9 +46,17 @@ export function validateJwt(token: string): { userId: string; email: string } | 
     const parts = token.split(".")
     if (parts.length !== 3) return null
 
-    // Verify HMAC signature if secret available
-    if (JWT_SECRET) {
-      if (!verifyHmac(parts[0], parts[1], parts[2], JWT_SECRET)) return null
+    // Verify HMAC signature
+    if (JWT_SECRET_RAW) {
+      // Try 1: raw string as key
+      const rawOk = verifyHmac(parts[0], parts[1], parts[2], JWT_SECRET_RAW)
+      if (!rawOk) {
+        // Try 2: base64-decoded key
+        const padded = JWT_SECRET_RAW + "=".repeat((4 - (JWT_SECRET_RAW.length % 4)) % 4)
+        const decodedKey = Buffer.from(padded, "base64")
+        const decodedOk = verifyHmac(parts[0], parts[1], parts[2], decodedKey)
+        if (!decodedOk) return null
+      }
     }
 
     const payload = JSON.parse(base64UrlDecode(parts[1]).toString("utf8"))
