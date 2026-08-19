@@ -5,8 +5,8 @@ const SB_URL = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, 
 const SB_KEY = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
 
 const PLANS = {
-  "15_days": { amount: "5000.00", description: "Pase 15 Días - Quiniela IA", days: 15 },
-  "30_days": { amount: "10000.00", description: "Pase 30 Días - Quiniela IA", days: 30 },
+  "15_days": { amount: "5000", description: "Pase 15 Días - Quiniela IA", days: 15 },
+  "30_days": { amount: "10000", description: "Pase 30 Días - Quiniela IA", days: 30 },
 } as const
 
 type PlanKey = keyof typeof PLANS
@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let orderData: any
   try {
-    const orderRes = await fetch("https://checkout.developers.ar.ua.la/v2/api/orders", {
+    const orderRes = await fetch("https://checkout.developers.ar.ua.la/v2/api/checkout", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
