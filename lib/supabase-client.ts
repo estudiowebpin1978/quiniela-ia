@@ -27,7 +27,7 @@ export function getSupabase(): SupabaseClient {
     }
     supabaseClient = createClient(url, key, {
       auth: { persistSession: false },
-      global: { fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(10000) }) }
+      global: { fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(15000) }) }
     })
   }
   return supabaseClient
@@ -46,7 +46,7 @@ export function getSupabaseAdmin(): SupabaseClient {
     }
     supabaseAdminClient = createClient(url, key, {
       auth: { persistSession: false },
-      global: { fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(10000) }) }
+      global: { fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(15000) }) }
     })
   }
   return supabaseAdminClient
@@ -88,7 +88,7 @@ export function createBrowserClient(): SupabaseClient {
   }
   return createClient(url, key, {
     auth: { persistSession: true, autoRefreshToken: true },
-    global: { fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(10000) }) }
+    global: { fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(15000) }) }
   })
 }
 
