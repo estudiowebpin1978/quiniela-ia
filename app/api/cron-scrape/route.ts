@@ -223,6 +223,21 @@ export async function GET(req: NextRequest) {
 
   // Background tasks (after response) - use after() for Next.js 15
   const backgroundTasks = async () => {
+    // Auto-verify predictions for each saved draw (backup to SQL trigger)
+    for (const [turno, numbers] of Object.entries(resultados)) {
+      if (numbers.length > 0) {
+        try {
+          const { autoVerifyPredictions } = await import("@/lib/verificacion/auto-verify")
+          const verified = await autoVerifyPredictions(fechaISO, turno)
+          if (verified.length > 0) {
+            logger.info("cron-scrape: auto-verified predictions", { fecha: fechaISO, turno, count: verified.length })
+          }
+        } catch (e) {
+          logger.error("cron-scrape: error auto-verifying", { fecha: fechaISO, turno, error: String(e) })
+        }
+      }
+    }
+
     if (guardados > 0) {
       // Local TS training + analytics (no Python microservice)
       try {

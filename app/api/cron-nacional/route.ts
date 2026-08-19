@@ -248,6 +248,16 @@ export async function GET(req: NextRequest) {
     if (r.nums.length >= 5) resultados[r.turno] = r.nums
   }
 
+  // Auto-verify predictions as backup to SQL trigger
+  for (const [turno, nums] of Object.entries(resultados)) {
+    if (nums.length > 0) {
+      try {
+        const { autoVerifyPredictions } = await import("@/lib/verificacion/auto-verify")
+        await autoVerifyPredictions(fechaISO, turno)
+      } catch { /* best effort */ }
+    }
+  }
+
   return NextResponse.json({
     ok: true, fecha: fechaISO, turnos: Object.keys(resultados),
     guardados: totalGuardados, backfilled, resultados
