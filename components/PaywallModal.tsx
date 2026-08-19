@@ -9,7 +9,7 @@ type Props = {
 }
 
 const PLANS = [
-  { key: "15_days", label: "Pase 15 Días", price: "$5.000", days: "15 días de acceso", color: "#a855f7", pricePerDay: "$333/día" },
+  { key: "15_days", label: "Pase 15 Días", price: "$7.000", days: "15 días de acceso", color: "#a855f7", pricePerDay: "$467/día" },
   { key: "30_days", label: "Pase 30 Días", price: "$10.000", days: "30 días · Todos los turnos", color: "#22c55e", pricePerDay: "$333/día", badge: "MEJOR VALOR", originalPrice: "$14.000", savings: "Ahorras 30% vs comprar dos de 15 días" },
 ]
 

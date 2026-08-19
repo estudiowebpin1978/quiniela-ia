@@ -36,7 +36,7 @@ const PLAN_DAYS: Record<string, number> = {
 }
 
 const AMOUNT_PLAN_MAP: Record<string, string> = {
-  "5000": "15_days",
+  "7000": "15_days",
   "10000": "30_days",
 }
 

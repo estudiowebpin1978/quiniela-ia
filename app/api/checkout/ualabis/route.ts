@@ -5,53 +5,52 @@ const SB_URL = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, 
 const SB_KEY = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
 
 const PLANS = {
-  "15_days": { amount: "5000", description: "Pase 15 Días - Quiniela IA", days: 15 },
+  "15_days": { amount: "7000", description: "Pase 15 Días - Quiniela IA", days: 15 },
   "30_days": { amount: "10000", description: "Pase 30 Días - Quiniela IA", days: 30 },
 } as const
 
 type PlanKey = keyof typeof PLANS
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const base64 = token.split(".")[1]
+    const json = Buffer.from(base64, "base64url").toString("utf8")
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
+}
+
 export async function POST(req: NextRequest) {
   const debugId = `dbg_${Date.now().toString(36)}`
   logger.info(`[checkout/${debugId}] === INICIO ===`)
 
-  // ── 1. Validate JWT ────────────────────────────────────────────────
+  // ── 1. Validate JWT (decode locally, no network call) ────────────────
   const auth = req.headers.get("authorization") || ""
   const token = auth.replace("Bearer ", "")
   if (!token) {
     logger.warn(`[checkout/${debugId}] No token provided`)
-    return NextResponse.json({ error: "No autorizado", debug: { step: "jwt", msg: "No bearer token" } }, { status: 401 })
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   }
 
-  const sbUrl = SB_URL()
-  const sbKey = SB_KEY()
-  if (!sbUrl || !sbKey) {
-    logger.error(`[checkout/${debugId}] Missing Supabase config`, { hasUrl: !!sbUrl, hasKey: !!sbKey })
-    return NextResponse.json({ error: "Configuración incompleta", debug: { step: "supabase_config", hasUrl: !!sbUrl, hasKey: !!sbKey } }, { status: 500 })
+  const payload = decodeJwtPayload(token)
+  if (!payload) {
+    logger.warn(`[checkout/${debugId}] Invalid JWT`)
+    return NextResponse.json({ error: "Token inválido" }, { status: 401 })
   }
 
-  let userId: string | null = null
-  try {
-    const userRes = await fetch(`${sbUrl}/auth/v1/user`, {
-      headers: { apikey: sbKey, Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(5000),
-    })
-    if (!userRes.ok) {
-      const errBody = await userRes.text().catch(() => "")
-      logger.error(`[checkout/${debugId}] JWT failed`, { status: userRes.status, body: errBody.substring(0, 200) })
-      return NextResponse.json({ error: "No autorizado", detail: `JWT status ${userRes.status}`, debug: { step: "jwt", status: userRes.status } }, { status: 401 })
-    }
-    const user = await userRes.json()
-    userId = user?.id || null
-    logger.info(`[checkout/${debugId}] JWT OK, userId=${userId}`)
-  } catch (e) {
-    logger.error(`[checkout/${debugId}] JWT error`, { error: String(e) })
-    return NextResponse.json({ error: "No autorizado", debug: { step: "jwt", error: String(e) } }, { status: 401 })
+  // Check expiry
+  const exp = payload.exp as number | undefined
+  if (exp && exp < Date.now() / 1000) {
+    logger.warn(`[checkout/${debugId}] JWT expired`)
+    return NextResponse.json({ error: "Sesión expirada. Iniciá sesión de nuevo." }, { status: 401 })
   }
 
+  const userId = payload.sub as string | undefined
   if (!userId) {
-    return NextResponse.json({ error: "No autorizado", debug: { step: "jwt", msg: "userId is null" } }, { status: 401 })
+    return NextResponse.json({ error: "Token inválido" }, { status: 401 })
   }
+  logger.info(`[checkout/${debugId}] JWT OK, userId=${userId}`)
 
   // ── 2. Validate plan ───────────────────────────────────────────────
   let body: { plan?: string }

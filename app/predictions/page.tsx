@@ -2022,7 +2022,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase 15 Días</div>
                     <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>~30 sorteos · Previa, Primera, Matutina, Vespertina, Nocturna</div>
                   </div>
-                  <div style={{fontSize:22,fontWeight:900,color:"#a855f7"}}>$5.000</div>
+                  <div style={{fontSize:22,fontWeight:900,color:"#a855f7"}}>$7.000</div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,padding:"0 10px 10px"}}>
                   <button
