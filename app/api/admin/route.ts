@@ -100,17 +100,29 @@ export async function POST(req: NextRequest) {
     // Delete user from Supabase Auth + user_profiles
     try {
       // Delete from auth
-      await fetch(`${SB()}/auth/v1/admin/users/${userId}`, {
+      const authDelRes = await fetch(`${SB()}/auth/v1/admin/users/${userId}`, {
         method: "DELETE",
         headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` },
       })
+      const authDelBody = await authDelRes.text().catch(() => "")
+      if (!authDelRes.ok) {
+        logger.error("[admin] Auth delete failed", { status: authDelRes.status, body: authDelBody.substring(0, 300), userId })
+      }
+
       // Delete from user_profiles
-      await fetch(`${SB()}/rest/v1/user_profiles?id=eq.${userId}`, {
+      const profDelRes = await fetch(`${SB()}/rest/v1/user_profiles?id=eq.${userId}`, {
         method: "DELETE",
         headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}` },
       })
+      const profDelBody = await profDelRes.text().catch(() => "")
+      if (!profDelRes.ok) {
+        logger.error("[admin] Profile delete failed", { status: profDelRes.status, body: profDelBody.substring(0, 300), userId })
+      }
+
+      logger.info("[admin] User deleted", { userId, authStatus: authDelRes.status, profStatus: profDelRes.status })
       return NextResponse.json({ ok: true })
-    } catch {
+    } catch (e) {
+      logger.error("[admin] Delete exception", { error: String(e), userId })
       return NextResponse.json({ error: "Error eliminando usuario" }, { status: 500 })
     }
   } else {

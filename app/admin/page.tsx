@@ -81,7 +81,7 @@ export default function AdminPage() {
   async function load(tk: string) {
     setLoading(true); setErr("")
     try {
-      const r = await fetch("/api/admin", { headers: { Authorization: "Bearer " + tk } })
+      const r = await fetch("/api/admin?t=" + Date.now(), { headers: { Authorization: "Bearer " + tk } })
       const d = await r.json()
       if (!r.ok) { setErr(r.status === 401 ? "No tenes permisos de admin" : d.error); setLoading(false); return }
       setUsers(d.users || [])
