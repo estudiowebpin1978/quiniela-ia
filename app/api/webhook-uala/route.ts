@@ -169,9 +169,9 @@ async function verifyUalaPayment(paymentId: string): Promise<PaymentVerification
 
 export async function POST(req: NextRequest) {
   // ── 1. Validate webhook secret is configured ──────────────────────────
-  const webhookSecret = process.env.UALABIS_WEBHOOK_SECRET
+  const webhookSecret = process.env.UALABIS_WEBHOOK_SECRET || process.env.UALA_WEBHOOK_SECRET
   if (!webhookSecret) {
-    logger.error("[webhook-uala] UALABIS_WEBHOOK_SECRET is not configured")
+    logger.error("[webhook-uala] UALABIS_WEBHOOK_SECRET / UALA_WEBHOOK_SECRET is not configured")
     return NextResponse.json({ ok: false, error: "Webhook not configured" }, { status: 500 })
   }
 
