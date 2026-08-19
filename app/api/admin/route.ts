@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { ADMIN_EMAILS } from "@/lib/config"
+import { validateJwt } from "@/lib/auth/jwt"
 import logger from "@/lib/logger"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
@@ -21,22 +22,15 @@ function checkRate(ip: string, max = 10, windowMs = 60000): boolean {
   return true
 }
 
-async function isAdmin(token: string): Promise<boolean> {
-  try {
-    const r1 = await fetch(`${SB()}/auth/v1/user`, {
-      headers: { "apikey": SK(), "Authorization": `Bearer ${token}` }
-    })
-    if (!r1.ok) return false
-    const user = await r1.json()
-    return user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
-  } catch {
-    return false
-  }
+function isAdmin(token: string): boolean {
+  const decoded = validateJwt(token)
+  if (!decoded?.email) return false
+  return ADMIN_EMAILS.includes(decoded.email.toLowerCase())
 }
 
 export async function GET(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
-  if (!await isAdmin(token)) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+  if (!isAdmin(token)) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
   try {
     const r = await fetch(
       `${SB()}/rest/v1/user_profiles?select=id,email,role,premium_until,created_at&order=created_at.desc&limit=100`,
@@ -53,7 +47,7 @@ export async function POST(req: NextRequest) {
   if (!checkRate(ip)) return NextResponse.json({ error: "Demasiadas peticiones. Intentá en 1 minuto." }, { status: 429 })
 
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
-  if (!await isAdmin(token)) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+  if (!isAdmin(token)) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
   let body: { action?: string; userId?: string; days?: number; email?: string; password?: string; role?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: "JSON inválido" }, { status: 400 }) }

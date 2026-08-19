@@ -6,6 +6,7 @@
  */
 
 import { ADMIN_EMAILS, getSupabaseUrl, getSupabaseKey } from "@/lib/config"
+import { validateJwt } from "@/lib/auth/jwt"
 export { ADMIN_EMAILS }
 
 export const FREE_TRIAL_DAYS = 30
@@ -114,28 +115,24 @@ export async function resolveUserTier(token: string): Promise<UserTier> {
   if (!SB || !SK) return emptyTier()
 
   try {
-    const userRes = await fetch(`${SB}/auth/v1/user`, {
-      headers: { apikey: SK, Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(4000),
-    })
-    if (!userRes.ok) return emptyTier()
-    const user = await userRes.json()
-    if (!user?.id) return emptyTier()
+    const decoded = validateJwt(token)
+    if (!decoded) return emptyTier()
 
-    await ensureUserProfile(user.id, user.email || "")
+    const { userId, email } = decoded
+
+    await ensureUserProfile(userId, email)
 
     const profRes = await fetch(
-      `${SB}/rest/v1/user_profiles?id=eq.${user.id}&select=role,premium_until,trial_ends_at,created_at&limit=1`,
+      `${SB}/rest/v1/user_profiles?id=eq.${userId}&select=role,premium_until,trial_ends_at,created_at&limit=1`,
       { headers: { apikey: SK, Authorization: `Bearer ${SK}` }, signal: AbortSignal.timeout(4000) }
     )
     const profiles = await profRes.json()
     const profile = Array.isArray(profiles) ? profiles[0] : null
 
-    const isAdmin = ADMIN_EMAILS.includes((user.email || "").toLowerCase())
+    const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase())
     const dbRole = (profile?.role || "free") as string
     const role: UserTier["role"] = isAdmin ? "admin" : dbRole === "admin" ? "free" : (dbRole as UserTier["role"])
 
-    // Read premium_until first, fall back to trial_ends_at (set by DB trigger)
     const untilRaw = profile?.premium_until || profile?.trial_ends_at || null
     const until = untilRaw ? new Date(untilRaw) : null
     const untilValid = !!(until && until.getTime() > Date.now())
@@ -144,12 +141,10 @@ export async function resolveUserTier(token: string): Promise<UserTier> {
     const isTrialActive = role === "free" && untilValid
     const trialExpired = role === "free" && !!until && !untilValid
 
-    // Acceso a predicciones 2 cifras: trial activo, premium, admin, O trial expirado (modo limitado)
     const canAccess2Cifras = isPremiumRole || isTrialActive || trialExpired
-    // 3/4 cifras + redoblona SOLO premium/admin (NO durante trial free, NO trial expirado)
     const canAccessPremiumFeatures = isPremiumRole
 
-    const predictionsUsed = await countUserPredictions(user.id)
+    const predictionsUsed = await countUserPredictions(userId)
     const predictionsRemaining = isPremiumRole
       ? Number.POSITIVE_INFINITY
       : Math.max(0, FREE_MAX_PREDICTIONS - predictionsUsed)
@@ -163,8 +158,8 @@ export async function resolveUserTier(token: string): Promise<UserTier> {
     }
 
     return {
-      userId: user.id,
-      email: user.email || null,
+      userId,
+      email: email || null,
       role,
       isPremium: isPremiumRole,
       isTrialActive,

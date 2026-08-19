@@ -1,24 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import { ADMIN_EMAILS } from "@/lib/config"
+import { validateJwt } from "@/lib/auth/jwt"
 import { autoVerifyPredictions, getVerificationStats } from "@/lib/verificacion/auto-verify"
 
-const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
-
-async function isAdmin(token: string): Promise<boolean> {
-  try {
-    const r = await fetch(`${SB()}/auth/v1/user`, {
-      headers: { "apikey": SK(), "Authorization": `Bearer ${token}` }
-    })
-    if (!r.ok) return false
-    const user = await r.json()
-    return user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())
-  } catch { return false }
+function isAdmin(token: string): boolean {
+  const decoded = validateJwt(token)
+  if (!decoded?.email) return false
+  return ADMIN_EMAILS.includes(decoded.email.toLowerCase())
 }
 
 export async function POST(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
-  if (!await isAdmin(token)) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+  if (!isAdmin(token)) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
   const body = await req.json().catch(() => ({}))
   const { fecha, turno } = body

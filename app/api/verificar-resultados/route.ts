@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import logger from "@/lib/logger";
+import { validateJwt } from "@/lib/auth/jwt";
 
 const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || "";
 const SK = process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || "";
@@ -7,16 +8,10 @@ const SK = process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || pr
 const TURNOS_VALIDOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
-async function verifyUser(req: NextRequest): Promise<boolean> {
+function verifyUser(req: NextRequest): boolean {
   const token = req.headers.get("authorization")?.replace("Bearer ", "")
-  if (!token || !SB || !SK) return false
-  try {
-    const res = await fetch(`${SB}/auth/v1/user`, {
-      headers: { "apikey": SK, "Authorization": `Bearer ${token}` },
-      signal: AbortSignal.timeout(3000),
-    })
-    return res.ok
-  } catch { return false }
+  if (!token) return false
+  return validateJwt(token) !== null
 }
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +21,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Configuración incompleta" }, { status: 500 });
   }
 
-  if (!await verifyUser(req)) {
+  if (!verifyUser(req)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 

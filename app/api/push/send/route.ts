@@ -1,25 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 import { sendPushToAll, getSubscriptionCount } from "@/lib/push/send"
 import { getSupabaseUrl, getSupabaseKey, isAdminEmail } from "@/lib/config"
+import { validateJwt } from "@/lib/auth/jwt"
 
 const SB = getSupabaseUrl()
 const SK = getSupabaseKey()
 
-async function isAdmin(token: string): Promise<boolean> {
-  if (!SB || !SK) return false
-  try {
-    const r = await fetch(`${SB}/auth/v1/user`, {
-      headers: { "apikey": SK, "Authorization": `Bearer ${token}` }
-    })
-    if (!r.ok) return false
-    const user = await r.json()
-    return isAdminEmail(user.email)
-  } catch { return false }
+function isAdmin(token: string): boolean {
+  const decoded = validateJwt(token)
+  if (!decoded) return false
+  return isAdminEmail(decoded.email)
 }
 
 export async function POST(req: NextRequest) {
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
-  if (!await isAdmin(token)) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+  if (!isAdmin(token)) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
   const body = await req.json().catch(() => ({}))
   const { title, body: msgBody, url, data } = body

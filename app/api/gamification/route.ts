@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { calcLevel, calcStreak, checkAchievements, XP_REWARDS, ACHIEVEMENTS } from "@/lib/gamification"
 import { getSupabaseUrl, getSupabaseKey, sbHeaders, isAdminEmail } from "@/lib/config"
+import { validateJwt } from "@/lib/auth/jwt"
 import logger from "@/lib/logger"
 import type { GamificationRow, AchievementRow, GamificationUpdate } from "@/lib/api/types"
 
@@ -8,19 +9,10 @@ const SB_URL = getSupabaseUrl()
 const SB_KEY = getSupabaseKey()
 if (!SB_URL || !SB_KEY) logger.error("[gamification] Missing Supabase env vars")
 
-async function verifyUser(req: NextRequest) {
+function verifyUser(req: NextRequest): string | null {
   const token = req.headers.get("authorization")?.replace("Bearer ", "")
   if (!token) return null
-  try {
-    const res = await fetch(`${SB_URL}/auth/v1/user`, {
-      headers: { "apikey": SB_KEY, "Authorization": `Bearer ${token}` },
-      signal: AbortSignal.timeout(5000),
-    })
-    if (!res.ok) return null
-    return (await res.json()).id as string
-  } catch {
-    return null
-  }
+  return validateJwt(token)?.userId || null
 }
 
 async function getGamification(userId: string) {
@@ -76,7 +68,7 @@ async function insertAchievement(userId: string, achievementId: string) {
 
 // GET: fetch gamification data
 export async function GET(req: NextRequest) {
-  const userId = await verifyUser(req)
+  const userId = verifyUser(req)
   if (!userId) return NextResponse.json({ xp: 0, level: 1, streak: 0, achievements: [], newAchievements: [] })
 
   const gam = await getGamification(userId)
@@ -114,7 +106,7 @@ export async function GET(req: NextRequest) {
 
 // POST: record activity and check achievements
 export async function POST(req: NextRequest) {
-  const userId = await verifyUser(req)
+  const userId = verifyUser(req)
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   let body: Record<string, unknown>

@@ -1,23 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseUrl, getSupabaseKey, sbHeaders } from "@/lib/config"
+import { validateJwt } from "@/lib/auth/jwt"
 
 const SB_URL = getSupabaseUrl();
 const SB_KEY = getSupabaseKey();
 
 const TURNOS_VALIDOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
-async function verifyUser(req: NextRequest): Promise<string | null> {
+function verifyUser(req: NextRequest): string | null {
   const token = req.headers.get("authorization")?.replace("Bearer ", "")
-  if (!token || !SB_URL || !SB_KEY) return null
-  try {
-    const res = await fetch(`${SB_URL}/auth/v1/user`, {
-      headers: { "apikey": SB_KEY, "Authorization": `Bearer ${token}` },
-      signal: AbortSignal.timeout(3000),
-    })
-    if (!res.ok) return null
-    const user = await res.json()
-    return user?.id || null
-  } catch { return null }
+  if (!token) return null
+  const decoded = validateJwt(token)
+  return decoded?.userId || null
 }
 
 // GET: fetch community trends for today
@@ -51,7 +45,7 @@ export async function GET(req: NextRequest) {
 
 // POST: increment analysis count for a turno
 export async function POST(req: NextRequest) {
-  const userId = await verifyUser(req)
+  const userId = verifyUser(req)
   if (!userId) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
   let body: Record<string, unknown>

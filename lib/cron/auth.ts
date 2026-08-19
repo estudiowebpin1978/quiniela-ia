@@ -51,21 +51,11 @@ export async function validateCronAuth(req: NextRequest): Promise<CronAuthResult
   // 3. Admin token (optional)
   if (authHeader) {
     try {
-      const SB_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-      const SB_KEY = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
-      
-      if (SB_URL && SB_KEY) {
-        const { ADMIN_EMAILS } = await import("@/lib/config")
-        const r = await fetch(`${SB_URL}/auth/v1/user`, {
-          headers: { "apikey": SB_KEY, "Authorization": `Bearer ${authHeader}` },
-          signal: AbortSignal.timeout(3000)
-        })
-        if (r.ok) {
-          const user = await r.json()
-          if (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
-            return { authorized: true, source: "admin" }
-          }
-        }
+      const { validateJwt } = await import("@/lib/auth/jwt")
+      const { ADMIN_EMAILS } = await import("@/lib/config")
+      const decoded = validateJwt(authHeader)
+      if (decoded?.email && ADMIN_EMAILS.includes(decoded.email.toLowerCase())) {
+        return { authorized: true, source: "admin" }
       }
     } catch {}
   }
