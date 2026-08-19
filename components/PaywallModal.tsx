@@ -27,25 +27,16 @@ export default function PaywallModal({ open, onClose, userId }: Props) {
 
   async function handleCardPay(plan: string) {
     if (!userId) { setError("Iniciá sesión para continuar"); return }
-    setLoading(plan); setError("")
-    try {
-      const token = await getValidToken()
-      const res = await fetch("/api/checkout/ualabis", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ plan }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Error creando la orden")
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl
-      } else {
-        throw new Error("No se recibió la URL de pago")
-      }
-    } catch (e: unknown) {
-      const err = e instanceof Error ? e : new Error("Error procesando el pago")
-      setError(err.message)
-      setLoading(null)
+    // Use static payment links from Ualá Bis
+    const links: Record<string, string> = {
+      "15_days": "https://pagar.ualabis.com.ar/order/ccf7ad12fbae52943ac1701df9f4881dfd32bd12d67e68e1",
+      "30_days": "https://pagar.ualabis.com.ar/order/c36ca5f566e2c2651761bde064e7b36e11eedeb7a5727382",
+    }
+    const url = links[plan]
+    if (url) {
+      window.location.href = url
+    } else {
+      setError("Plan no disponible")
     }
   }
 
