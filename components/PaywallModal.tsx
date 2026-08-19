@@ -9,8 +9,8 @@ type Props = {
 }
 
 const PLANS = [
-  { key: "15_days", label: "Pase 15 Días", price: "$5.000", days: "15 días de acceso", color: "#a855f7", badge: "" },
-  { key: "30_days", label: "Pase 30 Días", price: "$10.000", days: "30 días · Ahorrás 40%", color: "#22c55e", badge: "MÁS ELEGIDO" },
+  { key: "15_days", label: "Pase 15 Días", price: "$5.000", days: "15 días de acceso", color: "#a855f7", pricePerDay: "$333/día" },
+  { key: "30_days", label: "Pase 30 Días", price: "$10.000", days: "30 días · Todos los turnos", color: "#22c55e", pricePerDay: "$333/día", badge: "MEJOR VALOR", originalPrice: "$14.000", savings: "Ahorras 30% vs comprar dos de 15 días" },
 ]
 
 const ALIAS = "quinielaia"
@@ -115,10 +115,10 @@ export default function PaywallModal({ open, onClose, userId }: Props) {
               >
                 {p.badge && (
                   <div style={{
-                    position: "absolute", top: -10, right: 12,
+                    position: "absolute", top: -10, left: 12, right: 12,
                     background: "linear-gradient(135deg,#f59e0b,#d97706)",
-                    color: "#fff", fontSize: 10, fontWeight: 800, padding: "4px 10px",
-                    borderRadius: 8, letterSpacing: 0.5,
+                    color: "#fff", fontSize: 10, fontWeight: 800, padding: "5px 10px",
+                    borderRadius: 8, letterSpacing: 0.5, textAlign: "center",
                     boxShadow: "0 2px 8px rgba(245,158,11,0.4)"
                   }}>
                     {p.badge}
@@ -127,13 +127,30 @@ export default function PaywallModal({ open, onClose, userId }: Props) {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <div style={{ fontSize: 16, fontWeight: 800, color: "#fff" }}>{p.label}</div>
-                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>{p.days}</div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{p.days}</div>
+                    {p.originalPrice && (
+                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 4, textDecoration: "line-through" }}>
+                        {p.originalPrice}
+                      </div>
+                    )}
+                    {p.savings && (
+                      <div style={{ fontSize: 11, color: "#4ade80", marginTop: 4, fontWeight: 700 }}>
+                        {p.savings}
+                      </div>
+                    )}
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: p.badge ? "#fbbf24" : "#a5b4fc" }}>{p.price}</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>ARS</div>
+                    <div style={{ fontSize: 26, fontWeight: 900, color: p.badge ? "#fbbf24" : "#a5b4fc" }}>{p.price}</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{p.pricePerDay}</div>
                   </div>
                 </div>
+                {p.badge && (
+                  <div style={{ marginTop: 10, padding: "8px 12px", background: "rgba(34,197,94,.12)", borderRadius: 8, border: "1px solid rgba(34,197,94,.2)" }}>
+                    <div style={{ fontSize: 11, color: "#4ade80", lineHeight: 1.5 }}>
+                      <strong>~60 sorteos</strong> (Previa, Primera, Matutina, Vespertina, Nocturna) en 30 días vs ~30 en 15 días. Más datos = predicciones más precisas.
+                    </div>
+                  </div>
+                )}
               </button>
             ))}
 

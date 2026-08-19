@@ -2020,7 +2020,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div>
                     <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase 15 Días</div>
-                    <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>15 días de acceso</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>~30 sorteos · Previa, Primera, Matutina, Vespertina, Nocturna</div>
                   </div>
                   <div style={{fontSize:22,fontWeight:900,color:"#a855f7"}}>$5.000</div>
                 </div>
@@ -2070,15 +2070,24 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 </div>
               </div>
 
-              {/* Plan 30 Días */}
-              <div style={{borderRadius:14,overflow:"hidden",marginBottom:16,position:"relative",background:"linear-gradient(135deg,rgba(34,197,94,.08),rgba(16,163,74,.04))",border:"1px solid rgba(34,197,94,.3)",boxShadow:"0 4px 16px rgba(34,197,94,.12)"}}>
-                <div style={{position:"absolute",top:0,right:0,background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",fontSize:9,fontWeight:800,padding:"4px 10px",borderRadius:"0 14px 0 8px",letterSpacing:0.5,boxShadow:"0 2px 8px rgba(34,197,94,.4)"}}>AHORRÁ 40%</div>
-                <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              {/* Plan 30 Días — MEJOR VALOR */}
+              <div style={{borderRadius:14,overflow:"hidden",marginBottom:16,position:"relative",background:"linear-gradient(135deg,rgba(34,197,94,.08),rgba(16,163,74,.04))",border:"2px solid rgba(34,197,94,.4)",boxShadow:"0 4px 20px rgba(34,197,94,.2)"}}>
+                <div style={{position:"absolute",top:0,left:0,right:0,background:"linear-gradient(135deg,#f59e0b,#d97706)",color:"#fff",fontSize:10,fontWeight:800,padding:"5px 0",textAlign:"center",letterSpacing:1}}>MEJOR VALOR</div>
+                <div style={{padding:"32px 16px 8px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div>
                     <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase 30 Días</div>
-                    <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>30 días de acceso</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>~60 sorteos · Todos los turnos del mes</div>
+                    <div style={{fontSize:12,color:"rgba(255,255,255,.4)",marginTop:4,textDecoration:"line-through"}}>$14.000</div>
                   </div>
-                  <div style={{fontSize:22,fontWeight:900,color:"#22c55e"}}>$10.000</div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:26,fontWeight:900,color:"#22c55e"}}>$10.000</div>
+                    <div style={{fontSize:11,color:"#4ade80",fontWeight:700}}>Ahorras 30%</div>
+                  </div>
+                </div>
+                <div style={{padding:"6px 12px",margin:"0 10px 4px",background:"rgba(34,197,94,.06)",borderRadius:8}}>
+                  <div style={{fontSize:11,color:"#4ade80",lineHeight:1.6}}>
+                    Comprando 2 pases de 15 días gastarías $14.000. Con el pase de 30 pagás solo $10.000.
+                  </div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,padding:"0 10px 10px"}}>
                   <button
@@ -2096,12 +2105,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                       } catch { alert("Error procesando pago") }
                     }}
                     style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",border:"none",borderRadius:12,
-                      background:"linear-gradient(135deg,#6366f1,#8b5cf6)",
-                      boxShadow:"0 4px 0 #4338ca,0 6px 16px rgba(99,102,241,.3),inset 0 1px 0 rgba(255,255,255,.2)",
+                      background:"linear-gradient(135deg,#22c55e,#16a34a)",
+                      boxShadow:"0 4px 0 #15803d,0 6px 16px rgba(34,197,94,.3),inset 0 1px 0 rgba(255,255,255,.2)",
                       transition:"all .15s",color:"#fff"}}
-                    onMouseDown={e=>{e.currentTarget.style.transform="translateY(2px)";e.currentTarget.style.boxShadow="0 2px 0 #4338ca,0 3px 8px rgba(99,102,241,.2)"}}
-                    onMouseUp={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #4338ca,0 6px 16px rgba(99,102,241,.3),inset 0 1px 0 rgba(255,255,255,.2)"}}
-                    onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #4338ca,0 6px 16px rgba(99,102,241,.3),inset 0 1px 0 rgba(255,255,255,.2)"}}
+                    onMouseDown={e=>{e.currentTarget.style.transform="translateY(2px)";e.currentTarget.style.boxShadow="0 2px 0 #15803d,0 3px 8px rgba(34,197,94,.2)"}}
+                    onMouseUp={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #15803d,0 6px 16px rgba(34,197,94,.3),inset 0 1px 0 rgba(255,255,255,.2)"}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #15803d,0 6px 16px rgba(34,197,94,.3),inset 0 1px 0 rgba(255,255,255,.2)"}}
                   >
                     <div style={{fontSize:20,marginBottom:4}}>💳</div>
                     <div style={{fontSize:12,fontWeight:800}}>Tocá aquí para pagar</div>
