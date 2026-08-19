@@ -148,7 +148,9 @@ export async function resolveUserTier(token: string): Promise<UserTier> {
     const isTrialActive = role === "free" && untilValid
     const trialExpired = role === "free" && !!until && !untilValid
 
-    const canAccess2Cifras = isPremiumRole || isTrialActive || trialExpired
+    // 2 cifras: trial activo O premium/admin. Trial expirado = bloqueado.
+    const canAccess2Cifras = isPremiumRole || isTrialActive
+    // 3/4 cifras + redoblona SOLO premium/admin
     const canAccessPremiumFeatures = isPremiumRole
 
     const predictionsUsed = await countUserPredictions(userId)

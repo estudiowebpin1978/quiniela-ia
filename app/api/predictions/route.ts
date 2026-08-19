@@ -103,9 +103,16 @@ export async function GET(req: NextRequest) {
 
   // ── Tier check ──────────────────────────────────────────────
   const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
+  if (!token) {
+    return NextResponse.json({
+      error: "Iniciá sesión para ver predicciones.",
+      upgradeRequired: true,
+    }, { status: 401 })
+  }
+
   const userTier = await resolveUserTier(token)
 
-  if (token && !userTier.canAccess2Cifras) {
+  if (!userTier.canAccess2Cifras) {
     return NextResponse.json({
       error: "Tu período gratuito de 30 días expiró. Actualizá a Premium para continuar.",
       trialExpired: true, tier: userTier.role, upgradeRequired: true,

@@ -314,7 +314,18 @@ export default function PaywallModal({ open, onClose, userId }: Props) {
             </div>
 
             <button
-              onClick={(e) => {
+              onClick={async () => {
+                // Register transfer via API
+                try {
+                  const token = await getValidToken()
+                  if (token && selectedPlan) {
+                    await fetch("/api/transfer", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ plan: selectedPlan }),
+                    })
+                  }
+                } catch { /* continue to WhatsApp even if API fails */ }
                 copyAlias()
                 window.open(WA_LINK, "_blank")
               }}

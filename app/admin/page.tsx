@@ -38,7 +38,9 @@ export default function AdminPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [pending, setPending] = useState<PendingRequest[]>([])
   const [quickEmail, setQuickEmail] = useState("")
-  const [tab, setTab] = useState<"dashboard" | "users" | "pending" | "scraper" | "ml" | "verificar" | "push">("dashboard")
+  const [tab, setTab] = useState<"dashboard" | "users" | "pending" | "transfers" | "scraper" | "ml" | "verificar" | "push">("dashboard")
+  const [transfers, setTransfers] = useState<Array<{id:string;user_id:string;plan:string;amount:number;status:string;created_at:string}>>([])
+  const [transfersLoading, setTransfersLoading] = useState(false)
   const [mlData, setMlData] = useState<AnyRecord | null>(null)
   const [mlLoading, setMlLoading] = useState(false)
   const [verifStats, setVerifStats] = useState<AnyRecord | null>(null)
@@ -76,6 +78,44 @@ export default function AdminPage() {
         setPending(valid)
       }
     } catch {}
+  }
+
+  async function loadTransfers() {
+    if (!token) return
+    setTransfersLoading(true)
+    try {
+      const r = await fetch("/api/admin/transfers?status=pending", { headers: { Authorization: "Bearer " + token } })
+      const d = await r.json()
+      setTransfers(d.transfers || [])
+    } catch {} finally { setTransfersLoading(false) }
+  }
+
+  async function approveTransfer(transferId: string) {
+    if (!token) return
+    setBusy(transferId)
+    try {
+      const r = await fetch("/api/admin/transfers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ transferId, action: "approve" }),
+      })
+      const d = await r.json()
+      if (r.ok) { setMsg("Premium activado"); loadTransfers() }
+      else setMsg(d.error || "Error")
+    } catch { setMsg("Error de red") } finally { setBusy(null) }
+  }
+
+  async function rejectTransfer(transferId: string) {
+    if (!token) return
+    setBusy(transferId)
+    try {
+      const r = await fetch("/api/admin/transfers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ transferId, action: "reject" }),
+      })
+      if (r.ok) { setMsg("Transferencia rechazada"); loadTransfers() }
+    } catch { setMsg("Error de red") } finally { setBusy(null) }
   }
 
   async function load(tk: string) {
@@ -325,6 +365,7 @@ export default function AdminPage() {
         <div className="tabs">
           <button className={"tab" + (tab === "dashboard" ? " active" : "")} onClick={() => setTab("dashboard")}>📊 Dashboard</button>
           <button className={"tab" + (tab === "pending" ? " active" : "")} onClick={() => setTab("pending")}>⏳ Pagos {pending.length > 0 && `(${pending.length})`}</button>
+          <button className={"tab" + (tab === "transfers" ? " active" : "")} onClick={() => { setTab("transfers"); loadTransfers() }}>🏦 Transferencias</button>
           <button className={"tab" + (tab === "users" ? " active" : "")} onClick={() => setTab("users")}>👥 Usuarios</button>
           <button className={"tab" + (tab === "scraper" ? " active" : "")} onClick={() => setTab("scraper")}>🔄 Scraper</button>
           <button className={"tab" + (tab === "ml" ? " active" : "")} onClick={() => setTab("ml")}>🧠 ML Metrics</button>
@@ -462,6 +503,44 @@ export default function AdminPage() {
                       📲 WhatsApp
                     </button>
                     <button className="btn btn-r" onClick={() => removePending(p.email)}>✕</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {tab === "transfers" && (
+          <div className="sec">
+            <div className="st">🏦 Transferencias bancarias</div>
+            <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 16, lineHeight: 1.6 }}>
+              Usuarios que pagaron por transferencia y esperan aprobación.
+            </div>
+            <button className="btn btn-o" onClick={loadTransfers} style={{ marginBottom: 16 }}>↻ Actualizar</button>
+            {transfersLoading ? (
+              <div style={{ textAlign: "center", padding: 40 }}><span className="sp" /></div>
+            ) : transfers.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 40, color: "#475569" }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>📭</div>
+                <div style={{ fontSize: 13 }}>No hay transferencias pendientes</div>
+              </div>
+            ) : (
+              transfers.map(t => (
+                <div className="card" key={t.id}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>User: {t.user_id.slice(0, 8)}...</div>
+                      <div style={{ fontSize: 11, color: "#94a3b8" }}>{new Date(t.created_at).toLocaleString("es-AR")}</div>
+                    </div>
+                    <span className="badge badge-y">{t.plan} · ${t.amount.toLocaleString("es-AR")}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button className="btn btn-g" style={{ flex: 1 }} disabled={busy === t.id} onClick={() => approveTransfer(t.id)}>
+                      {busy === t.id ? <span className="sp" /> : "✓ Aprobar y activar Premium"}
+                    </button>
+                    <button className="btn btn-r" disabled={busy === t.id} onClick={() => rejectTransfer(t.id)}>
+                      ✕ Rechazar
+                    </button>
                   </div>
                 </div>
               ))
