@@ -26,7 +26,10 @@ export async function POST(req: NextRequest) {
         if (msg.includes("already registered")) msg = "Email ya registrado. Iniciá sesión.";
         return NextResponse.json({ error: msg }, { status: 400 });
       }
-      if (data.user?.id) await ensureUserProfile(data.user.id, email);
+      // Fire-and-forget: don't block login on profile creation
+      if (data.user?.id) {
+        ensureUserProfile(data.user.id, email).catch(() => {});
+      }
       logger.info(`[login] signup OK ${Date.now() - start}ms`);
       return NextResponse.json({
         access_token: data.session?.access_token ?? null,
@@ -44,7 +47,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: msg }, { status: 400 });
     }
 
-    if (data.user?.id) await ensureUserProfile(data.user.id, email);
+    // Fire-and-forget: don't block login on profile creation
+    if (data.user?.id) {
+      ensureUserProfile(data.user.id, email).catch(() => {});
+    }
 
     const payload = JSON.parse(Buffer.from(data.session.access_token.split(".")[1], "base64").toString());
     logger.info(`[login] signin OK ${Date.now() - start}ms`);
