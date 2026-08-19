@@ -111,9 +111,38 @@ async function verifyUalaOrder(orderId: string): Promise<{ verified: boolean; st
   }
 }
 
+// ─── Rate Limiting (in-memory, per-cold-start) ─────────────────────────────
+
+const RATE_LIMIT_WINDOW = 60_000 // 1 minute
+const RATE_LIMIT_MAX = 30 // max requests per window per IP
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>()
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const entry = rateLimitMap.get(ip)
+
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW) {
+    rateLimitMap.set(ip, { count: 1, windowStart: now })
+    return true
+  }
+
+  entry.count++
+  return entry.count <= RATE_LIMIT_MAX
+}
+
 // ─── Main Handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  // ── 0. Rate limit ─────────────────────────────────────────────────────
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || req.headers.get("x-real-ip")
+    || "unknown"
+
+  if (!checkRateLimit(ip)) {
+    logger.warn("[webhook-uala] Rate limited", { ip })
+    return NextResponse.json({ ok: true }) // Return 200 so Ualá doesn't retry
+  }
+
   const rawBody = await req.text()
   logger.info("[webhook-uala] Received notification")
 
