@@ -73,8 +73,11 @@ interface PaymentVerification {
 const PLAN_DAYS: Record<string, number> = {
   "15_days": 15,
   "30_days": 30,
-  semanal: 7,
-  mensual: 30,
+}
+
+const AMOUNT_PLAN_MAP: Record<string, string> = {
+  "5000": "15_days",
+  "10000": "30_days",
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -140,7 +143,7 @@ async function verifyUalaPayment(paymentId: string): Promise<PaymentVerification
   }
 
   try {
-    const response = await fetch(`https://ua.la/orders/${paymentId}`, {
+    const response = await fetch(`https://checkout.developers.ar.ua.la/v2/api/orders/${paymentId}`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${accessToken}`,
@@ -271,13 +274,13 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 10. Determine plan and premium duration ────────────────────────────
-  // Priority: explicit plan field > amount-based fallback
   const explicitPlan = body.plan ? String(body.plan).toLowerCase() : null
-  let plan = "mensual"
+  let plan = "30_days"
   if (explicitPlan && PLAN_DAYS[explicitPlan]) {
     plan = explicitPlan
-  } else if (amount > 0 && amount <= 3600) {
-    plan = "semanal"
+  } else if (amount > 0) {
+    const amountKey = String(Math.round(amount))
+    plan = AMOUNT_PLAN_MAP[amountKey] || "30_days"
   }
   const requestedDays = PLAN_DAYS[plan] || 30
   const premiumUntil = new Date(Date.now() + requestedDays * 86400000).toISOString()
