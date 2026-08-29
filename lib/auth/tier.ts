@@ -1,0 +1,231 @@
+/**
+ * Reglas de negocio Free vs Premium (única fuente de verdad).
+ *
+ * Free: trial 30 días, máx. 10 predicciones guardadas, solo 2 cifras.
+ * Premium/Admin: ilimitado + 3 cifras, 4 cifras y redoblona.
+ */
+
+import { ADMIN_EMAILS, getSupabaseUrl, getSupabaseKey } from "@/lib/config"
+import { validateJwt } from "@/lib/auth/jwt"
+import logger from "@/lib/logger"
+export { ADMIN_EMAILS }
+
+export const FREE_TRIAL_DAYS = 30
+export const FREE_MAX_PREDICTIONS = 10
+
+export type UserTier = {
+  userId: string | null
+  email: string | null
+  role: "free" | "premium" | "admin"
+  isPremium: boolean
+  isTrialActive: boolean
+  trialExpired: boolean
+  canAccess2Cifras: boolean
+  canAccessPremiumFeatures: boolean
+  canSavePrediction: boolean
+  predictionsUsed: number
+  predictionsRemaining: number
+  premium_until: string | null
+  daysRemaining: number | null
+}
+
+const emptyTier = (overrides: Partial<UserTier> = {}): UserTier => ({
+  userId: null,
+  email: null,
+  role: "free",
+  isPremium: false,
+  isTrialActive: false,
+  trialExpired: false,
+  canAccess2Cifras: false,
+  canAccessPremiumFeatures: false,
+  canSavePrediction: false,
+  predictionsUsed: 0,
+  predictionsRemaining: 0,
+  premium_until: null,
+  daysRemaining: null,
+  ...overrides,
+})
+
+export function trialUntilISO(from = Date.now()): string {
+  return new Date(from + FREE_TRIAL_DAYS * 86400000).toISOString()
+}
+
+export async function ensureUserProfile(userId: string, email: string): Promise<void> {
+  const SB = getSupabaseUrl()
+  const SK = getSupabaseKey()
+  if (!SB || !SK || !userId) return
+  try {
+    const r = await fetch(`${SB}/rest/v1/user_profiles?id=eq.${userId}&select=id,premium_until,trial_ends_at&limit=1`, {
+      headers: { apikey: SK, Authorization: `Bearer ${SK}` },
+      signal: AbortSignal.timeout(4000),
+    })
+    const rows = await r.json()
+    const trialISO = trialUntilISO()
+
+    if (Array.isArray(rows) && rows.length > 0) {
+      const existing = rows[0]
+      // Update if missing trial dates OR if both dates are in the past (stale profile)
+      // But NEVER overwrite a valid premium_until — only set trial if neither date is active
+      const now = Date.now()
+      const premiumUntilValid = existing.premium_until && new Date(existing.premium_until).getTime() > now
+      const trialEndsValid = existing.trial_ends_at && new Date(existing.trial_ends_at).getTime() > now
+      const needsUpdate = !existing.premium_until || !existing.trial_ends_at || (!premiumUntilValid && !trialEndsValid && !existing.premium_until?.startsWith("2099"))
+      if (needsUpdate) {
+        // Only set fields that are missing or expired — never downgrade active premium
+        const patchBody: Record<string, string> = {}
+        if (!existing.premium_until || !premiumUntilValid) patchBody.premium_until = trialISO
+        if (!existing.trial_ends_at || !trialEndsValid) patchBody.trial_ends_at = trialISO
+        if (Object.keys(patchBody).length === 0) { return }
+        const updateRes = await fetch(`${SB}/rest/v1/user_profiles?id=eq.${userId}`, {
+          method: "PATCH",
+          headers: {
+            apikey: SK,
+            Authorization: `Bearer ${SK}`,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify(patchBody),
+          signal: AbortSignal.timeout(4000),
+        })
+        if (!updateRes.ok) {
+          const errText = await updateRes.text().catch(() => "")
+          logger.error("[ensureUserProfile] UPDATE failed", { userId, status: updateRes.status, error: errText.substring(0, 200) })
+        }
+      }
+      return
+    }
+
+    // Create new profile
+    const createRes = await fetch(`${SB}/rest/v1/user_profiles`, {
+      method: "POST",
+      headers: {
+        apikey: SK,
+        Authorization: `Bearer ${SK}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=ignore-duplicates,return=minimal",
+      },
+      body: JSON.stringify({
+        id: userId,
+        email: email || "",
+        role: "free",
+        premium_until: trialISO,
+        trial_ends_at: trialISO,
+        created_at: new Date().toISOString(),
+      }),
+      signal: AbortSignal.timeout(4000),
+    })
+    if (!createRes.ok) {
+      const errText = await createRes.text().catch(() => "")
+      logger.error("[ensureUserProfile] INSERT failed", { userId, status: createRes.status, error: errText.substring(0, 200) })
+    }
+  } catch (e) {
+    logger.error("[ensureUserProfile] error", { userId, error: String(e) })
+  }
+}
+
+async function countUserPredictions(userId: string): Promise<number> {
+  const SB = getSupabaseUrl()
+  const SK = getSupabaseKey()
+  if (!SB || !SK) return 0
+  try {
+    const r = await fetch(
+      `${SB}/rest/v1/user_predictions?user_id=eq.${userId}&select=id`,
+      {
+        headers: { apikey: SK, Authorization: `Bearer ${SK}`, Prefer: "count=exact" },
+        signal: AbortSignal.timeout(4000),
+      }
+    )
+    const range = r.headers.get("content-range")
+    if (range) {
+      const total = parseInt(range.split("/")[1] || "0", 10)
+      if (!isNaN(total)) return total
+    }
+    const rows = await r.json()
+    return Array.isArray(rows) ? rows.length : 0
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * Resuelve el tier del usuario a partir del JWT de Supabase Auth.
+ */
+export async function resolveUserTier(token: string): Promise<UserTier> {
+  if (!token) return emptyTier()
+  const SB = getSupabaseUrl()
+  const SK = getSupabaseKey()
+  if (!SB || !SK) return emptyTier()
+
+  try {
+    const decoded = await validateJwt(token)
+    if (!decoded) return emptyTier()
+
+    const { userId, email } = decoded
+
+    await ensureUserProfile(userId, email)
+
+    const profRes = await fetch(
+      `${SB}/rest/v1/user_profiles?id=eq.${userId}&select=role,premium_until,trial_ends_at,created_at&limit=1`,
+      { headers: { apikey: SK, Authorization: `Bearer ${SK}` }, signal: AbortSignal.timeout(4000) }
+    )
+    const profiles = await profRes.json()
+    const profile = Array.isArray(profiles) ? profiles[0] : null
+
+    const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase())
+    const dbRole = (profile?.role || "free") as string
+    const role: UserTier["role"] = isAdmin ? "admin" : dbRole === "admin" ? "free" : (dbRole as UserTier["role"])
+    if (dbRole === "admin" && !isAdmin) {
+      logger.warn("[tier] DB role is 'admin' but email not in ADMIN_EMAILS — treated as free", { email })
+    }
+
+    // Pick the LATER date (premium_until or trial_ends_at), not the first truthy one
+    const dates = [profile?.premium_until, profile?.trial_ends_at]
+      .filter(Boolean)
+      .map(d => new Date(d!))
+      .filter(d => !isNaN(d.getTime()))
+    const until = dates.length > 0
+      ? dates.reduce((latest, d) => d.getTime() > latest.getTime() ? d : latest)
+      : null
+    const untilValid = !!(until && until.getTime() > Date.now())
+
+    const isPremiumRole = role === "admin" || (role === "premium" && untilValid)
+    const isTrialActive = role === "free" && untilValid
+    const trialExpired = role === "free" && !!until && !untilValid
+
+    // 2 cifras: trial activo O premium/admin. Trial expirado = bloqueado.
+    const canAccess2Cifras = isPremiumRole || isTrialActive
+    // 3/4 cifras + redoblona SOLO premium/admin
+    const canAccessPremiumFeatures = isPremiumRole
+
+    const predictionsUsed = await countUserPredictions(userId)
+    const predictionsRemaining = isPremiumRole
+      ? -1 // -1 = unlimited (consistent with tier-service.ts)
+      : Math.max(0, FREE_MAX_PREDICTIONS - predictionsUsed)
+
+    const canSavePrediction =
+      canAccess2Cifras && (isPremiumRole || predictionsRemaining > 0)
+
+    let daysRemaining: number | null = null
+    if (until) {
+      daysRemaining = Math.max(0, Math.ceil((until.getTime() - Date.now()) / 86400000))
+    }
+
+    return {
+      userId,
+      email: email || null,
+      role,
+      isPremium: isPremiumRole,
+      isTrialActive,
+      trialExpired,
+      canAccess2Cifras,
+      canAccessPremiumFeatures,
+      canSavePrediction,
+      predictionsUsed,
+      predictionsRemaining,
+      premium_until: profile?.premium_until || null,
+      daysRemaining,
+    }
+  } catch {
+    return emptyTier()
+  }
+}

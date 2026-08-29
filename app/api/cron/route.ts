@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-const SB=()=>(process.env.NEXT_PUBLIC_SUPABASE_URL||"").replace(/"/g,"").trim()
-const SK=()=>(process.env.SUPABASE_SERVICE_ROLE_KEY||"").replace(/"/g,"").trim()
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
+import { getSupabaseAdmin } from "@/lib/supabase-client"
+
+const TURNOS_VALIDOS=["Previa","Primera","Matutina","Vespertina","Nocturna"]
+
 async function scrape(fechaUrl:string,turno:string):Promise<number[]>{
   try{
     const res=await fetch(`https://quinielanacional1.com.ar/${fechaUrl}/${turno}`,{headers:{"User-Agent":"Mozilla/5.0"},signal:AbortSignal.timeout(12000)})
@@ -20,54 +23,170 @@ async function scrape(fechaUrl:string,turno:string):Promise<number[]>{
     return nums
   }catch{return[]}
 }
+
+import { GAME_ID } from "@/lib/scrapers/types"
+
 async function save(fechaStr:string,turno:string,nums:number[]):Promise<boolean>{
-  await fetch(`${SB()}/rest/v1/draws?date=eq.${fechaStr}&turno=eq.${turno}`,{method:"DELETE",headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`,"Prefer":"return=minimal"}})
-  const r=await fetch(`${SB()}/rest/v1/draws`,{method:"POST",headers:{"apikey":SK(),"Authorization":`Bearer ${SK()}`,"Content-Type":"application/json","Prefer":"return=minimal"},body:JSON.stringify({date:fechaStr,turno,numbers:nums})})
-  return r.ok
+  try {
+    const supabase = getSupabaseAdmin()
+    const { error } = await supabase.from("draws").upsert(
+      { date: fechaStr, turno, numbers: nums, source: "cron-scraper", game_id: GAME_ID },
+      { onConflict: "date,turno,game_id" }
+    )
+    return !error
+  } catch {
+    return false
+  }
 }
-function authorizeCron(req: NextRequest): boolean {
-  const expected = process.env.CRON_SECRET
-  if (!expected) return false
-  const q = req.nextUrl.searchParams.get("secret")
-  const h = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? ""
-  const x = req.headers.get("x-cron-secret") ?? ""
-  return q === expected || h === expected || x === expected
-}
+  
+export const maxDuration = 300
 
 export async function GET(req: NextRequest) {
-  if (!authorizeCron(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const now=new Date(Date.now()-3*3600000)
-  const y=now.getFullYear(),mo=String(now.getMonth()+1).padStart(2,"0"),d=String(now.getDate()).padStart(2,"0")
-  const fechaStr=`${y}-${mo}-${d}`,fechaUrl=`${d}-${mo}-${String(y).slice(-2)}`
-  const hora=now.getHours()
-  // Quiniela Nacional Buenos Aires - horarios oficiales
-  // Previa: 10:15 | Primera: 12:00 | Matutina: 15:00 | Vespertina: 18:00 | Nocturna: 21:00
-  const turnoParam=req.nextUrl.searchParams.get("turno")
-  const TURNOS_VALIDOS=["Previa","Primera","Matutina","Vespertina","Nocturna"]
-  let turnoScrape="Nocturna"
-  let turnoNombre="Nocturna"
-  if(turnoParam&&TURNOS_VALIDOS.includes(turnoParam)){
-    turnoScrape=turnoParam;turnoNombre=turnoParam
-  } else {
-    if(hora>=10&&hora<12){turnoScrape="Previa";turnoNombre="Previa"}
-    else if(hora>=12&&hora<15){turnoScrape="Primera";turnoNombre="Primera"}
-    else if(hora>=15&&hora<18){turnoScrape="Matutina";turnoNombre="Matutina"}
-    else if(hora>=18&&hora<21){turnoScrape="Vespertina";turnoNombre="Vespertina"}
+  const authResult = await validateCronAuth(req)
+  if (!authResult.authorized) {
+    return unauthorizedResponse()
   }
-  if(turnoParam==="todos"){
-    const resultsTodos=[]
-    const fechaUrl2=`${d}-${mo}-${String(y).slice(-2)}`
-    for(const t of TURNOS_VALIDOS){
-      const nums=await scrape(fechaUrl2,t)
-      if(nums.length>=5){const ok=await save(fechaStr,t,nums);resultsTodos.push({turno:t,ok,total:nums.length})}
-      else resultsTodos.push({turno:t,ok:false,total:0})
+  
+  const dateParam = req.nextUrl.searchParams.get("date")
+  const daysParam = parseInt(req.nextUrl.searchParams.get("days") || "1")
+  const historyParam = req.nextUrl.searchParams.get("history") === "true"
+  const forceParam = req.nextUrl.searchParams.get("force") === "true"
+  
+  const days = Math.min(Math.max(daysParam, 1), 90)
+  const results: { fecha: string; turnos: { turno: string; ok: boolean; total: number }[] }[] = []
+  let guardados = 0
+  let errores = 0
+  let saltados = 0
+  
+  if (historyParam) {
+    for (let i = 0; i < days; i++) {
+      const now = new Date()
+      now.setDate(now.getDate() - i)
+      const y = now.getFullYear()
+      const mo = String(now.getMonth() + 1).padStart(2, "0")
+      const d = String(now.getDate()).padStart(2, "0")
+      const fechaStr = `${y}-${mo}-${d}`
+      const fechaUrl = `${d}-${mo}-${String(y).slice(-2)}`
+      
+      const dayResults: { fecha: string; turnos: { turno: string; ok: boolean; total: number }[] } = { fecha: fechaStr, turnos: [] }
+      
+      for (const t of TURNOS_VALIDOS) {
+        const nums = await scrape(fechaUrl, t)
+        if (nums.length >= 5) {
+          if (forceParam) {
+            const ok = await save(fechaStr, t, nums)
+            if (ok) {
+              guardados++
+              dayResults.turnos.push({ turno: t, ok: true, total: nums.length })
+            } else {
+              errores++
+              dayResults.turnos.push({ turno: t, ok: false, total: 0 })
+            }
+          } else {
+            // Upsert real (sin force también persiste; evita backfill “fantasma”)
+            const ok = await save(fechaStr, t, nums)
+            if (ok) {
+              guardados++
+              dayResults.turnos.push({ turno: t, ok: true, total: nums.length })
+            } else {
+              errores++
+              dayResults.turnos.push({ turno: t, ok: false, total: 0 })
+            }
+          }
+        } else {
+          saltados++
+          dayResults.turnos.push({ turno: t, ok: false, total: 0 })
+        }
+      }
+      results.push(dayResults)
     }
-    return NextResponse.json({ok:true,fechaStr,results:resultsTodos})
+    
+    return NextResponse.json({ 
+      ok: guardados > 0, 
+      totalDays: days,
+      guardados,
+      errores, 
+      saltados,
+      results 
+    })
   }
-  const nums=await scrape(fechaUrl,turnoScrape)
-  if(nums.length>=5){
-    const ok=await save(fechaStr,turnoNombre,nums)
-    return NextResponse.json({ok,fechaStr,turno:turnoNombre,total:nums.length,nums:nums.slice(0,5)})
+  
+  const ahora = dateParam 
+    ? (() => {
+        const p = new Date(dateParam + "T12:00:00Z")
+        return { fechaStr: dateParam, diaSemana: p.getDay(), hora: p.getHours() }
+      })()
+    : (() => {
+        const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format()
+        const h = parseInt(new Intl.DateTimeFormat("en-US", { timeZone: "America/Argentina/Buenos_Aires", hour: "numeric", hour12: false }).format())
+        const dow = new Date(`${p}T12:00:00Z`).getDay()
+        return { fechaStr: p, diaSemana: dow, hora: h }
+      })()
+  const [y, mo, d] = ahora.fechaStr.split("-")
+  const fechaStr = ahora.fechaStr
+  const fechaUrl = `${d}-${mo}-${y.slice(-2)}`
+  const hora = ahora.hora
+  const diaSemana = ahora.diaSemana
+
+  const feriados = ["2026-01-01","2026-02-16","2026-02-17","2026-03-24","2026-04-02","2026-04-03","2026-05-01","2026-05-25","2026-06-20","2026-07-09","2026-08-17","2026-10-12","2026-11-23","2026-12-08","2026-12-25","2027-01-01"]
+  const esFeriado = feriados.includes(fechaStr)
+  
+  const turnoParam = req.nextUrl.searchParams.get("turno")
+  let turnoScrape = "Nocturna"
+  let turnoNombre = "Nocturna"
+  
+  // Si es feriado o domingo, no hay sorteos
+  if (esFeriado || diaSemana === 0) {
+    return NextResponse.json({ ok: false, msg: "No hay sorteos en feriados o domingos", fechaStr })
   }
-  return NextResponse.json({ok:false,fechaStr,turno:turnoNombre,msg:"Sin datos",total:0})
+  
+  if (turnoParam && TURNOS_VALIDOS.includes(turnoParam)) {
+    turnoScrape = turnoParam
+    turnoNombre = turnoParam
+  } else {
+    // Sábados no hay Previa
+    if (diaSemana === 6 && hora >= 10 && hora < 12) {
+      turnoScrape = "Primera"; turnoNombre = "Primera"
+    }
+    else if (hora >= 10 && hora < 12) { turnoScrape = "Previa"; turnoNombre = "Previa" }
+    else if (hora >= 12 && hora < 15) { turnoScrape = "Primera"; turnoNombre = "Primera" }
+    else if (hora >= 15 && hora < 18) { turnoScrape = "Matutina"; turnoNombre = "Matutina" }
+    else if (hora >= 18 && hora < 21) { turnoScrape = "Vespertina"; turnoNombre = "Vespertina" }
+  }
+  
+  if (turnoParam === "todos") {
+    const resultsTodos = []
+    const fechaUrl2 = `${d}-${mo}-${String(y).slice(-2)}`
+    for (const t of TURNOS_VALIDOS) {
+      let nums = await scrape(fechaUrl2, t)
+      if (nums.length < 5) {
+        const ayer = new Date(`${ahora.fechaStr}T12:00:00Z`)
+        ayer.setUTCDate(ayer.getUTCDate() - 1)
+        const yd = ayer.getUTCFullYear()
+        const md = String(ayer.getUTCMonth() + 1).padStart(2, "0")
+        const dd = String(ayer.getUTCDate()).padStart(2, "0")
+        const fechaUrlYesterday = `${dd}-${md}-${String(yd).slice(-2)}`
+        nums = await scrape(fechaUrlYesterday, t)
+        if (nums.length >= 5) {
+          const fechaYesterday = `${yd}-${md}-${dd}`
+          const ok = await save(fechaYesterday, t, nums)
+          resultsTodos.push({ turno: t, ok, total: nums.length, fecha: fechaYesterday })
+          continue
+        }
+      }
+      if (nums.length >= 5) {
+        const ok = await save(fechaStr, t, nums)
+        resultsTodos.push({ turno: t, ok, total: nums.length, fecha: fechaStr })
+      }
+      else resultsTodos.push({ turno: t, ok: false, total: 0 })
+    }
+    return NextResponse.json({ ok: true, fechaStr, results: resultsTodos })
+  }
+  
+  const nums = await scrape(fechaUrl, turnoScrape)
+  if (nums.length >= 5) {
+    const ok = await save(fechaStr, turnoNombre, nums)
+    return NextResponse.json({ ok, fechaStr, turno: turnoNombre, total: nums.length, nums: nums.slice(0, 5) })
+  }
+  return NextResponse.json({ ok: false, fechaStr, turno: turnoNombre, msg: "Sin datos", total: 0 })
 }

@@ -1,443 +1,772 @@
 import { NextRequest, NextResponse } from "next/server"
+import { resolveUserTier } from "@/lib/auth/tier"
+import { generatePredictionSummary } from "@/lib/ai/summary"
+import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limiter"
+import { predictEnsembleV7 } from "@/lib/analisis/engine-v7"
+import { loadV7Weights, v7WeightsToFactorBreakdown } from "@/lib/analisis/v7-weights"
+import { getMLPredictions } from "@/lib/ml/integration"
+import logger from "@/lib/logger"
+import type { Draw } from "@/lib/analisis/engine-v7"
+import type { PredictionResponse, TopNumero, HeatmapItem } from "./types"
 
-const SUENOS: { [k: number]: string } = {
-  0: "Huevos", 1: "Agua", 2: "Nino", 3: "San Cono", 4: "La cama", 5: "Gato", 6: "Perro", 7: "Revolver", 8: "Incendio", 9: "Arroyo",
-  10: "La leche", 11: "Minero", 12: "Soldado", 13: "La yeta", 14: "Borracho", 15: "Nina bonita", 16: "Anillo", 17: "Desgracia", 18: "Sangre", 19: "Pescado",
-  20: "La fiesta", 21: "Mujer", 22: "Loco", 23: "Cocinero", 24: "Caballo", 25: "Gallina", 26: "La misa", 27: "Peine", 28: "Cerro", 29: "San Pedro",
-  30: "Santa Rosa", 31: "Luz", 32: "Dinero", 33: "Cristo", 34: "Cabeza", 35: "Pajarito", 36: "Manteca", 37: "Dentista", 38: "Piedras", 39: "Lluvia",
-  40: "Cura", 41: "Cuchillo", 42: "Zapatillas", 43: "Balcon", 44: "Carcel", 45: "Vino", 46: "Tomates", 47: "Muerto", 48: "Muerto habla", 49: "Carne",
-  50: "Pan", 51: "Serrucho", 52: "Madre", 53: "Barco", 54: "Vaca", 55: "Musica", 56: "Caida", 57: "Jorobado", 58: "Ahogado", 59: "Plantas",
-  60: "Virgen", 61: "Escopeta", 62: "Inundacion", 63: "Casamiento", 64: "Llanto", 65: "Cazador", 66: "Lombrices", 67: "Vibora", 68: "Sobrinos", 69: "Vicios",
-  70: "Muerto sueno", 71: "Excremento", 72: "Sorpresa", 73: "Hospital", 74: "Gente negra", 75: "Besos", 76: "Fuego", 77: "Pierna mujer", 78: "Ramera", 79: "Ladron",
-  80: "Bochas", 81: "Flores", 82: "Pelea", 83: "Mal tiempo", 84: "Iglesia", 85: "Linterna", 86: "Humo", 87: "Piojos", 88: "Papas", 89: "Rata", 90: "Miedo",
-  91: "Excursion", 92: "Medico", 93: "Enamorado", 94: "Cementerio", 95: "Anteojos", 96: "Marido", 97: "Mesa", 98: "Lavandera", 99: "Hermano",
+export const maxDuration = 30
+
+const SUENOS: Record<number, { emoji: string; nombre: string }> = {
+  0: { emoji: "🥚", nombre: "Huevos" }, 1: { emoji: "💧", nombre: "Agua" }, 2: { emoji: "👶", nombre: "Niño" },
+  3: { emoji: "🐰", nombre: "San Cono" }, 4: { emoji: "🛏️", nombre: "La cama" }, 5: { emoji: "🐱", nombre: "Gato" },
+  6: { emoji: "🐕", nombre: "Perro" }, 7: { emoji: "🔫", nombre: "Revolver" }, 8: { emoji: "🔥", nombre: "Incendio" },
+  9: { emoji: "🌊", nombre: "Arroyo" }, 10: { emoji: "🥛", nombre: "Leche" }, 11: { emoji: "⛏️", nombre: "Minero" },
+  12: { emoji: "💂", nombre: "Soldado" }, 13: { emoji: "😱", nombre: "Yeta" }, 14: { emoji: "🍺", nombre: "Borracho" },
+  15: { emoji: "👸", nombre: "Niña Bonita" }, 16: { emoji: "💍", nombre: "Anillo" }, 17: { emoji: "💀", nombre: "Desgracia" },
+  18: { emoji: "🩸", nombre: "Sangre" }, 19: { emoji: "🐟", nombre: "Pescado" }, 20: { emoji: "🎉", nombre: "La fiesta" },
+  21: { emoji: "👩", nombre: "Mujer" }, 22: { emoji: "🤪", nombre: "Loco" }, 23: { emoji: "👨‍🍳", nombre: "Cocinero" },
+  24: { emoji: "🐴", nombre: "Caballo" }, 25: { emoji: "🐔", nombre: "Gallina" }, 26: { emoji: "⛪", nombre: "La misa" },
+  27: { emoji: "🪮", nombre: "Peine" }, 28: { emoji: "⛰️", nombre: "Cerro" }, 29: { emoji: "✝️", nombre: "San Pedro" },
+  30: { emoji: "🌹", nombre: "Santa Rosa" }, 31: { emoji: "💡", nombre: "Luz" }, 32: { emoji: "💰", nombre: "Dinero" },
+  33: { emoji: "✝️", nombre: "Cristo" }, 34: { emoji: "🤕", nombre: "Cabeza" }, 35: { emoji: "🐦", nombre: "Pajarito" },
+  36: { emoji: "🧈", nombre: "Manteca" }, 37: { emoji: "🦷", nombre: "Dentista" }, 38: { emoji: "🪨", nombre: "Piedras" },
+  39: { emoji: "🌧️", nombre: "Lluvia" }, 40: { emoji: "⛪", nombre: "Cura" }, 41: { emoji: "🔪", nombre: "Cuchillo" },
+  42: { emoji: "👟", nombre: "Zapatillas" }, 43: { emoji: "🏠", nombre: "Balcón" }, 44: { emoji: "🏚️", nombre: "Cárcel" },
+  45: { emoji: "🍷", nombre: "Vino" }, 46: { emoji: "🍅", nombre: "Tomates" }, 47: { emoji: "💀", nombre: "Muerto" },
+  48: { emoji: "🧟", nombre: "Muerto habla" }, 49: { emoji: "🥩", nombre: "Carne" }, 50: { emoji: "🍞", nombre: "Pan" },
+  51: { emoji: "🪚", nombre: "Serrucho" }, 52: { emoji: "👩‍👦", nombre: "Madre" }, 53: { emoji: "⛵", nombre: "Barco" },
+  54: { emoji: "🐄", nombre: "Vaca" }, 55: { emoji: "🎵", nombre: "Música" }, 56: { emoji: "🤕", nombre: "Caída" },
+  57: { emoji: "🏃", nombre: "Jorobado" }, 58: { emoji: "💦", nombre: "Ahogado" }, 59: { emoji: "🌱", nombre: "Plantas" },
+  60: { emoji: "🧝", nombre: "Virgen" }, 61: { emoji: "🔫", nombre: "Escopeta" }, 62: { emoji: "🌊", nombre: "Inundación" },
+  63: { emoji: "💒", nombre: "Casamiento" }, 64: { emoji: "😢", nombre: "Llanto" }, 65: { emoji: "🎯", nombre: "Cazador" },
+  66: { emoji: "🪱", nombre: "Lombrices" }, 67: { emoji: "🐍", nombre: "Víbora" }, 68: { emoji: "👶", nombre: "Sobrinos" },
+  69: { emoji: "😈", nombre: "Vicios" }, 70: { emoji: "💀", nombre: "Muerto sueño" }, 71: { emoji: "💩", nombre: "Excremento" },
+  72: { emoji: "🎁", nombre: "Sorpresa" }, 73: { emoji: "🏥", nombre: "Hospital" }, 74: { emoji: "🏿", nombre: "Gente negra" },
+  75: { emoji: "💋", nombre: "Besos" }, 76: { emoji: "🔥", nombre: "Fuego" }, 77: { emoji: "🦵", nombre: "Pierna" },
+  78: { emoji: "💃", nombre: "Ramera" }, 79: { emoji: "🦹", nombre: "Ladrón" }, 80: { emoji: "🎱", nombre: "Bochas" },
+  81: { emoji: "💐", nombre: "Flores" }, 82: { emoji: "🥊", nombre: "Pelea" }, 83: { emoji: "⛈️", nombre: "Mal tiempo" },
+  84: { emoji: "⛪", nombre: "Iglesia" }, 85: { emoji: "🔦", nombre: "Linterna" }, 86: { emoji: "💨", nombre: "Humo" },
+  87: { emoji: "🦟", nombre: "Piojos" }, 88: { emoji: "🥔", nombre: "Papas" }, 89: { emoji: "🐀", nombre: "Rata" },
+  90: { emoji: "😱", nombre: "Miedo" }, 91: { emoji: "🏕️", nombre: "Excursión" }, 92: { emoji: "👨‍⚕️", nombre: "Médico" },
+  93: { emoji: "💕", nombre: "Enamorado" }, 94: { emoji: "🪦", nombre: "Cementerio" }, 95: { emoji: "👓", nombre: "Anteojos" },
+  96: { emoji: "👨", nombre: "Marido" }, 97: { emoji: "🍽️", nombre: "Mesa" }, 98: { emoji: "👕", nombre: "Lavandera" },
+  99: { emoji: "👦", nombre: "Hermano" }
 }
 
-function pad(n: number, l = 2) {
-  return String(n).padStart(l, "0")
+function pad(n: number, l = 2): string {
+  return String(n).padStart(l, '0')
 }
 
-
-// Sesgos por defecto - se actualizan automaticamente cada mes
-const SESGOS_DEFAULT: Record<string, number[]> = {
-  "Previa":     [95,45,15,99],
-  "Primera":    [38,73,97,37,50,72,19],
-  "Matutina":   [14,24,26,74,92,20],
-  "Vespertina": [27,14,43,92,68,69],
-  "Nocturna":   [26,35,76,45,88]
-}
-async function getSesgos(sb:string, sk:string): Promise<Record<string,number[]>> {
-  try {
-    const r = await fetch(`${sb}/rest/v1/config?key=eq.sesgos&select=value&limit=1`,{
-      headers:{"apikey":sk,"Authorization":`Bearer ${sk}`},
-      signal:AbortSignal.timeout(3000)
-    })
-    if(!r.ok) return SESGOS_DEFAULT
-    const data = await r.json()
-    if(!data?.[0]?.value) return SESGOS_DEFAULT
-    return JSON.parse(data[0].value)
-  } catch { return SESGOS_DEFAULT }
-}
-function monteCarlo(freq: number[]): number[] {
-  const mc = new Array(freq.length).fill(0)
-  const w = freq.map((f) => f + 1)
-  const tot = w.reduce((a, b) => a + b, 0)
-  const cum: number[] = []
-  let acc = 0
-  for (const x of w) {
-    acc += x / tot
-    cum.push(acc)
+function normalizeTurno(t: string): string {
+  const map: Record<string, string> = {
+    previa: "Previa", primera: "Primera", matutina: "Matutina",
+    vespertina: "Vespertina", nocturna: "Nocturna"
   }
-  const samples = Math.min(20000, 5000 + freq.length * 20)
-  for (let s = 0; s < samples; s++) {
-    const r = Math.random()
-    let lo = 0,
-      hi = freq.length - 1
-    while (lo < hi) {
-      const m = (lo + hi) >> 1
-      if (cum[m] < r) lo = m + 1
-      else hi = m
-    }
-    mc[lo]++
-  }
-  return mc
+  return map[t.toLowerCase()] || t
 }
 
-type Row = { numbers?: unknown[]; date?: string; turno?: string }
-
-function buildCooccurrence(rows: Row[]): number[][] {
-  const co = Array.from({ length: 100 }, () => new Array(100).fill(0))
-
-  for (const row of rows) {
-    const nums = Array.isArray(row.numbers) ? row.numbers : []
-    const set = new Set<number>()
-    const list: number[] = []
-
-    // Validar y filtrar números
-    for (const n of nums) {
-      const num = Number(n)
-      if (Number.isNaN(num)) continue
-
-      const t = num % 100
-      if (t >= 0 && t <= 99 && !set.has(t)) {
-        set.add(t)
-        list.push(t)
-      }
-    }
-
-    // Construir matriz de coocurrencias
-    for (let i = 0; i < list.length; i++) {
-      for (let j = i + 1; j < list.length; j++) {
-        const a = Math.min(list[i], list[j])
-        const b = Math.max(list[i], list[j])
-        if (a >= 0 && a <= 99 && b >= 0 && b <= 99) {
-          co[a][b]++
-        }
-      }
-    }
-  }
-  return co
-}
-
-/** Par óptimo: maximiza score_i * score_j * (1 + log(1 + coocurrencias históricas del par)). */
-function bestRedoblonaPair(
-  scores: { n: number; score: number }[],
-  co: number[][],
-  take = 18
-): { a: number; b: number; label: string } {
-  const top = scores.slice(0, take).map((s) => s.n)
-  if (top.length < 2) {
-    const a = top[0] ?? 0
-    const b = top[1] ?? (a === 0 ? 1 : 0)
-    return { a, b, label: `${pad(a)}-${pad(b)}` }
-  }
-  let best = { a: top[0], b: top[1], w: -1 }
-  const scMap = new Map(scores.map((s) => [s.n, s.score]))
-  for (let i = 0; i < top.length; i++) {
-    for (let j = i + 1; j < top.length; j++) {
-      const a = Math.min(top[i], top[j])
-      const b = Math.max(top[i], top[j])
-      const si = scMap.get(a) ?? 0
-      const sj = scMap.get(b) ?? 0
-      const c = co[a][b] ?? 0
-      const w = si * sj * (1 + Math.log1p(c))
-      if (w > best.w) best = { a, b, w }
-    }
-  }
-  return { a: best.a, b: best.b, label: `${pad(best.a)}-${pad(best.b)}` }
-}
-
-function scoreDigits(freq: number[], histOrder: number[], recentWindow: number) {
-  const len = freq.length
-  const delay = new Array(len).fill(histOrder.length)
-  for (let i = histOrder.length - 1; i >= 0; i--) {
-    const v = histOrder[i]
-    if (v >= 0 && v < len && delay[v] === histOrder.length) delay[v] = histOrder.length - 1 - i
-  }
-  const trend = new Array(len).fill(0)
-  for (const v of histOrder.slice(-recentWindow)) {
-    if (v >= 0 && v < len) trend[v]++
-  }
-  const mc = monteCarlo(freq)
-  const mxF = Math.max(...freq, 1)
-  const mxD = Math.max(...delay, 1)
-  const mxT = Math.max(...trend, 1)
-  const mxM = Math.max(...mc, 1)
-  return Array.from({ length: len }, (_, i) => ({
-    n: i,
-    score: 0.32 * (freq[i] / mxF) + 0.23 * (delay[i] / mxD) + 0.22 * (trend[i] / mxT) + 0.23 * (mc[i] / mxM),
-  }))
+interface OmegaRow {
+  numero: number
+  puntaje_total: number
+  prediccion_2cifras: string
+  prediccion_3cifras: string[] | null
+  prediccion_4cifras: string[] | null
+  redoblona: { cabeza: string; acompanante: string } | null
+  factor_attribution: Record<string, number> | null
 }
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const sorteo = searchParams.get("sorteo") || "Todos"
-  const premium = true
-
-  const SB = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
-  const SK = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").replace(/"/g, "").trim()
-
-  // Validar variables de entorno
-  if (!SB || !SK) {
-    return NextResponse.json({ 
-      error: "Configuración incompleta: Variables de entorno no definidas",
-      numeros: [],
-      totalSorteos: 0,
-      sorteo,
-      generado: new Date().toISOString()
-    }, { status: 500 })
-  }
-
-  // Validar parámetro sorteo
-  const sorteoValidos = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Todos"]
-  if (sorteo !== "Todos" && !sorteoValidos.includes(sorteo)) {
-    return NextResponse.json({ 
-      error: `Sorteo inválido. Válidos: ${sorteoValidos.join(", ")}`,
-      numeros: [],
-      totalSorteos: 0,
-      sorteo,
-      generado: new Date().toISOString()
-    }, { status: 400 })
-  }
-
-  const since = new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0]
-  let url = `${SB}/rest/v1/draws?select=date,turno,numbers&date=gte.${since}&order=date.desc&limit=2000`
-  if (sorteo !== "Todos") url += `&turno=eq.${encodeURIComponent(sorteo)}`
-
-  const ctrl = new AbortController()
-  const to = setTimeout(() => ctrl.abort(), 15000)
+  const t0 = Date.now()
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown"
 
   try {
-    const res = await fetch(url, { 
-      headers: { 
-        apikey: SK, 
-        Authorization: `Bearer ${SK}` 
-      }, 
-      signal: ctrl.signal 
-    })
-    clearTimeout(to)
-
-    if (!res.ok) {
-      const errText = await res.text()
-      return NextResponse.json({ 
-        error: `Base de datos error: ${res.status} - ${errText.substring(0, 100)}`,
-        numeros: [],
-        totalSorteos: 0,
-        sorteo,
-        generado: new Date().toISOString()
-      }, { status: 500 })
-    }
-
-    const rows: Row[] = await res.json()
-
-    if (!rows?.length) {
-      return NextResponse.json({
-        numeros: [],
-        totalSorteos: 0,
-        sorteo,
-        generado: new Date().toISOString(),
-        aviso: `Sin datos disponibles para ${sorteo} en el último año`
-      })
-    }
-
-    // Validar que tenemos números válidos
-    const rowsValidos = rows.filter(r => Array.isArray(r.numbers) && r.numbers.length > 0)
-    if (!rowsValidos.length) {
-      return NextResponse.json({
-        numeros: [],
-        totalSorteos: rows.length,
-        sorteo,
-        generado: new Date().toISOString(),
-        aviso: "Los registros no contienen números válidos"
-      })
-    }
-
-    const hist: number[] = []
-    const fp: number[] = []
-    const freq = new Array(100).fill(0)
-    const ff = new Array(100).fill(0)
-    const hist3: number[] = []
-    const hist4: number[] = []
-    const freq3 = new Array(1000).fill(0)
-    const freq4 = new Array(10000).fill(0)
-
-    for (const row of rowsValidos) {
-      const nums = Array.isArray(row.numbers) ? row.numbers : []
-      nums.forEach((n: unknown, i: number) => {
-        const num = Number(n)
-        if (Number.isNaN(num)) return
-
-        const t = num % 100
-        if (t >= 0 && t <= 99) {
-          hist.push(t)
-          freq[t]++
-
-          if (i === 0) {
-            fp.push(t)
-            ff[t]++
+    // ── Rate limit ──────────────────────────────────────────────
+    const rl = await checkRateLimit(ip, RATE_LIMIT_PRESETS.PREDICTION_API)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Demasiadas peticiones. Esperá unos minutos.", retryAfter: Math.ceil((rl.resetAt - Date.now()) / 1000) },
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Limit": "30",
+            "X-RateLimit-Remaining": rl.remaining.toString(),
+            "X-RateLimit-Reset": Math.ceil(rl.resetAt / 1000).toString(),
+            "Retry-After": Math.ceil((rl.resetAt - Date.now()) / 1000).toString()
           }
-
-          const v3 = num % 1000
-          const v4 = num % 10000
-          hist3.push(v3)
-          hist4.push(v4)
-          freq3[v3]++
-          freq4[v4]++
         }
-      })
+      )
     }
 
-    // Validar que tenemos datos procesados
-    if (!hist.length) {
+    // ── Tier check ──────────────────────────────────────────────
+    const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
+    if (!token) {
       return NextResponse.json({
-        numeros: [],
-        totalSorteos: rowsValidos.length,
-        sorteo,
-        generado: new Date().toISOString(),
-        aviso: "Error procesando datos históricos"
-      }, { status: 500 })
+        error: "Iniciá sesión para ver predicciones.",
+        upgradeRequired: true,
+      }, { status: 401 })
     }
 
-    // Calcular delays (cuándo fue la última aparición de cada número)
-    const delay = new Array(100).fill(hist.length)
-    for (let i = hist.length - 1; i >= 0; i--) {
-      const num = hist[i]
-      if (num >= 0 && num <= 99 && delay[num] === hist.length) {
-        delay[num] = hist.length - 1 - i
+    const userTier = await resolveUserTier(token)
+
+    if (!userTier.canAccess2Cifras) {
+      // Auto-recovery: if user has no trial dates, try to fix their profile
+      if (userTier.userId && !userTier.premium_until && userTier.trialExpired === false && userTier.isTrialActive === false) {
+        try {
+          const { ensureUserProfile } = await import("@/lib/auth/tier")
+          const decoded = await (await import("@/lib/auth/jwt")).validateJwt(token)
+          if (decoded?.email) {
+            await ensureUserProfile(userTier.userId, decoded.email)
+            // Retry tier resolution
+            const retryTier = await resolveUserTier(token)
+            if (retryTier.canAccess2Cifras) {
+              // Use the retried tier
+              Object.assign(userTier, retryTier)
+            }
+          }
+        } catch {}
       }
     }
 
-    // Calcular tendencia reciente (últimos 200 sorteos)
-    const trend = new Array(100).fill(0)
-    const recentWindow = Math.min(200, hist.length)
-    for (const n of hist.slice(-recentWindow)) {
-      if (n >= 0 && n <= 99) trend[n]++
+    if (!userTier.canAccess2Cifras) {
+      return NextResponse.json({
+        error: userTier.trialExpired
+          ? "Tu período gratuito de 30 días expiró. Actualizá a Premium para continuar."
+          : "No se pudo verificar tu acceso. Intentá de nuevo.",
+        trialExpired: userTier.trialExpired,
+        tier: userTier.role,
+        upgradeRequired: true,
+      }, { status: 403 })
     }
 
-    // Muestreo Monte Carlo para distribuición probabilística
-    const mc = monteCarlo(freq)
+    // ── Parse turno + date ──────────────────────────────────────
+    const { searchParams } = new URL(req.url)
+    const turnoRaw = searchParams.get("sorteo") || "previa"
+    const turnoQuery = turnoRaw.toLowerCase()
 
-    // Normalizar scores
-    const mxF = Math.max(...freq, 1)
-    const mxD = Math.max(...delay, 1)
-    const mxT = Math.max(...trend, 1)
-    const mxM = Math.max(...mc, 1)
-    const mxFF = Math.max(...ff, 1)
+    if (!["previa", "primera", "matutina", "vespertina", "nocturna"].includes(turnoQuery)) {
+      return NextResponse.json({ error: `Sorteo inválido. Válidos: previa, primera, matutina, vespertina, nocturna` }, { status: 400 })
+    }
 
-    // Obtener sesgos activos de configuración (si existen)
-    const sesgosActivos = await getSesgos(SB, SK)
+    const turnoCanonical = normalizeTurno(turnoQuery)
 
-    // Calcular scores ponderados: 30% freq + 25% delay + 20% trend + 15% monte carlo + 10% primera
-    const scores = Array.from({ length: 100 }, (_, i) => ({
-      n: i,
-      score:
-        0.3 * (freq[i] / mxF) +
-        0.25 * (delay[i] / mxD) +
-        0.2 * (trend[i] / mxT) +
-        0.15 * (mc[i] / mxM) +
-        0.1 * (ff[i] / mxFF),
+    // ── Supabase client ─────────────────────────────────────────
+    const { getSupabaseAdmin } = await import('@/lib/supabase-client')
+    const supabaseAdmin = getSupabaseAdmin()
+
+    const todayBsAs = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format()
+    // Accept `date` param from client, fallback to today
+    const requestedDate = searchParams.get("date")
+    const targetDate = (requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) ? requestedDate : todayBsAs
+
+    // ── 0. Try pre-computed cache first (< 200ms) ─────────────
+    try {
+      const { data: cached } = await supabaseAdmin
+        .from("predictions_cache")
+        .select("numeros_2, numeros_3, numeros_4, redoblona, engine_version, confidence, agreement_score, v6_weight, v7_weight, ml_weight")
+        .eq("game_id", "ac593199-c299-4f03-b1b7-8675fe4fa6d9")
+        .eq("date", targetDate)
+        .eq("turno", turnoCanonical)
+        .single()
+
+      if (cached?.numeros_2 && Array.isArray(cached.numeros_2) && cached.numeros_2.length > 0) {
+        // Cache hit — build response from pre-computed data
+        const numeros: TopNumero[] = cached.numeros_2.map((item: Record<string, unknown>, i: number) => ({
+          n: item.n as number,
+          numero: item.numero as string,
+          emoji: (item.emoji as string) || "❓",
+          significado: (item.significado as string) || "",
+          score: (item.score as number) || 0,
+          confianza: cached.confidence || 0,
+          rank: i + 1,
+          frecuencia: Math.round(((item.score as number) || 0) * 100),
+          factores: Object.keys(item.factor_attribution as Record<string, number> || {}).filter(
+            (k) => ((item.factor_attribution as Record<string, number>) || {})[k] > 0.1
+          ),
+          bayesianConfidence: ((item.factor_attribution as Record<string, number>) || {}).bayesian || 0,
+          bayesianPosterior: 0,
+          highConfidence: ((item.score as number) || 0) > 0.7,
+          factor_attribution: (item.factor_attribution as Record<string, number>) || {},
+          percentile: Math.round((1 - i / 10) * 1000) / 10,
+        }))
+
+        // Premium: add 3/4 cifras from cache if available
+        let pred3: string[] = []
+        let pred4: string[] = []
+        let redoblona: string | null = null
+        if (userTier.canAccessPremiumFeatures) {
+          pred3 = cached.numeros_3 || []
+          pred4 = cached.numeros_4 || []
+          const rb = cached.redoblona as { cabeza: string; acompanante: string } | null
+          if (rb?.cabeza && rb?.acompanante) {
+            redoblona = `${String(rb.cabeza).padStart(2, '0')}-${String(rb.acompanante).padStart(2, '0')}`
+          }
+        }
+
+        const responsePayload = {
+          ok: true as const,
+          turno: turnoQuery,
+          tier: userTier.role,
+          numeros,
+          pred: {
+            numeros_2: numeros.map((n) => n.numero),
+            numeros_3: pred3,
+            numeros_4: pred4,
+            redoblona,
+          },
+          numeros_2: numeros.map((n) => n.numero),
+          numeros_3: pred3.length > 0 ? pred3 : undefined,
+          numeros_4: pred4.length > 0 ? pred4 : undefined,
+          redoblona,
+          score: numeros[0]?.score || 0,
+          confidence: cached.confidence || 0,
+          top3: numeros.slice(0, 3).map((n) => n.numero),
+          _cached: true,
+          _computedAt: undefined,
+          debug: {
+            elapsed_ms: 0,
+            factores_aplicados: 10,
+            motores_activos: 3,
+            total_numeros: 10,
+            determinista: true,
+            sorteos_analizados: 0,
+            sync: null,
+            cdm_model: { activo: false, topNumeros: [] },
+            advanced_analytics: {},
+            dynamic_weights: { v6Weight: cached.v6_weight, v7Weight: cached.v7_weight, mlWeight: cached.ml_weight },
+            v7_engine: { ensemble_size: 0, v6_weight: cached.v6_weight, v7_weight: cached.v7_weight, ml_weight: cached.ml_weight, adaptive: true, total_evaluations: 0 },
+            ml_engine: { models_loaded: 3, prediction_time_ms: 0 },
+          },
+        }
+
+        return NextResponse.json(responsePayload, {
+          headers: {
+            "Cache-Control": "private, no-cache, no-store, must-revalidate",
+            "Vary": "Authorization",
+            "X-Prediction-Turno": turnoCanonical,
+            "X-Prediction-Date": todayBsAs,
+            "X-Engine": cached.engine_version,
+            "X-Cache": "HIT",
+          },
+        })
+      }
+    } catch {
+      // Cache miss — fall through to on-demand computation
+    }
+
+    // ── Determine RPC tier param ────────────────────────────────
+    const rpcTier = userTier.canAccessPremiumFeatures ? 'premium' : 'free'
+
+    // ── Build EngineContext: the "snapshot of reality" ──────────
+    const { data: lastDraw } = await supabaseAdmin
+      .from('draws')
+      .select('id')
+      .order('id', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (!lastDraw) {
+      return NextResponse.json({ error: "Sin datos en la base." }, { status: 404 })
+    }
+
+    const lastDrawId = lastDraw.id as number
+    const ctxSeed = ((lastDrawId * 31 + turnoCanonical.length * 17) | 0) % 100000
+
+    // ── On-demand engine computation (fallback) ─────────────────
+    // Only runs if pre-computed cache is unavailable
+    // All draws filtered by id <= lastDrawId for determinism
+    const [rpcResult, drawsResult, v7Result, mlResult] = await Promise.all([
+      supabaseAdmin.rpc('calculate_omega_v6', {
+        p_turno: turnoCanonical,
+        p_tier: rpcTier,
+        p_date: targetDate,
+      }),
+      supabaseAdmin
+        .from('draws')
+        .select('id', { count: 'exact', head: true })
+        .eq('turno', turnoCanonical)
+        .lte('id', lastDrawId),
+      // V7 Engine: scoped to lastDrawId
+      (async () => {
+        try {
+          const [histResult, v7Weights] = await Promise.all([
+            supabaseAdmin
+              .from('draws')
+              .select('id, date, turno, numbers')
+              .eq('turno', turnoCanonical)
+              .lte('id', lastDrawId)
+              .order('date', { ascending: true }),
+            loadV7Weights(turnoCanonical),
+          ])
+          if (!histResult.data || histResult.data.length < 20) return null
+          const draws: Draw[] = histResult.data.map((d: Record<string, unknown>) => ({
+            fecha: d.date as string,
+            turno: d.turno as string,
+            numbers: d.numbers as number[],
+          }))
+          const weights = v7WeightsToFactorBreakdown(v7Weights)
+          const v7Result = await predictEnsembleV7(draws, turnoCanonical, 10, ctxSeed)
+          return { ...v7Result, adaptiveWeights: v7Weights }
+        } catch (e) {
+          logger.warn("[predictions] V7 engine failed:", { error: String(e) })
+          return null
+        }
+      })(),
+      // ML Engine: scoped to lastDrawId
+      (async () => {
+        try {
+          const { data: histDraws } = await supabaseAdmin
+            .from('draws')
+            .select('id, date, turno, numbers')
+            .eq('turno', turnoCanonical)
+            .lte('id', lastDrawId)
+            .order('date', { ascending: true })
+          if (!histDraws || histDraws.length < 10) return null
+          const draws = histDraws.map((d: Record<string, unknown>) => ({
+            fecha: d.date as string,
+            turno: d.turno as string,
+            numbers: d.numbers as number[],
+          }))
+          return getMLPredictions(turnoCanonical, draws)
+        } catch (e) {
+          logger.warn("[predictions] ML engine failed:", { error: String(e) })
+          return null
+        }
+      })(),
+    ])
+
+    if (rpcResult.error) {
+      logger.error("[predictions] RPC error:", { error: rpcResult.error.message })
+      return NextResponse.json(
+        { error: "Error calculando predicciones. Intentá de nuevo." },
+        { status: 500 }
+      )
+    }
+
+    const rows: OmegaRow[] = (rpcResult.data || []) as unknown as OmegaRow[]
+    const totalSorteos = (drawsResult.count as number) || 0
+
+    if (rows.length === 0) {
+      return NextResponse.json({
+        error: `Sin datos para turno ${turnoQuery}.`,
+        turno: turnoQuery,
+      }, { status: 404 })
+    }
+
+    // ── 2. Build pred2 from RPC ──────────────────────────────────
+    const firstRow = rows[0]
+    const pred2: string[] = []
+    if (firstRow?.prediccion_2cifras) {
+      for (const n of firstRow.prediccion_2cifras.split(',')) {
+        pred2.push(n.trim().padStart(2, '0'))
+      }
+    }
+
+    if (pred2.length === 0) {
+      for (const r of rows.slice(0, 10)) {
+        if (r.prediccion_2cifras) pred2.push(r.prediccion_2cifras.padStart(2, '0'))
+      }
+    }
+
+    // ── 3. Build numeros: blend V6 + V7 scores ──────────────────────
+    // V6 scores (SQL engine)
+    const v6Scores = new Map<number, { score: number; fa: Record<string, number> }>()
+    for (const r of rows.slice(0, 20)) {
+      v6Scores.set(r.numero, { score: r.puntaje_total || 0, fa: r.factor_attribution || {} })
+    }
+
+    // V7 scores (TypeScript engine)
+    const v7Scores = new Map<number, number>()
+    if (v7Result?.predictions) {
+      for (const pred of v7Result.predictions) {
+        v7Scores.set(parseInt(pred.numero), pred.score)
+      }
+    }
+
+    // ML scores (trained models)
+    const mlScores = mlResult?.available ? mlResult.scores : new Map<number, number>()
+    const hasML = mlScores.size > 0
+
+    // Blend: adaptive V6/V7 ratio + ML boost
+    const hasV7 = v7Scores.size > 0
+    const v6Weight = hasV7 && v7Result?.adaptiveWeights ? v7Result.adaptiveWeights.v6Weight : 0.60
+    const v7Weight = (1 - v6Weight) * 0.85  // V7 gets 85% of non-V6 weight
+    const mlWeight = (1 - v6Weight) * 0.15  // ML gets 15% of non-V6 weight
+    const allNums = new Set([...v6Scores.keys(), ...v7Scores.keys(), ...mlScores.keys()])
+
+    const blended: Array<{ num: number; blendedScore: number; v6Score: number; v7Score: number; mlScore: number; fa: Record<string, number> }> = []
+    for (const num of allNums) {
+      const v6 = v6Scores.get(num)
+      const v7 = v7Scores.get(num) || 0
+      const ml = mlScores.get(num) || 0
+      const v6Score = v6?.score || 0
+      const blendedScore = hasV7
+        ? v6Score * v6Weight + v7 * v7Weight + ml * mlWeight
+        : v6Score
+      blended.push({ num, blendedScore, v6Score, v7Score: v7, mlScore: ml, fa: v6?.fa || {} })
+    }
+
+    blended.sort((a, b) => b.blendedScore - a.blendedScore)
+
+    const numeros: TopNumero[] = blended.slice(0, 10).map((item, i) => ({
+      n: item.num,
+      numero: pad(item.num),
+      emoji: SUENOS[item.num]?.emoji || "❓",
+      significado: SUENOS[item.num]?.nombre || "",
+      score: item.blendedScore,
+      confianza: 0,
+      rank: i + 1,
+      frecuencia: Math.round(item.v6Score * 100),
+      factores: Object.entries(item.fa).filter(([,v]) => v > 0.1).map(([k]) => k),
+      bayesianConfidence: item.fa.bayesian || 0,
+      bayesianPosterior: 0,
+      highConfidence: item.blendedScore > 0.7,
+      factor_attribution: { ...item.fa, v6_score: item.v6Score, v7_score: item.v7Score, ml_score: item.mlScore },
+      percentile: Math.round((1 - i / 10) * 1000) / 10,
     }))
 
-    // Ordenar por score descendente
-    scores.sort((a, b) => b.score - a.score)
+    // ── 4. Confidence from historical backtest (not fake) ─────────
+    // Get the best backtest result for this turno to determine real confidence
+    let confidence = 50 // fallback
+    try {
+      const { data: btData } = await supabaseAdmin.rpc('backtest_v6' as never, {
+        p_turno: turnoCanonical,
+        p_start_date: '2025-05-05',
+        p_end_date: new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }),
+      } as never)
+      if (btData && Array.isArray(btData) && btData.length > 0) {
+        // top10_hit_rate from backtest is the real hit rate
+        confidence = Math.min(Math.round(btData[0].top10_hit_rate || 50), 95)
+      }
+    } catch {
+      // If backtest fails, use a conservative default
+      confidence = 50
+    }
 
-    // Análisis de redoblona: números que salen juntos frecuentemente
-    const rdblCount: Record<number, number> = {}
-    for (const row of rowsValidos) {
-      const nums = Array.isArray(row.numbers) ? row.numbers : []
-      const seen = new Set<number>()
-      for (const n of nums) {
-        const num = Number(n)
-        if (Number.isNaN(num)) continue
-        const t = num % 100
-        if (t >= 0 && t <= 99) {
-          if (seen.has(t)) rdblCount[t] = (rdblCount[t] || 0) + 1
-          seen.add(t)
+    // ── 5. Redoblona + 3/4 cifras (premium only) ───────────────
+    let redoblona: string | null = null
+    let pred3: string[] = []
+    let pred4: string[] = []
+
+    if (userTier.canAccessPremiumFeatures && firstRow) {
+      const rb = firstRow.redoblona
+      if (rb?.cabeza && rb?.acompanante) {
+        redoblona = `${String(rb.cabeza).padStart(2, '0')}-${String(rb.acompanante).padStart(2, '0')}`
+      }
+
+      if (Array.isArray(firstRow.prediccion_3cifras)) {
+        pred3 = firstRow.prediccion_3cifras.map(p => String(p).padStart(3, '0')).slice(0, 10)
+      }
+
+      if (Array.isArray(firstRow.prediccion_4cifras)) {
+        pred4 = firstRow.prediccion_4cifras.map(p => String(p).padStart(4, '0')).slice(0, 10)
+      }
+    }
+
+    // ── 6. Heatmap ──────────────────────────────────────────────
+    const heatmap: HeatmapItem[] = numeros.map((num) => ({
+      n: num.n,
+      f: num.frecuencia,
+      s: SUENOS[num.n] || { emoji: "❓", nombre: "" },
+      pct: Number((num.score * 100).toFixed(1)),
+    }))
+
+    // ── 7. Stats ────────────────────────────────────────────────
+    const stats = {
+      totalNumeros: totalSorteos,
+      promedioPorSorteo: totalSorteos > 0 ? "20.00" : "0",
+      numeroMasFrecuente: numeros.length > 0
+        ? { numero: numeros[0].numero, frecuencia: numeros[0].frecuencia, significado: numeros[0].significado }
+        : { numero: "00", frecuencia: 0, significado: "" },
+      terminacionesMasFrecuentes: numeros.slice(0, 5).map((n) => ({
+        terminacion: n.n,
+        frecuencia: n.frecuencia,
+        score: (n.score * 100).toFixed(2),
+      })),
+    }
+
+    // ── 8. AI Summary ───────────────────────────────────────────
+    let aiSummary: { summary: string; provider: string } | null = null
+    try {
+      aiSummary = await generatePredictionSummary({
+        turno: turnoQuery,
+        top2: pred2,
+        confidence,
+        totalSorteos,
+        factoresDestacados: numeros.slice(0, 3).flatMap((t: TopNumero) => t.factores || []).slice(0, 5),
+      }, 2000)
+    } catch {}
+
+    // ── 9. Build response ──────────────────────────────────────
+    const elapsed = Date.now() - t0
+
+    const responsePayload: PredictionResponse & { numeros_2?: string[]; numeros_3?: string[]; numeros_4?: string[] } = {
+      ok: true,
+      turno: turnoQuery,
+      tier: userTier.role,
+      isPremium: userTier.isPremium,
+      isTrialActive: userTier.isTrialActive,
+      trialExpired: userTier.trialExpired,
+      predictionsUsed: userTier.predictionsUsed,
+      predictionsRemaining: userTier.predictionsRemaining,
+      canAccessPremiumFeatures: userTier.canAccessPremiumFeatures,
+      upgradeHint: !userTier.canAccessPremiumFeatures
+        ? "Premium desbloquea 3 cifras, 4 cifras y redoblona con co-aparición histórica."
+        : null,
+      aiSummary: aiSummary?.summary || null,
+      aiProvider: aiSummary?.provider || null,
+      debug: {
+        elapsed_ms: elapsed,
+        factores_aplicados: hasV7 ? 19 : 9,
+        motores_activos: hasV7 ? 19 : 9,
+        total_numeros: totalSorteos * 20,
+        determinista: true,
+        sorteos_analizados: totalSorteos,
+        sync: null,
+        cdm_model: { activo: false, topNumeros: [] },
+        advanced_analytics: {
+          entropy: null, survival: null, interTurno: null,
+          genetic: null, cachedAnalytics: null,
+        },
+        dynamic_weights: {
+          frequency: numeros[0]?.factor_attribution?.frequency || 0.18,
+          markov: numeros[0]?.factor_attribution?.markov || 0.15,
+          hot: numeros[0]?.factor_attribution?.hot || 0.18,
+          cold: numeros[0]?.factor_attribution?.cold || 0.12,
+          gap: numeros[0]?.factor_attribution?.gap || 0.10,
+          cooccurrence: numeros[0]?.factor_attribution?.cooccurrence || 0.10,
+          positional: numeros[0]?.factor_attribution?.positional || 0.07,
+          pattern: numeros[0]?.factor_attribution?.pattern || 0.05,
+          trend: 0.05,
+        },
+        v7_engine: hasV7 ? {
+          ensemble_size: v7Result?.ensembleSize || 0,
+          v6_weight: v6Weight,
+          v7_weight: v7Weight,
+          ml_weight: mlWeight,
+          adaptive: !!v7Result?.adaptiveWeights,
+          total_evaluations: v7Result?.adaptiveWeights?.totalEvaluations || 0,
+        } : null,
+        ml_engine: hasML ? {
+          available: true,
+          models: mlResult?.modelContributions || { randomForest: 0, neuralNet: 0, markov: 0 },
+        } : null,
+      },
+      numeros,
+      totalSorteos,
+      fechasAnalizadas: totalSorteos,
+      generado: new Date().toISOString(),
+      confidence,
+      pred: {
+        numeros_2: pred2,
+        numeros_3: pred3,
+        numeros_4: pred4,
+        redoblona,
+      },
+      redoblona,
+      heatmap,
+      stats,
+      numeros_2: pred2,
+      numeros_3: pred3.length > 0 ? pred3 : undefined,
+      numeros_4: pred4.length > 0 ? pred4 : undefined,
+      analysisInfo: {
+        metodo: `Omega V6+V7+ML Hybrid: V6 SQL (9) + V7 TS (10) + ML (${hasML ? 'RF/NNet/Markov' : 'none'}) — ${turnoCanonical.toUpperCase()}`,
+        motores: [
+          `[V6 Adaptive] Frecuencia multi-ventana: 7/15/30/60/90/180/365/full días`,
+          `[V6 Adaptive] Markov: transiciones primer orden por turno`,
+          `[V6 Adaptive] Hot score: decaimiento exponencial reciente`,
+          `[V6 Adaptive] Cold score: inverse recency penalty`,
+          `[V6 Adaptive] Gap/Overdue: atraso estadístico normalizado`,
+          `[V6 Adaptive] Co-ocurrencia: con top-3 frecuentes`,
+          `[V6 Adaptive] Posicional: análisis por posición (1ra/2da/3ra)`,
+          `[V6 Adaptive] Pattern penalty: suave, no exclusión`,
+          `[V6 Adaptive] Trend: tendencia temporal`,
+          ...(hasV7 ? [
+            `[V7 Ensemble] Survival/Kaplan-Meier: números atrasados`,
+            `[V7 Ensemble] Correlation: pares co-ocurrentes`,
+            `[V7 Ensemble] Spacing: distribución de intervalos`,
+            `[V7 Ensemble] Cycles: detección de ciclos`,
+            `[V7 Ensemble] Temporal: patrones día/semana`,
+            `[V7 Ensemble] Debt: números "vencidos"`,
+            `[V7 Ensemble] Bayesian: posterior Dirichlet`,
+            `[V7 Ensemble] Recency: decaimiento exponencial`,
+            `[V7 Ensemble] Frequency: multi-ventana`,
+            `[V7 Ensemble] Markov: transiciones`,
+          ] : []),
+        ],
+        datosUtilizados: `${totalSorteos} sorteos — V6 SQL + ${hasV7 ? 'V7 TypeScript ensemble' : 'sin V7'}`,
+        confianzaAvanzada: {
+          promedioGeneral: confidence,
+          enCicloFavorable: pred2.slice(0, 5),
+          evitar: [],
+          factor_attribution: numeros[0]?.factor_attribution || null,
+          backtest_top10_rate: confidence,
         }
       }
     }
 
-    const rdblTop5 = Object.entries(rdblCount)
-      .map(([n, c]) => ({
-        numero: pad(Number(n)),
-        significado: SUENOS[Number(n)] || "",
-        veces: c,
-      }))
-      .sort((a, b) => b.veces - a.veces)
-      .slice(0, 5)
+    // ── 10. Save engine prediction (closed loop) ────────────────
+    // Fire-and-forget: save to engine_predictions for later evaluation
+    try {
+      const pred2Int = pred2.map(n => parseInt(n, 10))
+      const pred3Int = pred3.length > 0 ? pred3.map(n => parseInt(n, 10)) : null
+      const pred4Int = pred4.length > 0 ? pred4.map(n => parseInt(n, 10)) : null
+      const redoblonaObj = redoblona ? (() => {
+        const [c, a] = redoblona.split('-')
+        return { cabeza: c, acompanante: a }
+      })() : null
 
-    // Top 10 números para 2 cifras
-    const top10 = scores.slice(0, 10).map((x, i) => ({
-      numero: pad(x.n),
-      significado: SUENOS[x.n] || "",
-      score: Math.round(x.score * 10000) / 10000,
-      rank: i + 1,
-      frecuencia: freq[x.n],
-      primera: ff[x.n],
-    }))
+      const todayDate = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
 
-    // Matriz de coocurrencias para redoblona premium
-    const co = buildCooccurrence(rowsValidos)
-    const pairPremium = bestRedoblonaPair(scores, co, 20)
-    const redoblonaSimple = `${top10[0]?.numero ?? "00"}-${top10[1]?.numero ?? "00"}`
+      supabaseAdmin.rpc('save_engine_prediction' as never, {
+        p_engine_version: hasV7 ? 'omega_v6_v7_hybrid' : 'omega_v6',
+        p_turno: turnoCanonical,
+        p_prediction_date: todayDate,
+        p_historical_cutoff: todayDate,
+        p_draws_used: totalSorteos,
+        p_pred_2c: pred2Int,
+        p_pred_3c: pred3Int,
+        p_pred_4c: pred4Int,
+        p_pred_redoblona: redoblonaObj,
+        p_scores_2c: numeros.map(n => ({ n: n.n, score: n.score, rank: n.rank })),
+        p_weights_used: responsePayload.debug.dynamic_weights,
+        p_confidence: confidence,
+        p_factor_attribution: numeros[0]?.factor_attribution || null,
+      } as never)
+    } catch (e) {
+      // Non-critical: don't break the prediction response
+      logger.warn("[predictions] failed to save engine prediction:", { error: String(e) })
+    }
 
-    // Predicciones de 3 y 4 dígitos (calculadas con los mejores)
-    const s3 = scoreDigits(freq3, hist3, Math.min(800, hist3.length))
-    const s4 = scoreDigits(freq4, hist4, Math.min(800, hist4.length))
-    s3.sort((a, b) => b.score - a.score)
-    s4.sort((a, b) => b.score - a.score)
+    return NextResponse.json(responsePayload, {
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+        "Vary": "Authorization",
+        "X-Prediction-Turno": turnoCanonical,
+        "X-Prediction-Date": todayBsAs,
+        "X-Engine": hasV7 ? "omega-v6+v7-hybrid" : "omega-v6-adaptive",
+        "X-Engine-Elapsed": elapsed.toString(),
+        "X-Cache": "MISS",
+        "X-Last-Draw-Id": lastDrawId.toString(),
+        "X-Context-Seed": ctxSeed.toString(),
+      },
+    })
 
-    const pred3d = s3.slice(0, 5).map((x, i) => ({
-      numero: pad(x.n, 3),
-      score: Math.round(x.score * 10000) / 10000,
-      rank: i + 1,
-    }))
-    const pred4d = s4.slice(0, 5).map((x, i) => ({
-      numero: pad(x.n, 4),
-      score: Math.round(x.score * 10000) / 10000,
-      rank: i + 1,
-    }))
+  } catch (err) {
+    logger.error("[predictions] UNHANDLED ERROR:", { error: String(err) })
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    )
+  }
+}
 
-    // Mapa de calor (heatmap) con frecuencias
-    const heatmap = freq.map((f, n) => ({ 
-      n, 
-      f, 
-      s: SUENOS[n] || "",
-      pct: Math.round((f / hist.length) * 10000) / 100 // Porcentaje de aparición
-    }))
+// POST handler for auto-pilot (internal cron calls, requires Bearer auth)
+export async function POST(req: NextRequest) {
+  try {
+    // Auth check: only internal cron calls allowed
+    const authHeader = req.headers.get("authorization")
+    const cronSecret = process.env.CRON_SECRET
+    if (!cronSecret || !authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    const { timingSafeEqual } = await import("crypto")
+    const provided = authHeader.slice(7)
+    const expectedBuf = Buffer.from(cronSecret.padEnd(64, "\0"))
+    const providedBuf = Buffer.from(provided.padEnd(64, "\0"))
+    if (!timingSafeEqual(expectedBuf, providedBuf)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-    const base = {
-      tier: premium ? ("premium" as const) : ("free" as const),
-      numeros: top10,
-      totalSorteos: rowsValidos.length,
-      sorteo,
-      generado: new Date().toISOString(),
-      analisisDesde: since,
-      diasAnalisis: Math.floor((new Date().getTime() - new Date(since).getTime()) / 86400000),
+    const body = await req.json()
+    const { turno, date, include3And4 = false } = body
+
+    if (!turno || !date) {
+      return NextResponse.json({ error: "Missing turno or date" }, { status: 400 })
+    }
+    const validTurnos = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
+    if (!validTurnos.includes(turno)) {
+      return NextResponse.json({ error: "Turno inválido" }, { status: 400 })
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json({ error: "Fecha inválida" }, { status: 400 })
+    }
+
+    const { getSupabaseAdmin } = await import("@/lib/supabase-client")
+    const supabase = getSupabaseAdmin()
+
+    const turnoCanonical = turno.charAt(0).toUpperCase() + turno.slice(1).toLowerCase()
+    const rpcTier = include3And4 ? "premium" : "free"
+
+    const { data: rpcResult, error: rpcError } = await supabase
+      .rpc("calculate_omega_v6" as never, {
+        p_turno: turnoCanonical,
+        p_tier: rpcTier,
+      } as never)
+
+    if (rpcError) throw rpcError
+
+    const rows = (rpcResult || []) as Array<{
+      numero: number
+      prediccion_2cifras?: string
+      prediccion_3cifras?: string[]
+      prediccion_4cifras?: string[]
+      redoblona?: { cabeza: string; acompanante: string } | null
+      puntaje_total?: number
+      factor_attribution?: Record<string, number>
+    }>
+
+    if (rows.length === 0) {
+      return NextResponse.json({ error: `Sin datos para turno ${turnoCanonical}` }, { status: 404 })
+    }
+
+    // Build pred2 from RPC rows
+    const sorted = rows
+      .filter((r) => r.puntaje_total)
+      .sort((a, b) => (b.puntaje_total || 0) - (a.puntaje_total || 0))
+
+    const numeros_2 = sorted.slice(0, 10).map((r) => String(r.numero).padStart(2, "0"))
+
+    // Extract 3/4 cifras from RPC (only available with p_tier='premium')
+    let numeros_3: string[] = []
+    let numeros_4: string[] = []
+    let redoblona: { cabeza: string; acompanante: string } | null = null
+
+    if (include3And4) {
+      // Get 3 cifras from first row that has them
+      for (const r of rows) {
+        if (r.prediccion_3cifras && Array.isArray(r.prediccion_3cifras) && r.prediccion_3cifras.length > 0) {
+          numeros_3 = r.prediccion_3cifras.map((n: string) => n.padStart(3, "0"))
+          break
+        }
+      }
+      // Get 4 cifras from first row that has them
+      for (const r of rows) {
+        if (r.prediccion_4cifras && Array.isArray(r.prediccion_4cifras) && r.prediccion_4cifras.length > 0) {
+          numeros_4 = r.prediccion_4cifras.map((n: string) => n.padStart(4, "0"))
+          break
+        }
+      }
+      // Get redoblona from first row that has it
+      for (const r of rows) {
+        if (r.redoblona && typeof r.redoblona === "object" && r.redoblona.cabeza) {
+          redoblona = r.redoblona
+          break
+        }
+      }
     }
 
     return NextResponse.json({
-      ...base,
-      redoblona: pairPremium.label,
-      redoblonaSimple,
-      redoblonaNota: `Par ponderado: ${pairPremium.label}. Analisis de ${rowsValidos.length} sorteos.`,
-      rdblTop5,
-      pred3d: pred3d.map((p) => p.numero),
-      pred3dDetail: pred3d,
-      pred4d: pred4d.map((p) => p.numero),
-      pred4dDetail: pred4d,
-      heatmap,
-      stats: {
-        totalNumeros: rowsValidos.length,
-        promedioNumerosPorSorteo: (hist.length / rowsValidos.length).toFixed(2),
-        numeroMasFrecuente: { numero: pad(scores[0]?.n || 0), frecuencia: freq[scores[0]?.n || 0], significado: SUENOS[scores[0]?.n || 0] },
-        numeroMenosFrecuente: { numero: pad(scores[99]?.n || 0), frecuencia: freq[scores[99]?.n || 0], significado: SUENOS[scores[99]?.n || 0] },
-      }
+      pred: {
+        numeros_2,
+        numeros_3,
+        numeros_4,
+        redoblona,
+        topNumeros: sorted.slice(0, 10).map((r, i) => ({
+          numero: String(r.numero).padStart(2, "0"),
+          score: r.puntaje_total || 0,
+          rank: i + 1,
+        })),
+      },
+      engine: "omega-v6",
+      confidence: null,
     })
-  } catch (e: unknown) {
-    clearTimeout(to)
-    const err = e as { name?: string; message?: string }
-
-    // Detectar el tipo de error
-    let errorMsg = "Error desconocido procesando análisis"
-    let statusCode = 500
-
-    if (err?.name === "AbortError") {
-      errorMsg = "Timeout: El análisis tomó demasiado tiempo (>15s). Intenta de nuevo."
-      statusCode = 504
-    } else if (err?.message?.includes("fetch")) {
-      errorMsg = "Error de conexión a la base de datos"
-      statusCode = 503
-    } else if (err?.message) {
-      errorMsg = `Error: ${err.message.substring(0, 80)}`
-    }
-
-    return NextResponse.json({ 
-      error: errorMsg,
-      numeros: [],
-      totalSorteos: 0,
-      sorteo,
-      generado: new Date().toISOString()
-    }, { status: statusCode })
+  } catch (err) {
+    logger.error("[predictions POST] ERROR:", { error: String(err) })
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
   }
 }

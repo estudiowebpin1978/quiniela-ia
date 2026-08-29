@@ -1,561 +1,2400 @@
-"use client"
-import { useState, useEffect, useRef } from "react"
-const CONTACT="estudiowebpin@gmail.com"
-const WA="https://wa.me/5493412500029?text=Hola!%20Quiero%20activar%20Premium%20de%20Quiniela%20IA."
-const APP_URL="https://quiniela-ia-two.vercel.app"
-const SORTEOS=["Previa","Primera","Matutina","Vespertina","Nocturna"]
-const HORAS:Record<string,string>={Previa:"10:15",Primera:"12:00",Matutina:"15:00",Vespertina:"18:00",Nocturna:"21:00"}
-const REVIEWS=[
-{n:"Carlos M.",c:"Buenos Aires",t:"El motor estadistico me da mucha mas confianza.",s:5},
-{n:"Laura G.",c:"Rosario",t:"Los numeros calientes realmente salen con frecuencia.",s:5},
-{n:"Roberto P.",c:"Cordoba",t:"La redoblona del premium es increible.",s:5},
-{n:"Marcela S.",c:"Mendoza",t:"Facil de usar. Ya no elijo al azar.",s:4},
-{n:"Diego F.",c:"Mar del Plata",t:"El mapa de calor es muy profesional.",s:5},
-{n:"Ana B.",c:"Tucuman",t:"Excelente app. El motor es muy preciso.",s:5},
-{n:"Jorge R.",c:"Salta",t:"Me ayudo a entender los patrones.",s:4},
-{n:"Patricia L.",c:"La Plata",t:"Muy buena app, la recomiendo.",s:5},
-{n:"Miguel A.",c:"Bahia Blanca",t:"Las predicciones de 4 cifras son muy buenas.",s:5},
-{n:"Sandra V.",c:"Santa Fe",t:"El analisis de frecuencia me cambio la manera de jugar.",s:5},
-{n:"Oscar T.",c:"Neuquen",t:"Muy completa y facil de usar.",s:4},
-{n:"Claudia H.",c:"Posadas",t:"Gracias a esta app mejore mis resultados.",s:5},
-{n:"Fernando N.",c:"Corrientes",t:"El motor Monte Carlo es impresionante.",s:5},
-{n:"Beatriz O.",c:"Resistencia",t:"La mejor app de quiniela que probe.",s:5},
-{n:"Raul K.",c:"San Juan",t:"Increible la precision del sistema.",s:4},
-{n:"Monica E.",c:"San Luis",t:"La redoblona me dio muy buenos resultados.",s:5},
-{n:"Hector Q.",c:"Rio Gallegos",t:"Excelente herramienta estadistica.",s:5},
-{n:"Viviana C.",c:"Ushuaia",t:"Las predicciones son basadas en datos reales.",s:4},
-{n:"Alberto D.",c:"Mendoza",t:"El analisis de ciclos es unico.",s:5},
-{n:"Norma I.",c:"Cordoba",t:"Muy completa. El premium vale cada peso.",s:5},
-]
-export default function Page(){
-  const [pr,setPr]=useState(false)
-  const [em,setEm]=useState("")
-  const [tab,setTab]=useState("pred")
-  const [so,setSo]=useState("Nocturna")
-  const [dg,setDg]=useState(2)
-  const [ld,setLd]=useState(false)
-  const [dn,setDn]=useState(false)
-  const [er,setEr]=useState("")
-  const [dt,setDt]=useState(null as any)
-  const [misPreds,setMisPreds]=useState<any[]>([])
-  const [guardando,setGuardando]=useState(false)
-  const [guardadoOk,setGuardadoOk]=useState(false)
-  const [controlando,setControlando]=useState(false)
-  const [showCalc,setShowCalc]=useState(false)
-  const [apCalc,setApCalc]=useState(250)
-  const [rdblCalc,setRdblCalc]=useState(1000)
-  const [resultadoControl,setResultadoControl]=useState<any>(null)
-  const [aiInsight,setAiInsight]=useState("")
-  const [stats,setStats]=useState<any>(null)
-  const scrollRef=useRef<HTMLDivElement>(null)
-  const tkRef=useRef("")
-  useEffect(()=>{
-    const proj=(process.env.NEXT_PUBLIC_SUPABASE_URL||"").split("//")[1]?.split(".")[0]||"wazkylxgqckjfkcmfotl"
-    const raw=localStorage.getItem("sb-"+proj+"-auth-token")
-    if(!raw){window.location.href="/login";return}
-    try{
-      const s=JSON.parse(raw)
-      if(!s?.access_token){window.location.href="/login";return}
-      if(s.expires_at&&s.expires_at<Math.floor(Date.now()/1000)){localStorage.removeItem("sb-"+proj+"-auth-token");window.location.href="/login";return}
-      tkRef.current=s.access_token
-      setEm(s.user?.email||"")
-      fetch("/api/auth/me",{headers:{Authorization:"Bearer "+s.access_token}}).then(r=>r.ok?r.json():null).then(d=>{if(d?.isPremium)setPr(true)}).catch(()=>{})
-      cargarMisPreds(s.access_token)
-      fetch("/api/estadisticas").then(r=>r.json()).then(d=>setStats(d)).catch(()=>{})
-    }catch{window.location.href="/login"}
-  },[])
-  useEffect(()=>{
-    const el=scrollRef.current;if(!el)return
-    let x=0,aid=0
-    const step=()=>{x+=0.4;if(x>=el.scrollWidth/2)x=0;el.style.transform=`translateX(-${x}px)`;aid=requestAnimationFrame(step)}
-    aid=requestAnimationFrame(step)
-    return()=>cancelAnimationFrame(aid)
-  },[])
+/**
+ * Página principal de análisis estadístico de Quiniela IA.
+ * 
+ * Funcionalidades:
+ * - Selección de turno (Previa, Primera, Matutina, Vespertina, Nocturna)
+ * - Generación de análisis con 30 factores + ML
+ * - Mapa de calor de frecuencias
+ * - Tendencias y estadísticas
+ * - Guardado de análisis y comparación con resultados reales
+ * - Sistema de logros/badges
+ * - Notificaciones push de nuevos resultados
+ * - Integración premium (3 y 4 cifras)
+ */
 
-  async function pedirNotificaciones(){
-    if(!("Notification" in window)){alert("Tu navegador no soporta notificaciones");return}
-    const perm = await Notification.requestPermission()
-    if(perm==="granted"){
-      localStorage.setItem("notif_enabled","1")
-      new Notification("Quiniela IA activado!", {
-        body: "Te avisaremos cuando salgan los resultados de cada sorteo.",
-        icon: "/icon-192.png"
+"use client";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { usePushNotifications } from "@/components/PushNotifications";
+import PaywallModal from "@/components/PaywallModal";
+import WhatsAppFAB from "@/components/WhatsAppFAB";
+import FooterDisclaimer from "@/components/FooterDisclaimer";
+import GamificationBadge from "@/components/GamificationBadge";
+import HistorialAciertos from "@/components/HistorialAciertos";
+import ExpiryBanner from "@/components/ExpiryBanner";
+import AgeGate from "@/components/AgeGate";
+import { ToastProvider, useToast } from "@/components/Toast";
+import { getAccessToken, clearAuth, getAuth, isGuest, clearGuest, getValidToken } from "@/lib/auth";
+import { STORAGE_KEYS } from "@/lib/storage";
+import { isAdminEmail } from "@/lib/config";
+import { esFeriado, esDiaSinSorteo, esSabadoSinTurnos, motivoDiaSinSorteo, todosLosFeriados } from "@/lib/feriados";
+import NumberGrid from "@/components/predictions/NumberGrid";
+import HeatmapGrid from "@/components/predictions/HeatmapGrid";
+import TrendBars from "@/components/predictions/TrendBars";
+import ShareButtons from "@/components/predictions/ShareButtons";
+import ReviewsCarousel from "@/components/predictions/ReviewsCarousel";
+import PayCTA from "@/components/predictions/PayCTA";
+import { useSound } from "@/lib/sound/audio-manager";
+import { useSettings } from "@/components/ui/Settings";
+import { ConfettiEffect, GlowOrbs, NeonBackground } from "@/components/ui/Effects";
+import { validatePredData } from "@/lib/api/predictions";
+import { RealtimeResults, RealtimeBadge } from "@/components/RealtimeResults";
+import { RealtimeVerification } from "@/components/RealtimeVerification";
+import { getQuinielaEntry, getQuinielaIcon, getQuinielaName, getLast2CifrasEntry } from "@/lib/utils/quinielaDictionary";
+import AutoPilotToggle from "@/components/AutoPilotToggle";
+
+import type { SavedPrediction, NumeroItem, ResultadoControl, DrawData, BacktestItem } from "@/lib/types/client";
+import "./predictions.css";
+
+function getEmoji(num: string): string {
+  return getQuinielaIcon(num)
+}
+
+function getNombreQuiniela(num: string): string {
+  return getQuinielaName(num)
+}
+
+function getCulturalBadge(num: string): { icon: string; name: string } {
+  const entry = getQuinielaEntry(num)
+  return { icon: entry.icon, name: entry.name }
+}
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+ 
+type AnyRecord = Record<string, any>
+
+const CONTACT = "estudiowebpin@gmail.com";
+const WA = "https://api.whatsapp.com/send?phone=5493412500029";
+const APP_URL = "https://quiniela-ia-two.vercel.app";
+const SORTEOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"];
+const HORAS: Record<string, string> = {
+  Previa: "10:15",
+  Primera: "12:00",
+  Matutina: "15:00",
+  Vespertina: "18:00",
+  Nocturna: "21:00",
+};
+type LocalRankingItem = {
+  [key: string]: unknown;
+  numero: string;
+  score?: number;
+  prob?: number;
+};
+
+type PredData = {
+  [key: string]: unknown
+  numeros_2: string[];
+  numeros_3?: string[];
+  numeros_4?: string[];
+  redoblona?: string;
+  ranking?: LocalRankingItem[];
+  numeros?: NumeroItem[];
+  diasAnalisis?: number;
+  totalSorteos?: number;
+  confidence?: number;
+  aiInsight?: string;
+  stats?: {
+    numeroMasFrecuente?: { numero: string; frecuencia: number; significado: string };
+    numeroMayorRetraso?: { numero: string; retraso: number; significado: string };
+  };
+  heatmap?: { n: number; f: number; s: unknown; pct: number }[];
+};
+
+function PageInner() {
+  const router = useRouter();
+  const toast = useToast();
+  const sound = useSound();
+  const { settings } = useSettings();
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [pr, setPr] = useState(false);
+  const [em, setEm] = useState("");
+  const [tab, setTab] = useState<"pred" | "rdbl" | "freq" | "trend" | "mis" | "acc" | "hist">("pred");
+  const [so, setSo] = useState("Nocturna");
+  const [dg, setDg] = useState(2);
+  const [ld, setLd] = useState(false);
+  const [dn, setDn] = useState(false);
+  const [er, setEr] = useState("");
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [backtestData, setBacktestData] = useState<AnyRecord | null>(null);
+  const [backtestLoading, setBacktestLoading] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [dt, setDt] = useState<PredData | null>(null);
+  const [misPreds, setMisPreds] = useState<SavedPrediction[]>([]);
+  const [numDetail, setNumDetail] = useState<NumeroItem | null>(null);
+  const [numHistory, setNumHistory] = useState<Record<string, any> | null>(null);
+  const [numHistoryLoading, setNumHistoryLoading] = useState(false);
+
+  // Fetch number history when detail opens (abortable to avoid race conditions / leaks)
+  useEffect(() => {
+    if (numDetail?.numero == null) {
+      setNumHistory(null);
+      return;
+    }
+    const controller = new AbortController();
+    setNumHistoryLoading(true);
+    fetch(`/api/number-history?number=${encodeURIComponent(numDetail.numero)}&turno=${encodeURIComponent(so)}`, { signal: controller.signal })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { setNumHistory(data); setNumHistoryLoading(false); })
+      .catch((e) => { if (e?.name !== "AbortError") setNumHistoryLoading(false); });
+    return () => controller.abort();
+  }, [numDetail, so]);
+  const [newDraws, setNewDraws] = useState(false);
+  const [lastDrawDate, setLastDrawDate] = useState("");
+  const [misLoading, setMisLoading] = useState(false);
+  const [primerVisita, setPrimerVisita] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [guardadoOk, setGuardadoOk] = useState(false);
+  const [controlando, setControlando] = useState(false);
+  const [showCalc, setShowCalc] = useState(false);
+  const [resultadoControl, setResultadoControl] = useState<ResultadoControl | null>(null);
+  const [aiInsight, setAiInsight] = useState("");
+  const [confianzaTurnos, setConfianzaTurnos] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem("confianzaTurnos") || "{}") as Record<string, number>; } catch { return {}; }
+  });
+  const [userRole, setUserRole] = useState<"free" | "premium" | "admin">("free");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [premExpiry, setPremExpiry] = useState<{ premium_until: string | null; daysRemaining: number | null }>({ premium_until: null, daysRemaining: null });
+  const [guestMode, setGuestMode] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [showInstall, setShowInstall] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [showIOSInstall, setShowIOSInstall] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { subscribed: pushSubscribed, supported: pushSupported, loading: pushLoading, toggle: togglePush } = usePushNotifications();
+
+  useEffect(() => {
+    localStorage.setItem("confianzaTurnos", JSON.stringify(confianzaTurnos));
+  }, [confianzaTurnos]);
+
+  const misSummary = useMemo(() => {
+    const totalSaved = misPreds.length;
+    const totalAciertos = misPreds.reduce((sum, p) => sum + (p.aciertos?.length || 0), 0);
+    const totalWithHits = misPreds.filter((p) => p.aciertos?.length > 0).length;
+    const totalWithResult = misPreds.filter((p) => p.resultado_original?.length).length;
+    const successRate = totalSaved ? Math.round((totalWithHits / totalSaved) * 100) : 0;
+    const avgHits = totalSaved ? Number((totalAciertos / totalSaved).toFixed(2)) : 0;
+    const hitsByTurno = misPreds.reduce<Record<string, number>>((acc, p) => {
+      if (p.aciertos?.length) acc[p.turno] = (acc[p.turno] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    const bestTurno = Object.entries(hitsByTurno).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
+    const now = new Date();
+    const thisWeek = misPreds.filter(p => {
+      if (!p.fecha) return false;
+      const d = new Date(p.fecha + "T00:00:00");
+      const diff = (now.getTime() - d.getTime()) / 86400000;
+      return diff >= 0 && diff <= 7;
+    });
+    const thisWeekHits = thisWeek.filter(p => p.aciertos?.length > 0).length;
+    const thisWeekRate = thisWeek.length ? Math.round((thisWeekHits / thisWeek.length) * 100) : 0;
+    return { totalSaved, totalAciertos, totalWithHits, totalWithResult, successRate, avgHits, bestTurno, thisWeek: thisWeek.length, thisWeekHits, thisWeekRate };
+  }, [misPreds]);
+
+  useEffect(() => {
+    setIsOnline(typeof navigator !== "undefined" ? navigator.onLine : true);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      setShowInstall(true);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall as unknown as EventListener);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall as unknown as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    setIsIOS(ios);
+    if (ios && !window.matchMedia("(display-mode: standalone)").matches) {
+      const dismissed = localStorage.getItem("ios_install_dismissed");
+      if (!dismissed) setShowIOSInstall(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "mis" && tkRef.current) {
+      cargarMisPreds(tkRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  async function installApp() {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") setDeferredPrompt(null);
+    setShowInstall(false);
+  }
+
+  const tkRef = useRef("");
+  const soRef = useRef(so);
+  const pollPremiumRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isAdminRef = useRef(false);
+
+  useEffect(() => {
+    const auth = getAuth();
+    if (isGuest() && !auth) {
+      setGuestMode(true);
+      return;
+    }
+    if (!auth) {
+      router.push("/login");
+      return;
+    }
+
+    let email = auth.user?.email || "";
+    if (!email) {
+      try {
+        const b64 = auth.access_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+        const payload = JSON.parse(atob(b64));
+        email = payload.email || "";
+      } catch {}
+    }
+
+    const admin = isAdminEmail(email);
+    isAdminRef.current = admin;
+
+    tkRef.current = auth.access_token;
+    setEm(email);
+
+    if (admin) {
+      setUserRole("admin");
+      setPr(true);
+    }
+
+    fetch("/api/auth/me", { headers: { Authorization: "Bearer " + auth.access_token } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        // Premium real (pago/admin). Trial free NO desbloquea 3/4/redoblona.
+        if (d?.canAccessPremiumFeatures || d?.role === "premium" || d?.role === "admin") setPr(true);
+        else setPr(false);
+        if (d?.email) setEm(d.email);
+        const apiIsAdmin = isAdminRef.current || isAdminEmail(d?.email || "");
+        if (apiIsAdmin) { isAdminRef.current = true; setUserRole("admin"); setPr(true); }
+        else if (d?.role) { setUserRole(d.role as "free" | "premium" | "admin"); }
+        if (d?.userId) setUserId(d.userId);
+        if (d?.premium_until) setPremExpiry({ premium_until: d.premium_until, daysRemaining: d.daysRemaining });
       })
+      .catch(() => {});
+    // Handle payment success/failure from Ualá redirect
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentStatus = urlParams.get("payment");
+    if (paymentStatus === "success") {
+      setTimeout(() => { toast("¡Pago acreditado! Tu acceso premium se activó automáticamente."); }, 1000);
+      window.history.replaceState({}, "", "/predictions");
+      // Poll for premium activation (webhook may take a few seconds)
+      let attempts = 0;
+      pollPremiumRef.current = setInterval(async () => {
+        attempts++;
+        try {
+          const r = await fetch("/api/payment-status", { headers: { Authorization: "Bearer " + auth.access_token } });
+          const d = await r.json();
+          if (d.isPremium || d.canAccessPremiumFeatures) {
+            setPr(true);
+            if (d.premium_until) setPremExpiry({ premium_until: d.premium_until, daysRemaining: d.daysRemaining });
+            clearInterval(pollPremiumRef.current!);
+            toast("Premium activado. ¡Bienvenido!");
+          } else if (attempts >= 6) {
+            clearInterval(pollPremiumRef.current!);
+            toast("Si tu pago fue acreditado, el acceso se activará en unos minutos. Refrescá la página si persiste.");
+          }
+        } catch {}
+      }, 3000);
+    } else if (paymentStatus === "failed") {
+      setTimeout(() => { toast("El pago no se completó. Intentá de nuevo."); }, 1000);
+      window.history.replaceState({}, "", "/predictions");
+    }
+    const savedLastDate = localStorage.getItem("quiniela-ia-ultimo-sorteo-visto");
+    if (savedLastDate) setLastDrawDate(savedLastDate);
+    cargarMisPreds(auth.access_token);
+    const visited = localStorage.getItem("quiniela-ia-tour-visto");
+    if (!visited) {
+      setPrimerVisita(true);
+      setShowHowItWorks(true);
+      localStorage.setItem("quiniela-ia-tour-visto", "true");
+    }
+    const HORARIOS_POLL: Record<string, number> = { Previa: 10, Primera: 12, Matutina: 15, Vespertina: 18, Nocturna: 21 }
+    const TURNOS_LIST = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
+
+    const pollInterval = setInterval(async () => {
+      const artNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }))
+      const horaActual = artNow.getHours()
+      const hoy = hoyArgentina()
+
+      let turnoToCheck: string | null = null
+      for (const t of TURNOS_LIST) {
+        const horario = HORARIOS_POLL[t]
+        if (horaActual >= horario && horaActual < horario + 2) {
+          turnoToCheck = t
+          break
+        }
+      }
+
+      if (!turnoToCheck) {
+        const sorted = TURNOS_LIST.map(t => ({ t, h: HORARIOS_POLL[t] }))
+          turnoToCheck = sorted.find(s => s.h > horaActual)?.t || "Nocturna"
+      }
+
+      try {
+        const r = await fetch(`/api/resultado?date=${hoy}&turno=${turnoToCheck}&t=${Date.now()}`)
+        const d = await r.json()
+        if (d?.found && d?.numbers?.length) {
+          const latestKey = `${hoy}-${turnoToCheck.toLowerCase()}`
+          setLastDrawDate(prev => {
+            if (prev && prev !== latestKey) {
+              setNewDraws(true)
+              toast(`Nuevo sorteo ${turnoToCheck} cargado. Análisis actualizado.`, "success")
+              setTimeout(() => gen(), 500)
+            }
+            return prev || latestKey
+          })
+          if (!lastDrawDate) localStorage.setItem("quiniela-ia-ultimo-sorteo-visto", latestKey)
+        }
+      } catch {}
+
+      const tk = getAccessToken()
+      if (tk) cargarMisPreds(tk)
+    }, 60000)
+    return () => {
+      clearInterval(pollInterval)
+      if (pollPremiumRef.current) clearInterval(pollPremiumRef.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastDrawDate, router, toast]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let x = 0,
+      aid = 0;
+    const step = () => {
+      x += 0.4;
+      if (x >= el.scrollWidth / 2) x = 0;
+      el.style.transform = `translateX(-${x}px)`;
+      aid = requestAnimationFrame(step);
+    };
+    aid = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(aid);
+  }, []);
+
+  async function pedirNotificaciones() {
+    if (!pushSupported) {
+      toast("Tu navegador no soporta notificaciones push", "error");
+      return;
+    }
+    await togglePush();
+  }
+
+function mostrarNotifResultado(turno: string, numeros: string[], aciertos: string[]) {
+    if (aciertos && aciertos.length > 0) {
+      sound.win();
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification("Quiniela IA", {
+          body: aciertos.length + " coincidencia" + (aciertos.length > 1 ? "s" : "") + ": " + aciertos.join(", ") + " en " + turno,
+          icon: "/icon-192.png",
+          silent: true,
+        });
+      }
     }
   }
-  function mostrarNotifResultado(turno:string, numeros:string[], acertos:string[]){
-    if(!("Notification" in window)||Notification.permission!=="granted")return
-    const msg = acertos.length>0
-      ? "Acertaste "+acertos.length+" numero(s)! "+acertos.join(", ")+" en el "+turno
-      : "Resultados del "+turno+" disponibles. Genera nueva prediccion."
-    new Notification("Quiniela IA - "+turno, {body:msg, icon:"/icon-192.png"})
-  }
-  async function gen(){
-    setLd(true);setEr("");setDn(false);setDt(null)
-    try{
-      const r=await fetch("/api/predictions?sorteo="+encodeURIComponent(so),{headers:{Authorization:"Bearer "+tkRef.current}})
-      const d=await r.json()
-      if(!r.ok)throw new Error(d.error||"Error")
-      setDt(d);setDn(true);if(d.aiInsight)setAiInsight(d.aiInsight)
-    }catch(e:any){setEr(e?.message||String(e))}
-    finally{setLd(false)}
-  }
-  function logout(){
-    const proj=(process.env.NEXT_PUBLIC_SUPABASE_URL||"").split("//")[1]?.split(".")[0]||"wazkylxgqckjfkcmfotl"
-    localStorage.removeItem("sb-"+proj+"-auth-token");window.location.href="/login"
-  }
-  function proximoSorteo(sorteo:string):string{
-    const ar=new Date(Date.now()-3*3600000)
-    const hora=ar.getHours()*100+ar.getMinutes()
-    const hoy=ar.toLocaleDateString("es-AR",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})
-    const manana=new Date(ar.getTime()+86400000).toLocaleDateString("es-AR",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})
-    const h:Record<string,number>={Previa:1015,Primera:1200,Matutina:1500,Vespertina:1800,Nocturna:2100}
-    return hora<(h[sorteo]||2100)?sorteo+" del "+hoy:sorteo+" del "+manana
-  }
-  async function cargarMisPreds(token:string){
-    try{
-      const r=await fetch("/api/mis-predicciones",{headers:{Authorization:"Bearer "+token}})
-      const d=await r.json();if(d.predictions)setMisPreds(d.predictions)
-    }catch{}
-  }
 
+  const gen = useCallback(async () => {
+    setLd(true);
+    setEr("");
+    setDn(false);
+    setDt(null);
+    try {
+      const currentTurno = soRef.current;
+      const predDate = fechaSorteo(currentTurno);
+      const hoy = hoyArgentina();
+      const artNow = ahoraArgentina();
+      const diaSemana = artNow.getDay();
+      const esFeriadoHoy = esFeriado(hoy);
+      const esDomingo = diaSemana === 0;
+      const noHaySorteoHoy = esFeriadoHoy || esDomingo;
 
-  async function controlarJugada(){
-    if(!dt?.numeros?.length){alert("Primero genera una prediccion");return}
-    setControlando(true);setResultadoControl(null)
-    try{
-      const hoy=new Date(Date.now()-3*3600000).toISOString().split("T")[0]
-      // Buscar resultado real via API
-      const r2=await fetch(`/api/resultado?date=${hoy}&turno=${encodeURIComponent(so)}`)
-      const drawData=await r2.json()
-      if(!drawData?.found||!drawData?.numbers?.length){
-        setResultadoControl({error:"Todavia no hay resultado para este sorteo. Los crons cargan los datos 30 minutos despues de cada sorteo."})
-        return
+      if (noHaySorteoHoy && predDate === hoy) {
+        const motivo = esFeriadoHoy ? "feriado" : "domingo";
+        setEr(`Hoy es ${motivo}, no hay sorteo. Elegí otro turno o esperá al próximo sorteo.`);
+        setLd(false);
+        return;
       }
-      const reales=drawData.numbers.map((n:any)=>String(Number(n)%100).padStart(2,"0"))
-      const predichos=cur.slice(0,dg===2?10:5).map((p:any)=>p.numero)
-      const aciertos=predichos.filter((n:string)=>reales.includes(n)).map((n:string)=>({numero:n,puesto:reales.indexOf(n)+1}))
-      setResultadoControl({aciertos,predichos,reales,fecha:hoy,turno:so})
-    }catch(e:any){setResultadoControl({error:"Error: "+e.message})}
-    setControlando(false)
+
+      const url = "/api/predictions?sorteo=" + encodeURIComponent(currentTurno) + "&date=" + predDate + "&t=" + Date.now();
+      const r = await fetch(url, {
+        headers: { Authorization: "Bearer " + tkRef.current },
+      });
+      if (!r.ok) {
+        const errData = await r.json().catch(() => ({}));
+        const msg = errData?.error || ("Error del servidor: " + r.status);
+        if (r.status === 403) {
+          throw new Error(errData?.trialExpired
+            ? "Tu período gratuito expiró. Actualizá a Premium para seguir prediciendo."
+            : errData?.upgradeRequired
+            ? "Suscribite para acceder a predicciones."
+            : msg);
+        }
+        throw new Error(msg);
+      }
+      const d = await r.json();
+      if (!d) {
+        throw new Error("No hay datos");
+      }
+      if (d.error) {
+        throw new Error(d.error);
+      }
+
+      // Normalize the payload into a single shape before validation
+      const predData = {
+        ...(d.pred || d),
+        heatmap: d.heatmap,
+        ranking: d.numeros,
+        numeros: d.numeros,
+        confidence: d.confidence,
+        aiInsight: d.aiInsight,
+      };
+
+      // Strict runtime validation + type safety (protects against malformed API/DB responses)
+      let validatedPredData: PredData | null = null;
+      try {
+         
+        validatedPredData = validatePredData(predData) as any;
+      } catch (parseError) {
+        // Non-fatal fallback: keep the raw payload if it has the minimum required fields
+        if (Array.isArray(predData?.numeros_2)) {
+          validatedPredData = predData;
+        } else {
+          throw new Error("Datos recibidos del servidor no válidos");
+        }
+      }
+
+      // Guard against null / undefined / empty arrays before rendering
+      if (!validatedPredData?.numeros_2?.length && !validatedPredData?.numeros?.length) {
+        setEr("No hay suficientes predicciones disponibles. Probá con otro turno o intentá más tarde.");
+        setLd(false);
+        return;
+      }
+
+      // Ensure heatmap always exists as an array (prevents rendering crashes)
+      if (!Array.isArray(validatedPredData.heatmap)) validatedPredData.heatmap = [];
+
+      setDt(validatedPredData);
+      setDn(true);
+      sound.success();
+      // Gamification: record analysis + community trend
+      if (tkRef.current) {
+        fetch("/api/gamification", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
+          body: JSON.stringify({ action: "analysis", turno: currentTurno }),
+        }).then(() => { window.dispatchEvent(new Event("gamification-update")) }).catch(() => {})
+        fetch("/api/community", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
+          body: JSON.stringify({
+            turno: currentTurno,
+            topNumbers: (validatedPredData?.numeros || []).slice(0, 10).map((n) => (n as Record<string, unknown>).num || (n as Record<string, unknown>).numero),
+          }),
+        }).catch(() => {})
+      }
+      if (validatedPredData?.confidence) setConfianzaTurnos(p => ({ ...p, [currentTurno]: validatedPredData.confidence as number }));
+      if (validatedPredData?.aiInsight) setAiInsight(validatedPredData.aiInsight);
+    } catch (e: unknown) {
+      setEr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLd(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function logout() {
+    clearAuth();
+    router.push("/login");
   }
-  async function guardarPrediccion(){
-    if(!tkRef.current)return
-    setGuardando(true)
-    try{
-      const hoy=new Date(Date.now()-3*3600000).toISOString().split("T")[0]
-      const nums=cur.slice(0,dg===2?10:5).map((p:any)=>p.numero)
-      await fetch("/api/mis-predicciones",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+tkRef.current},body:JSON.stringify({date:hoy,turno:so,numeros:nums})})
-      setGuardadoOk(true);setTimeout(()=>setGuardadoOk(false),3000)
-      cargarMisPreds(tkRef.current)
-    }catch{}
-    setGuardando(false)
+
+  // Horarios de cada sorteo (hora Argentina, el sorteo ya pasó si la hora actual >= cutoff)
+  const HORARIOS_SORTEOS: Record<string, number> = {
+    Previa: 10, Primera: 12, Matutina: 15, Vespertina: 18, Nocturna: 21
   }
-  function copiar(){
-    if(!dt?.numeros?.length){alert("Primero genera una prediccion");return}
-    const lineas=cur.slice(0,dg===2?10:5).map((p:any,i:number)=>"#"+(i+1)+" "+p.numero+" - "+p.significado).join("\n")
-    const rdblLine=dt?.redoblona?"\nRedoblona: "+dt.redoblona:""
-    const txt="QUINIELA IA - "+proximoSorteo(so)+"\n\n"+lineas+rdblLine+"\n\n"+APP_URL
-    navigator.clipboard.writeText(txt).then(()=>alert("Copiado!")).catch(()=>{const el=document.createElement("textarea");el.value=txt;document.body.appendChild(el);el.select();document.execCommand("copy");document.body.removeChild(el);alert("Copiado!")})
+
+  function ahoraArgentina(): Date {
+    const now = new Date()
+    return new Date(now.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }))
   }
-  function share(p:string){
-    const txt=encodeURIComponent("Proba Quiniela IA - Predicciones estadisticas reales")
-    const url=encodeURIComponent(APP_URL)
-    if(p==="copy"){navigator.clipboard.writeText(APP_URL).then(()=>alert("Link copiado!"));return}
-    const urls:any={whatsapp:`https://wa.me/?text=${txt}%20${url}`,facebook:`https://www.facebook.com/sharer/sharer.php?u=${url}`,twitter:`https://twitter.com/intent/tweet?text=${txt}&url=${url}`,telegram:`https://t.me/share/url?url=${url}&text=${txt}`}
-    window.open(urls[p],"_blank")
+
+  function hoyArgentina(): string {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format()
   }
-  const nums:any[]=dt?.numeros||[]
-  const rdbl:string=dt?.redoblona||""
-  const r5:any[]=dt?.rdblTop5||[]
-  const p3:string[]=dt?.pred3d||[]
-  const p4:string[]=dt?.pred4d||[]
-  const hm:any[]=dt?.heatmap||[]
-  const mxH=hm.length?Math.max(...hm.map((x:any)=>x.f),1):1
-  const cur=dg===2?nums:dg===3?p3.map((n:string,i:number)=>({numero:n,significado:nums[i]?.significado||"",score:nums[i]?.score||0})):p4.map((n:string,i:number)=>({numero:n,significado:nums[i]?.significado||"",score:nums[i]?.score||0}))
-  function hc(f:number){const r=f/mxH;if(r>.75)return{bg:"rgba(254,44,85,.25)",bd:"rgba(254,44,85,.5)"};if(r>.55)return{bg:"rgba(37,244,238,.15)",bd:"rgba(37,244,238,.4)"};if(r>.35)return{bg:"rgba(99,102,241,.15)",bd:"rgba(99,102,241,.35)"};return{bg:"rgba(20,27,42,.5)",bd:"rgba(51,65,85,.3)"}}
-  return(<>
-    <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-      *{box-sizing:border-box;margin:0;padding:0}
-      :root{--red:#FE2C55;--cyan:#25F4EE;--dark:#010101;--card:#0d0d0d;--t:#FFFFFF;--dim:#94a3b8}
-      body{background:var(--dark);color:var(--t);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
-      .app{min-height:100vh;background:radial-gradient(ellipse 80% 40% at 50% -5%,rgba(254,44,85,.08),transparent 50%),#010101}
-      .nav{position:sticky;top:0;z-index:100;background:rgba(6,8,15,.98);backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.08);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;}
-      .nl{display:flex;align-items:center;gap:9px;cursor:pointer}
-      .ni{width:34px;height:34px;background:linear-gradient(135deg,#FE2C55,#aa0030);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 3px 0 #700020}
-      .nm{font-size:18px;font-weight:900;background:linear-gradient(135deg,#ff7090,#FE2C55);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-      .nr{display:flex;align-items:center;gap:7px}
-      .pp{background:linear-gradient(135deg,#20d5ec,#00a8c8);color:#001a20;font-size:9px;font-weight:800;padding:3px 8px;border-radius:20px}
-      .ne{font-size:11px;color:var(--dim);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .nav-admin{padding:5px 10px;border-radius:7px;border:1px solid rgba(255,45,85,.3);background:transparent;color:#ff6b81;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:none}
-      .nav-out{padding:5px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--dim);font-size:11px;cursor:pointer;font-family:inherit}
-      .wr{max-width:480px;margin:0 auto;padding:20px 14px 80px}
-      .hero{text-align:center;padding:8px 0 24px}
-      .hero h1{font-size:clamp(26px,7vw,48px);font-weight:900;background:linear-gradient(135deg,#FFFFFF,#ff7090,#FE2C55);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;line-height:1.1;letter-spacing:-1px}
-      .hero p{color:#94a3b8;font-size:13px;max-width:340px;margin:0 auto 16px;line-height:1.7;font-weight:400}
-      .sts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:320px;margin:0 auto}
-      .sc{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 8px;text-align:center}
-      .sv{font-size:20px;font-weight:900;background:linear-gradient(135deg,#ff9090,#FE2C55);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-      .sl{font-size:10px;color:#64748b;margin-top:3px;font-weight:500;letter-spacing:.3px}
-      .sorteo-label{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;text-align:center}
-      .sorteo-btns{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:14px}
-      .sb{padding:13px 4px 10px;border-radius:13px;background:linear-gradient(180deg,#1a1a1a,#0d0d0d);color:#94a3b8;border:1.5px solid rgba(255,255,255,.1);box-shadow:0 5px 0 #03030a,0 6px 15px rgba(0,0,0,.4);cursor:pointer;font-family:'Inter',sans-serif;font-weight:800;font-size:12px;text-align:center;transition:.12s;display:flex;flex-direction:column;align-items:center;gap:5px;user-select:none;letter-spacing:.2px}
-      .sb .sh{font-size:10px;font-weight:600;opacity:.8;color:#64748b}
-      .sb:active{transform:translateY(3px);box-shadow:none}
-      .sb.on{background:linear-gradient(180deg,#25F4EE,#00c8c0);color:#000;border-color:rgba(37,244,238,.9);box-shadow:0 5px 0 #007070,0 6px 20px rgba(37,244,238,.4);font-size:13px}
-      .sb.on .sh{opacity:1;color:#004d5c;font-weight:700;font-size:11px}
-      .sb:hover:not(.on){background:linear-gradient(180deg,#1a1a1a,#111);color:#25F4EE;border-color:rgba(37,244,238,.2)}
-      .btn3d{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:13px;font-family:'Inter',sans-serif;font-weight:800;cursor:pointer;transition:transform .08s,box-shadow .08s;user-select:none;-webkit-tap-highlight-color:transparent;width:100%;margin-bottom:8px}
-      .btn3d:active{transform:translateY(4px)!important;box-shadow:none!important}
-      .btn-gen{padding:18px 24px;font-size:16px;letter-spacing:.3px;background:linear-gradient(135deg,#FE2C55,#ff5070);color:#fff;box-shadow:0 6px 0 #900020,0 8px 28px rgba(254,44,85,.45),inset 0 1px 0 rgba(255,255,255,.15)}
-      .btn-gen:hover{background:linear-gradient(135deg,#ff4060,#ff7d90)}
-      .btn-prem{padding:14px 20px;font-size:13px;background:linear-gradient(135deg,#25F4EE,#00c8c0);color:#000;box-shadow:0 5px 0 #007070,0 7px 20px rgba(37,244,238,.35)}
-      .btn-copy{padding:12px 20px;font-size:13px;background:linear-gradient(135deg,#2e2e3e,#1a1a28);color:#a5b4fc;border:1.5px solid rgba(99,102,241,.3);box-shadow:0 4px 0 #0a0a18}
-      .btn-save{padding:12px 20px;font-size:13px;background:linear-gradient(135deg,#1e3a2e,#0f2018);color:#86efac;border:1.5px solid rgba(34,197,94,.25);box-shadow:0 4px 0 #051008}
-      .dtabs{display:flex;gap:6px;margin-bottom:14px}
-      .dk{flex:1;padding:12px 4px;text-align:center;border-radius:12px;font-family:'Inter',sans-serif;font-weight:800;font-size:13px;cursor:pointer;position:relative;transition:.1s;user-select:none;border:none;box-shadow:0 5px 0 rgba(0,0,0,.5)}
-      .dk:active{transform:translateY(4px);box-shadow:none}
-      .dk-2{background:linear-gradient(180deg,#FE2C55,#cc0030);color:#fff;box-shadow:0 5px 0 #800020}
-      .dk-3{background:linear-gradient(180deg,#25F4EE,#00c0b8);color:#000;box-shadow:0 5px 0 #007070}
-      .dk-4{background:linear-gradient(180deg,#f59e0b,#d97706);color:#1a0e00;box-shadow:0 5px 0 #7c3f00}
-      .dk.on{filter:brightness(1.15);box-shadow:0 2px 0 rgba(0,0,0,.5)}
-      .dk:not(.on){opacity:.5}
-      .pbdg{position:absolute;top:-8px;right:3px;background:#fff;color:#001a20;font-size:7px;font-weight:800;padding:2px 6px;border-radius:8px}
-      .g5{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:12px}
-      .cd{background:linear-gradient(145deg,#1a1a1a,#0f0f0f);border:1.5px solid rgba(254,44,85,.2);border-radius:14px;padding:15px 3px 10px;text-align:center;position:relative;box-shadow:0 5px 0 #060108,0 8px 20px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);transition:.2s;cursor:default}
-      .cd:hover{transform:translateY(-2px);border-color:rgba(255,45,85,.45);box-shadow:0 6px 0 #060108,0 8px 20px rgba(255,45,85,.15)}
-      .cr2{position:absolute;top:4px;left:5px;font-size:9px;color:#94a3b8;font-weight:800}
-      .cn{font-size:clamp(24px,6vw,36px);font-weight:900;background:linear-gradient(135deg,#ff9090,#FE2C55);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;margin-bottom:5px;letter-spacing:-1px}
-      .cs{font-size:10px;color:#ffb3bf;font-weight:600;padding:0 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.2px}
-      .lk{position:relative}
-      .lo{position:absolute;inset:0;background:rgba(6,8,15,.93);backdrop-filter:blur(8px);border-radius:12px;border:1px solid rgba(32,213,236,.2);z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px 14px;text-align:center}
-      .lo h3{font-size:15px;color:#fff;font-weight:700}
-      .lo p{font-size:11px;color:var(--dim);max-width:200px;line-height:1.5}
-      .uc{display:inline-block;background:linear-gradient(135deg,#20d5ec,#00a8c8);color:#001a20;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:800;text-decoration:none;margin-bottom:4px}
-      .tbs{display:flex;gap:5px;margin-bottom:18px;overflow-x:auto;padding-bottom:2px}
-      .tb{flex:1;min-width:72px;padding:11px 4px;text-align:center;border-radius:12px;border:none;font-family:'Inter',sans-serif;font-weight:800;font-size:11px;cursor:pointer;white-space:nowrap;transition:.1s;user-select:none;display:flex;flex-direction:column;align-items:center;gap:3px;box-shadow:0 4px 0 rgba(0,0,0,.4)}
-      .tb:active{transform:translateY(3px);box-shadow:none}
-      .tb-pred{background:linear-gradient(180deg,#1e1e2e,#12121e);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
-      .tb-pred.on{background:linear-gradient(180deg,#FE2C55,#cc0030);color:#fff;border-color:#FE2C55;box-shadow:0 4px 0 #800020}
-      .tb-rdbl{background:linear-gradient(180deg,#1e1e2e,#12121e);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
-      .tb-rdbl.on{background:linear-gradient(180deg,#25F4EE,#00c0b8);color:#000;border-color:#25F4EE;box-shadow:0 4px 0 #007070}
-      .tb-freq{background:linear-gradient(180deg,#1e1e2e,#12121e);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
-      .tb-freq.on{background:linear-gradient(180deg,#a78bfa,#5b21b6);color:#fff;border-color:#a78bfa;box-shadow:0 4px 0 #2e1065}
-      .tb-mis{background:linear-gradient(180deg,#1e1e2e,#12121e);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
-      .tb-mis.on{background:linear-gradient(180deg,#22c55e,#15803d);color:#fff;border-color:#22c55e;box-shadow:0 4px 0 #064e24}
-      .tb .tb-ico{font-size:16px}
-      .tb .tb-lbl{font-size:10px}
-      .ibox{background:rgba(255,45,85,.05);border:1px solid rgba(255,45,85,.15);border-radius:10px;padding:12px 14px;font-size:12px;color:#94a3b8;line-height:1.8;margin-top:10px}
-      .ibox strong{color:#ff9999}
-      .rdbl{background:rgba(37,244,238,.04);border:1px solid rgba(37,244,238,.2);border-radius:14px;padding:16px;margin-bottom:12px}
-      .rpair{font-size:36px;font-weight:900;background:linear-gradient(135deg,#25F4EE,#69C9D0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;letter-spacing:8px;margin:10px 0}
-      .rg{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px}
-      .rc{background:rgba(32,213,236,.06);border:1px solid rgba(32,213,236,.18);border-radius:10px;padding:10px 4px;text-align:center;transition:.15s}
-      .rc:hover{border-color:rgba(32,213,236,.5);transform:translateY(-2px)}
-      .rn{font-size:22px;font-weight:900;color:#20d5ec}
-      .rk{font-size:8px;color:#20d5ec;opacity:.75;margin-top:2px}
-      .rv{font-size:8px;color:var(--dim);margin-top:2px}
-      .hm{display:grid;grid-template-columns:repeat(10,1fr);gap:2px}
-      .hc{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:5px;border:1px solid transparent;cursor:default;transition:.15s}
-      .hc:hover{transform:scale(1.3);z-index:5}
-      .hn{font-size:clamp(7px,1.2vw,10px)}
-      .hv{font-size:6px;color:var(--dim)}
-      .tips{background:rgba(255,45,85,.04);border:1px solid rgba(255,45,85,.15);border-radius:14px;padding:14px;margin-bottom:14px}
-      .tips-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-      .tip-box{border-radius:10px;padding:10px 6px;border:1px solid}
-      .tip-n{padding:2px 5px;border-radius:4px;font-size:10px;font-weight:800}
-      .shr{margin-top:24px;padding:16px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:14px;text-align:center}
-      .shr-t{font-size:12px;font-weight:700;color:var(--t);margin-bottom:12px}
-      .shr-b{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
-      .sbt{padding:8px 14px;border:none;border-radius:9px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;box-shadow:0 3px 0 rgba(0,0,0,.4);transition:.08s;user-select:none}
-      .sbt:active{transform:translateY(2px);box-shadow:none}
-      .sbt.wa{background:#25D366;color:#fff}.sbt.fb{background:#1877F2;color:#fff}.sbt.tw{background:#000;color:#fff}.sbt.tg{background:#0088cc;color:#fff}.sbt.cp{background:rgba(255,255,255,.08);color:var(--t);border:1px solid rgba(255,255,255,.1)}
-      .rev{margin-top:28px;padding-top:22px;border-top:1px solid rgba(255,255,255,.06)}
-      .rev-o{overflow:hidden;position:relative}
-      .rev-o::before,.rev-o::after{content:'';position:absolute;top:0;bottom:0;width:50px;z-index:2;pointer-events:none}
-      .rev-o::before{left:0;background:linear-gradient(to right,var(--dark),transparent)}
-      .rev-o::after{right:0;background:linear-gradient(to left,var(--dark),transparent)}
-      .rev-tr{display:flex;gap:10px;width:max-content}
-      .rev-c{width:240px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:12px;flex-shrink:0}
-      .rev-s{color:#ff2d55;font-size:11px;margin-bottom:5px}
-      .rev-t{font-size:11px;color:var(--t);font-style:italic;line-height:1.5;margin-bottom:5px}
-      .rev-a{font-size:10px;color:var(--dim)}
-      .rev-a strong{color:var(--t)}
-      .pay-box{margin-top:24px;background:linear-gradient(135deg,rgba(37,244,238,.05),rgba(0,192,184,.03));border:1.5px solid rgba(37,244,238,.2);border-radius:18px;padding:24px 18px;text-align:center;box-shadow:0 8px 32px rgba(32,213,236,.08)}
-      .pay-box h3{font-size:16px;font-weight:800;color:#fff;margin-bottom:4px}
-      .pay-alias{padding:10px 14px;background:rgba(37,244,238,.08);border:1px solid rgba(37,244,238,.2);border-radius:10px;font-size:14px;font-weight:900;color:#25F4EE;letter-spacing:2px;margin-bottom:8px}
-      .ft{margin-top:28px;padding-top:16px;border-top:1px solid rgba(255,255,255,.05);text-align:center}
-      .ft p{font-size:11px;color:var(--dim);line-height:1.9}
-      .ft a{color:#ff6b81;text-decoration:none}
-      .credit{font-size:11px;color:#475569;margin-top:10px;letter-spacing:.3px}
-      .credit strong{color:#64748b}
-      .dc{margin-top:12px;font-size:9px;color:#374151;line-height:1.6;text-align:center}
-      .calc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
-      .calc-card{border-radius:12px;padding:12px 10px;text-align:center}
-      .calc-card-t{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-      .calc-card-v{font-size:16px;font-weight:900;margin-bottom:3px}
-      .calc-card-s{font-size:9px;opacity:.7;line-height:1.5}
-      .sp{width:26px;height:26px;border:2px solid rgba(255,255,255,.1);border-top-color:#ff2d55;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 10px}
-      @keyframes spin{to{transform:rotate(360deg)}}
-      .ld-box{text-align:center;padding:40px 20px;color:var(--dim);font-size:13px}
-      .eb{background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15);border-radius:8px;padding:10px 12px;font-size:12px;color:#fca5a5;margin-bottom:12px}
-      .ht{font-size:12px;color:var(--dim);text-align:center;padding:24px 0;line-height:2}
-      .ht strong{color:#ff6b81}
-      .sec{font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 10px;display:flex;align-items:center;gap:8px}
-      .sec::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.05)}
-      @media(max-width:400px){.g5{gap:3px}.cd{padding:10px 2px 7px}.tips-grid{grid-template-columns:1fr}}
-    `}</style>
-    <div className="app">
-      <nav className="nav">
-        <div className="nl" onClick={()=>window.scrollTo(0,0)}>
-          <div className="ni">🎰</div>
-          <span className="nm">Quiniela IA</span>
-        </div>
-        <div className="nr">
-          {pr&&<span className="pp">PREMIUM</span>}
-          {em&&<span className="ne">{em.split("@")[0]}</span>}
-          {pr&&<a href="/admin" className="nav-admin">Admin</a>}
-          <button onClick={pedirNotificaciones} style={{padding:"5px 10px",borderRadius:7,border:"1px solid rgba(37,244,238,.2)",background:"transparent",color:"#25F4EE",fontSize:11,cursor:"pointer",fontFamily:"inherit"}} title="Tocar para activar notificaciones de resultados">🔔</button>
-          <button className="nav-out" onClick={logout}>Salir</button>
-        </div>
-      </nav>
-      <div className="wr">
-        <div className="hero">
-          <h1>Predicciones Inteligentes</h1>
-          <p>Analisis estadistico real de la Quiniela Nacional de Buenos Aires. Motor con 6 factores y datos actualizados automaticamente.</p>
-          <div className="sts">
-            <div className="sc"><div className="sv">{stats?.pct||"--"}%</div><div className="sl">Aciertos 30 sorteos</div></div>
-            <div className="sc"><div className="sv">{stats?.racha||"--"}</div><div className="sl">Racha actual</div></div>
-            <div className="sc"><div className="sv">{stats?.totalSorteos||"--"}</div><div className="sl">Sorteos analizados</div></div>
+
+  function proximoSorteo(sorteo: string): string {
+    const fs = fechaSorteo(sorteo)
+    const d = new Date(fs + "T12:00:00-03:00")
+    const label = d.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })
+    return sorteo + " del " + label;
+  }
+
+  function diaSemanaART(d: Date): number {
+    return d.getDay()
+  }
+
+  function nextValidDate(sorteo: string): string {
+    const artNow = ahoraArgentina()
+    const feriados = todosLosFeriados()
+    for (let i = 1; i <= 7; i++) {
+      const d = new Date(artNow.getTime() + i * 86400000);
+      const dia = diaSemanaART(d);
+      const fecha = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(d)
+      if (dia === 0) continue;
+      if (feriados.includes(fecha)) continue;
+      if (esSabadoSinTurnos(dia, sorteo)) continue;
+      return fecha
+    }
+    return hoyArgentina()
+  }
+
+  function fechaSorteo(sorteo: string): string {
+    const ahora = ahoraArgentina()
+    const diaActual = ahora.getDay()
+    const fechaActual = hoyArgentina()
+    const feriados = todosLosFeriados()
+    
+    // If today has no draws at all (Sunday or holiday), skip to next valid day
+    if (feriados.includes(fechaActual)) return nextValidDate(sorteo)
+    if (diaActual === 0) return nextValidDate(sorteo)
+    
+    // Saturday: Previa and Primera don't happen — skip to next valid day
+    if (esSabadoSinTurnos(diaActual, sorteo)) return nextValidDate(sorteo)
+    
+    // Today is a valid draw day for this turno — show today
+    return fechaActual
+  }
+
+  const cargarMisPreds = useCallback(async (token: string) => {
+    setMisLoading(true);
+    let apiPreds: SavedPrediction[] | null = null;
+    if (token) {
+      try {
+        const r = await fetch("/api/mis-predicciones", { headers: { Authorization: "Bearer " + token } });
+        const d = await r.json();
+        if (d.predictions?.length) apiPreds = d.predictions;
+      } catch {}
+    }
+
+    // Clear stale localStorage when engine version changes
+    const ENGINE_VERSION = 2;
+    const storedVersion = parseInt(localStorage.getItem("engineVersion") || "0", 10);
+    if (storedVersion < ENGINE_VERSION) {
+      localStorage.removeItem("misPreds");
+      localStorage.setItem("engineVersion", String(ENGINE_VERSION));
+    }
+
+    if (apiPreds) {
+      // API is the SINGLE source of truth — no localStorage merge
+      for (const p of apiPreds) {
+        if (typeof p.numeros === "object" && !Array.isArray(p.numeros) && p.numeros?.["2"]) {
+          p.numeros_3 = p.numeros_3 || p.numeros["3"] || []
+          p.numeros_4 = p.numeros_4 || p.numeros["4"] || []
+          p.numeros = p.numeros["2"]
+        }
+      }
+
+      const prevAciertos = misPreds.reduce((sum, p) => sum + (p.aciertos?.length || 0), 0)
+      const newAciertos = apiPreds.reduce((sum, p) => sum + (p.aciertos?.length || 0), 0)
+      if (newAciertos > prevAciertos) {
+        const diff = newAciertos - prevAciertos
+        const notifiedKey = "notifiedAciertos"
+        const prevNotified = parseInt(localStorage.getItem(notifiedKey) || "0", 10)
+        if (newAciertos > prevNotified) {
+          toast(`¡${diff} nuevo${diff > 1 ? "s" : ""} acierto${diff > 1 ? "s" : ""}!`, "success")
+          sound.win();
+          setShowConfetti(true);
+          setTimeout(() => setShowConfetti(false), 3000);
+          localStorage.setItem(notifiedKey, String(newAciertos))
+        }
+      }
+      setMisPreds(apiPreds)
+      localStorage.setItem("misPreds", JSON.stringify(apiPreds.map((p) => {
+        if (typeof p.numeros === "object" && !Array.isArray(p.numeros) && p.numeros?.["2"]) {
+          return { ...p, numeros: p.numeros["2"], numeros_3: p.numeros["3"] || [], numeros_4: p.numeros["4"] || [] };
+        }
+        return p;
+      })))
+      setMisLoading(false)
+      return
+    }
+
+    // Fallback: localStorage only (no token or API failed)
+    let storedPreds: SavedPrediction[] = [];
+    try { const s = localStorage.getItem("misPreds"); if (s) storedPreds = JSON.parse(s); } catch {}
+    if (storedPreds.length > 0) {
+      const enriched = await Promise.all(storedPreds.map(async (p) => {
+        if (p.resultado && p.resultado.length > 0) return p
+        const fechaVal = (p.date || p.fecha || "").trim()
+        const turnoVal = (p.turno || "").trim()
+        if (!fechaVal || !turnoVal) return p
+        try {
+          const r = await fetch(`/api/resultado?date=${fechaVal}&turno=${encodeURIComponent(turnoVal)}`)
+          const draw = await r.json()
+          if (draw?.found && draw?.numbers?.length) {
+            const reales = draw.numbers.map((n: string | number) => String(Number(n) % 100).padStart(2, "0"))
+            const pred2 = Array.isArray(p.numeros) ? p.numeros : (p.numeros?.["2"] || [])
+            const pred3 = !Array.isArray(p.numeros) ? (p.numeros?.["3"] || []) : (p.numeros_3 || [])
+            const pred4 = !Array.isArray(p.numeros) ? (p.numeros?.["4"] || []) : (p.numeros_4 || [])
+            const predichos = (pred2 as string[]).map((n) => String(n).padStart(2, "0"))
+            const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }))
+            return { ...p, numeros: pred2, numeros_3: pred3, numeros_4: pred4, resultado: reales, aciertos, acerto: aciertos.length > 0 }
+          }
+        } catch (e) { }
+        return p
+      }))
+      setMisPreds(enriched)
+      const newHits = enriched.filter((p) => p.acerto).length
+      const prevHits = misPreds.filter((p) => p.acerto).length
+      if (newHits > prevHits) {
+        const diff = newHits - prevHits
+        const notifiedKey = "notifiedAciertosLocal"
+        const prevNotified = parseInt(localStorage.getItem(notifiedKey) || "0", 10)
+        if (newHits > prevNotified) {
+          toast(`¡${diff} predicción${diff > 1 ? "es" : ""} acertada${diff > 1 ? "s" : ""}!`, "success")
+          localStorage.setItem(notifiedKey, String(newHits))
+        }
+      }
+    } else {
+      setMisPreds([]);
+    }
+    setMisLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function controlarJugada() {
+    if (!dt?.numeros_2?.length) {
+      return;
+    }
+    setControlando(true);
+    setResultadoControl(null);
+    try {
+      const hoy = hoyArgentina();
+      const r2 = await fetch(`/api/resultado?date=${hoy}&turno=${encodeURIComponent(so)}`);
+      const drawData = await r2.json();
+      if (!drawData?.found || !drawData?.numbers?.length) {
+        setResultadoControl({
+          error: `Todavia no hay resultado para ${so} del ${hoy}. Los resultados se cargan automaticamente hasta 30 min despues del sorteo.`,
+        });
+        return;
+      }
+      const reales = drawData.numbers.map((n: string | number) => String(Number(n) % 100).padStart(2, "0"));
+      const predichos = cur.slice(0, 10).map((p) => p.numero);
+      const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }));
+      setResultadoControl({ aciertos, predichos, reales, fecha: hoy, turno: so } as ResultadoControl);
+      mostrarNotifResultado(so, reales, aciertos.map((a) => a.numero));
+    } catch (e: unknown) {
+      setResultadoControl({ error: "Error: " + (e instanceof Error ? e.message : "Unknown"), aciertos: [] });
+    }
+    setControlando(false);
+  }
+
+  async function guardarPrediccion(silent = false) {
+    if (guestMode) {
+      toast("Creá una cuenta gratis para guardar tus análisis", "info");
+      return;
+    }
+    if (!cur?.length) {
+      return;
+    }
+    setGuardando(true);
+    const fechaSorteoStr = fechaSorteo(so);
+    const nums = cur.slice(0, 10).map((p) => p.numero);
+
+    // Check if already saved in state (synced from API)
+    const yaExiste = misPreds.some((p) => (p.date || p.fecha) === fechaSorteoStr && p.turno === so);
+    if (yaExiste) {
+      setGuardando(false);
+      toast("Ya guardaste un análisis para este turno", "info");
+      return;
+    }
+
+    const nums3Save = (pr || userRole === "admin") ? nums3.slice(0, 10) : [];
+    const nums4Save = (pr || userRole === "admin") ? nums4.slice(0, 10) : [];
+    const rdblSave = (pr || userRole === "admin") && rdbl ? [rdbl] : [];
+
+    const nuevaPred: SavedPrediction = {
+      id: "local_" + Date.now(),
+      fecha: fechaSorteoStr,
+      turno: so,
+      numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3Save, "4": nums4Save, "r": rdblSave } as Record<string, string[]> : nums,
+      created_at: new Date().toISOString(),
+      resultado_original: [],
+      aciertos: [],
+      acerto: false,
+    };
+    if (pr || userRole === "admin") {
+      nuevaPred.numeros_3 = nums3Save;
+      nuevaPred.numeros_4 = nums4Save;
+    }
+
+    // Intentar guardar en Supabase
+    let cloudSaved = false
+    if (tkRef.current) {
+      try {
+        const res = await fetch("/api/mis-predicciones", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
+          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3Save, "4": nums4Save, "r": rdblSave } : nums }),
+        });
+        const data = await res.json();
+        if (res.status === 409) {
+          setGuardando(false);
+          toast(data?.error || "Ya guardaste un análisis para este turno", "info");
+          return;
+        }
+        if (res.status === 403) {
+          setGuardando(false);
+          toast(data?.error || "Límite de predicciones alcanzado. Actualizá a Premium.", "error");
+          return;
+        }
+        if (!res.ok) {
+          setGuardando(false);
+          toast(data?.error || "Error guardando predicción", "error");
+          return;
+        }
+        cloudSaved = true
+        // Gamification: record save
+        fetch("/api/gamification", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
+          body: JSON.stringify({ action: "save", turno: so }),
+        }).then(() => { window.dispatchEvent(new Event("gamification-update")) }).catch(() => {})
+      } catch (e) {
+        // Network error — will fall through to localStorage
+      }
+    }
+
+    if (cloudSaved && tkRef.current) {
+      // API saved — reload from API (single source of truth)
+      cargarMisPreds(tkRef.current);
+    } else if (!tkRef.current) {
+      // No token — save to localStorage as offline fallback (append, don't overwrite)
+      let existing: SavedPrediction[] = [];
+      try { existing = JSON.parse(localStorage.getItem("misPreds") || "[]") as SavedPrediction[] } catch { existing = []; }
+      const todas = [nuevaPred, ...existing.filter(p => !(p.fecha === fechaSorteoStr && p.turno === so))].slice(0, 30);
+      localStorage.setItem("misPreds", JSON.stringify(todas));
+      setMisPreds(todas);
+    } else {
+      // API failed with token — show error, don't silently save to localStorage
+      toast("Error guardando en servidor. Intentá de nuevo.", "error");
+      setGuardando(false);
+      return;
+    }
+
+    if (!silent) {
+      setGuardadoOk(true);
+      sound.coin();
+      setTimeout(() => setGuardadoOk(false), 3000);
+    }
+    setGuardando(false);
+  }
+
+  function copiar() {
+    if (!dt?.numeros_2?.length) {
+      return;
+    }
+    const lineas = cur.slice(0, 10).map((p, i) => {
+      const emoji = getEmoji(p.numero);
+      const nombre = getNombreQuiniela(p.numero);
+      return "#" + (i + 1) + " " + p.numero + " " + emoji + " " + nombre;
+    }).join("\n");
+    const rdblLine = dt?.redoblona ? "\n🎯 Redoblona: " + dt.redoblona : "";
+    const txt = "🎰 QUINIELA IA ANÁLISIS\n" + proximoSorteo(so) + "\n\n" + lineas + rdblLine + "\n\n📊 " + APP_URL;
+    navigator.clipboard
+      .writeText(txt)
+      .then(() => toast("Copiado al portapapeles", "success"))
+      .catch(() => {
+        const el = document.createElement("textarea");
+        el.value = txt;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+        toast("Copiado al portapapeles", "success");
+      });
+  }
+
+  function share(p: string) {
+    const txt = encodeURIComponent("Probá Quiniela IA - Análisis estadístico basado en datos reales");
+    const url = encodeURIComponent(APP_URL);
+    if (p === "copy") {
+      navigator.clipboard.writeText(APP_URL).then(() => toast("Link copiado al portapapeles", "success")).catch(() => {});
+      return;
+    }
+    const urls: Record<string, string> = {
+      whatsapp: `https://wa.me/?text=${txt}%20${url}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}`,
+      twitter: `https://twitter.com/intent/tweet?text=${txt}&url=${url}`,
+      telegram: `https://t.me/share/url?url=${url}&text=${txt}`,
+    };
+    window.open(urls[p], "_blank");
+  }
+
+  // Datos derivados memoizados (evita recreaciones en cada render)
+  const nums2 = useMemo(() => (dt?.numeros_2 ?? []).filter((n): n is string => typeof n === "string"), [dt?.numeros_2]);
+  const nums3 = useMemo(() => (dt?.numeros_3 ?? []).filter((n): n is string => typeof n === "string"), [dt?.numeros_3]);
+  const nums4 = useMemo(() => (dt?.numeros_4 ?? []).filter((n): n is string => typeof n === "string"), [dt?.numeros_4]);
+  const rdbl = useMemo(() => (dt?.redoblona ?? ""), [dt?.redoblona]);
+  const rankingData = useMemo<LocalRankingItem[]>(() => (dt?.ranking ?? []) as LocalRankingItem[], [dt?.ranking]);
+  const ranking = rankingData;
+
+// Previously calculated numeric math heavy expressions (useMemo to prevent unnecessary recalculations)
+  // Use current numeric data for rendering (avoid recreating objects each render)
+  const cur = useMemo(() => {
+    const target = dg === 2 ? nums2 : dg === 3 ? nums3 : nums4;
+    const rankList = rankingData;
+    return target.map((number: string) => ({
+      numero: number,
+      significado: String((rankList || []).find((r: LocalRankingItem) => r.numero === number)?.significado || "")
+    }));
+  }, [dg, nums2, nums3, nums4, rankingData]);
+
+  return (
+    <>
+      <AgeGate />
+      <RealtimeResults />
+      <RealtimeVerification userId={userId || ""} />
+      <NeonBackground intensity={settings.particlesEnabled ? "low" : "off"} />
+      <GlowOrbs />
+      <ConfettiEffect active={showConfetti} />
+      <style>{`
+        *{box-sizing:border-box;margin:0;padding:0}
+        :root{--red:#FE2C55;--cyan:#25F4EE;--green:#22c55e;--bg:#010101;--bg2:#0d0d0d;--bg3:#141b2f;--card:#0d0d0d;--surface:rgba(13,13,13,.9);--text:#FFFFFF;--dim:#94a3b8;--border:rgba(255,255,255,.08);--nav-bg:rgba(6,8,15,.98);--panel-bg:rgba(255,255,255,.04);--panel-border:rgba(255,255,255,.08);--shadow:rgba(0,0,0,.32)}
+        body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+        .app{min-height:100vh;background:radial-gradient(ellipse 100% 80% at 50% -10%,rgba(99,102,241,.15),transparent 60%),radial-gradient(ellipse 60% 40% at 20% 80%,rgba(236,72,153,.1),transparent 50%),var(--bg)}
+        .nav{position:sticky;top:0;z-index:100;background:rgba(15,15,25,.85);backdrop-filter:blur(24px);border-bottom:1px solid rgba(255,255,255,.08);padding:10px 18px;display:flex;align-items:center;justify-content:space-between}
+        .card-bg{background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:24px}
+        .nl{display:flex;align-items:center;gap:10px;cursor:pointer}
+        .ni{width:40px;height:40px;background:linear-gradient(145deg,#ff3366,#ec4899);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 4px 0 #be123c,0 8px 20px rgba(236,72,153,.4)}
+        .nm{font-size:20px;font-weight:900;background:linear-gradient(135deg,#f472b6,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .nr{display:flex;align-items:center;gap:8px}
+        .pp{background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;font-size:9px;font-weight:800;padding:4px 10px;border-radius:20px;box-shadow:0 2px 8px rgba(168,85,247,.4)}
+        .ne{font-size:12px;color:var(--dim);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .nav-admin{padding:6px 12px;border-radius:10px;border:1px solid rgba(236,72,153,.4);background:rgba(236,72,153,.1);color:#f472b6;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:none}
+        .nav-out{padding:6px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.08);background:transparent;color:var(--dim);font-size:12px;cursor:pointer;font-family:inherit}
+        .wr{max-width:520px;margin:0 auto;padding:16px 16px 80px}
+        .hero{text-align:center;padding:12px 0 20px}
+        .hero h1{font-size:clamp(34px,9vw,60px);font-weight:900;background:linear-gradient(180deg,#fff 0%,#f472b6 50%,#ec4899 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0;padding:0;margin-bottom:8px;line-height:1.05;letter-spacing:-1px;filter:drop-shadow(0 4px 20px rgba(236,72,153,.3))}
+        .hero p{color:#94a3b8;font-size:14px;max-width:380px;margin:0 auto 16px;line-height:1.5;font-weight:500}
+        .sts{display:flex;gap:12px;justify-content:center}
+        .sc{background:linear-gradient(180deg,rgba(99,102,241,.15),rgba(99,102,241,.05));border:1px solid rgba(99,102,241,.3);border-radius:20px;padding:18px 24px;text-align:center;color:var(--text);box-shadow:0 6px 0 rgba(0,0,0,.4),0 8px 24px rgba(99,102,241,.2);transition:.2s}
+        .sc:hover{transform:translateY(-3px);box-shadow:0 10px 0 rgba(0,0,0,.4),0 12px 32px rgba(99,102,241,.3)}
+        .sv{font-size:26px;font-weight:900;background:linear-gradient(180deg,#a855f7,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .sl{font-size:11px;color:#a5b4fc;margin-top:6px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+        .sorteo-label{font-size:12px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:3px;margin-bottom:10px;text-align:center}
+        .sorteo-btns{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}
+        .sb{padding:18px 8px 16px;border-radius:20px;background:linear-gradient(180deg,#1e1e3a,#0f0f1f);color:#94a3b8;border:2px solid rgba(255,255,255,.1);box-shadow:0 8px 0 #050510,0 10px 28px rgba(0,0,0,.6);cursor:pointer;font-family:'Inter',sans-serif;font-weight:900;font-size:14px;text-align:center;transition:all .2s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;align-items:center;gap:8px;user-select:none;letter-spacing:.5px;position:relative;overflow:hidden}
+        .sb::before{content:'';position:absolute;top:0;left:0;right:0;height:50%;background:linear-gradient(180deg,rgba(255,255,255,.05),transparent);border-radius:20px 20px 0 0;pointer-events:none}
+        .sb .sh{font-size:12px;font-weight:700;opacity:.9;color:#64748b;transition:all .2s}
+        .sb:active{transform:translateY(6px);box-shadow:none;transition:all .08s}
+        .sb.on{background:linear-gradient(180deg,#a855f7 0%,#8b5cf6 50%,#7c3aed 100%);color:#fff;border-color:rgba(167,139,250,.95);box-shadow:0 8px 0 #5b21b6,0 12px 36px rgba(139,92,246,.5),inset 0 1px 0 rgba(255,255,255,.3);font-size:15px}
+        .sb.on .sh{opacity:1;color:#fff;font-weight:800;font-size:13px}
+        .sb .sc{font-size:11px;font-weight:800;color:#a78bfa;background:rgba(167,139,250,.12);padding:2px 8px;border-radius:10px;min-width:36px;margin-top:-2px;transition:all .2s}
+        .sb.on .sc{color:#fff;background:rgba(255,255,255,.18)}
+        .sb:hover:not(.on){background:linear-gradient(180deg,#2d2b4a,#1e1e3a);color:#a855f7;border-color:rgba(167,139,250,.4);transform:translateY(-3px);box-shadow:0 12px 0 #050510,0 16px 36px rgba(139,92,246,.25)}
+        .btn3d{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:10px;border:none;border-radius:20px;font-family:'Inter',sans-serif;font-weight:900;cursor:pointer;transition:all .15s;user-select:none;-webkit-tap-highlight-color:transparent;width:100%;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
+        .btn3d:active{transform:translateY(6px)!important;box-shadow:none!important;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+        .btn-gen{padding:24px 32px;font-size:20px;letter-spacing:1px;background:linear-gradient(180deg,#f472b6 0%,#ec4899 50%,#db2777 100%);color:#fff;box-shadow:0 10px 0 #be185d,0 14px 40px rgba(236,72,153,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15);position:relative;overflow:hidden}
+        .btn-gen::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:linear-gradient(45deg,transparent,rgba(255,255,255,.15),transparent);transform:rotate(45deg) translateX(-100%);transition:transform .6s}
+        .btn-gen:hover::after{transform:rotate(45deg) translateX(100%)}
+        .btn-gen:hover{background:linear-gradient(180deg,#fb7185 0%,#f43f5e 50%,#e11d48 100%);transform:translateY(-3px);box-shadow:0 14px 0 #be185d,0 18px 50px rgba(236,72,153,.6)}
+        .btn-prem{padding:18px 28px;font-size:15px;background:linear-gradient(180deg,#a855f7,#8b5cf6);color:#fff;box-shadow:0 8px 0 #6d28d9,0 12px 36px rgba(139,92,246,.5),inset 0 1px 0 rgba(255,255,255,.3)}
+        .btn-copy{padding:16px 28px;font-size:14px;background:linear-gradient(180deg,#4f46e5,#3730a3);color:#fff;border:2px solid rgba(129,140,248,.4);box-shadow:0 8px 0 #1e1b4b,0 12px 32px rgba(79,70,229,.4),inset 0 1px 0 rgba(255,255,255,.15);position:relative;overflow:hidden}
+        .btn-copy::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:linear-gradient(45deg,transparent,rgba(255,255,255,.1),transparent);transform:rotate(45deg);transition:all .5s}
+        .btn-copy:hover::after{left:100%}
+        .btn-save{padding:16px 28px;font-size:14px;background:linear-gradient(180deg,#10b981 0%,#059669 50%,#047857 100%);color:#fff;border:2px solid rgba(52,211,153,.4);box-shadow:0 8px 0 #047857,0 12px 36px rgba(16,185,129,.4),inset 0 1px 0 rgba(255,255,255,.25);position:relative;overflow:hidden}
+        .btn-save::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:linear-gradient(45deg,transparent,rgba(255,255,255,.12),transparent);transform:rotate(45deg) translateX(-100%);transition:transform .5s}
+        .btn-save:hover::after{transform:rotate(45deg) translateX(100%)}
+        .dtabs{display:flex;gap:10px;margin-bottom:12px}
+        .dk{flex:1;padding:16px 8px;text-align:center;border-radius:16px;font-family:'Inter',sans-serif;font-weight:900;font-size:14px;cursor:pointer;position:relative;transition:.12s;user-select:none;border:none;box-shadow:0 6px 0 rgba(0,0,0,.5)}
+        .dk:active{transform:translateY(5px);box-shadow:none}
+        .dk-2{background:linear-gradient(180deg,#ec4899,#db2777);color:#fff;box-shadow:0 6px 0 #9d174d}
+        .dk-3{background:linear-gradient(180deg,#22d3ee,#06b6d4);color:#042f3d;box-shadow:0 6px 0 #0e7490}
+        .dk-4{background:linear-gradient(180deg,#fbbf24,#f59e0b);color:#451a03;box-shadow:0 6px 0 #b45309}
+        .dk.on{filter:brightness(1.1);box-shadow:0 3px 0 rgba(0,0,0,.5)}
+        .dk:not(.on){opacity:.5}
+        .pbdg{position:absolute;top:-10px;right:4px;background:#fff;color:#1e1b4b;font-size:8px;font-weight:900;padding:3px 8px;border-radius:10px}
+        .g5{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
+        .cd{background:linear-gradient(180deg,#1a1a2e 0%,#16162a 50%,#0f0f1f 100%);border:2px solid rgba(167,139,250,.15);border-radius:24px;padding:22px 6px 18px;text-align:center;position:relative;box-shadow:0 10px 0 rgba(0,0,0,.6),0 14px 36px rgba(139,92,246,.15),inset 0 1px 0 rgba(255,255,255,.1),inset 0 -1px 0 rgba(0,0,0,.3);transition:all .25s cubic-bezier(.4,0,.2,1);cursor:default;overflow:hidden}
+        .cd::before{content:'';position:absolute;top:0;left:0;right:0;height:50%;background:linear-gradient(180deg,rgba(167,139,250,.08),transparent);border-radius:24px 24px 0 0;pointer-events:none}
+        .cd:hover{transform:translateY(-8px) scale(1.02);border-color:rgba(167,139,250,.6);box-shadow:0 18px 0 rgba(0,0,0,.6),0 24px 48px rgba(139,92,246,.35),inset 0 1px 0 rgba(255,255,255,.15);background:linear-gradient(180deg,#222240 0%,#1a1a35 50%,#14142a 100%)}
+        .cd:active{transform:translateY(4px) scale(0.98);box-shadow:0 4px 0 rgba(0,0,0,.6),0 6px 16px rgba(139,92,246,.2);transition:all .08s}
+        .cr2{position:absolute;top:8px;left:8px;font-size:11px;color:var(--dim);font-weight:900;background:rgba(139,92,246,.15);padding:2px 6px;border-radius:8px}
+        .ce{font-size:28px;margin-bottom:4px;filter:drop-shadow(0 2px 8px rgba(139,92,246,.4));transition:transform .2s}
+        .cd:hover .ce{transform:scale(1.15) rotate(-5deg)}
+        .cn{font-size:clamp(24px,6vw,36px);font-weight:900;background:linear-gradient(180deg,#c084fc,#a855f7,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;margin-bottom:4px;letter-spacing:-1px;filter:drop-shadow(0 2px 12px rgba(139,92,246,.5))}
+        .cs{font-size:10px;color:#c4b5fd;font-weight:700;padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.4px;text-shadow:0 1px 4px rgba(139,92,246,.3)}
+        .lk{position:relative}
+        .lo{position:absolute;inset:0;background:#0a0a0f;backdrop-filter:none;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px 14px;text-align:center;border-radius:12px;border:2px solid rgba(167,139,250,.4)}
+        .lo h3{font-size:15px;color:var(--text);font-weight:700}
+        .lo p{font-size:11px;color:var(--dim);max-width:200px;line-height:1.5}
+        .uc{display:inline-block;background:linear-gradient(135deg,#20d5ec,#00a8c8);color:#001a20;border-radius:10px;padding:9px 16px;font-size:12px;font-weight:800;text-decoration:none;margin-bottom:4px}
+        .tbs{display:flex;gap:5px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px}
+        .tb{flex:1;min-width:72px;padding:11px 4px;text-align:center;border-radius:12px;border:none;font-family:'Inter',sans-serif;font-weight:800;font-size:11px;cursor:pointer;white-space:nowrap;transition:.1s;user-select:none;display:flex;flex-direction:column;align-items:center;gap:3px;box-shadow:0 4px 0 rgba(0,0,0,.4)}
+        .tb:active{transform:translateY(3px);box-shadow:none}
+        .tb-pred{background:linear-gradient(180deg,#1e1e2e,#12121e);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
+        .tb-pred.on{background:linear-gradient(180deg,#FE2C55,#cc0030);color:#fff;border-color:#FE2C55;box-shadow:0 4px 0 #800020}
+        .tb-rdbl{background:linear-gradient(180deg,#1e1e2e,#12121e);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
+        .tb-rdbl.on{background:linear-gradient(180deg,#25F4EE,#00c0b8);color:#000;border-color:#25F4EE;box-shadow:0 4px 0 #007070}
+        .tb-freq{background:linear-gradient(180deg,#1e1e3a,#12121f);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
+        .tb-freq.on{background:linear-gradient(180deg,#a855f7,#7c3aed);color:#fff;border-color:#a855f7;box-shadow:0 6px 0 #5b21b6}
+        .tb-trend{background:linear-gradient(180deg,#1e1e3a,#12121f);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
+        .tb-trend.on{background:linear-gradient(180deg,#f59e0b,#d97706);color:#1a0e00;border-color:#f59e0b;box-shadow:0 6px 0 #b45309}
+        .tb-mis{background:linear-gradient(180deg,#1e1e3a,#12121f);color:#64748b;border:1.5px solid rgba(255,255,255,.08)}
+        .tb-mis.on{background:linear-gradient(180deg,#10b981,#059669);color:#fff;border-color:#10b981;box-shadow:0 6px 0 #047857}
+        .tb .tb-ico{font-size:18px}
+        .tb .tb-lbl{font-size:11px}
+        .ibox{background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.15);border-radius:16px;padding:14px 16px;font-size:13px;color:#a5b4fc;line-height:1.7;margin-top:10px}
+        .ibox strong{color:#c4b5fd}
+        .rdbl{background:rgba(139,92,246,.05);border:1px solid rgba(139,92,246,.2);border-radius:20px;padding:16px;margin-bottom:12px}
+        .heatmap-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}
+        .heatmap-cell{aspect-ratio:1;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s}
+        .heatmap-cell:hover{transform:scale(1.15);z-index:10}
+        .hm-num{font-size:10px;font-weight:800;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+        .rpair{font-size:42px;font-weight:900;background:linear-gradient(135deg,#22d3ee,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;letter-spacing:10px;margin:14px 0}
+        .rg{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
+        .rc{background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:14px;padding:14px 6px;text-align:center;transition:.15s}
+        .rc:hover{border-color:rgba(139,92,246,.5);transform:translateY(-3px)}
+        .rn{font-size:26px;font-weight:900;color:#a855f7}
+        .rk{font-size:9px;color:#a855f7;opacity:.8;margin-top:4px}
+        .rv{font-size:9px;color:var(--dim);margin-top:4px}
+        .trend-chart{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);border-radius:20px;padding:16px;margin-bottom:12px}
+        .trend-info{padding:12px;margin-bottom:12px}
+        .trend-info-title{font-size:16px;font-weight:800;color:#fbbf24;margin-bottom:6px}
+        .trend-info-desc{font-size:12px;color:#94a3b8}
+        .trend-bars{display:flex;flex-direction:column;gap:10px;margin:18px 0}
+        .trend-bar-row{display:flex;align-items:center;gap:10px}
+        .trend-bar-label{font-size:14px;font-weight:900;color:#fff;width:36px}
+        .trend-bar-track{flex:1;height:22px;background:rgba(255,255,255,.08);border-radius:11px;overflow:hidden}
+        .trend-bar-fill{height:100%;background:linear-gradient(90deg,#f59e0b,#fbbf24);border-radius:9px;transition:width .3s}
+        .trend-bar-value{font-size:11px;color:#f59e0b;width:48px;text-align:right}
+        .trend-bar-meaning{font-size:10px;color:#64748b;width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .trend-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+        .trend-stat-card{background:rgba(0,0,0,.2);border-radius:10px;padding:12px 8px;text-align:center}
+        .trend-stat-value{font-size:14px;font-weight:900;color:#fff;margin-bottom:4px}
+        .trend-stat-label{font-size:10px;color:#64748b}
+        .trend-metric{background:rgba(245,158,11,.1);border-radius:12px;padding:14px;text-align:center;margin-top:10px}
+        .trend-metric-title{font-size:12px;color:#f59e0b;font-weight:700;margin-bottom:6px}
+        .trend-metric-value{font-size:24px;font-weight:900;color:#fff;margin-bottom:4px}
+        .trend-metric-desc{font-size:10px;color:#64748b}
+        .cabeza-badge{position:absolute;top:4px;right:4px;background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#1a0e00;font-size:7px;font-weight:900;padding:3px 8px;border-radius:8px;letter-spacing:.5px;box-shadow:0 2px 8px rgba(245,158,11,.5);animation:pulse-glow 2s infinite}
+        @keyframes pulse-glow{0%,100%{box-shadow:0 2px 8px rgba(245,158,11,.5)}50%{box-shadow:0 2px 16px rgba(245,158,11,.8)}}
+        .acum-badge{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);background:rgba(34,197,94,.9);color:#fff;font-size:7px;font-weight:800;padding:1px 5px;border-radius:6px}
+        .heatmap-stats{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:12px;padding:10px;margin-top:8px;text-align:center}
+        .heatmap-stat-row{display:flex;justify-content:space-between;font-size:11px;margin:4px 0}
+        .heatmap-stat-label{color:#94a3b8}
+        .heatmap-stat-value{color:#22c55e;font-weight:800}
+        .tips{background:rgba(255,45,85,.04);border:1px solid rgba(255,45,85,.15);border-radius:14px;padding:12px;margin-bottom:12px}
+        .tips-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+        .tip-box{border-radius:10px;padding:10px 6px;border:1px solid}
+        .tip-n{padding:2px 5px;border-radius:4px;font-size:10px;font-weight:800}
+        .shr{margin-top:16px;padding:14px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:14px;text-align:center}
+        .shr-t{font-size:12px;font-weight:700;color:var(--t);margin-bottom:8px}
+        .shr-b{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+        .sbt{padding:8px 14px;border:none;border-radius:9px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;box-shadow:0 3px 0 rgba(0,0,0,.4);transition:.08s;user-select:none}
+        .sbt:active{transform:translateY(2px);box-shadow:none}
+        .sbt.wa{background:#25D366;color:#fff}.sbt.fb{background:#1877F2;color:#fff}.sbt.tw{background:#000;color:#fff}.sbt.tg{background:#0088cc;color:#fff}.sbt.cp{background:rgba(255,255,255,.08);color:var(--t);border:1px solid rgba(255,255,255,.1)}
+        .rev{margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.06)}
+        .rev-o{overflow:hidden;position:relative}
+        .rev-o::before,.rev-o::after{content:'';position:absolute;top:0;bottom:0;width:50px;z-index:2;pointer-events:none}
+        .rev-o::before{left:0;background:linear-gradient(to right,var(--dark),transparent)}
+        .rev-o::after{right:0;background:linear-gradient(to left,var(--dark),transparent)}
+        .rev-tr{display:flex;gap:10px;width:max-content}
+        .rev-c{width:240px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:12px;flex-shrink:0}
+        .rev-s{color:#ff2d55;font-size:11px;margin-bottom:5px}
+        .rev-t{font-size:11px;color:var(--t);font-style:italic;line-height:1.5;margin-bottom:5px}
+        .rev-a{font-size:10px;color:var(--dim)}
+        .rev-a strong{color:var(--t)}
+        .pay-box{margin-top:16px;background:linear-gradient(135deg,rgba(37,244,238,.05),rgba(0,192,184,.03));border:1.5px solid rgba(37,244,238,.2);border-radius:18px;padding:20px 18px;text-align:center;box-shadow:0 8px 32px rgba(32,213,236,.08)}
+        .pay-title{font-size:22px;font-weight:900;background:linear-gradient(135deg,#f59e0b,#ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:12px}
+        .pay-price{font-size:42px;font-weight:900;color:#f59e0b;text-shadow:0 4px 0 #b45309,0 6px 12px rgba(245,158,11,.4);margin-bottom:16px;transform:rotate(-2deg);display:inline-block}
+        .pay-price-outer{position:relative;display:inline-block}
+        .pay-price-outer::before{content:'';position:absolute;inset:-4px;border:3px solid #f59e0b;border-radius:16px;transform:rotate(2deg)}
+        .pay-alias{background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:14px;font-size:20px;font-weight:800;color:#fff;letter-spacing:1px;padding:16px 28px;margin-bottom:12px;box-shadow:0 6px 20px rgba(99,102,241,.4),inset 0 1px 0 rgba(255,255,255,.2);cursor:pointer;transition:transform .1s}
+        .pay-alias:active{transform:scale(.98)}
+        .pay-features{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+        .pay-feature{font-size:13px;color:var(--text)}
+        .pay-feature span{margin-right:8px}
+        .pay-cta{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;background:#25D366;color:#fff;border-radius:12px;font-size:14px;font-weight:700}
+        .ft{margin-top:16px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);text-align:center}
+        .ft p{font-size:10px;color:var(--dim);line-height:1.5}
+        .ft a{color:#ff6b81;text-decoration:none}
+        .credit{font-size:9px;color:#475569;margin-top:4px;letter-spacing:.3px}
+        .credit strong{color:#64748b}
+        .dc{margin-top:4px;font-size:9px;color:#374151;line-height:1.5;text-align:center}
+        .calc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
+        .calc-card{border-radius:12px;padding:12px 10px;text-align:center}
+        .calc-card-t{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+        .calc-card-v{font-size:16px;font-weight:900;margin-bottom:3px}
+        .calc-card-s{font-size:9px;opacity:.7;line-height:1.5}
+        .sp{width:26px;height:26px;border:2px solid rgba(255,255,255,.1);border-top-color:#ff2d55;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 10px}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes pulse{0%{opacity:1}50%{opacity:.5}100%{opacity:1}}
+        .ld-box{text-align:center;padding:40px 20px;color:var(--dim);font-size:13px}
+        .eb{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.18);border-radius:8px;padding:10px 12px;font-size:12px;color:#fca5a5;margin-bottom:12px}
+        .ht{font-size:12px;color:var(--dim);text-align:center;padding:24px 0;line-height:2}
+        .ht strong{color:#ff6b81}
+        .sec{font-size:11px;font-weight:800;color:var(--dim);text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 10px;display:flex;align-items:center;gap:8px}
+        .sec::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.05)}
+        .saved-summary{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px;margin-bottom:16px}
+        .saved-summary-card{background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:4px;box-shadow:0 12px 30px rgba(0,0,0,.05)}
+        .saved-summary-label{font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--dim);font-weight:800}
+        .saved-summary-value{font-size:24px;font-weight:900;color:var(--text)}
+        .saved-card{background:var(--surface);border:1.5px solid var(--panel-border);border-radius:16px;padding:16px;margin-bottom:14px;position:relative;transition:transform .2s,box-shadow .2s}
+        .saved-card:hover{transform:translateY(-2px);box-shadow:0 14px 28px rgba(0,0,0,.08)}
+        .saved-card-success{background:linear-gradient(135deg,rgba(34,197,94,.12),rgba(34,197,94,.05));border-color:rgba(34,197,94,.35);box-shadow:0 8px 24px rgba(34,197,94,.12)}
+        .saved-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+        .saved-card-title{font-size:13px;font-weight:800;color:var(--text)}
+        .saved-card-status{font-size:12px;font-weight:800;padding:5px 12px;border-radius:999px}
+        .saved-card-status.hit{color:#166534;background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.25)}
+        .saved-card-status.miss{color:#475569;background:rgba(255,255,255,.08);border:1px solid rgba(148,163,184,.2)}
+        .saved-numbers{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+        .saved-number{padding:6px 10px;border-radius:10px;font-size:11px;font-weight:800;background:rgba(255,255,255,.08);color:var(--dim);border:1px solid rgba(255,255,255,.1)}
+        .saved-number.hit{background:rgba(34,197,94,.22);color:#155e75;border:1.5px solid rgba(34,197,94,.35);box-shadow:0 2px 8px rgba(34,197,94,.1)}
+        .saved-results{font-size:11px;color:#15803d;font-weight:700;padding:12px 14px;background:rgba(34,197,94,.08);border-radius:12px;border:1px solid rgba(34,197,94,.16);line-height:1.6}
+        .saved-success-icon{position:absolute;top:14px;right:14px;font-size:18px}
+        @media(max-width:600px){.saved-summary{grid-template-columns:repeat(2,minmax(120px,1fr))}}
+        @media(max-width:400px){.g5{grid-template-columns:repeat(5,1fr);gap:4px}.cd{padding:6px 2px 4px;min-height:70px}.tips-grid{grid-template-columns:1fr}.cd .cn{font-size:18px}.cd .cs{font-size:8px}.cd .cr2{font-size:8px}.cd .ce{font-size:16px}.sts{grid-template-columns:repeat(2,1fr);gap:8px}.sv{font-size:18px!important;padding:6px!important}.sl{font-size:8px}.header h1{font-size:20px}.header p{font-size:10px}.tbs{gap:3px}.tb{min-width:60px;padding:8px 2px;font-size:9px}.tabs{flex-direction:column}.dk{font-size:11px;padding:8px 4px}}
+      `}</style>
+      <div className="app">
+        <nav className="nav">
+          <div className="nl" onClick={() => window.scrollTo(0, 0)}>
+            <div className="ni">📊</div>
+            <span className="nm">Quiniela IA</span>
           </div>
-          
-          {stats?.mensaje&&<div style={{fontSize:11,color:"#20d5ec",background:"rgba(32,213,236,.07)",border:"1px solid rgba(32,213,236,.2)",borderRadius:20,padding:"5px 14px",marginTop:8,display:"inline-block"}}>{stats.mensaje}</div>}
-        </div>
-        <div style={{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:8,textAlign:"center"}}>🎯 Elegí el sorteo que querés analizar:</div>
-        <div className="sorteo-btns">
-          {SORTEOS.map(s=>(
-            <button key={s} className={"sb"+(so===s?" on":"")} onClick={()=>setSo(s)}>
-              <span>{s==="Vespertina"?"Vesp":s==="Primera"?"1era":s==="Matutina"?"Mat":s==="Nocturna"?"Noct":s}</span>
-              <span className="sh">{HORAS[s]}</span>
+          <div className="nr">
+            {newDraws && <span style={{ background: "#22c55e", color: "#fff", padding: "4px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700, animation: "pulse 2s infinite" }}>🆕 Resultados nuevos</span>}
+            {!isOnline && <span style={{ background: "#ef4444", color: "#fff", padding: "4px 8px", borderRadius: 6, fontSize: 10, fontWeight: 700 }}>📴 Offline</span>}
+            {(pr || userRole === "admin") && <span className="pp">{userRole === "admin" ? "👑 ADMIN" : "⭐ PREMIUM"}</span>}
+            {!guestMode && <GamificationBadge compact />}
+            {em && <span className="ne">{em.split("@")[0]}</span>}
+            {userRole === "admin" && <a href="/admin" className="nav-admin">⚙️ Admin</a>}
+            <RealtimeBadge />
+            <button
+              onClick={pedirNotificaciones}
+              disabled={pushLoading}
+              style={{
+                padding: "5px 10px",
+                borderRadius: 7,
+                border: pushSubscribed ? "1px solid rgba(34,197,94,.5)" : "1px solid rgba(37,244,238,.2)",
+                background: pushSubscribed ? "rgba(34,197,94,.15)" : "transparent",
+                color: pushSubscribed ? "#4ade80" : "#25F4EE",
+                fontSize: 11,
+                cursor: pushLoading ? "wait" : "pointer",
+                fontFamily: "inherit",
+                opacity: pushSupported ? 1 : 0.4,
+              }}
+              title={pushSubscribed ? "Notificaciones activadas" : "Tocar para activar notificaciones push"}
+            >
+              {pushLoading ? "⏳" : pushSubscribed ? "🔔✅" : pushSupported ? "🔔" : "🔕"}
             </button>
-          ))}
-        </div>
-        <button className="btn3d btn-gen" onClick={gen} disabled={ld} style={{opacity:ld?.6:1}}>{ld?"⏳ Analizando datos...":"⚡ Generar Predicción Ahora"}</button>
-        {dn&&<button onClick={controlarJugada} disabled={controlando} style={{width:"100%",padding:"13px",borderRadius:13,border:"1.5px solid rgba(32,213,236,.3)",background:"rgba(32,213,236,.08)",color:"#20d5ec",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",marginBottom:8,boxShadow:"0 4px 0 rgba(0,168,200,.3)",transition:".1s"}}>
-          {controlando?"⏳ Verificando...":"🎯 Controlar Jugada"}
-        </button>}
-        {dn&&<button onClick={()=>setShowCalc(!showCalc)} style={{width:"100%",padding:"13px",borderRadius:13,border:"1.5px solid rgba(201,168,76,.3)",background:"rgba(201,168,76,.08)",color:"#c9a84c",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"'Inter',sans-serif",marginBottom:8,boxShadow:"0 4px 0 rgba(100,80,0,.3)",transition:".1s"}}>
-          {showCalc?"▲ Cerrar calculadora":"💰 Sugerencias de apuesta"}
-        </button>}
-        {showCalc&&dn&&<div style={{background:"rgba(201,168,76,.04)",border:"1.5px solid rgba(201,168,76,.2)",borderRadius:16,padding:"16px",marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:800,color:"#c9a84c",marginBottom:12,textAlign:"center"}}>Calculadora de premios estimados</div>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-            <div style={{fontSize:11,color:"#94a3b8",minWidth:130}}>Apuesta por cifra: <strong style={{color:"#f0cc6e"}}>${apCalc.toLocaleString("es-AR")}</strong></div>
-            <input type="range" min={100} max={2000} step={100} value={apCalc} onChange={(e:any)=>setApCalc(Number(e.target.value))} style={{flex:1,accentColor:"#c9a84c"}}/>
+            {showInstall && (
+              <button onClick={installApp} style={{ padding: "6px 12px", borderRadius: 8, background: "linear-gradient(135deg,#ff3366,#ff6b81)", color: "#fff", border: "none", fontWeight: 700, fontSize: 11, cursor: "pointer", boxShadow: "0 4px 12px rgba(255,51,102,.4)" }}>
+                📲 Instalar App
+              </button>
+            )}
+            {isIOS && !showInstall && (
+              <button onClick={() => setShowIOSInstall(true)} style={{ padding: "6px 12px", borderRadius: 8, background: "linear-gradient(135deg,#ff3366,#ff6b81)", color: "#fff", border: "none", fontWeight: 700, fontSize: 11, cursor: "pointer", boxShadow: "0 4px 12px rgba(255,51,102,.4)" }}>
+                📲 Instalar
+              </button>
+            )}
+            <button className="nav-out" onClick={logout}>
+              Salir
+            </button>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-            <div style={{fontSize:11,color:"#94a3b8",minWidth:130}}>Apuesta redoblona: <strong style={{color:"#f0cc6e"}}>${rdblCalc.toLocaleString("es-AR")}</strong></div>
-            <input type="range" min={200} max={5000} step={100} value={rdblCalc} onChange={(e:any)=>setRdblCalc(Number(e.target.value))} style={{flex:1,accentColor:"#c9a84c"}}/>
-          </div>
-          <div className="calc-grid">
-            <div className="calc-card" style={{background:"rgba(255,45,85,.08)",border:"1px solid rgba(255,45,85,.2)"}}>
-              <div className="calc-card-t" style={{color:"#ff6b81"}}>2 cifras</div>
-              <div className="calc-card-v" style={{color:"#ff6b81"}}>${(apCalc*70+apCalc*7).toLocaleString("es-AR")}</div>
-              <div className="calc-card-s" style={{color:"#ff9999"}}>si sale al 1ro<br/>Apuesta: ${(apCalc*2).toLocaleString("es-AR")}</div>
-              <div className="calc-card-s" style={{color:"#ff9999",marginTop:4}}>${(apCalc*7).toLocaleString("es-AR")} del 2 al 10</div>
-            </div>
-            <div className="calc-card" style={{background:"rgba(32,213,236,.06)",border:"1px solid rgba(32,213,236,.18)"}}>
-              <div className="calc-card-t" style={{color:"#20d5ec"}}>3 cifras PRO</div>
-              <div className="calc-card-v" style={{color:"#20d5ec"}}>${Math.round((apCalc*600+apCalc*60)*0.721).toLocaleString("es-AR")}</div>
-              <div className="calc-card-s" style={{color:"#7dd9d7"}}>si sale al 1ro*<br/>Apuesta: ${(apCalc*2).toLocaleString("es-AR")}</div>
-              <div className="calc-card-s" style={{color:"#7dd9d7",marginTop:4}}>${(apCalc*60).toLocaleString("es-AR")} del 2 al 10</div>
-            </div>
-            <div className="calc-card" style={{background:"rgba(245,158,11,.06)",border:"1px solid rgba(245,158,11,.2)"}}>
-              <div className="calc-card-t" style={{color:"#f59e0b"}}>4 cifras PRO</div>
-              <div className="calc-card-v" style={{color:"#f59e0b"}}>${Math.round((apCalc*3500+apCalc*350)*0.721).toLocaleString("es-AR")}</div>
-              <div className="calc-card-s" style={{color:"#fbbf24"}}>si sale al 1ro*<br/>Apuesta: ${(apCalc*2).toLocaleString("es-AR")}</div>
-              <div className="calc-card-s" style={{color:"#fbbf24",marginTop:4}}>${(apCalc*350).toLocaleString("es-AR")} del 2 al 10</div>
-            </div>
-            <div className="calc-card" style={{background:"rgba(134,239,172,.06)",border:"1px solid rgba(134,239,172,.2)"}}>
-              <div className="calc-card-t" style={{color:"#86efac"}}>Redoblona</div>
-              <div className="calc-card-v" style={{color:"#86efac"}}>${(rdblCalc*70*7).toLocaleString("es-AR")}</div>
-              <div className="calc-card-s" style={{color:"#bbf7d0"}}>par exacto<br/>Apuesta: ${rdblCalc.toLocaleString("es-AR")}</div>
-            </div>
-          </div>
-          <div style={{fontSize:9,color:"#475569",marginTop:10,textAlign:"center",lineHeight:1.6}}>
-            * Premios 3 y 4 cifras con descuento AFIP ~27.9%. Valores estimados, sujetos a prorrateo.
-          </div>
-        </div>}
-        {resultadoControl&&<div style={{background:resultadoControl.error?"rgba(239,68,68,.07)":resultadoControl.aciertos?.length>0?"rgba(34,197,94,.08)":"rgba(255,255,255,.03)",border:"1.5px solid "+(resultadoControl.error?"rgba(239,68,68,.2)":resultadoControl.aciertos?.length>0?"rgba(34,197,94,.3)":"rgba(255,255,255,.08)"),borderRadius:14,padding:"16px",marginBottom:12}}>
-          {resultadoControl.error?<div style={{fontSize:13,color:"#fca5a5",textAlign:"center"}}>{resultadoControl.error}</div>:<>
-            <div style={{fontSize:12,fontWeight:800,color:resultadoControl.aciertos?.length>0?"#86efac":"#94a3b8",marginBottom:10,textAlign:"center"}}>
-              {resultadoControl.aciertos?.length>0?"🎉 Acertaste "+resultadoControl.aciertos.length+" numero(s)!":"😔 Sin aciertos esta vez"}
-            </div>
-            {resultadoControl.aciertos?.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center",marginBottom:10}}>
-              {resultadoControl.aciertos.map((a:any,i:number)=>(
-                <div key={i} style={{background:"rgba(34,197,94,.15)",border:"1px solid rgba(34,197,94,.4)",borderRadius:10,padding:"6px 12px",textAlign:"center"}}>
-                  <div style={{fontSize:20,fontWeight:900,color:"#86efac"}}>{a.numero}</div>
-                  <div style={{fontSize:9,color:"#4ade80"}}>Puesto {a.puesto}</div>
+        </nav>
+        {pr && premExpiry.daysRemaining !== null && premExpiry.daysRemaining <= 7 && (
+          <div style={{
+            margin: "8px 12px 0", padding: "10px 14px", borderRadius: 12,
+            background: premExpiry.daysRemaining === 0
+              ? "linear-gradient(135deg,rgba(239,68,68,.15),rgba(239,68,68,.05))"
+              : "linear-gradient(135deg,rgba(250,204,21,.12),rgba(250,204,21,.04))",
+            border: premExpiry.daysRemaining === 0
+              ? "1.5px solid rgba(239,68,68,.35)"
+              : "1.5px solid rgba(250,204,21,.3)",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 18 }}>{premExpiry.daysRemaining === 0 ? "⏰" : "⚠️"}</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>
+                  {premExpiry.daysRemaining === 0
+                    ? "Tu suscripción Premium ha vencido"
+                    : `Tu suscripción Premium vence en ${premExpiry.daysRemaining} día${premExpiry.daysRemaining === 1 ? "" : "s"}`}
                 </div>
-              ))}
-            </div>}
-            <div style={{fontSize:10,color:"#475569",textAlign:"center"}}>
-              Sorteo: {resultadoControl.turno} del {resultadoControl.fecha}
+                <div style={{ fontSize: 11, color: "var(--dim)", marginTop: 2 }}>
+                  {premExpiry.daysRemaining === 0
+                    ? "Renová ahora para seguir accediendo a análisis de 3 y 4 cifras."
+                    : "Renová antes del vencimiento para mantener el acceso."}
+                </div>
+              </div>
             </div>
-          </>}
-        </div>}
-        {er&&<div className="eb">Error: {er}</div>}
-        {!dn&&!ld&&<div className="ht">👆 Seleccioná el sorteo de arriba y apretá<br/><strong>⚡ Generar Predicción Ahora</strong><br/><span style={{fontSize:11,color:"#475569"}}>Motor estadístico con datos reales actualizados</span></div>}
-        {ld&&<div className="ld-box"><div className="sp"/><div>Ejecutando motor...</div></div>}
-        {dn&&!ld&&(<>
-          <div style={{background:"rgba(255,45,85,.06)",border:"1px solid rgba(255,45,85,.18)",borderRadius:10,padding:"9px 14px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-            <div style={{fontSize:12,color:"#ff6b81",fontWeight:700}}>Para: <span style={{color:"#fff"}}>{proximoSorteo(so)}</span></div>
-            <button onClick={copiar} style={{padding:"5px 12px",background:"rgba(255,45,85,.1)",border:"1px solid rgba(255,45,85,.25)",borderRadius:8,color:"#ff6b81",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Copiar</button>
+            <a href={WA} target="_blank" rel="noopener noreferrer"
+              style={{
+                padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700,
+                background: premExpiry.daysRemaining === 0 ? "#ef4444" : "#eab308",
+                color: premExpiry.daysRemaining === 0 ? "#fff" : "#000",
+                textDecoration: "none", whiteSpace: "nowrap",
+                boxShadow: premExpiry.daysRemaining === 0 ? "0 4px 12px rgba(239,68,68,.3)" : "0 4px 12px rgba(250,204,21,.3)"
+              }}
+            >
+              {premExpiry.daysRemaining === 0 ? "Renovar ahora →" : "Renovar Premium →"}
+            </a>
           </div>
-          {aiInsight&&<div style={{background:"rgba(32,213,236,.05)",border:"1px solid rgba(32,213,236,.18)",borderRadius:12,padding:"12px 14px",marginBottom:14,display:"flex",gap:10,alignItems:"flex-start"}}>
-            <div style={{fontSize:20,flexShrink:0}}>🤖</div>
-            <div>
-              <div style={{fontSize:10,fontWeight:800,color:"#20d5ec",marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Analisis IA</div>
-              <div style={{fontSize:12,color:"#e2e8f0",lineHeight:1.7}}>{aiInsight}</div>
-            </div>
-          </div>}
-                    <div className="tbs">
-            <button className={"tb tb-pred"+(tab==="pred"?" on":"")} onClick={()=>setTab("pred")}><span className="tb-ico">🎯</span><span className="tb-lbl">Predicc.</span></button>
-            <button className={"tb tb-rdbl"+(tab==="rdbl"?" on":"")} onClick={()=>setTab("rdbl")}><span className="tb-ico">🎲</span><span className="tb-lbl">Redoblona</span></button>
-            <button className={"tb tb-freq"+(tab==="freq"?" on":"")} onClick={()=>setTab("freq")}><span className="tb-ico">🔥</span><span className="tb-lbl">Frecuencias</span></button>
-            <button className={"tb tb-mis"+(tab==="mis"?" on":"")} onClick={()=>setTab("mis")}><span className="tb-ico">📋</span><span className="tb-lbl">Mis preds</span></button>
+        )}
+        <div className="wr">
+          <div className="hero">
+            <h1>Quiniela IA <span onClick={() => setShowHowItWorks(true)} style={{cursor:"pointer",fontSize:14}}>ℹ️</span></h1>
+                <p>Análisis estadístico con 30 factores + Machine Learning. Datos oficiales actualizados.</p>
           </div>
-          {tab==="pred"&&(<>
-            <div className="sec">Motor estadistico avanzado</div>
-            <div className="dtabs">
-              <button className={"dk dk-2"+(dg===2?" on":"")} onClick={()=>setDg(2)}>2 cifras</button>
-              <button className={"dk dk-3"+(dg===3?" on":"")} onClick={()=>setDg(3)}><span className="pbdg">PRO</span>3 cifras</button>
-              <button className={"dk dk-4"+(dg===4?" on":"")} onClick={()=>setDg(4)}><span className="pbdg">PRO</span>4 cifras</button>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 8, textAlign: "center" }}>🎯 Elegí el sorteo que querés analizar:</div>
+          <div className="sorteo-btns">
+            {SORTEOS.map((s) => (
+              <button key={s} className={"sb" + (so === s ? " on" : "")} onClick={() => { sound.pop(); setSo(s); setDt(null); setDn(false); setEr(""); }}>
+                <span>{s === "Vespertina" ? "Vesp" : s === "Primera" ? "1era" : s === "Matutina" ? "Mat" : s === "Nocturna" ? "Noct" : s}</span>
+                <span className="sh">{HORAS[s]}</span>
+                {confianzaTurnos[s] != null && <span className="sc">{confianzaTurnos[s]}%</span>}
+              </button>
+            ))}
+          </div>
+          <div className="gen-row">
+            <button className="btn3d btn-gen" onClick={() => { sound.whoosh(); gen(); }} disabled={ld} style={{ opacity: ld ? 0.6 : 1, flex: 1 }}>
+              {ld ? "⏳ Analizando datos..." : "⚡ Generar Análisis Ahora"}
+            </button>
+            <AutoPilotToggle userId={userId || ""} userRole={userRole} premiumUntil={premExpiry.premium_until} compact />
+          </div>
+          <div style={{ display: "grid", gap: 10, margin: "16px 0 18px" }}>
+            <button
+              onClick={() => {
+                setTab("mis");
+                cargarMisPreds(tkRef.current);
+              }}
+              style={{
+                width: "100%",
+                padding: "14px 20px",
+                borderRadius: 13,
+                border: "1.5px solid rgba(34,197,94,.5)",
+                background: "linear-gradient(135deg,rgba(34,197,94,.18),rgba(34,197,94,.08))",
+                color: "#15803d",
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: "pointer",
+                fontFamily: "'Inter',sans-serif",
+                boxShadow: "0 6px 0 rgba(0,100,50,.25),0 8px 20px rgba(34,197,94,.2)",
+                transition: ".12s",
+              }}
+            >
+              📋 Mis Análisis
+            </button>
+            <button
+              onClick={() => setShowCalc(!showCalc)}
+              style={{
+                width: "100%",
+                padding: "14px 20px",
+                borderRadius: 13,
+                border: "1.5px solid rgba(180,83,9,.5)",
+                background: "linear-gradient(135deg,rgba(180,83,9,.16),rgba(180,83,9,.06))",
+                color: "#92400e",
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: "pointer",
+                fontFamily: "'Inter',sans-serif",
+                boxShadow: "0 6px 0 rgba(120,53,15,.2),0 8px 20px rgba(180,83,9,.18)",
+                transition: ".12s",
+              }}
+            >
+              {showCalc ? "▲ Cerrar" : "📊 Datos Históricos"}
+            </button>
+            <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
+          </div>
+          {showCalc && (
+            <div style={{ marginTop: 12, padding: 14, borderRadius: 12, background: "rgba(139,92,246,.06)", border: "1px solid rgba(139,92,246,.15)" }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: "#a78bfa", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>📊 Tu precisión personal</div>
+              {misSummary.totalSaved > 0 ? (
+                <>
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                    <span style={{ fontSize: 20, fontWeight: 900, color: "#a855f7" }}>{misSummary.successRate}%</span>
+                    <span style={{ fontSize: 11, color: "var(--dim)" }}>coincidencias en {misSummary.totalSaved} análisis · {misSummary.totalAciertos} números coincidentes</span>
+                  </div>
+                  {misSummary.thisWeek > 0 && (
+                    <div style={{ fontSize: 10, color: "var(--dim)", marginTop: 4 }}>Esta semana: {misSummary.thisWeek} análisis · {misSummary.thisWeekHits} con coincidencias ({misSummary.thisWeekRate}%)</div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: 12, color: "var(--dim)" }}>Guardá análisis para ver tu precisión personal.</div>
+              )}
             </div>
-            <div className={dg>2&&!pr?"lk":""}>
-              <div className="g5">
-                {cur.slice(0,dg===2?10:5).map((p:any,i:number)=>(
-                  <div className="cd" key={i}>
-                    <div className="cr2">#{i+1}</div>
-                    <div className="cn">{p.numero}</div>
-                    <div className="cs">{p.significado}</div>
+          )}
+          {showCalc && backtestData && (
+            <div style={{ marginTop: 10, padding: 12, borderRadius: 10, background: "rgba(34,197,94,.08)", border: "1px solid rgba(34,197,94,.2)" }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: "#22c55e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>📈 Backtesting {so} (Walk-forward)</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+                <div style={{textAlign:"center",padding:"6px",background:"rgba(0,0,0,.2)",borderRadius:8}}>
+                  <div style={{fontSize:18,fontWeight:900,color:"#a855f7"}}>{backtestData.metrics_top_1?.hitAt1?.toFixed(1) || 0}%</div>
+                  <div style={{fontSize:9,color:"#94a3b8"}}>Hit@1 (Cabeza)</div>
+                </div>
+                <div style={{textAlign:"center",padding:"6px",background:"rgba(0,0,0,.2)",borderRadius:8}}>
+                  <div style={{fontSize:18,fontWeight:900,color:"#6366f1"}}>{backtestData.metrics_top_5?.hitAt5?.toFixed(1) || 0}%</div>
+                  <div style={{fontSize:9,color:"#94a3b8"}}>Hit@5 (Top 5)</div>
+                </div>
+                <div style={{textAlign:"center",padding:"6px",background:"rgba(0,0,0,.2)",borderRadius:8}}>
+                  <div style={{fontSize:18,fontWeight:900,color:"#ec4899"}}>{backtestData.metrics_top_10?.hitAt10?.toFixed(1) || 0}%</div>
+                  <div style={{fontSize:9,color:"#94a3b8"}}>Hit@10 (Top 10)</div>
+                </div>
+              </div>
+              <div style={{fontSize:9,color:"#64748b",marginTop:6,textAlign:"center"}}>
+                {backtestData.metrics_top_10?.totalDraws || 0} sorteos · Promedio {backtestData.metrics_top_10?.avgHitsPerDraw || 0} coincidencias/sorteo
+              </div>
+            </div>
+          )}
+          {resultadoControl && (
+            <div
+              style={{
+                background: resultadoControl.error
+                  ? "rgba(239,68,68,.07)"
+                  : resultadoControl.aciertos?.length > 0
+                  ? "rgba(34,197,94,.08)"
+                  : "rgba(255,255,255,.03)",
+                border: "1.5px solid " + (resultadoControl.error ? "rgba(239,68,68,.2)" : resultadoControl.aciertos?.length > 0 ? "rgba(34,197,94,.3)" : "rgba(255,255,255,.08)"),
+                borderRadius: 14,
+                padding: "16px",
+                marginBottom: 12,
+              }}
+            >
+              {resultadoControl.error ? (
+                <div style={{ fontSize: 13, color: "#fca5a5", textAlign: "center" }}>{resultadoControl.error}</div>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      color: resultadoControl.aciertos?.length > 0 ? "#86efac" : "#94a3b8",
+                      marginBottom: 10,
+                      textAlign: "center",
+                    }}
+                  >
+                    {resultadoControl.aciertos?.length > 0 ? "📊 Coincidencia: " + resultadoControl.aciertos.length + " número(s)" : "Sin coincidencias esta vez"}
+                  </div>
+                  {resultadoControl.aciertos?.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginBottom: 10 }}>
+                      {resultadoControl.aciertos.map((a: any, i: number) => (
+                        <div
+                          key={i}
+                          style={{ background: "rgba(34,197,94,.15)", border: "1px solid rgba(34,197,94,.4)", borderRadius: 10, padding: "6px 12px", textAlign: "center" }}
+                        >
+                          <div style={{ fontSize: 20, fontWeight: 900, color: "#86efac" }}>{a.numero}</div>
+                          <div style={{ fontSize: 9, color: "#4ade80" }}>Puesto {a.puesto}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 10, color: "#475569", textAlign: "center" }}>
+                    Sorteo: {resultadoControl.turno} del {resultadoControl.fecha}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {pr && premExpiry.premium_until && (
+            <ExpiryBanner premiumUntil={premExpiry.premium_until} />
+          )}
+          {er && (
+            <div className="eb" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+              <span>Error: {er}</span>
+              <button onClick={() => { gen(); }} style={{ padding: "8px 16px", borderRadius: 8, background: "#ff3366", color: "#fff", border: "none", fontWeight: 700, cursor: "pointer" }}>
+                Reintentar
+              </button>
+            </div>
+          )}
+          {!dn && !ld && (
+            <div className="ht">
+              👆 Seleccioná el sorteo de arriba y apretá
+              <br />
+              <strong>⚡ Generar Análisis Ahora</strong>
+              <br />
+              <span style={{ fontSize: 11, color: "#475569" }}>Motor estadístico con datos reales actualizados</span>
+            </div>
+          )}
+          {ld && (
+            <div style={{padding:"16px 0"}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:16}}>
+                {[1,2,3,4,5].map(i=>(
+                  <div key={i} style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.06)",borderRadius:14,padding:14,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:6}}>
+                    <div className="skeleton" style={{width:20,height:12,borderRadius:4}}/>
+                    <div className="skeleton" style={{width:40,height:32,borderRadius:8}}/>
+                    <div className="skeleton" style={{width:50,height:10,borderRadius:4}}/>
+                    <div className="skeleton" style={{width:"80%",height:4,borderRadius:2}}/>
                   </div>
                 ))}
               </div>
-              {dg>2&&!pr&&(
-                <div className="lo">
-                  <div style={{fontSize:32}}>🔐</div>
-                  <h3>Predicciones {dg} digitos</h3>
-                  <p>Suscribite al Premium para acceder.</p>
-                  <a href={WA} target="_blank" rel="noopener noreferrer" className="uc">Activar por WhatsApp</a>
-                </div>
-              )}
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+                <div className="sp" />
+                <div style={{fontSize:12,color:"#94a3b8",fontWeight:600}}>Analizando datos históricos...</div>
+                <div style={{fontSize:10,color:"#475569"}}>15 motores · 30 factores · Monte Carlo</div>
+              </div>
             </div>
-            <div className="ibox"><strong>Motor 6 factores:</strong> Frecuencia + Atraso + Ciclos + Monte Carlo + Dia semana + Tendencia. Datos reales actualizados automaticamente.</div>
-            
+          )}
+          {dn && !ld && (
+            <>
+              <div
+                style={{
+                  background: "rgba(255,45,85,.06)",
+                  border: "1px solid rgba(255,45,85,.18)",
+                  borderRadius: 10,
+                  padding: "9px 14px",
+                  marginBottom: 14,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 8,
+                }}
+              >
+                <div style={{ fontSize: 12, color: "#ff6b81", fontWeight: 700, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    Para: <span style={{ color: "#fff" }}>{proximoSorteo(so)}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={copiar}
+                  style={{
+                    padding: "5px 12px",
+                    background: "rgba(255,45,85,.1)",
+                    border: "1px solid rgba(255,45,85,.25)",
+                    borderRadius: 8,
+                    color: "#ff6b81",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Copiar
+                </button>
+              </div>
 
-          <div style={{display:"flex",gap:8,marginTop:10}}>
-              <button className="btn3d btn-save" style={{marginBottom:0}} onClick={guardarPrediccion} disabled={guardando}>{guardando?"Guardando...":guardadoOk?"Guardado!":"Guardar para comparar"}</button>
-              <button className="btn3d btn-copy" style={{marginBottom:0}} onClick={copiar}>Copiar</button>
-            </div>
-          </>)}
-          {tab==="rdbl"&&(<>
-            <div className="sec">Analisis de redoblona</div>
-            <div style={{minHeight:160}}>
-              {pr?(<>
-                {rdbl&&(<div className="rdbl">
-                  <div style={{fontSize:12,color:"#25F4EE",marginBottom:4,fontWeight:700}}>Par optimo recomendado</div>
-                  <div className="rpair">{rdbl}</div>
-                  <div style={{fontSize:11,color:"#64748b"}}>Apostale a que ambos aparecen en el mismo sorteo.</div>
-                </div>)}
-                {r5.length>0&&(<div className="rg">{r5.map((r:any,i:number)=>(<div className="rc" key={i}><div className="rn">{r.numero}</div><div className="rk">{r.significado}</div><div className="rv">{r.veces}x redoblona</div></div>))}</div>)}
-              </>):(
-                <div style={{padding:30,background:"rgba(6,8,15,.95)",backdropFilter:"blur(8px)",borderRadius:14,border:"1px solid rgba(37,244,238,.2)",display:"flex",flexDirection:"column",alignItems:"center",gap:10,textAlign:"center"}}>
-                  <div style={{fontSize:36}}>🔐</div>
-                  <div style={{fontWeight:800,color:"#fff",fontSize:16}}>Redoblona Premium</div>
-                  <div style={{fontSize:12,color:"#94a3b8",maxWidth:200,lineHeight:1.6}}>El par optimo de numeros para redoblona es exclusivo para usuarios Premium.</div>
-                  <a href={WA} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:"#94a3b8",textDecoration:"none"}}>Transferir a quiniela.ia o enviar comprobante por WhatsApp</a>
-                  <div style={{fontSize:10,color:"#475569"}}>Alias de transferencia: quiniela.ia — $10.000</div>
+              {guestMode && (
+                <div style={{
+                  background: "linear-gradient(135deg,rgba(99,102,241,.12),rgba(139,92,246,.08))",
+                  border: "1.5px solid rgba(99,102,241,.3)",
+                  borderRadius: 14, padding: "12px 16px", marginBottom: 12,
+                  display: "flex", alignItems: "center", gap: 10
+                }}>
+                  <div style={{ fontSize: 20 }}>👤</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: "#c4b5fd" }}>Modo invitado — Solo 2 cifras</div>
+                    <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>Creá una cuenta gratis para guardar análisis y ver historial</div>
+                  </div>
+                  <a href="/login" style={{
+                    background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+                    color: "#fff", fontSize: 11, fontWeight: 800, padding: "8px 14px",
+                    borderRadius: 10, textDecoration: "none", whiteSpace: "nowrap"
+                  }}>Crear cuenta</a>
                 </div>
               )}
-            </div>
-          </>)}
-          {tab==="freq"&&(<>
-            <div className="sec">Mapa de calor 00-99</div>
-            <div className="hm">
-              {hm.map((c:any)=>{const{bg,bd}=hc(c.f);return(
-                <div key={c.n} className="hc" style={{background:bg,borderColor:bd}} title={String(c.n).padStart(2,"0")+" - "+c.s+" - "+c.f+"x"}>
-                  <span className="hn">{String(c.n).padStart(2,"0")}</span>
-                  <span className="hv">{c.f}</span>
-                </div>
-              )})}
-            </div>
-          </>)}
-          {tab==="mis"&&(<>
-            <div className="sec">Mis predicciones guardadas</div>
-            {misPreds.length===0?(<div style={{textAlign:"center",padding:"30px",color:"#64748b",fontSize:12}}>Aun no guardaste predicciones.<br/>Genera una prediccion y apreta Guardar para comparar.</div>):(
-              misPreds.map((p:any,i:number)=>(
-                <div key={i} style={{background:"rgba(255,255,255,.02)",border:"1px solid rgba(255,255,255,.06)",borderRadius:12,padding:12,marginBottom:10}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-                    <div style={{fontSize:12,color:"#ff6b81",fontWeight:700}}>{p.turno} — {new Date(p.date).toLocaleDateString("es-AR")}</div>
-                    {p.resultado?<div style={{fontSize:11,fontWeight:700,color:p.acerto?"#86efac":"#475569"}}>{p.acerto?"Acertaste "+p.aciertos.length+"!":"Sin aciertos"}</div>:<div style={{fontSize:10,color:"#475569"}}>Pendiente</div>}
+
+              <div className="tbs">
+                <button className={"tb tb-pred" + (tab === "pred" ? " on" : "")} onClick={() => { sound.pop(); setTab("pred"); }}>
+                  <span className="tb-ico">🎯</span>
+                  <span className="tb-lbl">Análisis</span>
+                </button>
+                <button className={"tb tb-rdbl" + (tab === "rdbl" ? " on" : "")} onClick={() => { sound.pop(); setTab("rdbl"); }}>
+                  <span className="tb-ico">📊</span>
+                  <span className="tb-lbl">Correlación</span>
+                </button>
+                <button className={"tb tb-freq" + (tab === "freq" ? " on" : "")} onClick={() => { sound.pop(); setTab("freq"); }}>
+                  <span className="tb-ico">🔥</span>
+                  <span className="tb-lbl">Frecuencias</span>
+                </button>
+                <button className={"tb tb-trend" + (tab === "trend" ? " on" : "")} onClick={() => { sound.pop(); setTab("trend"); }}>
+                  <span className="tb-ico">📈</span>
+                  <span className="tb-lbl">Tendencias</span>
+                </button>
+                <button className={"tb tb-mis" + (tab === "mis" ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para guardar y ver tus análisis", "info"); return; } sound.pop(); setTab("mis"); }}>
+                  <span className="tb-ico">{guestMode ? "🔒" : "📋"}</span>
+                  <span className="tb-lbl">Mis Análisis</span>
+                </button>
+                <button className={"tb tb-acc" + (tab === "acc" ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para ver tu precisión", "info"); return; } sound.pop(); setTab("acc"); }}>
+                  <span className="tb-ico">{guestMode ? "🔒" : "🎯"}</span>
+                  <span className="tb-lbl">Precisión</span>
+                </button>
+                <button className={"tb" + (tab === "hist" ? " on" : "")} onClick={() => setTab("hist")} style={tab === "hist" ? { background: "linear-gradient(135deg,#3b82f6,#2563eb)", color: "#fff", boxShadow: "0 4px 12px rgba(59,130,246,0.4)" } : {}}>
+                  <span className="tb-ico">📜</span>
+                  <span className="tb-lbl">Historial</span>
+                </button>
+              </div>
+
+              <div style={{background:"rgba(99,102,241,0.06)",border:"1px solid rgba(99,102,241,0.12)",borderRadius:8,padding:"6px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
+                <span style={{fontSize:12}}>ℹ️</span>
+                <span style={{fontSize:10,color:"#94a3b8",lineHeight:1.4}}>
+                  <strong style={{color:"#a5b4fc"}}>Análisis estadístico</strong>, no predicción garantizada. Los sorteos son aleatorios e independientes.
+                </span>
+              </div>
+
+              {tab === "pred" && (
+                <>
+                  <div className="sec">Motor de 30 factores + Bayesian uncertainty</div>
+                  <div className="dtabs">
+                    <button className={"dk dk-2" + (dg === 2 ? " on" : "")} onClick={() => setDg(2)}>
+                      2 cifras
+                    </button>
+                    <button className={"dk dk-3" + (dg === 3 ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para acceder a 3 cifras", "info"); return; } setDg(3) }}>
+                      <span className="pbdg">{guestMode ? "🔒" : "PRO"}</span>3 cifras
+                    </button>
+                    <button className={"dk dk-4" + (dg === 4 ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para acceder a 4 cifras", "info"); return; } setDg(4) }}>
+                      <span className="pbdg">{guestMode ? "🔒" : "PRO"}</span>4 cifras
+                    </button>
                   </div>
-                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                    {p.numeros.map((n:string,j:number)=>{const ac=p.aciertos?.some((a:any)=>a.numero===n);return<span key={j} style={{padding:"2px 6px",borderRadius:4,fontSize:10,fontWeight:700,background:ac?"rgba(134,239,172,.2)":"rgba(255,255,255,.05)",color:ac?"#86efac":"#64748b",border:ac?"1px solid rgba(134,239,172,.4)":"1px solid rgba(255,255,255,.07)"}}>{n}</span>})}
+                  <div className={dg > 2 && !pr ? "lk" : ""}>
+                    <div style={{ position: "relative" }}>
+                      <div
+                        className="g5"
+                        style={(guestMode || (userRole === "free" && dg > 2)) ? { filter: "blur(8px)", userSelect: "none", pointerEvents: "none" } : {}}
+                      >
+                        {cur.slice(0, 10).map((p, i) => {
+                          const r = ranking?.find((r) => r.numero === p.numero);
+                          const isCabeza = i === 0;
+                          const post = r?.bayesianPosterior ? (Number(r.bayesianPosterior) * 100).toFixed(2) + "%" : "";
+                          return (
+                          <div className="cd" key={i} onClick={() => setNumDetail(r || p)} style={{cursor:"pointer", position:"relative"}}>
+                            {isCabeza && <span className="cabeza-badge">CABEZA</span>}
+                            <div className="cr2">#{i + 1}</div>
+                            <div className="ce">{getEmoji(p.numero)}</div>
+                            <div className="cn">{p.numero}</div>
+                            <div className="cs">{getNombreQuiniela(p.numero)}</div>
+                            <div style={{
+                              marginTop:6,height:3,borderRadius:2,
+                              background:"rgba(255,255,255,.06)",
+                              overflow:"hidden"
+                            }}>
+                              <div style={{
+                                height:"100%",borderRadius:2,
+                                width: r?.score ? Math.min(100, (r.score || 0) * 100) + "%" : "0%",
+                                background:"linear-gradient(90deg,#a855f7,#ec4899)"
+                              }}/>
+                            </div>
+                            <div style={{fontSize:9,color:"#a78bfa",marginTop:3,fontWeight:600}}>
+                              {r?.score ? (r.score * 100).toFixed(0) + "%" : ""}
+                            </div>
+                            {post && <div style={{fontSize:7,color:"#22c55e",marginTop:2,fontWeight:700}}>Post: {post}</div>}
+                          </div>
+                        )})}
+                      </div>
+                      {userRole === "free" && dg > 2 && (
+                        <div
+                          style={{
+                            position: "absolute", inset: 0,
+                            display: "flex", flexDirection: "column",
+                            alignItems: "center", justifyContent: "center",
+                            background: "rgba(0,0,0,0.4)", borderRadius: 14,
+                            cursor: "pointer", zIndex: 10
+                          }}
+                          onClick={() => guestMode ? router.push("/login") : setShowPaywall(true)}
+                        >
+                          <div style={{ fontSize: 32, marginBottom: 8 }}>{guestMode ? "👤" : "🧠"}</div>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginBottom: 4 }}>{guestMode ? "Creá una cuenta para acceder" : "La IA ya procesó el análisis completo"}</div>
+                          <div style={{ fontSize: 12, color: "#94a3b8", marginBottom: 12 }}>{guestMode ? "Es gratis y toma 30 segundos" : "Desbloqueá el análisis completo con Machine Learning"}</div>
+                          <div style={{
+                            background: guestMode ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "linear-gradient(135deg,#a855f7,#7c3aed)",
+                            color: "#fff", fontSize: 13, fontWeight: 800,
+                            padding: "10px 24px", borderRadius: 12,
+                            boxShadow: guestMode ? "0 4px 16px rgba(99,102,241,0.4)" : "0 4px 16px rgba(168,85,247,0.4)"
+                          }}>
+                            {guestMode ? "✨ Crear cuenta gratis" : "🔓 Desbloquear Análisis"}
+                          </div>
+                          <div style={{ fontSize: 10, color: "#64748b", marginTop: 8 }}>Desde $3.500 ARS · Sin suscripción</div>
+                        </div>
+                      )}
+                    </div>
+                    {dg > 2 && !pr && (
+                      <div className="lo">
+                        <div style={{ fontSize: 32 }}>🔐</div>
+                        <h3>Análisis {dg} dígitos</h3>
+                        <p>El mismo motor de 30 factores predice números de {dg} cifras. Accedé con Premium.</p>
+                        <div style={{fontSize:10,color:"#4ade80",marginTop:6}}>✓ Sin datos de tarjeta</div>
+                        <div style={{fontSize:10,color:"#4ade80"}}>✓ Paga desde tu billetera virtual</div>
+                        <div style={{fontSize:10,color:"#4ade80"}}>✓ Activación inmediata!</div>
+                        <a href={WA} target="_blank" rel="noopener noreferrer" className="uc">
+                          Activar Premium
+                        </a>
+                      </div>
+                    )}
+</div>
+
+                  {rdbl && tab === "pred" && (pr || userRole === "admin") && (
+                    <div className="rdbl" style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 12, color: "#25F4EE", marginBottom: 4, fontWeight: 700 }}>🎯 Par óptimo (Correlación)</div>
+                      <div className="rpair">{rdbl}</div>
+                      <div style={{ fontSize: 11, color: "#64748b" }}>Analizá la correlación entre ambos números en el mismo sorteo.</div>
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    {guestMode ? (
+                      <a href="/login" className="btn3d btn-save" style={{ marginBottom: 0, textDecoration: "none", textAlign: "center" }} onClick={() => sound.click()}>
+                        🔐 Crear cuenta gratis
+                      </a>
+                    ) : (
+                      <button className="btn3d btn-save" style={{ marginBottom: 0 }} onClick={() => { sound.click(); guardarPrediccion(); }} disabled={guardando}>
+                        {guardando ? "Guardando..." : guardadoOk ? "Guardado!" : "Guardar para comparar"}
+                      </button>
+                    )}
+                    <button className="btn3d btn-copy" style={{ marginBottom: 0 }} onClick={() => { sound.click(); copiar(); }}>
+                      Copiar
+                    </button>
                   </div>
-                  {p.aciertos?.length>0&&<div style={{fontSize:10,color:"#86efac",marginTop:6}}>{p.aciertos.map((a:any)=>a.numero+" en puesto "+a.puesto).join(" | ")}</div>}
+                </>
+              )}
+              {tab === "rdbl" && (
+                <>
+                  <div className="sec">Análisis de correlación</div>
+                  <div style={{ minHeight: 160 }}>
+                    {pr ? (
+                      <>
+                        {rdbl && (
+                          <div className="rdbl">
+                            <div style={{ fontSize: 12, color: "#25F4EE", marginBottom: 4, fontWeight: 700 }}>Par optimo recomendado</div>
+                            <div className="rpair">{rdbl}</div>
+                            <div style={{ fontSize: 11, color: "#64748b" }}>Analizá la correlación entre ambos números en el mismo sorteo.</div>
+                          </div>
+                        )}
+                        {dt?.numeros?.slice(0, 5).map((r, i) => (
+                          <div className="rc" key={i}>
+                            <div className="rn">{r.numero}</div>
+                            <div className="rk">{r.significado || ""}</div>
+                            <div className="rv">Score {r.score?.toFixed(2) || "0"}%</div>
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      <div
+                        style={{
+                          padding: 30,
+                          background: "rgba(6,8,15,.95)",
+                          backdropFilter: "blur(8px)",
+                          borderRadius: 14,
+                          border: "1px solid rgba(37,244,238,.2)",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: 10,
+                          textAlign: "center",
+                        }}
+                      >
+                        <div style={{ fontSize: 36 }}>🔐</div>
+                        <div style={{ fontWeight: 800, color: "#fff", fontSize: 16 }}>Correlación Premium</div>
+                        <div style={{ fontSize: 12, color: "#94a3b8", maxWidth: 200, lineHeight: 1.6 }}>El par óptimo se calcula con análisis de co-ocurrencia y correlación cross-turno. Exclusivo Premium.</div>
+                        <div style={{fontSize:10,color:"#4ade80",marginTop:6}}>✓ Sin datos de tarjeta</div>
+                        <div style={{fontSize:10,color:"#4ade80"}}>✓ Paga desde tu billetera virtual</div>
+                        <div style={{fontSize:10,color:"#4ade80"}}>✓ Activación inmediata!</div>
+                        <a href={WA} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "#94a3b8", textDecoration: "none" }}>
+                          Activar Premium
+                        </a>
+                        <div style={{ fontSize: 10, color: "#475569" }}>Alias: quinielaia — $10.000</div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+              {tab === "freq" && (
+                <>
+                  <div className="sec">Mapa de calor - Frecuencia</div>
+                  {dt?.heatmap && dt.heatmap.length > 0 ? (
+                    <div className="heatmap-grid">
+                      {dt?.heatmap?.map((h, i) => {
+                        const intensity = Math.min(1, h.f / 10);
+                        return (
+                          <div
+                            key={i}
+                            className="heatmap-cell"
+                            style={{
+                              backgroundColor: `rgba(254, 44, 85, ${intensity})`,
+                              opacity: h.f > 0 ? 1 : 0.3,
+                            }}
+                            title={`${h.n.toString().padStart(2, '0')} - ${h.s} (Frecuencia: ${h.f})`}
+                          >
+                            <span className="hm-num">{h.n}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ padding: 20, textAlign: "center", color: "#64748b" }}>
+                      Cargando mapa de calor...
+                    </div>
+                    )}
+                    
+                    {dt?.heatmap && dt.heatmap.length > 0 && (
+                      <div className="heatmap-stats">
+                        <div style={{fontSize:10,fontWeight:800,color:"#22c55e",marginBottom:6}}>📈 Frecuencia acumulada (top 100)</div>
+                        <div className="heatmap-stat-row">
+                          <span className="heatmap-stat-label">Top 10 (%):</span>
+                          <span className="heatmap-stat-value">
+                            {((dt.heatmap.slice(0,10).reduce((a,b)=>a+(b.f||0),0) / dt.heatmap.reduce((a,b)=>a+(b.f||0),1)) * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="heatmap-stat-row">
+                          <span className="heatmap-stat-label">Top 20 (%):</span>
+                          <span className="heatmap-stat-value">
+                            {((dt.heatmap.slice(0,20).reduce((a,b)=>a+(b.f||0),0) / dt.heatmap.reduce((a,b)=>a+(b.f||0),1)) * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="heatmap-stat-row">
+                          <span className="heatmap-stat-label">Sorteos analizados:</span>
+                          <span className="heatmap-stat-value">{dt.totalSorteos || dt?.numeros?.length || 0}</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                  </>
+              )}
+              {tab === "trend" && (
+                <>
+                  <div className="sec">Análisis de Tendencias - Evolución en el tiempo</div>
+                  <div className="trend-chart">
+                    <div className="trend-info">
+                      <div className="trend-info-title">Top Números con Mayor Tendencia</div>
+                      <div className="trend-info-desc">Basado en {dt?.totalSorteos || 121} sorteos reales</div>
+                    </div>
+                    
+                    <div className="trend-bars">
+                      {dt?.numeros?.slice(0, 10).map((n, i) => (
+                        <div key={i} className="trend-bar-row">
+                          <div className="trend-bar-label">{n.numero}</div>
+                          <div className="trend-bar-track">
+                            <div 
+                              className="trend-bar-fill" 
+                              style={{ width: `${Math.min(100, (n.score || 0) * 100)}%` }}
+                            />
+                          </div>
+                          <div className="trend-bar-value">{(n.score || 0).toFixed(3)}</div>
+                          <div className="trend-bar-meaning">{n.significado || ""}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="trend-stats">
+                      <div
+                        className="trend-stat-card"
+                        style={userRole === "free" ? { filter: "blur(6px)", userSelect: "none", position: "relative" } : {}}
+                      >
+                        <div className="trend-stat-value">{dt?.numeros_2?.slice(0, 5).join("-")}</div>
+                        <div className="trend-stat-label">Top 5 cifras</div>
+                      {userRole === "free" && dg > 2 && (
+                          <div
+                            style={{
+                              position: "absolute", inset: 0,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              background: "rgba(0,0,0,0.3)", borderRadius: 10, cursor: "pointer"
+                            }}
+                            onClick={() => setShowPaywall(true)}
+                          >
+                            <span style={{ fontSize: 11, fontWeight: 700, color: "#a855f7" }}>PRO 🔒</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="trend-stat-card">
+                        <div className="trend-stat-value">{dt?.stats?.numeroMasFrecuente?.numero}</div>
+                        <div className="trend-stat-label">Más frecuente</div>
+                      </div>
+                      <div className="trend-stat-card">
+                        <div className="trend-stat-value">{dt?.stats?.numeroMayorRetraso?.numero}</div>
+                        <div className="trend-stat-label">Mayor retraso</div>
+                      </div>
+                    </div>
+
+                    <div className="trend-metric">
+                      <div className="trend-metric-title">Indicador de Tendencia Global</div>
+                      <div className="trend-metric-value">
+                        {dt?.numeros?.[0]?.tendencia > 0 ? "📈 Alcista" : "📉 Bajista"}
+                      </div>
+                      <div className="trend-metric-desc">
+                        Basado en la diferencia entre frecuencia reciente vs histórica
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+          {tab === "mis" && (
+            <>
+              <div className="sec">Mis análisis guardados
+                <button 
+                  onClick={() => tkRef.current && cargarMisPreds(tkRef.current)}
+                  style={{
+                    marginLeft: 10,
+                    padding: "4px 12px",
+                    fontSize: 10,
+                    background: "#a855f7",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 6,
+                    cursor: "pointer"
+                  }}
+                  disabled={misLoading}
+                >
+                  {misLoading ? "Actualizando..." : "🔄 Actualizar"}
+                </button>
+              </div>
+              {misLoading ? (
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  <div className="saved-summary">
+                    {[1,2,3,4].map(i=>(
+                      <div key={i} className="skeleton" style={{height:64,borderRadius:16}}/>
+                    ))}
+                  </div>
+                  {[1,2,3].map(i=>(
+                    <div key={i} className="skeleton" style={{height:80,borderRadius:14}}/>
+                  ))}
                 </div>
-              ))
-            )}
-          </>)}
-        </>)}
-        <div className="shr">
-          <div className="shr-t">Compartir Quiniela IA</div>
-          
-          <div className="shr-b">
-            <button className="sbt wa" onClick={()=>share("whatsapp")}>WhatsApp</button>
-            <button className="sbt fb" onClick={()=>share("facebook")}>Facebook</button>
-            <button className="sbt tw" onClick={()=>share("twitter")}>X</button>
-            <button className="sbt tg" onClick={()=>share("telegram")}>Telegram</button>
-            <button className="sbt cp" onClick={()=>share("copy")}>Copiar link</button>
-          </div>
-          
-        </div>
-        <div className="rev">
-          <div style={{textAlign:"center",marginBottom:14}}>
-            <h2 style={{fontSize:18,fontWeight:800,background:"linear-gradient(135deg,#ff6b81,#ff2d55)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Lo que dicen los usuarios</h2>
-            <p style={{fontSize:11,color:"#64748b",marginTop:3}}>Miles de quinieleros confian en Quiniela IA</p>
-          </div>
-          <div className="rev-o">
-            <div className="rev-tr" ref={scrollRef}>
-              {[...REVIEWS,...REVIEWS].map((r,i)=>(
-                <div className="rev-c" key={i}>
-                  <div className="rev-s">{"★".repeat(r.s)}{"☆".repeat(5-r.s)}</div>
-                  <div className="rev-t">{r.t}</div>
-                  <div className="rev-a"><strong>{r.n}</strong> · {r.c}</div>
+              ) : misPreds.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "30px", color: "#64748b", fontSize: 12 }}>
+                  Aún no guardaste análisis.<br />Generá un análisis y apretá Guardar para comparar.
                 </div>
-              ))}
+              ) : (
+                <>
+                  <div className="saved-summary">
+                    <div className="saved-summary-card">
+                      <div className="saved-summary-label">Guardadas</div>
+                      <div className="saved-summary-value">{misSummary.totalSaved}</div>
+                    </div>
+                    <div className="saved-summary-card">
+                      <div className="saved-summary-label">Con resultado</div>
+                      <div className="saved-summary-value">{misSummary.totalWithResult}</div>
+                    </div>
+                    <div className="saved-summary-card">
+                      <div className="saved-summary-label">Análisis con coincidencia</div>
+                      <div className="saved-summary-value">{misSummary.successRate}%</div>
+                    </div>
+                    <div className="saved-summary-card">
+                      <div className="saved-summary-label">Aciertos totales</div>
+                      <div className="saved-summary-value">{misSummary.totalAciertos}</div>
+                    </div>
+                  </div>
+                  <div className="saved-summary" style={{ marginBottom: 20 }}>
+                    <div className="saved-summary-card" style={{ gridColumn: "span 2" }}>
+                      <div className="saved-summary-label">Esta semana</div>
+                      <div className="saved-summary-value">{misSummary.thisWeek}</div>
+                      <div style={{fontSize:10,color:"var(--dim)"}}>análisis · {misSummary.thisWeekHits} con coincidencias ({misSummary.thisWeekRate}%)</div>
+                    </div>
+                    <div className="saved-summary-card" style={{ gridColumn: "span 2" }}>
+                      <div className="saved-summary-label">Mejor turno</div>
+                      <div className="saved-summary-value">{misSummary.bestTurno}</div>
+                      <div style={{fontSize:10,color:"var(--dim)"}}>con más coincidencias históricas</div>
+                    </div>
+                  </div>
+                  {(() => {
+                    const badges = [];
+                    if (misPreds.length >= 1) badges.push({icon:"🙌",label:"Primer análisis",color:"#4ade80"});
+                    if (misSummary.totalAciertos >= 1) badges.push({icon:"🎯",label:"Primera coincidencia",color:"#f59e0b"});
+                    if (misPreds.length >= 10) badges.push({icon:"💎",label:"10 análisis",color:"#a855f7"});
+                    if (misPreds.length >= 30) badges.push({icon:"🏆",label:"30 análisis",color:"#f472b6"});
+                    if (misSummary.totalWithHits >= 3) badges.push({icon:"🔥",label:misSummary.totalWithHits + " con coincidencias",color:"#ef4444"});
+                    if (misSummary.successRate >= 50) badges.push({icon:"⭐",label:"+50% coincidencias",color:"#f59e0b"});
+                    if (badges.length === 0) return null;
+                    return (
+                      <div style={{marginBottom:16}}>
+                        <div style={{fontSize:10,fontWeight:800,color:"var(--dim)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>🏅 Logros desbloqueados</div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                          {badges.map((b,i) => (
+                            <span key={i} style={{
+                              padding:"5px 10px",borderRadius:8,fontSize:11,fontWeight:700,
+                              background: b.color + "18",
+                              border: "1px solid " + b.color + "35",
+                              color: b.color
+                            }}>
+                              {b.icon} {b.label}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  {misPreds.map((p, i) => {
+                    const tieneAciertos = p.aciertos && p.aciertos.length > 0;
+                    const fecha = p.date || p.fecha;
+                    const fechaValida = fecha && !isNaN(Date.parse(fecha));
+                    const titulo = fechaValida ? `${p.turno} — ${new Date(fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}` : `${p.turno} — ${fecha || "Sin fecha"}`;
+                    const nums2: string[] = Array.isArray(p.numeros) ? p.numeros : (typeof p.numeros === "object" && p.numeros?.["2"] ? p.numeros["2"] : []);
+                    const nums3: string[] = Array.isArray(p.numeros_3) ? p.numeros_3 : (typeof p.numeros === "object" && p.numeros?.["3"] ? p.numeros["3"] : []);
+                    const nums4: string[] = Array.isArray(p.numeros_4) ? p.numeros_4 : (typeof p.numeros === "object" && p.numeros?.["4"] ? p.numeros["4"] : []);
+                    return (
+                      <div key={i} className={`saved-card ${tieneAciertos ? "saved-card-success" : ""}`}>
+                        <div className="saved-card-header">
+                          <div className="saved-card-title">{titulo}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>{nums2.length} nums</span>
+                            {p.resultado && p.resultado.length > 0 ? (
+                              <div className={`saved-card-status ${p.acerto ? "hit" : "miss"}`}>
+                                {p.acerto ? `📊 ${p.aciertos.length} coincidencia(s)` : "Sin coincidencias"}
+                              </div>
+                            ) : (
+                              <div className="saved-card-status miss">⏳ Esperando resultado</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="saved-numbers">
+                          {nums2.map((n: string, j: number) => {
+                            const ac = p.aciertos?.some((a: any) => a.numero === n);
+                            return (
+                              <span key={j} className={`saved-number ${ac ? "hit" : ""}`}>
+                                {n}
+                              </span>
+                            );
+                          })}
+                        </div>
+                        {(pr || userRole === "admin") && nums3.length > 0 && (
+                          <div style={{ marginTop: 8, padding: "6px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}>
+                            <div style={{ fontSize: 10, color: "#f59e0b", fontWeight: 700, marginBottom: 4 }}>🔢 3 CIFRAS {p.aciertos_3?.length > 0 && <span style={{color:"#22c55e"}}>✓ {p.aciertos_3.length} coincidencia{p.aciertos_3.length > 1 ? "s" : ""}</span>}</div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                              {nums3.map((n: string, j: number) => {
+                                const hit3 = p.aciertos_3?.some((a: any) => a.numero === n);
+                                return (
+                                  <span key={j} style={{ padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 700,
+                                    background: hit3 ? "rgba(34,197,94,.2)" : "rgba(245,158,11,.12)",
+                                    color: hit3 ? "#22c55e" : "#fbbf24",
+                                    border: hit3 ? "1px solid rgba(34,197,94,.4)" : "1px solid rgba(245,158,11,.2)" }}>{n}</span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        {(pr || userRole === "admin") && nums4.length > 0 && (
+                          <div style={{ marginTop: 8, padding: "6px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}>
+                            <div style={{ fontSize: 10, color: "#a855f7", fontWeight: 700, marginBottom: 4 }}>🔢 4 CIFRAS {p.aciertos_4?.length > 0 && <span style={{color:"#22c55e"}}>✓ {p.aciertos_4.length} coincidencia{p.aciertos_4.length > 1 ? "s" : ""}</span>}</div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                              {nums4.map((n: string, j: number) => {
+                                const hit4 = p.aciertos_4?.some((a: any) => a.numero === n);
+                                return (
+                                  <span key={j} style={{ padding: "3px 7px", borderRadius: 5, fontSize: 11, fontWeight: 700,
+                                    background: hit4 ? "rgba(34,197,94,.2)" : "rgba(168,85,247,.12)",
+                                    color: hit4 ? "#22c55e" : "#c084fc",
+                                    border: hit4 ? "1px solid rgba(34,197,94,.4)" : "1px solid rgba(168,85,247,.2)" }}>{n}</span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        {p.resultado_original && p.resultado_original.length > 0 && (
+                          <div className="saved-results" style={{marginTop:8}}>
+                            <div style={{fontSize:10,color:"#64748b",marginBottom:4}}>RESULTADOS OFICIALES ({p.resultado_original.length} números):</div>
+                            <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
+                              {p.resultado_original.map((n: string | number, idx: number) => {
+                                const n4 = String(Number(n) % 10000).padStart(4, "0")
+                                const n3 = String(Number(n) % 1000).padStart(3, "0")
+                                const n2 = String(Number(n) % 100).padStart(2, "0")
+                                const hit4 = p.aciertos_4?.some((a: any) => a.numero === n4)
+                                const hit3 = p.aciertos_3?.some((a: any) => a.numero === n3)
+                                const hit2 = p.aciertos_2?.some((a: any) => a.numero === n2)
+                                const isHit = hit4 || hit3 || hit2
+                                const hitType = hit4 ? "4" : hit3 ? "3" : hit2 ? "2" : null
+                                return (
+                                  <span key={idx} style={{
+                                    padding:"4px 7px",borderRadius:6,fontSize:11,fontWeight:700,
+                                    background: isHit
+                                      ? hitType === "4" ? "rgba(34,197,94,0.25)"
+                                      : hitType === "3" ? "rgba(96,165,250,0.2)"
+                                      : "rgba(168,85,247,0.2)"
+                                      : "rgba(255,255,255,0.05)",
+                                    color: isHit
+                                      ? hitType === "4" ? "#22c55e"
+                                      : hitType === "3" ? "#60a5fa"
+                                      : "#c4b5fd"
+                                      : "#64748b",
+                                    border: isHit
+                                      ? hitType === "4" ? "1px solid rgba(34,197,94,0.5)"
+                                      : hitType === "3" ? "1px solid rgba(96,165,250,0.4)"
+                                      : "1px solid rgba(168,85,247,0.4)"
+                                      : "1px solid rgba(255,255,255,0.08)"
+                                  }}>
+                                    {n4}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                            <div style={{display:"flex",gap:10,marginTop:6,fontSize:9,color:"#64748b"}}>
+                              <span><span style={{color:"#c4b5fd"}}>●</span> 2 cifras</span>
+                              <span><span style={{color:"#60a5fa"}}>●</span> 3 cifras</span>
+                              <span><span style={{color:"#22c55e"}}>●</span> 4 cifras</span>
+                            </div>
+                          </div>
+                        )}
+                        {p.aciertos?.length > 0 && (
+                          <div className="saved-results">
+                            {p.aciertos.map((a: any) => (
+                              <div key={a.numero} style={{color:"#22c55e",fontSize:11}}>
+                                🎉 {a.numero} → Puesto {a.puesto}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {p.aciertos_3?.length > 0 && (
+                          <div className="saved-results">
+                            {p.aciertos_3.map((a: any) => (
+                              <div key={a.numero} style={{color:"#60a5fa",fontSize:11}}>
+                                🎯 {a.numero} (3 cifras) → Puesto {a.puesto}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {p.aciertos_4?.length > 0 && (
+                          <div className="saved-results">
+                            {p.aciertos_4.map((a: any) => (
+                              <div key={a.numero} style={{color:"#22c55e",fontSize:11}}>
+                                💎 {a.numero} (4 cifras) → Puesto {a.puesto}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </>
+              )}
+          {tab === "acc" && (
+            <div style={{marginTop:12}}>
+              <div className="sec">Precisión del Motor Predictivo</div>
+              {!backtestData && !backtestLoading && (
+                <button onClick={async () => {
+                  setBacktestLoading(true)
+                  try {
+                    const r = await fetch(`/api/backtest?turno=${so}&days=90`)
+                    const d = await r.json()
+                    setBacktestData(d)
+                   } catch {}
+                  setBacktestLoading(false)
+                }} style={{width:"100%",padding:14,borderRadius:12,border:"1.5px solid rgba(99,102,241,.4)",background:"rgba(99,102,241,.08)",color:"#818cf8",fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:14}}>
+                  📊 Calcular métricas de precisión
+                </button>
+              )}
+              {backtestLoading && (
+                <div style={{textAlign:"center",padding:30,color:"var(--dim)",fontSize:12}}>
+                  <div style={{fontSize:24,marginBottom:8}}>⏳</div>
+                  Ejecutando walk-forward backtesting...
+                </div>
+              )}
+              {backtestData && (
+                <>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
+                    {[
+                      { label: "Hit@1", value: backtestData.metrics_top_1?.hitAt1 || 0, color: "#a855f7", desc: "Acierto exacto" },
+                      { label: "Hit@5", value: backtestData.metrics_top_5?.hitAt5 || 0, color: "#6366f1", desc: "Al menos 1 en top 5" },
+                      { label: "Hit@10", value: backtestData.metrics_top_10?.hitAt10 || 0, color: "#ec4899", desc: "Al menos 1 en top 10" },
+                    ].map((m, i) => (
+                      <div key={i} style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.08)",borderRadius:12,padding:14,textAlign:"center"}}>
+                        <div style={{fontSize:28,fontWeight:900,color:m.color}}>{m.value}%</div>
+                        <div style={{fontSize:11,fontWeight:700,color:"var(--text)",marginTop:2}}>{m.label}</div>
+                        <div style={{fontSize:9,color:"var(--dim)",marginTop:2}}>{m.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.08)",borderRadius:12,padding:14,marginBottom:14}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"var(--text)",marginBottom:8}}>Métricas detalladas (top 10)</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                      {[
+                        { label: "Sorteos analizados", val: backtestData.metrics_top_10?.totalDraws || 0 },
+                        { label: "Promedio coincidencias/sorteo", val: backtestData.metrics_top_10?.avgHitsPerDraw || 0 },
+                        { label: "Máx coincidencias en 1 sorteo", val: backtestData.metrics_top_10?.maxHits || 0 },
+                        { label: "Precisión", val: (backtestData.metrics_top_10?.precision || 0) + "%" },
+                        { label: "Recall", val: (backtestData.metrics_top_10?.recall || 0) + "%" },
+                        { label: "Aciertos promedio", val: (backtestData.metrics_top_10?.avgHitsPerDraw || 0) },
+                      ].map((item, i) => (
+                        <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,.04)"}}>
+                          <span style={{fontSize:10,color:"var(--dim)"}}>{item.label}</span>
+                          <span style={{fontSize:10,fontWeight:700,color:"var(--text)"}}>{item.val}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{fontSize:9,color:"var(--dim)",textAlign:"center",lineHeight:1.5}}>
+                     Walk-forward validation con {backtestData.metrics_top_10?.totalDraws || 0} sorteos de {backtestData.total_draws} totales · Motor de 30 factores · Top 10 análisis
+                  </div>
+                  <button onClick={() => setBacktestData(null)} style={{width:"100%",padding:10,borderRadius:10,border:"1px solid rgba(255,255,255,.08)",background:"transparent",color:"var(--dim)",fontSize:10,cursor:"pointer",marginTop:10}}>
+                    Recalcular
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {tab === "hist" && (
+            <div style={{marginTop:12}}>
+              <div className="sec">📜 Historial de Sorteos - Transparencia Total</div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 12, lineHeight: 1.6 }}>
+                Todos los resultados mostrados son <strong style={{ color: "#fff" }}>datos oficiales</strong> de la Quiniela Nacional.
+                Podés verificar cada sorteo en las fuentes oficiales.
+              </div>
+              <HistorialAciertos predictions={misPreds} />
+            </div>
+          )}
+          {!pr && (
+            <div className="pay-box" style={{padding:"24px 20px"}}>
+              <div style={{fontSize:36,textAlign:"center",marginBottom:8}}>🧠</div>
+              <h3 className="pay-title" style={{marginBottom:6}}>ELEGÍ TU MEDIO DE PAGO PARA ACCEDER</h3>
+              <div style={{fontSize:12,color:"var(--dim)",marginBottom:20,textAlign:"center",lineHeight:1.6}}>
+                Desbloqueá análisis de <strong style={{color:"#a855f7"}}>3 y 4 cifras</strong> con Machine Learning
+              </div>
+
+              {/* Plan 15 Días */}
+              <div style={{borderRadius:14,overflow:"hidden",marginBottom:14,background:"linear-gradient(135deg,rgba(168,85,247,.1),rgba(99,102,241,.06))",border:"1px solid rgba(168,85,247,.25)",boxShadow:"0 4px 16px rgba(168,85,247,.15)"}}>
+                <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase 15 Días</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>~30 sorteos · Previa, Primera, Matutina, Vespertina, Nocturna</div>
+                  </div>
+                  <div style={{fontSize:22,fontWeight:900,color:"#a855f7"}}>$7.000</div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,padding:"0 10px 10px"}}>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const token = await getValidToken()
+                        const res = await fetch("/api/checkout/ualabis?t=" + Date.now(), {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                          body: JSON.stringify({ plan: "15_days" }),
+                          cache: "no-store",
+                        })
+                        const text = await res.text()
+                        let data: Record<string, unknown>
+                        try { data = JSON.parse(text) } catch { alert("Error inesperado del servidor. Intentá de nuevo."); return }
+                        if (data.checkoutUrl) window.location.href = data.checkoutUrl as string
+                        else alert((data.error as string) || "Error creando pago")
+                      } catch { alert("Error procesando pago") }
+                    }}
+                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",border:"none",borderRadius:12,
+                      background:"linear-gradient(135deg,#6366f1,#8b5cf6)",
+                      boxShadow:"0 4px 0 #4338ca,0 6px 16px rgba(99,102,241,.3),inset 0 1px 0 rgba(255,255,255,.2)",
+                      transition:"all .15s",color:"#fff"}}
+                    onMouseDown={e=>{e.currentTarget.style.transform="translateY(2px)";e.currentTarget.style.boxShadow="0 2px 0 #4338ca,0 3px 8px rgba(99,102,241,.2)"}}
+                    onMouseUp={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #4338ca,0 6px 16px rgba(99,102,241,.3),inset 0 1px 0 rgba(255,255,255,.2)"}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #4338ca,0 6px 16px rgba(99,102,241,.3),inset 0 1px 0 rgba(255,255,255,.2)"}}
+                  >
+                    <div style={{fontSize:20,marginBottom:4}}>💳</div>
+                    <div style={{fontSize:12,fontWeight:800}}>Tocá aquí para pagar</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,.8)",marginTop:2}}>Crédito o débito</div>
+                    <div style={{fontSize:10,color:"#4ade80",marginTop:1,fontWeight:600}}>Inmediato</div>
+                  </button>
+                  <button
+                    onClick={() => {navigator.clipboard.writeText("quinielaia").then(() => toast("Alias copiado","success")).catch(() => {})}}
+                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",border:"none",borderRadius:12,
+                      background:"linear-gradient(135deg,#f59e0b,#d97706)",
+                      boxShadow:"0 4px 0 #92400e,0 6px 16px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.15)",
+                      transition:"all .15s",color:"#fff"}}
+                    onMouseDown={e=>{e.currentTarget.style.transform="translateY(2px)";e.currentTarget.style.boxShadow="0 2px 0 #92400e,0 3px 8px rgba(245,158,11,.15)"}}
+                    onMouseUp={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #92400e,0 6px 16px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.15)"}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #92400e,0 6px 16px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.15)"}}
+                  >
+                    <div style={{fontSize:20,marginBottom:4}}>🏦</div>
+                    <div style={{fontSize:12,fontWeight:800}}>Transferencia</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,.8)",marginTop:1}}>Tocá para copiar alias</div>
+                    <div style={{fontSize:10,color:"#4ade80",marginTop:1,fontWeight:600}}>En ~1 hora</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Plan 30 Días — MEJOR VALOR */}
+              <div style={{borderRadius:14,overflow:"hidden",marginBottom:16,position:"relative",background:"linear-gradient(135deg,rgba(34,197,94,.08),rgba(16,163,74,.04))",border:"2px solid rgba(34,197,94,.4)",boxShadow:"0 4px 20px rgba(34,197,94,.2)"}}>
+                <div style={{position:"absolute",top:0,left:0,right:0,background:"linear-gradient(135deg,#f59e0b,#d97706)",color:"#fff",fontSize:10,fontWeight:800,padding:"5px 0",textAlign:"center",letterSpacing:1}}>MEJOR VALOR</div>
+                <div style={{padding:"32px 16px 8px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase 30 Días</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>~60 sorteos · Todos los turnos del mes</div>
+                    <div style={{fontSize:12,color:"rgba(255,255,255,.4)",marginTop:4,textDecoration:"line-through"}}>$14.000</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:26,fontWeight:900,color:"#22c55e"}}>$10.000</div>
+                    <div style={{fontSize:11,color:"#4ade80",fontWeight:700}}>Ahorras 30%</div>
+                  </div>
+                </div>
+                <div style={{padding:"6px 12px",margin:"0 10px 4px",background:"rgba(34,197,94,.06)",borderRadius:8}}>
+                  <div style={{fontSize:11,color:"#4ade80",lineHeight:1.6}}>
+                    Comprando 2 pases de 15 días gastarías $14.000. Con el pase de 30 pagás solo $10.000.
+                  </div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,padding:"0 10px 10px"}}>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const token = await getValidToken()
+                        const res = await fetch("/api/checkout/ualabis?t=" + Date.now(), {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                          body: JSON.stringify({ plan: "30_days" }),
+                          cache: "no-store",
+                        })
+                        const text = await res.text()
+                        let data: Record<string, unknown>
+                        try { data = JSON.parse(text) } catch { alert("Error inesperado del servidor. Intentá de nuevo."); return }
+                        if (data.checkoutUrl) window.location.href = data.checkoutUrl as string
+                        else alert((data.error as string) || "Error creando pago")
+                      } catch { alert("Error procesando pago") }
+                    }}
+                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",border:"none",borderRadius:12,
+                      background:"linear-gradient(135deg,#22c55e,#16a34a)",
+                      boxShadow:"0 4px 0 #15803d,0 6px 16px rgba(34,197,94,.3),inset 0 1px 0 rgba(255,255,255,.2)",
+                      transition:"all .15s",color:"#fff"}}
+                    onMouseDown={e=>{e.currentTarget.style.transform="translateY(2px)";e.currentTarget.style.boxShadow="0 2px 0 #15803d,0 3px 8px rgba(34,197,94,.2)"}}
+                    onMouseUp={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #15803d,0 6px 16px rgba(34,197,94,.3),inset 0 1px 0 rgba(255,255,255,.2)"}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #15803d,0 6px 16px rgba(34,197,94,.3),inset 0 1px 0 rgba(255,255,255,.2)"}}
+                  >
+                    <div style={{fontSize:20,marginBottom:4}}>💳</div>
+                    <div style={{fontSize:12,fontWeight:800}}>Tocá aquí para pagar</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,.8)",marginTop:2}}>Crédito o débito</div>
+                    <div style={{fontSize:10,color:"#4ade80",marginTop:1,fontWeight:600}}>Inmediato</div>
+                  </button>
+                  <button
+                    onClick={() => {navigator.clipboard.writeText("quinielaia").then(() => toast("Alias copiado","success")).catch(() => {})}}
+                    style={{padding:"14px 10px",textAlign:"center",cursor:"pointer",border:"none",borderRadius:12,
+                      background:"linear-gradient(135deg,#f59e0b,#d97706)",
+                      boxShadow:"0 4px 0 #92400e,0 6px 16px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.15)",
+                      transition:"all .15s",color:"#fff"}}
+                    onMouseDown={e=>{e.currentTarget.style.transform="translateY(2px)";e.currentTarget.style.boxShadow="0 2px 0 #92400e,0 3px 8px rgba(245,158,11,.15)"}}
+                    onMouseUp={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #92400e,0 6px 16px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.15)"}}
+                    onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 4px 0 #92400e,0 6px 16px rgba(245,158,11,.25),inset 0 1px 0 rgba(255,255,255,.15)"}}
+                  >
+                    <div style={{fontSize:20,marginBottom:4}}>🏦</div>
+                    <div style={{fontSize:12,fontWeight:800}}>Transferencia</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,.8)",marginTop:1}}>Tocá para copiar alias</div>
+                    <div style={{fontSize:10,color:"#4ade80",marginTop:1,fontWeight:600}}>En ~1 hora</div>
+                  </button>
+                </div>
+              </div>
+
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+                <div style={{flex:1,height:1,background:"rgba(255,255,255,.08)"}}/>
+                <span style={{fontSize:10,color:"#475569"}}>Alias: <strong style={{color:"#818cf8"}}>quinielaia</strong> · Pago único · Sin renovación</span>
+                <div style={{flex:1,height:1,background:"rgba(255,255,255,.08)"}}/>
+              </div>
+
+              <button
+                onClick={async () => {
+                  try {
+                    const token = await getValidToken()
+                    if (token) {
+                      await fetch("/api/transfer", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ plan: "30_days" }),
+                      })
+                    }
+                  } catch {}
+                   navigator.clipboard.writeText("quinielaia").then(() => { window.open(WA, "_blank"); }).catch(() => { window.open(WA, "_blank"); })
+                }}
+                style={{
+                  width:"100%",padding:"14px",borderRadius:14,border:"none",
+                  background:"linear-gradient(135deg,#25D366,#128C7E,#075E54)",color:"#fff",
+                  fontSize:14,fontWeight:900,cursor:"pointer",
+                  boxShadow:"0 6px 0 #064E3B,0 8px 24px rgba(37,211,102,.35),inset 0 2px 0 rgba(255,255,255,.15)",
+                  transition:"all .15s"
+                }}
+                onMouseDown={e=>{e.currentTarget.style.transform="translateY(3px)";e.currentTarget.style.boxShadow="0 2px 0 #064E3B,0 3px 8px rgba(37,211,102,.2)"}}
+                onMouseUp={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 6px 0 #064E3B,0 8px 24px rgba(37,211,102,.35),inset 0 2px 0 rgba(255,255,255,.15)"}}
+                onMouseLeave={e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow="0 6px 0 #064E3B,0 8px 24px rgba(37,211,102,.35),inset 0 2px 0 rgba(255,255,255,.15)"}}
+              >
+                📲 Enviar comprobante por WhatsApp
+              </button>
+              <div style={{fontSize:10,color:"rgba(255,255,255,.5)",textAlign:"center",marginTop:8,lineHeight:1.5}}>
+                Tu premium se activa automáticamente ~1 hora después de transferir.
+              </div>
+            </div>
+          )}
+          <div className="shr">
+            <div className="shr-t">Compartir Quiniela IA</div>
+            <div className="shr-b">
+              <button className="sbt wa" onClick={() => share("whatsapp")}>WhatsApp</button>
+              <button className="sbt fb" onClick={() => share("facebook")}>Facebook</button>
+              <button className="sbt tw" onClick={() => share("twitter")}>X</button>
+              <button className="sbt tg" onClick={() => share("telegram")}>Telegram</button>
+              <button className="sbt cp" onClick={() => share("copy")}>Copiar link</button>
             </div>
           </div>
-        </div>
-        {!pr&&(<div className="pay-box">
-          <div style={{fontSize:28,marginBottom:8}}>🚀</div>
-          <h3>Desbloqueá el motor completo</h3>
-          <p style={{fontSize:11,color:"#64748b",maxWidth:280,margin:"0 auto 14px",lineHeight:1.5}}>Predicciones de 3 y 4 cifras mas Redoblona completa con datos reales.</p>
-          <div className="pay-alias">quiniela.ia</div>
-          <div style={{fontSize:10,color:"#475569",marginBottom:12}}>Transferi $10.000 al alias Quiniela IA: quiniela.ia</div>
-          <a href={WA} target="_blank" rel="noopener noreferrer" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"10px 20px",background:"#25D366",color:"#fff",borderRadius:10,fontSize:13,fontWeight:700,textDecoration:"none",marginBottom:4}}>
-            WhatsApp — Enviar comprobante
-          </a>
-          <div style={{fontSize:10,color:"#475569",marginTop:6,lineHeight:1.6}}>Sin datos de tarjeta · Paga desde tu banco · Activacion en 24hs</div>
-        </div>)}
-        <div className="ft">
-          <p>Soporte: <a href={"mailto:"+CONTACT}>{CONTACT}</a></p>
-          <div className="credit">Desarrollado por <strong>EstudioWebPin</strong> · Autor: <strong>Adrian Hugo Lopez</strong></div>
-          <div className="dc">Herramienta de analisis estadistico con fines informativos. No realiza apuestas ni maneja dinero. La Quiniela de la Ciudad es administrada por la Loteria de la Ciudad de Buenos Aires. El juego en exceso puede causar adiccion. Linea gratuita: 0800-333-0062. Solo mayores de 18 anos.</div>
+          {showInstall && (
+            <div style={{ background: "linear-gradient(135deg,rgba(255,51,102,.15),rgba(255,51,102,.05))", border: "1px solid rgba(255,51,102,.4)", borderRadius: 12, padding: 16, marginBottom: 16, textAlign: "center" }}>
+              <div style={{ fontSize: 20, marginBottom: 8 }}>📲</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#ff6b81", marginBottom: 4 }}>Instalá Quiniela IA como App</div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10 }}>Accedé desde tu pantalla de inicio, sin Play Store</div>
+              <button onClick={installApp} style={{ padding: "10px 24px", borderRadius: 10, background: "linear-gradient(135deg,#ff3366,#ff6b81)", color: "#fff", border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                Instalar Ahora
+              </button>
+            </div>
+          )}
+          {showIOSInstall && (
+            <div style={{ background: "linear-gradient(135deg,rgba(255,51,102,.15),rgba(255,51,102,.05))", border: "1px solid rgba(255,51,102,.4)", borderRadius: 12, padding: 16, marginBottom: 16, textAlign: "center" }}>
+              <div style={{ fontSize: 20, marginBottom: 8 }}>📲</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#ff6b81", marginBottom: 4 }}>Instalá Quiniela IA en tu iPhone</div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 6 }}>
+                1. Tocá el botón <strong>Compartir</strong> <span style={{ fontSize: 14 }}>⬆️</span> abajo<br/>
+                2. Seleccioná <strong>"Agregar a pantalla de inicio"</strong><br/>
+                3. Tocá <strong>"Agregar"</strong>
+              </div>
+              <button onClick={() => { setShowIOSInstall(false); localStorage.setItem("ios_install_dismissed", "1"); }} style={{ padding: "8px 20px", borderRadius: 8, background: "rgba(255,255,255,.08)", color: "#94a3b8", border: "none", fontWeight: 600, fontSize: 11, cursor: "pointer", marginTop: 4 }}>
+                Entendido
+              </button>
+            </div>
+          )}
+          <div className="ft">
+            <ReviewsCarousel />
+          </div>
         </div>
       </div>
-    </div>
-  </>)
+      {showHowItWorks && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={() => setShowHowItWorks(false)}>
+          <div style={{background:"var(--card)",borderRadius:16,padding:24,maxWidth:400,width:"100%"}} onClick={e => e.stopPropagation()}>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:16,color:"var(--text)"}}>🔬 Cómo funciona</div>
+            <div style={{fontSize:13,lineHeight:1.7,color:"var(--dim)"}}>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>1. Datos reales</strong><br/>Scrapeamos resultados oficiales de la Quiniela Nacional cada 15 min. Tenemos +200 sorteos históricos con todos los turnos completos.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>2. 30 factores estadísticos</strong><br/>Cada número recibe un score basado en frecuencia histórica, ausencia, recencia exponencial, tendencia, ciclos, momentum, Markov, entropía, clusters, co-ocurrencia, espejos, vecinos y más. Nada es al azar.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>3. Monte Carlo + Ensemble dinámico</strong><br/>5.000 simulaciones estadísticas combinan los 30 factores con análisis cross-turno. Los pesos se auto-calibran según el rendimiento histórico real.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>4. ML: XGBoost + LightGBM</strong><br/>Modelos de Machine Learning entrenados offline con +200 sorteos reales. Extraen 25 features por número y aprenden patrones que el análisis manual no detecta.</p>
+               <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>5. Cero números aleatorios</strong><br/>No hay random. No hay "magia". Cada análisis es el resultado de cálculos matemáticos verificables sobre datos reales de la Quiniela Nacional.</p>
+              <p><strong style={{color:"var(--text)"}}>6. Resultados contrastables</strong><br/>Guardá tus análisis y comparalos con los resultados oficiales automáticamente. Podés verificar cada coincidencia.</p>
+            </div>
+            <button onClick={() => setShowHowItWorks(false)} style={{marginTop:20,width:"100%",padding:"12px 20px",borderRadius:10,border:"none",background:"var(--red)",color:"#fff",fontWeight:700,cursor:"pointer"}}>Entendido</button>
+          </div>
+        </div>
+      )}
+      {numDetail && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:999,display:"flex",alignItems:"center",justifyContent:"center",padding:20,overflowY:"auto"}} onClick={() => {setNumDetail(null);setNumHistory(null)}}>
+          <div style={{background:"var(--card)",borderRadius:16,padding:24,maxWidth:420,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={e => e.stopPropagation()}>
+            <div style={{textAlign:"center",marginBottom:16}}>
+              <div style={{fontSize:48,marginBottom:4}}>{getEmoji(numDetail.numero)}</div>
+              <div style={{fontSize:36,fontWeight:900,background:"linear-gradient(180deg,#a855f7,#6366f1)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{numDetail.numero}</div>
+              <div style={{fontSize:14,color:"var(--dim)",marginTop:4}}>{getNombreQuiniela(numDetail.numero)}</div>
+            </div>
+            <div style={{display:"flex",gap:8,justifyContent:"center",marginBottom:16,flexWrap:"wrap"}}>
+              <div style={{background:"rgba(168,85,247,.12)",borderRadius:10,padding:"8px 14px",textAlign:"center"}}>
+                <div style={{fontSize:18,fontWeight:900,color:"#a855f7"}}>{numDetail.score ? (numDetail.score * 100).toFixed(0) : "—"}</div>
+                <div style={{fontSize:9,color:"#a78bfa",fontWeight:700,textTransform:"uppercase"}}>Score</div>
+              </div>
+              <div style={{background:"rgba(99,102,241,.12)",borderRadius:10,padding:"8px 14px",textAlign:"center"}}>
+                <div style={{fontSize:18,fontWeight:900,color:"#818cf8"}}>{numDetail.confianza || "—"}</div>
+                <div style={{fontSize:9,color:"#a5b4fc",fontWeight:700,textTransform:"uppercase"}}>Confianza</div>
+              </div>
+              <div style={{background:"rgba(34,197,94,.12)",borderRadius:10,padding:"8px 14px",textAlign:"center"}}>
+                <div style={{fontSize:18,fontWeight:900,color:"#4ade80"}}>{numDetail.frecuencia || numDetail.frecuencia === 0 ? numDetail.frecuencia : "—"}</div>
+                <div style={{fontSize:9,color:"#86efac",fontWeight:700,textTransform:"uppercase"}}>Frecuencia</div>
+              </div>
+              {numDetail.bayesianConfidence != null && (
+                <div style={{background:"rgba(236,72,153,.12)",borderRadius:10,padding:"8px 14px",textAlign:"center"}}>
+                  <div style={{fontSize:18,fontWeight:900,color:"#f472b6"}}>{numDetail.bayesianConfidence}%</div>
+                  <div style={{fontSize:9,color:"#f9a8d4",fontWeight:700,textTransform:"uppercase"}}>Bayesian</div>
+                </div>
+              )}
+            </div>
+
+            {/* Historical Data Section */}
+            {numHistory && !numHistoryLoading && (
+              <div style={{borderTop:"1px solid rgba(255,255,255,.06)",paddingTop:12,marginBottom:12}}>
+                <div style={{fontSize:11,fontWeight:800,color:"var(--dim)",textTransform:"uppercase",letterSpacing:1,marginBottom:10}}>Historial del Número</div>
+                
+                {/* Trend indicator */}
+                <div style={{display:"flex",gap:8,marginBottom:10}}>
+                  <div style={{flex:1,background:numHistory.trend?.direction === "hot" ? "rgba(239,68,68,.12)" : numHistory.trend?.direction === "cold" ? "rgba(59,130,246,.12)" : "rgba(255,255,255,.04)",borderRadius:8,padding:"8px 10px",textAlign:"center",border: `1px solid ${numHistory.trend?.direction === "hot" ? "rgba(239,68,68,.2)" : numHistory.trend?.direction === "cold" ? "rgba(59,130,246,.2)" : "rgba(255,255,255,.06)"}`}}>
+                    <div style={{fontSize:16,fontWeight:900,color:numHistory.trend?.direction === "hot" ? "#f87171" : numHistory.trend?.direction === "cold" ? "#60a5fa" : "#94a3b8"}}>{numHistory.trend?.direction === "hot" ? "🔥 CALIENTE" : numHistory.trend?.direction === "cold" ? "❄️ FRÍO" : "➡️ ESTABLE"}</div>
+                    <div style={{fontSize:9,color:"var(--dim)"}}>Tendencia últimos 30 sorteos</div>
+                  </div>
+                  <div style={{flex:1,background:"rgba(255,255,255,.04)",borderRadius:8,padding:"8px 10px",textAlign:"center",border:"1px solid rgba(255,255,255,.06)"}}>
+                    <div style={{fontSize:16,fontWeight:900,color:numHistory.stats?.vsExpected > 0 ? "#4ade80" : "#f87171"}}>{numHistory.stats?.vsExpected > 0 ? "+" : ""}{numHistory.stats?.vsExpected}%</div>
+                    <div style={{fontSize:9,color:"var(--dim)"}}>vs esperado ({numHistory.stats?.expectedFrequency}%)</div>
+                  </div>
+                </div>
+
+                {/* Gaps per turno */}
+                <div style={{marginBottom:10}}>
+                  <div style={{fontSize:10,color:"var(--dim)",fontWeight:700,marginBottom:6}}>Ausencia por turno:</div>
+                  <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                    {Object.entries(numHistory.gaps || {}).map(([t, g]) => (
+                      <div key={t} style={{background:(g as number) > 10 ? "rgba(239,68,68,.1)" : "rgba(255,255,255,.04)",borderRadius:6,padding:"4px 8px",fontSize:10}}>
+                        <span style={{fontWeight:700,color:"var(--text)"}}>{t.substring(0,4)}</span>{" "}
+                        <span style={{color:(g as number) > 10 ? "#f87171" : "#94a3b8",fontWeight:700}}>{String(g)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recent appearances */}
+                {numHistory.appearances?.length > 0 && (
+                  <div>
+                    <div style={{fontSize:10,color:"var(--dim)",fontWeight:700,marginBottom:6}}>Últimas apariciones:</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                      {(numHistory.appearances as any[]).slice(0, 12).map((a: any, i: number) => (
+                        <div key={i} style={{background:"rgba(168,85,247,.1)",borderRadius:6,padding:"3px 8px",fontSize:9,color:"#c4b5fd"}}>
+                          {a.date.substring(5)} <span style={{color:"#64748b"}}>{a.turno.substring(0,4)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {numHistoryLoading && (
+              <div style={{borderTop:"1px solid rgba(255,255,255,.06)",paddingTop:12,marginBottom:12,textAlign:"center"}}>
+                <div className="skeleton" style={{height:80,borderRadius:8,marginBottom:8}}/>
+                <div className="skeleton" style={{height:40,borderRadius:8}}/>
+              </div>
+            )}
+
+            <div style={{fontSize:11,color:"var(--dim)",lineHeight:1.8,borderTop:"1px solid rgba(255,255,255,.06)",paddingTop:12}}>
+              <strong style={{color:"var(--text)"}}>¿Por qué este número?</strong>
+              <ul style={{margin:"8px 0 0",padding:"0 0 0 16px"}}>
+                <li>Ranking <strong style={{color:"#a855f7"}}>#{numDetail.rank || "—"}</strong> en el análisis general</li>
+                {numDetail.frecuencia != null && <li>Apareció <strong style={{color:"#4ade80"}}>{numDetail.frecuencia} veces</strong> en el histórico</li>}
+                {numDetail.confianza != null && <li>Confianza del <strong style={{color:"#818cf8"}}>{numDetail.confianza}%</strong></li>}
+                {numDetail.bayesianPosterior != null && <li>Posterior Bayesiano: <strong style={{color:"#f472b6"}}>{(Number(numDetail.bayesianPosterior) * 100).toFixed(3)}%</strong></li>}
+                {numDetail.score != null && <li>Score compuesto: <strong style={{color:"#a855f7"}}>{(Number(numDetail.score) * 100).toFixed(1)}%</strong></li>}
+                {numDetail.factores && (Array.isArray(numDetail.factores) ? numDetail.factores.length > 0 : Object.keys(numDetail.factores).length > 0) && (
+                  <li>Factores adicionales: {Array.isArray(numDetail.factores) ? numDetail.factores.slice(0,3).join(", ") : Object.keys(numDetail.factores).slice(0,3).join(", ")}{(Array.isArray(numDetail.factores) ? numDetail.factores.length : Object.keys(numDetail.factores).length) > 3 ? "..." : ""}</li>
+                )}
+              </ul>
+            </div>
+            <button onClick={() => {setNumDetail(null);setNumHistory(null)}} style={{marginTop:16,width:"100%",padding:"10px",borderRadius:10,border:"none",background:"rgba(255,255,255,.06)",color:"var(--text)",fontWeight:700,cursor:"pointer",fontSize:12}}>Cerrar</button>
+          </div>
+        </div>
+      )}
+      <PaywallModal
+        open={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        userId={userId}
+      />
+      <WhatsAppFAB />
+      <FooterDisclaimer />
+    </>
+  );
+}
+
+export default function Page() {
+  return (
+    <ToastProvider>
+      <PageInner />
+    </ToastProvider>
+  );
 }

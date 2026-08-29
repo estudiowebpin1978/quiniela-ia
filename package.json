@@ -6,29 +6,38 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "validate": "node scripts/test-setup.js"
+    "start:prod": "next start -p 3000",
+    "lint": "eslint .",
+    "deploy": "npx vercel deploy --prod --yes --archive=tgz",
+    "deploy:preview": "npx vercel deploy --yes --archive=tgz",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "@ai-sdk/groq": "^3.0.31",
-    "@supabase/ssr": "^0.5.2",
-    "@supabase/supabase-js": "^2.45.4",
-    "ai": "^6.0.141",
-    "next": "^14.2.15",
+    "@supabase/supabase-js": "^2.105.1",
+    "lucide-react": "^1.27.0",
+    "next": "^16.2.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "ualabis-nodejs": "^1.0.1"
+    "web-push": "^3.6.7",
+    "zod": "4.3.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.7.5",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
-    "autoprefixer": "^10.4.20",
-    "eslint": "^8.57.1",
-    "eslint-config-next": "^14.2.15",
-    "postcss": "^8.4.47",
+    "@types/web-push": "^3.6.4",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.2.3",
+    "jest": "^30.4.2",
+    "pg": "^8.23.0",
     "sharp": "^0.34.5",
-    "tailwindcss": "^3.4.14",
+    "ts-jest": "^29.4.12",
     "typescript": "^5.6.3"
   }
 }

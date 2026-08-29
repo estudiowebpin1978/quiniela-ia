@@ -1,0 +1,34 @@
+# Dependencias y builds locales
+node_modules
+.next
+out
+build
+dist
+.venv-py312
+__pycache__
+
+# Control de versiones y configuraciones locales
+.git
+.gitignore
+.env*
+!.env.example
+
+# Archivos pesados o datos de scraping local
+*.sqlite
+*.db
+*.log
+.cache
+tmp
+
+# IDE y OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test y coverage
+coverage/
+*.tsbuildinfo
+
+# Vercel
+.vercel

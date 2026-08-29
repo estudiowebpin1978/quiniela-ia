@@ -1,0 +1,93 @@
+name: Scheduled draws scraper + predictor ML
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Fecha especifica (YYYY-MM-DD)'
+        required: false
+      history:
+        description: 'Scrapear dias historicos (true/false)'
+        required: false
+        default: 'false'
+      days:
+        description: 'Cantidad de dias historicos (1-90)'
+        required: false
+        default: '7'
+      skip_scrape:
+        description: 'Saltar scrape y solo regenerar predicciones'
+        required: false
+        default: 'false'
+
+jobs:
+  check-premium-expiry:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Check expiring premium subscriptions
+        run: |
+          url="${{ secrets.APP_URL }}/api/cron-premium-expiry?secret=${{ secrets.CRON_SECRET }}"
+          echo "Calling: $url"
+          response=$(curl -s -w "\n%{http_code}" "$url")
+          http_code=$(tail -n1 <<< "$response")
+          body=$(sed '$d' <<< "$response")
+          echo "HTTP status: $http_code"
+          echo "$body"
+
+  fetch-draws:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.APP_URL }}" ]; then echo "Missing APP_URL secret"; exit 1; fi
+          if [ -z "${{ secrets.CRON_SECRET }}" ]; then echo "Missing CRON_SECRET secret"; exit 1; fi
+
+      - name: Scrape today + backfill last 3 days
+        if: inputs.skip_scrape != 'true'
+        run: |
+          url="${{ secrets.APP_URL }}/api/cron-nacional?secret=${{ secrets.CRON_SECRET }}&save=true"
+          echo "Calling: $url"
+          response=$(curl -s -w "\n%{http_code}" "$url")
+          http_code=$(tail -n1 <<< "$response")
+          body=$(sed '$d' <<< "$response")
+          echo "HTTP status: $http_code"
+          echo "$body"
+          if [ "$http_code" -ne 200 ]; then echo "ERROR: Scrape API returned $http_code"; exit 1; fi
+
+      - name: Historical backfill (if triggered with history=true)
+        if: inputs.history == 'true'
+        run: |
+          days="${{ inputs.days || '7' }}"
+          url="${{ secrets.APP_URL }}/api/cron?secret=${{ secrets.CRON_SECRET }}&history=true&days=$days&force=true"
+          echo "Calling history: $url"
+          response=$(curl -s -w "\n%{http_code}" "$url")
+          http_code=$(tail -n1 <<< "$response")
+          body=$(sed '$d' <<< "$response")
+          echo "HTTP status: $http_code"
+          echo "$body"
+          if [ "$http_code" -ne 200 ]; then echo "ERROR: History API returned $http_code"; exit 1; fi
+
+      - name: Trigger ML training via API
+        run: |
+          url="${{ secrets.APP_URL }}/api/cron-ml-training?secret=${{ secrets.CRON_SECRET }}"
+          echo "Calling: $url"
+          response=$(curl -s -w "\n%{http_code}" "$url")
+          http_code=$(tail -n1 <<< "$response")
+          body=$(sed '$d' <<< "$response")
+          echo "HTTP status: $http_code"
+          echo "$body"
+
+      - name: Run analytics computation
+        run: |
+          url="${{ secrets.APP_URL }}/api/cron-analytics?secret=${{ secrets.CRON_SECRET }}"
+          echo "Calling: $url"
+          response=$(curl -s -w "\n%{http_code}" "$url")
+          http_code=$(tail -n1 <<< "$response")
+          body=$(sed '$d' <<< "$response")
+          echo "HTTP status: $http_code"
+          echo "$body"
