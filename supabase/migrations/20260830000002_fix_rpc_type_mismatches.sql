@@ -1,0 +1,17 @@
+-- Batch fix: 8 RPC type mismatches + PL/pgSQL ambiguities found on 2026-08-30
+-- Root cause: RETURNS TABLE columns create implicit PL/pgSQL variables that shadow CTE column names.
+-- Also: numeric vs double precision vs bigint vs integer type mismatches from PostgreSQL type coercion.
+--
+-- Fixed functions:
+-- 1. get_auto_predict_users: date = text → date = date (CURRENT_DATE vs CURRENT_DATE::TEXT)
+-- 2. get_draw_stats: avg_gap numeric → double precision cast
+-- 3. get_survival_scores: current_delay integer ← bigint cast; risk_percentile numeric ← ERF() double precision cast
+-- 4. get_frequency_stats: unnest() in WHERE clause → moved to FROM (PG14+ incompatibility)
+-- 5. get_absence_recency_cycles: 'numero' ambiguity → renamed to num_val; bigint→integer casts
+-- 6. get_entropy_scores: no fix needed (already works)
+-- 7. get_cooccurrence_scores: 'numero'/'score' ambiguity → renamed to nv/sv
+-- 8. get_markov_transitions (4-arg): 'state'/'next_number'/'support'/'lift' ambiguity → renamed to st/nn/sup
+-- 9. get_ensemble_scores: wrong column refs (f.n, f.frequency_full, cooccurrence_score) → fixed to match actual function signatures
+
+-- NOTE: These fixes are applied directly to the database via supabase db query --linked
+-- The corresponding SQL files are in supabase/migrations/ for version control
