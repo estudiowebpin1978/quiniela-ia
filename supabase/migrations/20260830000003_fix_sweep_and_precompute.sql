@@ -1,0 +1,9 @@
+-- Additional RPC fixes applied 2026-08-30:
+-- 10. sweep_expired_predictions: integer[] → jsonb cast for resultado_oficial
+-- 11. precompute_prediction: v_date::text → v_date (calculate_omega_v6 expects date)
+--
+-- Dead code noted (not broken, just unused):
+-- - verify_predictions(): references non-existent columns (predicted_2c, etc.)
+-- - process_verification_queue(): references non-existent verification_queue table
+-- - enqueue_verification(): references non-existent verification_queue table
+-- These are not called by the app (cron-verify-predictions has its own logic)
