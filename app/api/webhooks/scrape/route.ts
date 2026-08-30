@@ -16,6 +16,8 @@
 
 import { NextResponse } from "next/server"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
+import { updateEnginePerformance } from "@/lib/ensemble/meta-ensemble"
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import {
   getCurrentART,
   getAvailableTurnos,
@@ -43,11 +45,8 @@ interface ScrapeResult {
 
 export async function POST(request: Request) {
   // ── 1. Auth ────────────────────────────────────────────────────
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-  }
+  const auth = await validateCronAuth(request as unknown as import("next/server").NextRequest)
+  if (!auth.authorized) return unauthorizedResponse()
 
   const startTime = Date.now()
   const supabase = getSupabaseAdmin()
@@ -294,6 +293,11 @@ export async function POST(request: Request) {
       }
     } catch { /* non-fatal */ }
 
+    // Recalcular win_rate de motores para el meta-ensemble
+    try {
+      await updateEnginePerformance()
+    } catch { /* non-fatal */ }
+
     const duration = Date.now() - startTime
     const saved = results.filter((r) => r.status === "saved" || r.status === "auto_predicted").length
     const errors = results.filter((r) => r.status === "error").length
@@ -314,4 +318,8 @@ export async function POST(request: Request) {
     logger.error("[webhooks/scrape] Fatal error", { error: String(e) })
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }
+}
+
+export async function GET(request: Request) {
+  return POST(request)
 }

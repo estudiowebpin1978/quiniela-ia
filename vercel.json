@@ -3,5 +3,47 @@
     "app/api/**/*.ts": {
       "maxDuration": 300
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/webhooks/scrape",
+      "schedule": "20 13 * * 1-6"
+    },
+    {
+      "path": "/api/webhooks/scrape",
+      "schedule": "20 15 * * 1-6"
+    },
+    {
+      "path": "/api/webhooks/scrape",
+      "schedule": "20 18 * * 1-6"
+    },
+    {
+      "path": "/api/webhooks/scrape",
+      "schedule": "20 21 * * 1-6"
+    },
+    {
+      "path": "/api/webhooks/scrape",
+      "schedule": "20 0 * * 2-6,0"
+    },
+    {
+      "path": "/api/cron-auto-predict",
+      "schedule": "30 13 * * 1-6"
+    },
+    {
+      "path": "/api/cron-auto-predict",
+      "schedule": "30 15 * * 1-6"
+    },
+    {
+      "path": "/api/cron-auto-predict",
+      "schedule": "30 18 * * 1-6"
+    },
+    {
+      "path": "/api/cron-auto-predict",
+      "schedule": "30 21 * * 1-6"
+    },
+    {
+      "path": "/api/cron-auto-predict",
+      "schedule": "30 0 * * 2-6,0"
+    }
+  ]
 }

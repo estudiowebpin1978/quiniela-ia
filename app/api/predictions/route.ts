@@ -5,6 +5,7 @@ import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limiter"
 import { predictEnsembleV7 } from "@/lib/analisis/engine-v7"
 import { loadV7Weights, v7WeightsToFactorBreakdown } from "@/lib/analisis/v7-weights"
 import { getMLPredictions } from "@/lib/ml/integration"
+import { loadEngineWeights } from "@/lib/ensemble/meta-ensemble"
 import logger from "@/lib/logger"
 import type { Draw } from "@/lib/analisis/engine-v7"
 import type { PredictionResponse, TopNumero, HeatmapItem } from "./types"
@@ -381,12 +382,10 @@ export async function GET(req: NextRequest) {
     const mlScores = mlResult?.available ? mlResult.scores : new Map<number, number>()
     const hasML = mlScores.size > 0
 
-    // Blend: adaptive V6/V7 ratio + ML boost
-    const hasV7 = v7Scores.size > 0
-    const v6Weight = hasV7 && v7Result?.adaptiveWeights ? v7Result.adaptiveWeights.v6Weight : 0.60
-    const v7Weight = (1 - v6Weight) * 0.85  // V7 gets 85% of non-V6 weight
-    const mlWeight = (1 - v6Weight) * 0.15  // ML gets 15% of non-V6 weight
+    // Blend: dynamic weights from engine_performance
+    const engineW = await loadEngineWeights(turnoCanonical)
     const allNums = new Set([...v6Scores.keys(), ...v7Scores.keys(), ...mlScores.keys()])
+    const hasV7 = v7Scores.size > 0
 
     const blended: Array<{ num: number; blendedScore: number; v6Score: number; v7Score: number; mlScore: number; fa: Record<string, number> }> = []
     for (const num of allNums) {
@@ -394,9 +393,7 @@ export async function GET(req: NextRequest) {
       const v7 = v7Scores.get(num) || 0
       const ml = mlScores.get(num) || 0
       const v6Score = v6?.score || 0
-      const blendedScore = hasV7
-        ? v6Score * v6Weight + v7 * v7Weight + ml * mlWeight
-        : v6Score
+      const blendedScore = v6Score * engineW.V6 + v7 * engineW.V7 + ml * engineW.ML
       blended.push({ num, blendedScore, v6Score, v7Score: v7, mlScore: ml, fa: v6?.fa || {} })
     }
 
@@ -535,9 +532,9 @@ export async function GET(req: NextRequest) {
         },
         v7_engine: hasV7 ? {
           ensemble_size: v7Result?.ensembleSize || 0,
-          v6_weight: v6Weight,
-          v7_weight: v7Weight,
-          ml_weight: mlWeight,
+          v6_weight: engineW.V6,
+          v7_weight: engineW.V7,
+          ml_weight: engineW.ML,
           adaptive: !!v7Result?.adaptiveWeights,
           total_evaluations: v7Result?.adaptiveWeights?.totalEvaluations || 0,
         } : null,
@@ -613,7 +610,7 @@ export async function GET(req: NextRequest) {
       const todayDate = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
 
       supabaseAdmin.rpc('save_engine_prediction' as never, {
-        p_engine_version: hasV7 ? 'omega_v6_v7_hybrid' : 'omega_v6',
+        p_engine_version: 'meta-ensemble-v1',
         p_turno: turnoCanonical,
         p_prediction_date: todayDate,
         p_historical_cutoff: todayDate,

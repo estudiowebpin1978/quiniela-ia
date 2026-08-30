@@ -16,6 +16,7 @@ import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/
 import { predictEnsembleV7 } from "@/lib/analisis/engine-v7"
 import { loadV7Weights, v7WeightsToFactorBreakdown } from "@/lib/analisis/v7-weights"
 import { getMLPredictions } from "@/lib/ml/integration"
+import { loadEngineWeights, logEnginePredictions } from "@/lib/ensemble/meta-ensemble"
 import logger from "@/lib/logger"
 import type { Draw } from "@/lib/analisis/engine-v7"
 
@@ -59,8 +60,8 @@ export async function GET(req: NextRequest) {
         continue
       }
 
-      const lastDrawId = lastDraw.id as number
-      const ctxSeed = ((lastDrawId * 31 + turno.length * 17) | 0) % 100000
+      const lastDrawId = lastDraw.id as string
+      const ctxSeed = (lastDrawId.split("").reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0) + turno.length * 17) % 100000
 
       // 2. Fetch historical draws scoped to lastDrawId
       const { data: histDraws } = await supabase
@@ -90,7 +91,6 @@ export async function GET(req: NextRequest) {
 
       // 3. Run V7 (TypeScript engine)
       let v7Predictions: BlendedPrediction[] = []
-      let v7Weight = 0.34
       try {
         const v7Weights = await loadV7Weights(turno)
         const weights = v7WeightsToFactorBreakdown(v7Weights)
@@ -101,14 +101,12 @@ export async function GET(req: NextRequest) {
           score: p.score,
           factor_attribution: {},
         }))
-        v7Weight = (1 - 0.60) * 0.85
       } catch (e) {
         logger.warn("[cron-precompute] V7 failed", { turno, error: String(e) })
       }
 
       // 4. Run ML (Random Forest + Neural Net + Markov)
       let mlPredictions: BlendedPrediction[] = []
-      let mlWeight = 0.06
       try {
         const mlResult = await getMLPredictions(turno, draws)
         if (mlResult?.available && mlResult.scores.size > 0) {
@@ -121,14 +119,13 @@ export async function GET(req: NextRequest) {
               score,
               factor_attribution: {},
             }))
-          mlWeight = (1 - 0.60) * 0.15
         }
       } catch (e) {
         logger.warn("[cron-precompute] ML failed", { turno, error: String(e) })
       }
 
-      // 5. Blend V6 + V7 + ML
-      const v6Weight = 0.60
+      // 5. Blend V6 + V7 + ML with dynamic weights
+      const engineWeights = await loadEngineWeights(turno)
       const allNums = new Map<number, BlendedPrediction>()
 
       // V6 scores
@@ -140,7 +137,7 @@ export async function GET(req: NextRequest) {
           allNums.set(num, {
             n: num,
             numero: num < 10 ? `0${num}` : `${num}`,
-            score: score * v6Weight,
+            score: score * engineWeights.V6,
             factor_attribution: fa,
           })
         }
@@ -149,7 +146,7 @@ export async function GET(req: NextRequest) {
       // V7 blend
       for (const pred of v7Predictions) {
         const existing = allNums.get(pred.n)
-        const v7Score = pred.score * v7Weight
+        const v7Score = pred.score * engineWeights.V7
         if (existing) {
           existing.score += v7Score
         } else {
@@ -160,13 +157,19 @@ export async function GET(req: NextRequest) {
       // ML blend
       for (const pred of mlPredictions) {
         const existing = allNums.get(pred.n)
-        const mlScore = pred.score * mlWeight
+        const mlScore = pred.score * engineWeights.ML
         if (existing) {
           existing.score += mlScore
         } else {
           allNums.set(pred.n, { ...pred, score: mlScore })
         }
       }
+
+      // Log raw predictions for each engine (before blend)
+      const v6Nums = (v6Rows || []).slice(0, 10).map((r: Record<string, unknown>) => r.numero as number)
+      const v7Nums = v7Predictions.slice(0, 10).map(p => p.n)
+      const mlNums = mlPredictions.slice(0, 10).map(p => p.n)
+      await logEnginePredictions(lastDrawId, turno, v6Nums, v7Nums, mlNums)
 
       // Sort and take top 10
       const blended = Array.from(allNums.values())
@@ -225,10 +228,10 @@ export async function GET(req: NextRequest) {
             numeros_3,
             numeros_4,
             redoblona,
-            engine_version: "omega-v6+v7-hybrid",
-            v6_weight: v6Weight,
-            v7_weight: v7Weight,
-            ml_weight: mlWeight,
+            engine_version: "meta-ensemble-v1",
+            v6_weight: Math.round(engineWeights.V6 * 10000) / 10000,
+            v7_weight: Math.round(engineWeights.V7 * 10000) / 10000,
+            ml_weight: Math.round(engineWeights.ML * 10000) / 10000,
             confidence: Math.round(confidence * 100) / 100,
             agreement_score: Math.round(agreement * 100) / 100,
             computed_at: new Date().toISOString(),

@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { evaluateAndAdjustWeights } from "@/lib/analisis/factor-feedback"
 import { adjustV7Weights } from "@/lib/analisis/v7-weights"
+import { updateEnginePerformance } from "@/lib/ensemble/meta-ensemble"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import logger from "@/lib/logger"
@@ -123,6 +124,13 @@ export async function GET(req: NextRequest) {
     }
   } catch (e) {
     logger.warn("[cron-feedback] V7 weight adjustment failed", { error: String(e) })
+  }
+
+  // Recalcular win_rate de motores para el meta-ensemble
+  try {
+    await updateEnginePerformance()
+  } catch (e) {
+    logger.warn("[cron-feedback] engine_performance update failed", { error: String(e) })
   }
 
   logCronExecution("cron-feedback", {
