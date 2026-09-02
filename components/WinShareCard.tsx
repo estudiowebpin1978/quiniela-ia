@@ -1,6 +1,5 @@
 "use client"
-import { useRef, useState } from "react"
-import { triggerHaptic } from "@/lib/haptics"
+import { useRef } from "react"
 
 interface WinCardData {
   date: string
@@ -19,8 +18,6 @@ interface Props {
 
 export default function WinShareCard({ data, onClose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [downloading, setDownloading] = useState(false)
-  const [copied, setCopied] = useState(false)
 
   const turnoEmoji: Record<string, string> = {
     Previa: "🌅", Primera: "☀️", Matutina: "🌤️", Vespertina: "🌇", Nocturna: "🌙",
@@ -115,45 +112,6 @@ export default function WinShareCard({ data, onClose }: Props) {
     return `${day}/${m}/${y}`
   }
 
-  const handleDownload = async () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    setDownloading(true)
-    triggerHaptic("medium")
-    generateCard(canvas)
-    try {
-      const link = document.createElement("a")
-      link.download = `quiniela-ia-${data.date}-${data.turno}.png`
-      link.href = canvas.toDataURL("image/png")
-      link.click()
-    } catch { /* silent */ }
-    setTimeout(() => setDownloading(false), 1000)
-  }
-
-  const handleShare = async () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    triggerHaptic("medium")
-    generateCard(canvas)
-
-    const text = `🏆 ¡${data.hitCount} acierto${data.hitCount > 1 ? "s" : ""} en ${data.turno}! 🎱 Quiniela IA — Predicciones con IA`
-
-    if (navigator.share) {
-      try {
-        canvas.toBlob(async (blob) => {
-          if (!blob) return
-          const file = new File([blob], "quiniela-win.png", { type: "image/png" })
-          await navigator.share({ title: "Quiniela IA", text, files: [file] })
-        })
-      } catch { /* user cancelled */ }
-    } else {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      triggerHaptic("success")
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
-
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 9999,
@@ -168,21 +126,6 @@ export default function WinShareCard({ data, onClose }: Props) {
         <canvas ref={canvasRef} style={{ width: "100%", borderRadius: 10, marginBottom: 14 }} />
 
         <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-          <button onClick={handleDownload} disabled={downloading} style={{
-            padding: "10px 20px", borderRadius: 10, border: "none",
-            background: "linear-gradient(135deg, #ff3366, #ff6b81)",
-            color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer",
-            fontFamily: "inherit",
-          }}>
-            {downloading ? "Descargando..." : "📥 Descargar"}
-          </button>
-          <button onClick={handleShare} style={{
-            padding: "10px 20px", borderRadius: 10, border: "1px solid rgba(37,244,238,.3)",
-            background: "transparent", color: "#25F4EE", fontWeight: 700,
-            fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-          }}>
-            {copied ? "✅ Copiado" : "📤 Compartir"}
-          </button>
           <button onClick={onClose} style={{
             padding: "10px 20px", borderRadius: 10, border: "1px solid rgba(255,255,255,.1)",
             background: "transparent", color: "#94a3b8", fontWeight: 700,
