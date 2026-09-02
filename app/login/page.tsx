@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getAuth, saveAuth, isLoggedIn, clearGuest } from "@/lib/auth"
-import { createBrowserClient } from "@/lib/supabase-client"
+import { supabaseBrowser } from "@/lib/supabase-client"
 import Button3D from "@/components/ui/Button3D"
 import { GlowOrbs, NeonBackground } from "@/components/ui/Effects"
 import { ArgentinaFlag, SunOfMay } from "@/components/ui/ArgentinaBranding"
@@ -23,32 +23,28 @@ export default function LoginPage() {
   useEffect(() => {
     if (isLoggedIn()) { window.location.href = "/predictions"; return }
 
-    // Handle OAuth callback: extract tokens from URL hash
-    const hash = window.location.hash
-    if (hash && hash.includes("access_token")) {
-      const params = new URLSearchParams(hash.substring(1))
-      const accessToken = params.get("access_token")
-      const refreshToken = params.get("refresh_token")
-      const expiresIn = parseInt(params.get("expires_in") || "3600", 10)
-      if (accessToken) {
+    // Handle OAuth callback: let Supabase handle the redirect
+    const sb = supabaseBrowser()
+    sb.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
         saveAuth({
-          access_token: accessToken,
-          refresh_token: refreshToken || "",
-          expires_at: Math.floor(Date.now() / 1000) + expiresIn,
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+          expires_at: session.expires_at,
           token_type: "bearer",
-          user: { id: params.get("user_id") || "", email: params.get("email") || "" },
+          user: { id: session.user.id, email: session.user.email || "" },
         })
         clearGuest()
         window.location.hash = ""
         window.location.href = "/predictions"
       }
-    }
+    })
   }, [])
 
   async function googleLogin() {
     setBusy(true); setErr("")
     try {
-      const sb = createBrowserClient()
+      const sb = supabaseBrowser()
       const redirectTo = `${window.location.origin}/login`
       const { error } = await sb.auth.signInWithOAuth({
         provider: "google",

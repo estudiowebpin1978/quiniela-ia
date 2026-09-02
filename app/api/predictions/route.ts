@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
       invalidateMemCache()
       try {
         const { redisClearPrefix } = await import("@/lib/redis")
-        await redisClearPrefix("pred:")
+        await redisClearPrefix("")
       } catch { /* best-effort Redis clear */ }
       return NextResponse.json({ ok: true, message: "Cache invalidated" })
     }

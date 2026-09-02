@@ -405,8 +405,11 @@ export async function predictEnsembleV7(
   turno: string,
   topN: number = 10,
   contextSeed?: number,
+  adaptiveWeights?: FactorBreakdown,
 ): Promise<{ predictions: Prediction[]; ensembleSize: number }> {
-  const allWeights = [DEFAULT_WEIGHTS, ...ENSEMBLE_WEIGHTS]
+  const allWeights = adaptiveWeights
+    ? [adaptiveWeights, ...ENSEMBLE_WEIGHTS]
+    : [DEFAULT_WEIGHTS, ...ENSEMBLE_WEIGHTS]
 
   // Try fast path first (materialized views)
   const fastResult = await predictV7Fast(turno, 100, DEFAULT_WEIGHTS, contextSeed)

@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
       try {
         const v7Weights = await loadV7Weights(turno)
         const weights = v7WeightsToFactorBreakdown(v7Weights)
-        const v7Result = await predictEnsembleV7(draws, turno, 10, ctxSeed)
+        const v7Result = await predictEnsembleV7(draws, turno, 10, ctxSeed, weights)
         v7Predictions = v7Result.predictions.map((p) => ({
           n: parseInt(p.numero),
           numero: p.numero,
