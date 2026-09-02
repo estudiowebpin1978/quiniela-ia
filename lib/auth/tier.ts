@@ -55,7 +55,7 @@ export async function ensureUserProfile(userId: string, email: string): Promise<
   const SK = getSupabaseKey()
   if (!SB || !SK || !userId) return
   try {
-    const r = await fetch(`${SB}/rest/v1/user_profiles?id=eq.${userId}&select=id,premium_until,trial_ends_at&limit=1`, {
+    const r = await fetch(`${SB}/rest/v1/user_profiles?id=eq.${userId}&select=id,premium_until,trial_ends_at,trial_started_at&limit=1`, {
       headers: { apikey: SK, Authorization: `Bearer ${SK}` },
       signal: AbortSignal.timeout(4000),
     })
@@ -64,32 +64,29 @@ export async function ensureUserProfile(userId: string, email: string): Promise<
 
     if (Array.isArray(rows) && rows.length > 0) {
       const existing = rows[0]
-      // Update if missing trial dates OR if both dates are in the past (stale profile)
-      // But NEVER overwrite a valid premium_until — only set trial if neither date is active
       const now = Date.now()
       const premiumUntilValid = existing.premium_until && new Date(existing.premium_until).getTime() > now
       const trialEndsValid = existing.trial_ends_at && new Date(existing.trial_ends_at).getTime() > now
-      const needsUpdate = !existing.premium_until || !existing.trial_ends_at || (!premiumUntilValid && !trialEndsValid && !existing.premium_until?.startsWith("2099"))
-      if (needsUpdate) {
-        // Only set fields that are missing or expired — never downgrade active premium
-        const patchBody: Record<string, string> = {}
+
+      // If trial was already started (trial_started_at exists), NEVER reset trial dates
+      const trialAlreadyStarted = !!existing.trial_started_at
+
+      // Only create trial for truly new users (no trial_started_at set yet)
+      if (!trialAlreadyStarted) {
+        const patchBody: Record<string, string> = { trial_started_at: trialISO }
         if (!existing.premium_until || !premiumUntilValid) patchBody.premium_until = trialISO
         if (!existing.trial_ends_at || !trialEndsValid) patchBody.trial_ends_at = trialISO
-        if (Object.keys(patchBody).length === 0) { return }
         const updateRes = await fetch(`${SB}/rest/v1/user_profiles?id=eq.${userId}`, {
           method: "PATCH",
           headers: {
-            apikey: SK,
-            Authorization: `Bearer ${SK}`,
-            "Content-Type": "application/json",
-            Prefer: "return=minimal",
+            apikey: SK, Authorization: `Bearer ${SK}`,
+            "Content-Type": "application/json", Prefer: "return=minimal",
           },
           body: JSON.stringify(patchBody),
           signal: AbortSignal.timeout(4000),
         })
         if (!updateRes.ok) {
-          const errText = await updateRes.text().catch(() => "")
-          logger.error("[ensureUserProfile] UPDATE failed", { userId, status: updateRes.status, error: errText.substring(0, 200) })
+          logger.error("[ensureUserProfile] UPDATE failed", { userId, status: updateRes.status })
         }
       }
       return
@@ -110,6 +107,7 @@ export async function ensureUserProfile(userId: string, email: string): Promise<
         role: "free",
         premium_until: trialISO,
         trial_ends_at: trialISO,
+        trial_started_at: trialISO,
         created_at: new Date().toISOString(),
       }),
       signal: AbortSignal.timeout(4000),

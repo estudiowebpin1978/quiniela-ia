@@ -374,10 +374,10 @@ export async function parseLoteriaOficial(
       }
     }
 
-    if (dateCodes.length >= 5) {
+    if (dateCodes.length > 0) {
       // Codes are sorted descending in the dropdown, sort ascending
       dateCodes.sort((a, b) => a - b)
-      sorteoCode = dateCodes[turnoIdx] ?? null
+      sorteoCode = turnoIdx < dateCodes.length ? dateCodes[turnoIdx] : null
     }
 
     if (sorteoCode === null) return null

@@ -74,24 +74,24 @@
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/cron-autopilot",
-      "schedule": "0 13 * * 2-6,0"
+      "path": "/api/cron-autopilot?turno=Previa",
+      "schedule": "30 13 * * 1-6"
     },
     {
-      "path": "/api/cron-autopilot",
-      "schedule": "45 14 * * 1-6"
+      "path": "/api/cron-autopilot?turno=Primera",
+      "schedule": "30 15 * * 1-6"
     },
     {
-      "path": "/api/cron-autopilot",
-      "schedule": "45 17 * * 1-6"
+      "path": "/api/cron-autopilot?turno=Matutina",
+      "schedule": "30 18 * * 1-6"
     },
     {
-      "path": "/api/cron-autopilot",
-      "schedule": "45 20 * * 1-6"
+      "path": "/api/cron-autopilot?turno=Vespertina",
+      "schedule": "30 21 * * 1-6"
     },
     {
-      "path": "/api/cron-autopilot",
-      "schedule": "45 23 * * 1-6"
+      "path": "/api/cron-autopilot?turno=Nocturna",
+      "schedule": "30 0 * * 2-6,0"
     }
   ]
 }

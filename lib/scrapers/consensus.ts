@@ -67,7 +67,6 @@ export interface ConsensusResult {
   consensusMethod:
     | "tri_full_match"
     | "tri_majority"
-    | "tri_single_survivor"
     | "orchestrator_fallback"
     | "abort_no_quorum"
   nodes: SourceNode[]
@@ -248,16 +247,16 @@ export async function fetchWithConsensus(
     return buildResult("tri_majority", quorum.majorityNumbers, quorum.majoritySource, nodes, quorum, startTime)
   }
 
-  // CASE 3: 1/3 responds → single survivor (accepted with low confidence)
+  // CASE 3: 1/3 responds → ABORT (need at least 2 sources for quorum)
   if (okCount === 1) {
     const survivor = nodes.find((n) => n.ok)!
-    logger.warn("[tri-consensus] 1/3 SINGLE SURVIVOR", {
+    logger.warn("[tri-consensus] ABORT — only 1 source responded", {
       fecha: fechaISO,
       turno,
       survivor: survivor.name,
       duration: Date.now() - startTime,
     })
-    return buildResult("tri_single_survivor", survivor.numbers, survivor.name, nodes, quorum, startTime)
+    return buildAbortResult("abort_no_quorum", nodes, quorum, `Only 1 source responded: ${survivor.name}`, startTime)
   }
 
   // CASE 4: 3 different values → anomaly, abort

@@ -133,8 +133,11 @@ export async function GET(req: NextRequest) {
     const requestedDate = searchParams.get("date")
     const targetDate = (requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) ? requestedDate : todayBsAs
 
-    // ── Cache invalidation (called by scrape webhook on success) ──
+    // ── Cache invalidation (admin-only) ──
     if (searchParams.get("invalidate") === "1") {
+      if (userTier.role !== "admin") {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+      }
       invalidateMemCache()
       try {
         const { redisClearPrefix } = await import("@/lib/redis")
