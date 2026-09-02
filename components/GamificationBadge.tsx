@@ -38,6 +38,7 @@ export default function GamificationBadge({ compact = false, onNewAchievement }:
           const ach = d.newAchievements[0]
           setNewAchievement(ach)
           onNewAchievement?.(ach)
+          import("@/lib/haptics").then(m => m.triggerHaptic("streak"))
           setTimeout(() => setNewAchievement(null), 4000)
         }
       })

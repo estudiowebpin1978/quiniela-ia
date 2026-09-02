@@ -74,7 +74,15 @@ export default function PredictionPageContent({ fecha, draws }: Props) {
     setLoading((prev) => ({ ...prev, [turno]: true }));
 
     try {
-      const res = await fetch(`/api/predictions?sorteo=${turno}&date=${fecha}`);
+      // Get auth token from localStorage
+      const authRaw = localStorage.getItem("quiniela-ia-auth");
+      const auth = authRaw ? JSON.parse(authRaw) : null;
+      const headers: Record<string, string> = {};
+      if (auth?.access_token) {
+        headers["Authorization"] = `Bearer ${auth.access_token}`;
+      }
+
+      const res = await fetch(`/api/predictions?sorteo=${turno}&date=${fecha}`, { headers });
       if (res.ok) {
         const data = await res.json();
         setPredictions((prev) => ({ ...prev, [turno]: data }));

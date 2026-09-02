@@ -20,6 +20,3 @@ export function getSupabaseBrowser() {
   }
   return _client
 }
-
-// Legacy export — returns null on server (never create browser client in SSR)
-export const supabase = typeof window !== "undefined" ? getSupabaseBrowser() : null

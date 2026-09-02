@@ -96,10 +96,16 @@ export async function POST(req: NextRequest) {
 
   if (action === "premium") {
     const d = Number(days) || 30
-    const until = new Date(Date.now() + d * 86400000).toISOString()
+    // Extend existing premium instead of overwriting
+    const { data: profile } = await supabase.from("user_profiles").select("premium_until").eq("id", userId).single()
+    const now = Date.now()
+    const base = profile?.premium_until && new Date(profile.premium_until).getTime() > now
+      ? new Date(profile.premium_until).getTime()
+      : now
+    const until = new Date(base + d * 86400000).toISOString()
     const { error } = await supabase.from("user_profiles").update({ role: "premium", premium_until: until }).eq("id", userId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, premium_until: until })
   }
 
   if (action === "free") {

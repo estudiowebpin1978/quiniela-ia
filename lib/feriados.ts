@@ -32,17 +32,6 @@ export function esDiaSinSorteo(dateStr: string, diaSemana: number): boolean {
   return esFeriado(dateStr);
 }
 
-/** Sábados ahora tienen los 5 sorteos — función retorna siempre false */
-export function esSabadoSinTurnos(_diaSemana: number, _turno: string): boolean {
-  return false;
-}
-
-export function motivoDiaSinSorteo(dateStr: string, diaSemana: number, _turno: string): string | null {
-  if (diaSemana === 0) return "domingo";
-  if (esFeriado(dateStr)) return "feriado";
-  return null;
-}
-
 export function todosLosFeriados(): string[] {
   return Object.values(FERIADOS).flat();
 }

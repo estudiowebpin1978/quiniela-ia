@@ -34,7 +34,7 @@ import {
 import { isSourceQuarantined, recordSourceResult } from "./circuit-breaker"
 import logger from "@/lib/logger"
 
-const FETCH_TIMEOUT = 8000
+const FETCH_TIMEOUT = 6000
 const MAX_RETRIES = 1
 const BASE_DELAY = 2000
 const TOP_N_CONSENSUS = 5
@@ -61,7 +61,7 @@ function delay(ms: number): Promise<void> {
 
 // ── Consensus helpers ──────────────────────────────────────────────────────
 
-function compareTopN(a: number[], b: number[], n: number = TOP_N_CONSENSUS): { match: boolean; matchedCount: number; details: string } {
+export function compareTopN(a: number[], b: number[], n: number = TOP_N_CONSENSUS): { match: boolean; matchedCount: number; details: string } {
   const sliceA = a.slice(0, n)
   const sliceB = b.slice(0, n)
   let matched = 0
@@ -262,7 +262,7 @@ export async function fetchWithFallback(
   gameSlug: string = "quiniela"
 ): Promise<OrchestratorResult> {
   const overallStart = Date.now()
-  const BUDGET = 30000
+  const BUDGET = 20000
   const allAttempts: SourceAttempt[] = []
 
   // ── Step 1: Parallel fetch — first 4 sources ──────────────────────────
@@ -399,11 +399,11 @@ export async function fetchWithFallback(
       allAttempts.push(fallbackAttempt)
 
       if (fbResult && fbResult.numbers.length >= 20) {
+        fallbackAttempt.ok = true
         logger.info("orchestrator: fallback succeeded", {
           fecha: fechaISO, turno, source: fallback.name,
           numbers: fbResult.numbers.length, duration: fallbackAttempt.duration,
         })
-        fallbackAttempt.ok = true
         const result = await validateCabeza(fbResult, fechaISO, fechaUrl, turno, fallback.name, gameSlug, allAttempts)
         result.duration = Date.now() - overallStart
         result.consensusMethod = "sequential_fallback"

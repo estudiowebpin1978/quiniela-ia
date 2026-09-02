@@ -11,6 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { predictEnsembleV7 } from "@/lib/analisis/engine-v7"
@@ -18,6 +19,7 @@ import { loadV7Weights, v7WeightsToFactorBreakdown } from "@/lib/analisis/v7-wei
 import { getMLPredictions } from "@/lib/ml/integration"
 import { loadEngineWeights, logEnginePredictions } from "@/lib/ensemble/meta-ensemble"
 import logger from "@/lib/logger"
+import { SUENOS } from "@/lib/suenos"
 import type { Draw } from "@/lib/analisis/engine-v7"
 
 export const maxDuration = 60
@@ -61,7 +63,7 @@ export async function GET(req: NextRequest) {
       }
 
       const lastDrawId = lastDraw.id as string
-      const ctxSeed = (lastDrawId.split("").reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0) + turno.length * 17) % 100000
+      const ctxSeed = (lastDrawId.split("").reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0) + turno.split("").reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0)) % 100000
 
       // 2. Fetch historical draws scoped to lastDrawId
       const { data: histDraws } = await supabase
@@ -178,14 +180,41 @@ export async function GET(req: NextRequest) {
 
       // Generate 3/4 cifras and redoblona from blended top 10
       const top10nums = blended.map((p) => p.n)
+
+      // Build co-occurrence maps from historical draws for deterministic 3/4 cifras
+      const hundredsFreq = new Map<number, Map<number, number>>() // 2-digit -> hundreds digit -> count
+      const thousandsFreq = new Map<number, Map<number, number>>() // 2-digit -> thousands pair -> count
+      for (const draw of histDraws) {
+        const nums = draw.numbers as number[]
+        if (!Array.isArray(nums)) continue
+        for (const fullNum of nums) {
+          const twoDigit = fullNum % 100
+          const hundreds = Math.floor(fullNum / 100) % 10
+          const thousands = Math.floor(fullNum / 100)
+          if (!hundredsFreq.has(twoDigit)) hundredsFreq.set(twoDigit, new Map())
+          if (!thousandsFreq.has(twoDigit)) thousandsFreq.set(twoDigit, new Map())
+          const hMap = hundredsFreq.get(twoDigit)!
+          hMap.set(hundreds, (hMap.get(hundreds) || 0) + 1)
+          const tMap = thousandsFreq.get(twoDigit)!
+          tMap.set(thousands, (tMap.get(thousands) || 0) + 1)
+        }
+      }
+
+      function mostFrequent(map: Map<number, number> | undefined, fallback: number): number {
+        if (!map || map.size === 0) return fallback
+        let best = fallback, bestCount = 0
+        for (const [val, count] of map) {
+          if (count > bestCount) { best = val; bestCount = count }
+        }
+        return best
+      }
+
       const numeros_3 = top10nums.slice(0, 10).map((n) => {
-        // Generate 3-digit by prepending a digit (0-9) based on score ranking
-        const prefix = Math.floor(Math.random() * 10)
+        const prefix = mostFrequent(hundredsFreq.get(n), 0)
         return `${prefix}${String(n).padStart(2, "0")}`
       })
       const numeros_4 = top10nums.slice(0, 10).map((n) => {
-        // Generate 4-digit by prepending two digits
-        const prefix = Math.floor(Math.random() * 100)
+        const prefix = mostFrequent(thousandsFreq.get(n), 0)
         return `${String(prefix).padStart(2, "0")}${String(n).padStart(2, "0")}`
       })
       const redoblona = top10nums.length >= 2
@@ -255,37 +284,21 @@ export async function GET(req: NextRequest) {
   logger.info("[cron-precompute] Completed", { turnos: results.length, elapsed })
   logCronExecution("cron-precompute", { results, elapsed }, t0)
 
+  // On-Demand ISR: purge static pages so fresh predictions appear immediately
+  try {
+    revalidatePath("/", "layout")
+    revalidatePath("/pronostico/[fecha]", "page")
+    revalidatePath("/resultado/[fecha]", "page")
+    revalidatePath("/predictions", "page")
+  } catch { /* non-fatal */ }
+
   return NextResponse.json({ ok: true, results, elapsed })
 }
 
 function getEmoji(n: number): string {
-  const SUENOS: Record<number, string> = {
-    0: "🥚", 1: "💧", 2: "👶", 3: "🐰", 4: "🛏️", 5: "🐱",
-    6: "🐕", 7: "🔫", 8: "🔥", 9: "🌊", 10: "🥛", 11: "⛏️",
-    12: "💂", 13: "😱", 14: "🍺", 15: "👸", 16: "💍", 17: "💀",
-    18: "🩸", 19: "🐟", 20: "🎉", 21: "👩", 22: "🤪", 23: "👨‍🍳",
-    24: "🐴", 25: "🐔", 26: "⛪", 27: "🪮", 28: "⛰️", 29: "✝️",
-    30: "💑", 31: "🌸", 32: "🎨", 33: "🎵", 34: "🌙", 35: "⭐",
-    36: "🌈", 37: "🔥", 38: "💎", 39: "🎯", 40: "🏆", 41: "🎪",
-    42: "🎭", 43: "🎰", 44: "🎲", 45: "🧸", 46: "🎀", 47: "🎈",
-    48: "🎊", 49: "🎁",
-  }
-  return SUENOS[n] || (n <= 99 ? "❓" : "❓")
+  return SUENOS[n]?.emoji || "❓"
 }
 
 function getSignificado(n: number): string {
-  const NOMBRES: Record<number, string> = {
-    0: "Huevos", 1: "Agua", 2: "Niño", 3: "San Cono", 4: "La cama",
-    5: "Gato", 6: "Perro", 7: "Revolver", 8: "Incendio", 9: "Arroyo",
-    10: "Leche", 11: "Minero", 12: "Soldado", 13: "Yeta", 14: "Borracho",
-    15: "Niña Bonita", 16: "Anillo", 17: "Desgracia", 18: "Sangre",
-    19: "Pescado", 20: "La fiesta", 21: "Mujer", 22: "Loco", 23: "Cocinero",
-    24: "Caballo", 25: "Gallina", 26: "La misa", 27: "Peine", 28: "Cerro",
-    29: "San Pedro", 30: "Pareja", 31: "Rosa", 32: "Pintor", 33: "Músico",
-    34: "Luna", 35: "Estrella", 36: "Arcoíris", 37: "Fuego", 38: "Diamante",
-    39: "Bala", 40: "Trofeo", 41: "Circo", 42: "Teatro", 43: "Máquina",
-    44: "Dado", 45: "Oso", 46: "Cinta", 47: "Globo", 48: "Fiesta",
-    49: "Regalo",
-  }
-  return NOMBRES[n] || `Número ${n}`
+  return SUENOS[n]?.nombre || "❓"
 }

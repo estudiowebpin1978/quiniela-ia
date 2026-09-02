@@ -19,6 +19,7 @@ import { usePushNotifications } from "@/components/PushNotifications";
 import PaywallModal from "@/components/PaywallModal";
 import WhatsAppFAB from "@/components/WhatsAppFAB";
 import FooterDisclaimer from "@/components/FooterDisclaimer";
+import HitRateBanner from "@/components/HitRateBanner";
 import GamificationBadge from "@/components/GamificationBadge";
 import HistorialAciertos from "@/components/HistorialAciertos";
 import ExpiryBanner from "@/components/ExpiryBanner";
@@ -27,7 +28,7 @@ import { ToastProvider, useToast } from "@/components/Toast";
 import { getAccessToken, clearAuth, getAuth, isGuest, clearGuest, getValidToken } from "@/lib/auth";
 import { STORAGE_KEYS } from "@/lib/storage";
 import { isAdminEmail } from "@/lib/config";
-import { esFeriado, esDiaSinSorteo, esSabadoSinTurnos, motivoDiaSinSorteo, todosLosFeriados } from "@/lib/feriados";
+import { esFeriado, esDiaSinSorteo, todosLosFeriados } from "@/lib/feriados";
 import NumberGrid from "@/components/predictions/NumberGrid";
 import HeatmapGrid from "@/components/predictions/HeatmapGrid";
 import TrendBars from "@/components/predictions/TrendBars";
@@ -35,6 +36,7 @@ import ShareButtons from "@/components/predictions/ShareButtons";
 import ReviewsCarousel from "@/components/predictions/ReviewsCarousel";
 import PayCTA from "@/components/predictions/PayCTA";
 import { useSound } from "@/lib/sound/audio-manager";
+import { triggerHaptic } from "@/lib/haptics";
 import { useSettings } from "@/components/ui/Settings";
 import { ConfettiEffect, GlowOrbs, NeonBackground } from "@/components/ui/Effects";
 import { validatePredData } from "@/lib/api/predictions";
@@ -42,6 +44,9 @@ import { RealtimeResults, RealtimeBadge } from "@/components/RealtimeResults";
 import { RealtimeVerification } from "@/components/RealtimeVerification";
 import { getQuinielaEntry, getQuinielaIcon, getQuinielaName, getLast2CifrasEntry } from "@/lib/utils/quinielaDictionary";
 import AutoPilotToggle from "@/components/AutoPilotToggle";
+import NotificationBell from "@/components/NotificationBell";
+import StreakBar from "@/components/StreakBar";
+import WinShareCard from "@/components/WinShareCard";
 
 import type { SavedPrediction, NumeroItem, ResultadoControl, DrawData, BacktestItem } from "@/lib/types/client";
 import "./predictions.css";
@@ -110,6 +115,7 @@ function PageInner() {
   const sound = useSound();
   const { settings } = useSettings();
   const [showConfetti, setShowConfetti] = useState(false);
+  const [winShareData, setWinShareData] = useState<{ date: string; turno: string; hitCount: number; hitNumbers: string[] } | null>(null);
   const [pr, setPr] = useState(false);
   const [em, setEm] = useState("");
   const [tab, setTab] = useState<"pred" | "rdbl" | "freq" | "trend" | "mis" | "acc" | "hist">("pred");
@@ -406,6 +412,7 @@ function PageInner() {
 function mostrarNotifResultado(turno: string, numeros: string[], aciertos: string[]) {
     if (aciertos && aciertos.length > 0) {
       sound.win();
+      triggerHaptic("success");
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 3000);
       if ("Notification" in window && Notification.permission === "granted") {
@@ -566,7 +573,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       const fecha = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires", year: "numeric", month: "2-digit", day: "2-digit" }).format(d)
       if (dia === 0) continue;
       if (feriados.includes(fecha)) continue;
-      if (esSabadoSinTurnos(dia, sorteo)) continue;
       return fecha
     }
     return hoyArgentina()
@@ -581,9 +587,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     // If today has no draws at all (Sunday or holiday), skip to next valid day
     if (feriados.includes(fechaActual)) return nextValidDate(sorteo)
     if (diaActual === 0) return nextValidDate(sorteo)
-    
-    // Saturday: Previa and Primera don't happen — skip to next valid day
-    if (esSabadoSinTurnos(diaActual, sorteo)) return nextValidDate(sorteo)
     
     // Today is a valid draw day for this turno — show today
     return fechaActual
@@ -627,7 +630,18 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         if (newAciertos > prevNotified) {
           toast(`¡${diff} nuevo${diff > 1 ? "s" : ""} acierto${diff > 1 ? "s" : ""}!`, "success")
           sound.win();
+          triggerHaptic("success");
           setShowConfetti(true);
+          // Set share data from latest prediction with hits
+          const winPred = apiPreds.find((p: any) => (p.aciertos?.length || 0) > 0)
+          if (winPred) {
+            setWinShareData({
+              date: winPred.date || winPred.fecha || "",
+              turno: winPred.turno || "",
+              hitCount: diff,
+              hitNumbers: (winPred.aciertos || []).map((a: any) => a.numero || ""),
+            })
+          }
           setTimeout(() => setShowConfetti(false), 3000);
           localStorage.setItem(notifiedKey, String(newAciertos))
         }
@@ -882,6 +896,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       <NeonBackground intensity={settings.particlesEnabled ? "low" : "off"} />
       <GlowOrbs />
       <ConfettiEffect active={showConfetti} />
+      {winShareData && <WinShareCard data={{ ...winShareData, nivel: 0, racha: 0, totalNumbers: 20 }} onClose={() => setWinShareData(null)} />}
       <style>{`
         *{box-sizing:border-box;margin:0;padding:0}
         :root{--red:#FE2C55;--cyan:#25F4EE;--green:#22c55e;--bg:#010101;--bg2:#0d0d0d;--bg3:#141b2f;--card:#0d0d0d;--surface:rgba(13,13,13,.9);--text:#FFFFFF;--dim:#94a3b8;--border:rgba(255,255,255,.08);--nav-bg:rgba(6,8,15,.98);--panel-bg:rgba(255,255,255,.04);--panel-border:rgba(255,255,255,.08);--shadow:rgba(0,0,0,.32)}
@@ -1095,6 +1110,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             {em && <span className="ne">{em.split("@")[0]}</span>}
             {userRole === "admin" && <a href="/admin" className="nav-admin">⚙️ Admin</a>}
             <RealtimeBadge />
+            <NotificationBell />
             <button
               onClick={pedirNotificaciones}
               disabled={pushLoading}
@@ -1109,9 +1125,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 fontFamily: "inherit",
                 opacity: pushSupported ? 1 : 0.4,
               }}
-              title={pushSubscribed ? "Notificaciones activadas" : "Tocar para activar notificaciones push"}
+              title={pushSubscribed ? "Notificaciones push activadas" : "Activar notificaciones push"}
             >
-              {pushLoading ? "⏳" : pushSubscribed ? "🔔✅" : pushSupported ? "🔔" : "🔕"}
+              {pushLoading ? "⏳" : pushSubscribed ? "📲✅" : pushSupported ? "📲" : "📵"}
             </button>
             {showInstall && (
               <button onClick={installApp} style={{ padding: "6px 12px", borderRadius: 8, background: "linear-gradient(135deg,#ff3366,#ff6b81)", color: "#fff", border: "none", fontWeight: 700, fontSize: 11, cursor: "pointer", boxShadow: "0 4px 12px rgba(255,51,102,.4)" }}>
@@ -1128,6 +1144,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             </button>
           </div>
         </nav>
+        <StreakBar />
         {pr && premExpiry.daysRemaining !== null && premExpiry.daysRemaining <= 7 && (
           <div style={{
             margin: "8px 12px 0", padding: "10px 14px", borderRadius: 12,
@@ -1175,7 +1192,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 8, textAlign: "center" }}>🎯 Elegí el sorteo que querés analizar:</div>
           <div className="sorteo-btns">
             {SORTEOS.map((s) => (
-              <button key={s} className={"sb" + (so === s ? " on" : "")} onClick={() => { sound.pop(); setSo(s); setDt(null); setDn(false); setEr(""); }}>
+              <button key={s} className={"sb" + (so === s ? " on" : "")} onClick={() => { sound.pop(); triggerHaptic("light"); setSo(s); setDt(null); setDn(false); setEr(""); }}>
                 <span>{s === "Vespertina" ? "Vesp" : s === "Primera" ? "1era" : s === "Matutina" ? "Mat" : s === "Nocturna" ? "Noct" : s}</span>
                 <span className="sh">{HORAS[s]}</span>
                 {confianzaTurnos[s] != null && <span className="sc">{confianzaTurnos[s]}%</span>}
@@ -1420,27 +1437,27 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               )}
 
               <div className="tbs">
-                <button className={"tb tb-pred" + (tab === "pred" ? " on" : "")} onClick={() => { sound.pop(); setTab("pred"); }}>
+                <button className={"tb tb-pred" + (tab === "pred" ? " on" : "")} onClick={() => { sound.pop(); triggerHaptic("light"); setTab("pred"); }}>
                   <span className="tb-ico">🎯</span>
                   <span className="tb-lbl">Análisis</span>
                 </button>
-                <button className={"tb tb-rdbl" + (tab === "rdbl" ? " on" : "")} onClick={() => { sound.pop(); setTab("rdbl"); }}>
+                <button className={"tb tb-rdbl" + (tab === "rdbl" ? " on" : "")} onClick={() => { sound.pop(); triggerHaptic("light"); setTab("rdbl"); }}>
                   <span className="tb-ico">📊</span>
                   <span className="tb-lbl">Correlación</span>
                 </button>
-                <button className={"tb tb-freq" + (tab === "freq" ? " on" : "")} onClick={() => { sound.pop(); setTab("freq"); }}>
+                <button className={"tb tb-freq" + (tab === "freq" ? " on" : "")} onClick={() => { sound.pop(); triggerHaptic("light"); setTab("freq"); }}>
                   <span className="tb-ico">🔥</span>
                   <span className="tb-lbl">Frecuencias</span>
                 </button>
-                <button className={"tb tb-trend" + (tab === "trend" ? " on" : "")} onClick={() => { sound.pop(); setTab("trend"); }}>
+                <button className={"tb tb-trend" + (tab === "trend" ? " on" : "")} onClick={() => { sound.pop(); triggerHaptic("light"); setTab("trend"); }}>
                   <span className="tb-ico">📈</span>
                   <span className="tb-lbl">Tendencias</span>
                 </button>
-                <button className={"tb tb-mis" + (tab === "mis" ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para guardar y ver tus análisis", "info"); return; } sound.pop(); setTab("mis"); }}>
+                <button className={"tb tb-mis" + (tab === "mis" ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para guardar y ver tus análisis", "info"); return; } sound.pop(); triggerHaptic("light"); setTab("mis"); }}>
                   <span className="tb-ico">{guestMode ? "🔒" : "📋"}</span>
                   <span className="tb-lbl">Mis Análisis</span>
                 </button>
-                <button className={"tb tb-acc" + (tab === "acc" ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para ver tu precisión", "info"); return; } sound.pop(); setTab("acc"); }}>
+                <button className={"tb tb-acc" + (tab === "acc" ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para ver tu precisión", "info"); return; } sound.pop(); triggerHaptic("light"); setTab("acc"); }}>
                   <span className="tb-ico">{guestMode ? "🔒" : "🎯"}</span>
                   <span className="tb-lbl">Precisión</span>
                 </button>
@@ -2386,6 +2403,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         userId={userId}
       />
       <WhatsAppFAB />
+      <HitRateBanner />
       <FooterDisclaimer />
     </>
   );

@@ -109,10 +109,16 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
     .eq("date", fecha)
     .ilike("turno", normalizedTurno)
 
-  if (!draws?.length) return []
+  if (!draws?.length) {
+    logger.warn("[auto-verify] No draw found — skipping verification", { fecha, turno: normalizedTurno })
+    return []
+  }
   const draw = draws[0]
 
-  if (!draw.numbers?.length) return []
+  if (!draw.numbers?.length) {
+    logger.warn("[auto-verify] Draw exists but numbers empty — skipping", { fecha, turno: normalizedTurno })
+    return []
+  }
 
   const nums2 = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
   const nums3 = draw.numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
@@ -253,26 +259,40 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
         verified_at: h.verified_at,
       }
     })
-    for (const u of statusUpdates) {
-      await supabase.from("user_predictions").update({ status: u.status, aciertos: u.aciertos, verified_at: u.verified_at }).eq("id", u.id)
+
+    // Batch UPDATE: group by status, 2 queries max instead of N
+    const wonIds = statusUpdates.filter(u => u.status === "WON").map(u => u.id)
+    const lostIds = statusUpdates.filter(u => u.status === "LOST").map(u => u.id)
+    const now = new Date().toISOString()
+
+    if (wonIds.length > 0) {
+      await supabase.from("user_predictions")
+        .update({ status: "WON", verified_at: now })
+        .in("id", wonIds)
+    }
+    if (lostIds.length > 0) {
+      await supabase.from("user_predictions")
+        .update({ status: "LOST", verified_at: now })
+        .in("id", lostIds)
     }
   }
 
   const statsArray = Array.from(statsMap.values()).filter(s => s.user_id)
   if (statsArray.length > 0) {
-    for (const stat of statsArray) {
-      try {
-        const isHit = (stat.total_hits || 0) > 0 && stat.current_streak > 0
-        await supabase.rpc("increment_user_stats" as never, {
-          p_user_id: stat.user_id,
-          p_predictions_increment: stat.total_predictions,
-          p_hits_increment: stat.total_hits,
-          p_is_hit: isHit,
-          p_verified_at: stat.last_verified,
-        } as never)
-      } catch (e) {
-        logger.error("[auto-verify] Failed to update user_stats", { userId: stat.user_id, error: String(e) })
-      }
+    // Batch upsert user_stats instead of N individual RPC calls
+    const statsRows = statsArray.map(stat => ({
+      user_id: stat.user_id,
+      total_predictions: stat.total_predictions,
+      total_hits: stat.total_hits,
+      current_streak: stat.current_streak,
+      best_streak: stat.best_streak,
+      last_verified: stat.last_verified,
+    }))
+    const { error: statsError } = await supabase
+      .from("user_stats")
+      .upsert(statsRows, { onConflict: "user_id" })
+    if (statsError) {
+      logger.error("[auto-verify] Batch user_stats upsert failed", { error: statsError.message })
     }
   }
 

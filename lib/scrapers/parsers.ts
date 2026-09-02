@@ -57,7 +57,7 @@ async function fetchSorteoCodes(): Promise<Record<string, number[]>> {
   try {
     const resp = await fetch("https://quiniela.loteriadelaciudad.gob.ar/", {
       headers: { "User-Agent": rotationUA(), Accept: "text/html" },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(6000),
     })
     const html = await resp.text()
 
@@ -141,7 +141,7 @@ export async function parseOficial(
           "X-Requested-With": "XMLHttpRequest",
         },
         body: `codigo=0080&juridiccion=51&sorteo=${sorteoCode}`,
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(6000),
       }
     )
 
@@ -227,7 +227,7 @@ export async function parseQuinieleando(
       const html = await (
         await fetch(url, {
           headers: { "User-Agent": rotationUA(), Accept: "text/html" },
-          signal: AbortSignal.timeout(10000),
+          signal: AbortSignal.timeout(6000),
         })
       ).text()
 
@@ -352,7 +352,7 @@ export async function parseLoteriaOficial(
     // Step 1: Fetch homepage to discover sorteo codes for the target date
     const homeR = await fetch("https://quiniela.loteriadelaciudad.gob.ar/", {
       headers: { "User-Agent": rotationUA(), Accept: "text/html" },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(6000),
     })
     if (!homeR.ok) return null
     const homeHtml = await homeR.text()
@@ -393,7 +393,7 @@ export async function parseLoteriaOficial(
           Referer: "https://quiniela.loteriadelaciudad.gob.ar/",
         },
         body: `codigo=0080&juridiccion=51&sorteo=${sorteoCode}`,
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(6000),
       }
     )
     if (!r.ok) return null
@@ -496,7 +496,7 @@ export async function parseQuinielaNacionalN(
     const html = await (
       await fetch("https://quinielanacionaln.com.ar/", {
         headers: { "User-Agent": rotationUA(), Accept: "text/html" },
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(6000),
       })
     ).text()
 
@@ -628,7 +628,7 @@ export async function parseLoteriaSantaFe(
     const html = await (
       await fetch(url, {
         headers: { "User-Agent": rotationUA(), Accept: "text/html" },
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(6000),
       })
     ).text()
 
@@ -700,7 +700,7 @@ export async function parseNumerosEnvivo(
     const url = `https://numerosenvivo.com.ar/quiniela/ciudad?fecha=${fechaISO}`
     const resp = await fetch(url, {
       headers: { "User-Agent": rotationUA(), Accept: "text/html" },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(6000),
     })
     if (!resp.ok) return null
     const html = await resp.text()
@@ -741,7 +741,7 @@ export async function parseNumerosEnvivo(
     // Fallback: try the dedicated JSON API
     const apiResp = await fetch("https://numerosenvivo.com.ar/api/datos/quiniela/ciudad.json", {
       headers: { "User-Agent": rotationUA() },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(6000),
     })
     if (apiResp.ok) {
       const jsonData = await apiResp.json()
@@ -787,7 +787,7 @@ export async function parseLoteriaMundiales(
     const url = `https://www.loteriasmundiales.com.ar/Quinielas/ciudad?fecha=${fechaParam}`
     const resp = await fetch(url, {
       headers: { "User-Agent": rotationUA(), Accept: "text/html" },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(6000),
     })
     if (!resp.ok) return null
     const html = await resp.text()
@@ -861,7 +861,7 @@ export async function parseQuiniela22Cabeza(
     const html = await (
       await fetch(url, {
         headers: { "User-Agent": rotationUA(), Accept: "text/html" },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(6000),
       })
     ).text()
     const rx =
@@ -888,7 +888,7 @@ export async function parseNacionalQuiniela(
     const html = await (
       await fetch(url, {
         headers: { "User-Agent": rotationUA(), Accept: "text/html" },
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(6000),
       })
     ).text()
 

@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase-client";
 import PredictionPageContent from "../../[fecha]/PredictionPageContent";
 
+// ISR: revalidate every 5 minutes as fallback safety net
+export const revalidate = 300;
+
 interface Props {
   params: Promise<{ fecha: string; turno: string }>;
 }

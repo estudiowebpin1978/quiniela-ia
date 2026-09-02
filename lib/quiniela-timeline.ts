@@ -68,18 +68,18 @@ export async function validatePrerequisite(
   supabase: any,
   targetTurno: TurnoQuiniela,
 ): Promise<
-  | { valid: true; lastDrawId: number }
-  | { valid: false; reason: string; expected: { turno: string; date: string }; found: { turno: string; date: string; id: number } | null }
+  | { valid: true; lastDrawId: string }
+  | { valid: false; reason: string; expected: { turno: string; date: string }; found: { turno: string; date: string; id: string } | null }
 > {
   const dep = getDependency(targetTurno)
   const expectedDate = dateART(dep.dateOffset)
 
   const { data: draw } = await supabase
     .from("draws")
-    .select("id, turno, date")
+    .select("id, turno, date, created_at")
     .eq("turno", dep.turno)
     .eq("date", expectedDate)
-    .order("id", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(1)
     .single()
 
@@ -94,8 +94,8 @@ export async function validatePrerequisite(
 
   const { data: latestDraw } = await supabase
     .from("draws")
-    .select("id, turno, date")
-    .order("id", { ascending: false })
+    .select("id, turno, date, created_at")
+    .order("created_at", { ascending: false })
     .limit(1)
     .single()
 
@@ -108,16 +108,20 @@ export async function validatePrerequisite(
     }
   }
 
-  if ((latestDraw.id as number) < (draw.id as number)) {
+  // Compare by created_at — UUIDs cannot be compared numerically
+  const latestTime = new Date(latestDraw.created_at).getTime()
+  const depTime = new Date(draw.created_at || "1970-01-01").getTime()
+
+  if (latestTime < depTime) {
     return {
       valid: false,
-      reason: `Latest draw (id=${latestDraw.id}) is older than dependency (id=${draw.id})`,
+      reason: `Latest draw (${latestDraw.turno} ${latestDraw.date}) is older than dependency (${draw.turno} ${draw.date})`,
       expected: { turno: dep.turno, date: expectedDate },
-      found: { turno: latestDraw.turno as string, date: latestDraw.date as string, id: latestDraw.id as number },
+      found: { turno: latestDraw.turno as string, date: latestDraw.date as string, id: latestDraw.id as string },
     }
   }
 
-  return { valid: true, lastDrawId: latestDraw.id as number }
+  return { valid: true, lastDrawId: latestDraw.id as string }
 }
 
 /**

@@ -49,10 +49,21 @@ BEGIN
       CONTINUE;
     END IF;
 
-    -- Handle text[] type (PostgreSQL array) by converting to jsonb first
+    -- Handle text[] type (PostgreSQL array) — may contain flat numbers or a JSON string
     IF pg_typeof(pred_record.numeros) = 'text[]'::regtype THEN
-      -- text[] like ["04","15","16",...] — treat as 2-cifras only
-      pred_numeros := to_jsonb(pred_record.numeros);
+      IF array_length(pred_record.numeros, 1) = 1
+         AND pred_record.numeros[1] LIKE '{%' THEN
+        -- text[] with one element that's a JSON string: '{"2":[...],"3":[...]}'
+        BEGIN
+          pred_numeros := pred_record.numeros[1]::JSONB;
+        EXCEPTION WHEN OTHERS THEN
+          -- Fallback: flat number array
+          pred_numeros := jsonb_build_object('2', to_jsonb(pred_record.numeros));
+        END;
+      ELSE
+        -- Flat number array like ["04","15","16"]: treat as 2-cifras only
+        pred_numeros := jsonb_build_object('2', to_jsonb(pred_record.numeros));
+      END IF;
     ELSIF jsonb_typeof(pred_record.numeros) = 'object' THEN
       pred_numeros := pred_record.numeros;
     ELSIF jsonb_typeof(pred_record.numeros) = 'array' THEN

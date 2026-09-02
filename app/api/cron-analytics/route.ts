@@ -9,9 +9,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { computeAllTurnAnalytics } from "@/lib/analisis/turn-analytics"
-import { revalidateTag } from "next/cache"
 import logger from "@/lib/logger"
 
 export const maxDuration = 120
@@ -30,12 +30,11 @@ export async function POST(req: NextRequest) {
     // Run the complete analytics pipeline
     await computeAllTurnAnalytics()
 
-    // Invalidate prediction cache so next requests use fresh analytics
+    // Revalidate static pages after analytics update
     try {
-      revalidateTag('predictions', "max")
-      revalidateTag('predictions-Matutina', "max")
-      revalidateTag('predictions-Vespertina', "max")
-      revalidateTag('predictions-Nocturna', "max")
+      revalidatePath("/", "layout")
+      revalidatePath("/pronostico/[fecha]", "page")
+      revalidatePath("/predictions", "page")
     } catch {}
 
     const elapsed = Date.now() - t0

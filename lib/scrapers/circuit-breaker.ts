@@ -131,6 +131,11 @@ export async function recordSourceResult(
           consecutiveFailures: newConsecutiveFailures,
           quarantinedUntil: quarantineUntil,
         })
+        // Discord alert on quarantine
+        try {
+          const { alertSourceQuarantined } = await import("@/lib/notifications/discord")
+          await alertSourceQuarantined(source, newConsecutiveFailures, quarantineUntil)
+        } catch { /* non-fatal */ }
       }
     }
 

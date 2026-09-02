@@ -39,6 +39,19 @@ export async function POST(req: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
     if (authError || !user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
+    // Premium-only check
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("role, premium_until")
+      .eq("id", user.id)
+      .single()
+
+    const isPremium = profile?.role === "premium" || profile?.role === "admin"
+    const isTrialActive = profile?.premium_until && new Date(profile.premium_until) > new Date()
+    if (!isPremium && !isTrialActive) {
+      return NextResponse.json({ error: "Piloto automático exclusivo para usuarios Premium", code: "PREMIUM_REQUIRED" }, { status: 403 })
+    }
+
     const { enabled } = await req.json()
     if (typeof enabled !== "boolean") {
       return NextResponse.json({ error: "Invalid value" }, { status: 400 })

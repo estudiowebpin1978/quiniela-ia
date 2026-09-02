@@ -52,6 +52,7 @@ export async function sendPushToAll(payload: PushPayload): Promise<{ sent: numbe
 
   let sent = 0
   let failed = 0
+  const expiredEndpoints: string[] = []
 
   const notificationPayload = JSON.stringify({
     title: payload.title,
@@ -62,24 +63,41 @@ export async function sendPushToAll(payload: PushPayload): Promise<{ sent: numbe
     data: payload.data || {},
   })
 
-  const results = await Promise.allSettled(
-    subs.map(async (sub) => {
-      try {
-        await webPush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          notificationPayload
-        )
-        sent++
-      } catch (err: unknown) {
-        failed++
-        // Remove expired subscriptions
-        const e = err as { statusCode?: number }
-        if (e?.statusCode === 404 || e?.statusCode === 410) {
-          await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint)
+  // Batch: send in chunks of 50 with 200ms pause between chunks
+  const CHUNK_SIZE = 50
+  const CHUNK_DELAY_MS = 200
+
+  for (let i = 0; i < subs.length; i += CHUNK_SIZE) {
+    const chunk = subs.slice(i, i + CHUNK_SIZE)
+    const results = await Promise.allSettled(
+      chunk.map(async (sub) => {
+        try {
+          await webPush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            notificationPayload
+          )
+          sent++
+        } catch (err: unknown) {
+          failed++
+          const e = err as { statusCode?: number }
+          if (e?.statusCode === 404 || e?.statusCode === 410) {
+            expiredEndpoints.push(sub.endpoint)
+          }
         }
-      }
-    })
-  )
+      })
+    )
+
+    // Batch-delete expired subscriptions
+    if (expiredEndpoints.length > 0) {
+      await supabase.from("push_subscriptions").delete().in("endpoint", expiredEndpoints)
+      expiredEndpoints.length = 0
+    }
+
+    // Pause between chunks to avoid FCM rate limits
+    if (i + CHUNK_SIZE < subs.length) {
+      await new Promise(r => setTimeout(r, CHUNK_DELAY_MS))
+    }
+  }
 
   return { sent, failed }
 }

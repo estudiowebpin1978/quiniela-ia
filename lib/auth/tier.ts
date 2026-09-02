@@ -117,6 +117,9 @@ export async function ensureUserProfile(userId: string, email: string): Promise<
     if (!createRes.ok) {
       const errText = await createRes.text().catch(() => "")
       logger.error("[ensureUserProfile] INSERT failed", { userId, status: createRes.status, error: errText.substring(0, 200) })
+    } else {
+      // Welcome email (fire-and-forget, non-blocking)
+      import("@/lib/email").then(m => m.sendWelcomeEmail(email, "")).catch(() => {})
     }
   } catch (e) {
     logger.error("[ensureUserProfile] error", { userId, error: String(e) })

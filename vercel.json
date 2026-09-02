@@ -26,6 +26,26 @@
       "schedule": "20 0 * * 2-6,0"
     },
     {
+      "path": "/api/cron-precompute",
+      "schedule": "25 13 * * 1-6"
+    },
+    {
+      "path": "/api/cron-precompute",
+      "schedule": "25 15 * * 1-6"
+    },
+    {
+      "path": "/api/cron-precompute",
+      "schedule": "25 18 * * 1-6"
+    },
+    {
+      "path": "/api/cron-precompute",
+      "schedule": "25 21 * * 1-6"
+    },
+    {
+      "path": "/api/cron-precompute",
+      "schedule": "25 0 * * 2-6,0"
+    },
+    {
       "path": "/api/cron-auto-predict",
       "schedule": "30 13 * * 1-6"
     },
@@ -44,6 +64,34 @@
     {
       "path": "/api/cron-auto-predict",
       "schedule": "30 0 * * 2-6,0"
+    },
+    {
+      "path": "/api/cron-emails",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron-cleanup",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron-autopilot",
+      "schedule": "0 13 * * 2-6,0"
+    },
+    {
+      "path": "/api/cron-autopilot",
+      "schedule": "45 14 * * 1-6"
+    },
+    {
+      "path": "/api/cron-autopilot",
+      "schedule": "45 17 * * 1-6"
+    },
+    {
+      "path": "/api/cron-autopilot",
+      "schedule": "45 20 * * 1-6"
+    },
+    {
+      "path": "/api/cron-autopilot",
+      "schedule": "45 23 * * 1-6"
     }
   ]
 }

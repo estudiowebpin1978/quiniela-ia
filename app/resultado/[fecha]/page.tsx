@@ -6,6 +6,9 @@ import { Button3D } from "@/components/ui/button-3d";
 import { RealtimeResults } from "@/components/RealtimeResults";
 import React from "react";
 
+// ISR: revalidate every 5 minutes as fallback safety net
+export const revalidate = 300;
+
 interface Props {
   params: Promise<{ fecha: string }>;
 }

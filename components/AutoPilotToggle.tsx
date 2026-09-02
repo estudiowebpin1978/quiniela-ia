@@ -71,12 +71,20 @@ export default function AutoPilotToggle({ userId, userRole, premiumUntil, compac
 
   if (loading) return null
 
+  const showPaywall = !isPremium && !isTrialActive
+
   // ─── Compact mode: inline pill next to generate button ──────────
   if (compact) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
         <button
-          onClick={toggle}
+          onClick={() => {
+            if (showPaywall) {
+              window.dispatchEvent(new CustomEvent("open-paywall"))
+              return
+            }
+            toggle()
+          }}
           disabled={saving}
           style={{
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
@@ -84,31 +92,38 @@ export default function AutoPilotToggle({ userId, userRole, premiumUntil, compac
             cursor: saving ? "not-allowed" : "pointer",
             background: enabled
               ? "linear-gradient(135deg, rgba(34,197,94,.2), rgba(34,197,94,.08))"
-              : "rgba(255,255,255,.06)",
-            border: enabled ? "1.5px solid rgba(34,197,94,.4)" : "1.5px solid rgba(255,255,255,.12)",
+              : showPaywall
+                ? "linear-gradient(135deg, rgba(168,85,247,.15), rgba(168,85,247,.05))"
+                : "rgba(255,255,255,.06)",
+            border: enabled
+              ? "1.5px solid rgba(34,197,94,.4)"
+              : showPaywall
+                ? "1.5px solid rgba(168,85,247,.3)"
+                : "1.5px solid rgba(255,255,255,.12)",
             transition: "all 0.3s ease",
             opacity: saving ? 0.6 : 1,
             whiteSpace: "nowrap",
           }}
         >
-          <Bot className="w-4 h-4" style={{ color: enabled ? "#22c55e" : "#94a3b8", flexShrink: 0 }} />
-          <span className="piloto-label" style={{ fontSize: 12, fontWeight: 700, color: enabled ? "#86efac" : "#94a3b8" }}>
-            Piloto Auto
+          <Bot className="w-4 h-4" style={{ color: enabled ? "#22c55e" : showPaywall ? "#a855f7" : "#94a3b8", flexShrink: 0 }} />
+          <span className="piloto-label" style={{ fontSize: 12, fontWeight: 700, color: enabled ? "#86efac" : showPaywall ? "#c084fc" : "#94a3b8" }}>
+            {showPaywall ? "Piloto Auto ⭐" : "Piloto Auto"}
           </span>
-          {/* Toggle dot */}
-          <div style={{
-            width: 32, height: 18, borderRadius: 9,
-            background: enabled ? "#22c55e" : "rgba(255,255,255,.15)",
-            position: "relative", transition: "background 0.3s ease", flexShrink: 0,
-          }}>
+          {!showPaywall && (
             <div style={{
-              width: 14, height: 14, borderRadius: 7, background: "#fff",
-              position: "absolute", top: 2,
-              left: enabled ? 16 : 2,
-              transition: "left 0.3s ease",
-              boxShadow: "0 1px 2px rgba(0,0,0,.3)"
-            }} />
-          </div>
+              width: 32, height: 18, borderRadius: 9,
+              background: enabled ? "#22c55e" : "rgba(255,255,255,.15)",
+              position: "relative", transition: "background 0.3s ease", flexShrink: 0,
+            }}>
+              <div style={{
+                width: 14, height: 14, borderRadius: 7, background: "#fff",
+                position: "absolute", top: 2,
+                left: enabled ? 16 : 2,
+                transition: "left 0.3s ease",
+                boxShadow: "0 1px 2px rgba(0,0,0,.3)"
+              }} />
+            </div>
+          )}
         </button>
         {error && (
           <div style={{ fontSize: 10, color: "#fca5a5", display: "flex", alignItems: "center", gap: 4, paddingLeft: 4 }}>
@@ -125,52 +140,72 @@ export default function AutoPilotToggle({ userId, userRole, premiumUntil, compac
       padding: "16px", borderRadius: 14,
       background: enabled
         ? "linear-gradient(135deg, rgba(34,197,94,.08), rgba(59,130,246,.08))"
-        : "rgba(255,255,255,.04)",
+        : showPaywall
+          ? "linear-gradient(135deg, rgba(168,85,247,.06), rgba(168,85,247,.02))"
+          : "rgba(255,255,255,.04)",
       border: enabled
         ? "1px solid rgba(34,197,94,.25)"
-        : "1px solid rgba(255,255,255,.08)",
+        : showPaywall
+          ? "1px solid rgba(168,85,247,.2)"
+          : "1px solid rgba(255,255,255,.08)",
       transition: "all 0.3s ease"
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             width: 36, height: 36, borderRadius: 10,
-            background: enabled ? "rgba(34,197,94,.15)" : "rgba(255,255,255,.06)",
+            background: enabled ? "rgba(34,197,94,.15)" : showPaywall ? "rgba(168,85,247,.12)" : "rgba(255,255,255,.06)",
             display: "flex", alignItems: "center", justifyContent: "center",
             transition: "all 0.3s ease"
           }}>
-            <Bot className="w-5 h-5" style={{ color: enabled ? "#22c55e" : "#64748b" }} />
+            <Bot className="w-5 h-5" style={{ color: enabled ? "#22c55e" : showPaywall ? "#a855f7" : "#64748b" }} />
           </div>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>
-              Piloto Automático
+              Piloto Automático {showPaywall && "⭐"}
             </div>
             <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-              {enabled
-                ? "La IA genera predicciones antes de cada turno"
-                : "Se generan predicciones automáticamente"}
+              {showPaywall
+                ? "Exclusivo para usuarios Premium"
+                : enabled
+                  ? "La IA genera predicciones antes de cada turno"
+                  : "Se generan predicciones automáticamente"}
             </div>
           </div>
         </div>
 
-        <button
-          onClick={toggle}
-          disabled={saving}
-          style={{
-            width: 48, height: 26, borderRadius: 13, border: "none", cursor: saving ? "not-allowed" : "pointer",
-            background: enabled ? "#22c55e" : "rgba(255,255,255,.15)",
-            position: "relative", transition: "background 0.3s ease",
-            opacity: saving ? 0.6 : 1,
-          }}
-        >
-          <div style={{
-            width: 20, height: 20, borderRadius: 10, background: "#fff",
-            position: "absolute", top: 3,
-            left: enabled ? 25 : 3,
-            transition: "left 0.3s ease",
-            boxShadow: "0 1px 3px rgba(0,0,0,.3)"
-          }} />
-        </button>
+        {showPaywall ? (
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent("open-paywall"))}
+            style={{
+              padding: "8px 16px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg, #a855f7, #7c3aed)",
+              color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer",
+              fontFamily: "inherit", whiteSpace: "nowrap",
+            }}
+          >
+            ⭐ Activar
+          </button>
+        ) : (
+          <button
+            onClick={toggle}
+            disabled={saving}
+            style={{
+              width: 48, height: 26, borderRadius: 13, border: "none", cursor: saving ? "not-allowed" : "pointer",
+              background: enabled ? "#22c55e" : "rgba(255,255,255,.15)",
+              position: "relative", transition: "background 0.3s ease",
+              opacity: saving ? 0.6 : 1,
+            }}
+          >
+            <div style={{
+              width: 20, height: 20, borderRadius: 10, background: "#fff",
+              position: "absolute", top: 3,
+              left: enabled ? 25 : 3,
+              transition: "left 0.3s ease",
+              boxShadow: "0 1px 3px rgba(0,0,0,.3)"
+            }} />
+          </button>
+        )}
       </div>
 
       {enabled && (
@@ -180,10 +215,18 @@ export default function AutoPilotToggle({ userId, userRole, premiumUntil, compac
           display: "flex", alignItems: "center", gap: 6
         }}>
           <span>✅</span>
-          <span>
-            Activo — Se generarán predicciones para los 5 turnos diarios.
-            {!isPremium && !isTrialActive && " Límite: 10 predicciones (modo Free)."}
-          </span>
+          <span>Activo — Se generarán predicciones para los 5 turnos diarios.</span>
+        </div>
+      )}
+
+      {showPaywall && (
+        <div style={{
+          marginTop: 10, padding: "8px 12px", borderRadius: 8,
+          background: "rgba(168,85,247,.08)", fontSize: 11, color: "#c084fc",
+          display: "flex", alignItems: "center", gap: 6
+        }}>
+          <span>⭐</span>
+          <span>Con Premium, la IA genera predicciones automáticamente antes de cada sorteo.</span>
         </div>
       )}
 

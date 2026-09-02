@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { validatePrerequisite, todayART } from "@/lib/quiniela-timeline"
+import { esDiaSinSorteo } from "@/lib/feriados"
 import { batchUpsert, buildPredictionRows } from "@/lib/batch-upsert"
 import type { TurnoQuiniela } from "@/types/engine"
 import logger from "@/lib/logger"
@@ -51,6 +52,13 @@ export async function GET(req: NextRequest) {
   const turno = req.nextUrl.searchParams.get("turno") as TurnoQuiniela | null
   if (!turno || !VALID_TURNOS.includes(turno)) {
     return NextResponse.json({ error: "Invalid turno" }, { status: 400 })
+  }
+
+  // ── NO SORTeos on Sundays / holidays ──────────────────────────
+  const today = todayART()
+  const weekday = new Date(`${today}T12:00:00Z`).getDay()
+  if (esDiaSinSorteo(today, weekday)) {
+    return NextResponse.json({ ok: true, message: "Domingo/feriado — sin sorteos", processed: 0 })
   }
 
   const supabase = getSupabaseAdmin()
@@ -89,13 +97,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, message: "No auto-predict users", processed: 0 })
     }
 
-    // Filter by tier limits
+    // Filter: ONLY premium users are eligible (auto-pilot is premium-only)
     const eligible: UsersRow[] = []
     const skippedUserIds: string[] = []
 
     for (const user of users as UsersRow[]) {
       const isPremium = user.role === "premium" || user.role === "admin"
-      if (!isPremium && user.predictions_used >= 10) {
+      if (!isPremium) {
         skippedUserIds.push(user.user_id)
         continue
       }

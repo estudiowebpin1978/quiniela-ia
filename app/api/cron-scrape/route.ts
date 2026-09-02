@@ -3,22 +3,24 @@
  * Diseñado para ser llamado cada 15 min por Vercel Cron.
  * No hace backfill (para eso usar /api/cron-nacional?fill=deep).
  *
- * Orquestador de scraping con fallback en cascada:
- *   1. quinieleando.com.ar       (PRIMARY — static HTML)
- *   2. loteria-ciudad.gob.ar     (Official CABA AJAX)
- *   3. quinielanacionaln.com.ar  (Fallback — HTTP homepage)
+ * Orquestador de scraping con CONSENSO DUAL:
+ *   - quinieleando.com.ar + numerosenvivo.com.ar en paralelo
+ *   - Ambas coinciden → 100% oficial
+ *   - Una falla → usa sobreviviente
+ *   - Ambas responden pero difieren → ABORT (409)
  *
- * Verificación: el trigger trg_verify_predictions se encarga
- * automáticamente al INSERTar en draws. NO llamar autoVerifyPredictions.
+ * Verificación ATÓMICA: se ejecuta inmediatamente después del guardado
+ * en el mismo pipeline (verify predictions + update engine weights).
  */
 
 import { NextRequest, NextResponse } from "next/server"
 
-import { esDiaSinSorteo, esSabadoSinTurnos } from "@/lib/feriados"
-import { fetchWithFallback } from "@/lib/scrapers/orchestrator"
+import { esDiaSinSorteo } from "@/lib/feriados"
+import { fetchWithConsensus } from "@/lib/scrapers/consensus"
 import { SourceStats, TURNOS, TurnoType, GAME_ID } from "@/lib/scrapers/types"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
+import { updateEnginePerformance } from "@/lib/ensemble/meta-ensemble"
 import logger from "@/lib/logger"
 
 export const maxDuration = 300
@@ -184,6 +186,7 @@ export async function GET(req: NextRequest) {
   const resultados: Record<string, number[]> = {}
   let guardados = 0
   let errores = 0
+  let divergences = 0
   const sourceStats: SourceStats = {}
   const saveErrors: string[] = []
 
@@ -192,11 +195,6 @@ export async function GET(req: NextRequest) {
     Previa: "13:15", Primera: "15:00", Matutina: "18:00", Vespertina: "21:00", Nocturna: "00:00",
   }
   const turnoResults = await Promise.allSettled(turnosToScrape.map(async (turno) => {
-    if (!overrideDate && esSabadoSinTurnos(diaSemana, turno)) {
-      logger.info("cron-scrape: skip Saturday turno", { fecha: fechaISO, turno })
-      return { turno, status: "skipped" as const }
-    }
-
     // Time guard: don't save draws before the official turno time (+5 min buffer)
     if (!overrideDate) {
       const officialTimeUTC = TURNO_TIMES_UTC[turno]
@@ -214,10 +212,24 @@ export async function GET(req: NextRequest) {
 
     const drawExists = await tieneDraw(fechaISO, turno)
 
-    const result = await fetchWithFallback(fechaISO, fUrl, turno, sourceStats)
-    if (result.numbers.length < 20) {
-      logger.warn("cron-scrape: pocas fuentes", { fecha: fechaISO, turno, count: result.numbers.length })
-      return { turno, status: "insufficient" as const, count: result.numbers.length }
+    // Dual-source consensus scrape
+    let consensus = await fetchWithConsensus(fechaISO, fUrl, turno, sourceStats)
+    const maxRetries = turno === "Nocturna" ? 3 : 1
+    for (let attempt = 1; attempt <= maxRetries && consensus.numbers.length < 20; attempt++) {
+      logger.info("cron-scrape: retrying consensus scrape", { fecha: fechaISO, turno, attempt, count: consensus.numbers.length })
+      await new Promise(r => setTimeout(r, 30_000))
+      consensus = await fetchWithConsensus(fechaISO, fUrl, turno, sourceStats)
+    }
+
+    // ABORT: no quorum reached
+    if (!consensus.ok && consensus.consensusMethod === "abort_no_quorum") {
+      logger.error("cron-scrape: TRI-CONSENSUS ABORT", { fecha: fechaISO, turno, quorum: consensus.quorum, details: consensus.divergenceDetails })
+      return { turno, status: "divergence" as const, error: consensus.divergenceDetails }
+    }
+
+    if (consensus.numbers.length < 20) {
+      logger.warn("cron-scrape: pocas fuentes", { fecha: fechaISO, turno, count: consensus.numbers.length })
+      return { turno, status: "insufficient" as const, count: consensus.numbers.length }
     }
 
     // If draw exists, check if numbers changed — update if so, skip if same
@@ -231,18 +243,18 @@ export async function GET(req: NextRequest) {
         .limit(1)
         .single()
       
-      if (existing && JSON.stringify(existing.numbers) === JSON.stringify(result.numbers)) {
+      if (existing && JSON.stringify(existing.numbers) === JSON.stringify(consensus.numbers)) {
         return { turno, status: "exists" as const }
       }
       // Numbers changed — update
       logger.info("cron-scrape: numbers changed, updating", { fecha: fechaISO, turno })
     }
 
-    const saveResult = await guardarDraw(fechaISO, turno, result.numbers, result.source)
+    const saveResult = await guardarDraw(fechaISO, turno, consensus.numbers, consensus.source)
     const status = !saveResult.ok ? "error" : drawExists ? "updated" : "saved"
     return { turno, status: status as "error" | "updated" | "saved",
-             numbers: saveResult.ok ? result.numbers : undefined,
-             source: result.source, cabezaMatch: result.cabezaMatch, error: saveResult.error }
+             numbers: saveResult.ok ? consensus.numbers : undefined,
+             source: consensus.source, consensusMethod: consensus.consensusMethod, error: saveResult.error }
   }))
 
   for (const r of turnoResults) {
@@ -252,7 +264,12 @@ export async function GET(req: NextRequest) {
       if (v.status === 'saved' || v.status === 'updated') {
         guardados++
         resultados[v.turno] = v.numbers!
-        logger.info("cron-scrape: guardado", { fecha: fechaISO, turno: v.turno, cantidad: v.numbers!.length, source: v.source, cabezaMatch: v.cabezaMatch, updated: v.status === 'updated' })
+        logger.info("cron-scrape: guardado", { fecha: fechaISO, turno: v.turno, cantidad: v.numbers!.length, source: v.source, consensusMethod: v.consensusMethod, updated: v.status === 'updated' })
+      } else if (v.status === 'divergence') {
+        saveErrors.push(`${v.turno}: DIVERGENCIA — ${v.error}`)
+        logger.error("cron-scrape: consensus divergence", { fecha: fechaISO, turno: v.turno, details: v.error })
+        divergences++
+        errores++
       } else if (v.status === 'insufficient') {
         saveErrors.push(`${v.turno}: sin datos suficientes (${v.count})`)
         errores++
@@ -280,21 +297,29 @@ export async function GET(req: NextRequest) {
 
   const duration = Date.now() - start
 
+  // ── Verification handled by trg_verify_on_official_draw (SQL trigger) ──
+  // No TypeScript verification needed — eliminates dual-path race condition.
+  let totalVerified = 0
+  if (guardados > 0) {
+    try {
+      // Update engine performance after scrapes
+      await updateEnginePerformance()
+      logger.info("cron-scrape: engine performance updated", { fecha: fechaISO })
+    } catch (e) {
+      logger.error("cron-scrape: engine performance update failed", { error: String(e) })
+    }
+  }
+
   // Log cron execution
   logCronExecution("cron-scrape", {
     fecha: fechaISO,
     guardados,
     errores,
+    divergences,
     eliminadas,
+    totalVerified,
     sourceStats
   }, start)
-
-  // ── Auto-verify predictions: delegated to cron-verify-predictions ──
-  // Removed inline verification to avoid connection pool race condition
-  // (Supabase pooler may serve reads from a connection that hasn't seen
-  // the upsert_draw write yet). cron-verify-predictions runs every 5 min
-  // and handles all verification reliably.
-  const verificationResults: Record<string, number> = {}
 
   // ── Generate engine predictions for NEXT turnos INLINE ────────
   try {
@@ -416,20 +441,23 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
-    ok: errores === 0,
+    ok: errores === 0 && divergences === 0,
     fecha: fechaISO,
     guardados,
     errores,
+    divergences,
     eliminadas,
+    totalVerified,
     duration,
     sourceStats,
     resultados,
     saveErrors,
-    verificationResults,
     message: guardados > 0
-      ? `${guardados} sorteos guardados, ${Object.values(verificationResults).reduce((a, b) => a + b, 0)} predicciones verificadas`
-      : errores > 0
-        ? `${errores} errores, sin sorteos nuevos`
-        : "Sin nuevos sorteos"
+      ? `${guardados} sorteos guardados (consenso dual)`
+      : divergences > 0
+        ? `${divergences} divergencias — datos abortados`
+        : errores > 0
+          ? `${errores} errores, sin sorteos nuevos`
+          : "Sin nuevos sorteos"
   })
 }

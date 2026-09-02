@@ -7,6 +7,7 @@ import AgeGate from "@/components/AgeGate"
 import Button3D from "@/components/ui/Button3D"
 import { GlowOrbs, NeonBackground } from "@/components/ui/Effects"
 import { ArgentinaFlag, SunOfMay, StatCard, Disclaimer } from "@/components/ui/ArgentinaBranding"
+import FooterDisclaimer from "@/components/FooterDisclaimer"
 import { useSound } from "@/lib/sound/audio-manager"
 import { useSettings } from "@/components/ui/Settings"
 
@@ -211,9 +212,8 @@ export default function Home() {
       {/* Disclaimer */}
       <Disclaimer />
 
-      <div style={{ fontSize: 9, color: "var(--text-muted)", marginTop: 12, textAlign: "center" }}>
-        © 2026 Quiniela IA · Desarrollado por EstudioWebPin
-      </div>
+      {/* Legal Footer */}
+      <FooterDisclaimer />
     </div>
   </>)
 }
