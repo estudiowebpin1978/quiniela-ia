@@ -7,6 +7,8 @@ import type { PredictionResponse, TopNumero, HeatmapItem } from "./types"
 
 export const maxDuration = 30
 
+const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
+
 // ── In-memory prediction cache (survives warm serverless instances) ──
 interface MemCacheEntry { payload: unknown; expiresAt: number }
 const predictionMemCache = new Map<string, MemCacheEntry>()
@@ -280,14 +282,86 @@ export async function GET(req: NextRequest) {
       // Cache miss — fall through
     }
 
-    // ── CACHE MISS: No pre-computed data available ──
+    // ── CACHE MISS: Try live computation via V6 RPC ──
     const elapsed = Date.now() - t0
-    logger.warn("[predictions] Cache miss — no pre-computed data", {
+    logger.warn("[predictions] Cache miss — trying live V6 computation", {
       date: targetDate,
       turno: turnoCanonical,
       elapsed,
     })
 
+    try {
+      const { getSupabaseAdmin } = await import("@/lib/supabase-client")
+      const supabase = getSupabaseAdmin()
+      const rpcTier = userTier.canAccessPremiumFeatures ? "premium" : "free"
+
+      const { data: rpcResult, error: rpcError } = await supabase
+        .rpc("calculate_omega_v6" as never, {
+          p_turno: turnoCanonical,
+          p_tier: rpcTier,
+          p_date: targetDate,
+        } as never)
+
+      if (!rpcError && rpcResult && Array.isArray(rpcResult) && rpcResult.length > 0) {
+        const numeros_2 = parsePred2(rpcResult)
+        const numeros_3 = userTier.canAccessPremiumFeatures ? extractPred3(rpcResult) : []
+        const numeros_4 = userTier.canAccessPremiumFeatures ? extractPred4(rpcResult) : []
+        const redoblonaObj = userTier.canAccessPremiumFeatures ? extractRedoblona(rpcResult) : null
+        const redoblona = redoblonaObj ? `${redoblonaObj.cabeza}-${redoblonaObj.acompanante}` : null
+
+        if (numeros_2.length > 0) {
+          const numeros: TopNumero[] = numeros_2.map((n, i) => {
+            const num = parseInt(n, 10)
+            const score = (rpcResult[i]?.puntaje_total as number) || 0
+            const fa = (rpcResult[i]?.factor_attribution as Record<string, number>) || {}
+            const factores = Object.entries(fa)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 3)
+              .map(([k]) => k)
+            return {
+              n: num,
+              numero: n,
+              emoji: num <= 9 ? `0${num}` : `${num}`,
+              significado: `Predicción ${n}`,
+              score,
+              confianza: Math.round(score * 100),
+              rank: i + 1,
+              frecuencia: Math.round(score * 100),
+              factores,
+              factor_attribution: fa,
+            }
+          })
+
+          const responsePayload: Record<string, unknown> = {
+            ok: true,
+            date: targetDate,
+            turno: turnoCanonical,
+            game_id: GAME_ID,
+            pred: {
+              numeros_2,
+              numeros_3,
+              numeros_4,
+              redoblona,
+            },
+            numeros,
+            engine_version: "omega_v6_live",
+            cached: false,
+          }
+
+          return NextResponse.json(responsePayload, {
+            headers: {
+              "Cache-Control": "private, no-cache, no-store, must-revalidate",
+              "X-Cache": "LIVE-V6",
+              "X-Engine": "omega_v6_live",
+            },
+          })
+        }
+      }
+    } catch (e) {
+      logger.warn("[predictions] Live V6 fallback failed", { error: String(e) })
+    }
+
+    // ── Final fallback: truly no data available ──
     return NextResponse.json({
       ok: false,
       error: "Predicciones en cálculo",

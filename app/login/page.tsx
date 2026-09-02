@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { getAuth, saveAuth, isLoggedIn, clearGuest } from "@/lib/auth"
-import { createBrowserClient } from "@/lib/supabase-client"
+import { supabaseBrowser } from "@/lib/supabase-client"
 import Button3D from "@/components/ui/Button3D"
 import { GlowOrbs, NeonBackground } from "@/components/ui/Effects"
 import { ArgentinaFlag, SunOfMay } from "@/components/ui/ArgentinaBranding"
@@ -23,42 +23,46 @@ export default function LoginPage() {
   useEffect(() => {
     if (isLoggedIn()) { window.location.href = "/predictions"; return }
 
-    // Handle OAuth callback: extract tokens from URL hash
-    const hash = window.location.hash
-    if (hash && hash.includes("access_token")) {
-      const params = new URLSearchParams(hash.substring(1))
-      const accessToken = params.get("access_token")
-      const refreshToken = params.get("refresh_token")
-      const expiresIn = parseInt(params.get("expires_in") || "3600", 10)
-      if (accessToken) {
-        // Extract user data from JWT payload (Supabase never sends user_id/email in hash)
-        let userId = ""
-        let userEmail = ""
-        try {
-          const b64 = accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")
-          const payload = JSON.parse(atob(b64))
-          userId = payload.sub || ""
-          userEmail = payload.email || ""
-        } catch { /* fallback: empty — will be resolved by /api/auth/me */ }
-
+    // Let Supabase handle the OAuth redirect callback automatically
+    const sb = supabaseBrowser()
+    const { data: { subscription } } = sb.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session) {
         saveAuth({
-          access_token: accessToken,
-          refresh_token: refreshToken || "",
-          expires_at: Math.floor(Date.now() / 1000) + expiresIn,
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+          expires_at: session.expires_at,
           token_type: "bearer",
-          user: { id: userId, email: userEmail },
+          user: { id: session.user.id, email: session.user.email || "" },
         })
         clearGuest()
         window.location.hash = ""
         window.location.href = "/predictions"
       }
-    }
+    })
+
+    // Also check if there's already a session (implicit grant callback)
+    sb.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        saveAuth({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+          expires_at: session.expires_at,
+          token_type: "bearer",
+          user: { id: session.user.id, email: session.user.email || "" },
+        })
+        clearGuest()
+        window.location.hash = ""
+        window.location.href = "/predictions"
+      }
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   async function googleLogin() {
     setBusy(true); setErr("")
     try {
-      const sb = createBrowserClient()
+      const sb = supabaseBrowser()
       const redirectTo = `${window.location.origin}/login`
       const { error } = await sb.auth.signInWithOAuth({
         provider: "google",
