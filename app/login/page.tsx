@@ -25,6 +25,11 @@ export default function LoginPage() {
 
     // Let Supabase handle the OAuth redirect callback automatically
     const sb = supabaseBrowser()
+    if (!sb) {
+      console.warn("[login] Supabase not configured (missing env vars)")
+      return
+    }
+    
     const { data: { subscription } } = sb.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN" && session) {
         saveAuth({
@@ -59,17 +64,17 @@ export default function LoginPage() {
     return () => subscription.unsubscribe()
   }, [])
 
-  async function googleLogin() {
+async function googleLogin() {
     setBusy(true); setErr("")
     try {
       const sb = supabaseBrowser()
+      if (!sb) { setErr("Supabase no configurado"); sound.error(); setBusy(false); return }
       const redirectTo = `${window.location.origin}/login`
       const { error } = await sb.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo },
       })
       if (error) { setErr(error.message); sound.error(); setBusy(false) }
-      // If no error, browser redirects to Google — no need to setBusy(false)
     } catch { setErr("Error al conectar con Google"); sound.error(); setBusy(false) }
   }
 

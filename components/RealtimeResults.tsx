@@ -38,6 +38,7 @@ export function RealtimeResults({ currentDate, onNewDraw }: RealtimeResultsProps
 
   useEffect(() => {
     const supabase = getSupabaseBrowser()
+    if (!supabase) return
 
     const channel = supabase
       .channel("draws-realtime")
@@ -108,6 +109,7 @@ export function RealtimeBadge() {
 
   useEffect(() => {
     const supabase = getSupabaseBrowser()
+    if (!supabase) return
 
     const channel = supabase
       .channel("draws-status")

@@ -37,6 +37,7 @@ export function RealtimeVerification({ userId, onVerified }: RealtimeVerificatio
     if (!userId) return
 
     const supabase = getSupabaseBrowser()
+    if (!supabase) return
 
     const channel = supabase
       .channel(`user-predictions:${userId}`)

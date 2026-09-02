@@ -98,11 +98,11 @@ export function getSbUrl(): string {
  * Create a browser Supabase client for client components.
  * Uses the anon key - safe for client-side usage.
  */
-export function createBrowserClient(): SupabaseClient {
+function createBrowserClient(): SupabaseClient | null {
   const url = getSupabaseUrl()
   const key = getSupabaseAnonKey()
   if (!url || !key) {
-    throw new Error("Supabase configuration missing: NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
+    return null
   }
   return createClient(url, key, {
     auth: { persistSession: true, autoRefreshToken: true },
@@ -113,9 +113,20 @@ export function createBrowserClient(): SupabaseClient {
 /**
  * Lazy browser client — creates on first call, caches thereafter.
  * Do NOT call at module level (crashes in SSR).
+ * Returns null if Supabase is not configured (env vars missing).
  */
 let _browserClient: SupabaseClient | null = null
-export function supabaseBrowser(): SupabaseClient {
-  if (!_browserClient) _browserClient = createBrowserClient()
+let _initError: Error | null = null
+
+export function supabaseBrowser(): SupabaseClient | null {
+  if (!_browserClient && !_initError) {
+    try {
+      _browserClient = createBrowserClient()
+    } catch (e) {
+      _initError = e as Error
+      _browserClient = null
+    }
+  }
+  if (_initError) throw _initError
   return _browserClient
 }
