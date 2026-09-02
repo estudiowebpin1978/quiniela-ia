@@ -26,6 +26,14 @@
       "schedule": "20 0 * * 2-6,0"
     },
     {
+      "path": "/api/webhooks/scrape",
+      "schedule": "30 1 * * 2-6,0"
+    },
+    {
+      "path": "/api/webhooks/scrape",
+      "schedule": "30 9 * * 2-6,0"
+    },
+    {
       "path": "/api/cron-precompute",
       "schedule": "25 13 * * 1-6"
     },
@@ -66,6 +74,10 @@
       "schedule": "30 0 * * 2-6,0"
     },
     {
+      "path": "/api/cron-auto-predict",
+      "schedule": "35 1 * * 2-6,0"
+    },
+    {
       "path": "/api/cron-emails",
       "schedule": "0 9 * * *"
     },
@@ -92,6 +104,10 @@
     {
       "path": "/api/cron-autopilot?turno=Nocturna",
       "schedule": "30 0 * * 2-6,0"
+    },
+    {
+      "path": "/api/cron-autopilot?turno=Nocturna",
+      "schedule": "35 1 * * 2-6,0"
     }
   ]
 }

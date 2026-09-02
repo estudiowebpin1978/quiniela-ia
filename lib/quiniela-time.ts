@@ -85,8 +85,24 @@ export function getTurnoDate(turno: TurnoName, artNow?: ReturnType<typeof getCur
 }
 
 /**
+ * Get yesterday's date string in ART.
+ * Used for catch-up scraping of missed Nocturna.
+ */
+export function getYesterdayART(artNow?: ReturnType<typeof getCurrentART>): string {
+  const art = artNow || getCurrentART()
+  const yesterday = new Date(art.date)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const y = yesterday.getFullYear()
+  const m = String(yesterday.getMonth() + 1).padStart(2, "0")
+  const d = String(yesterday.getDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
+}
+
+/**
  * Returns the list of turnos whose official time has already passed today.
  * Respects Saturday rules (no Previa/Primera on Saturdays).
+ * CRITICAL: After midnight (00:00-06:00 ART), Nocturna from yesterday is still available
+ * for scraping because it belongs to yesterday's game.
  */
 export function getAvailableTurnos(artNow?: ReturnType<typeof getCurrentART>): TurnoName[] {
   const art = artNow || getCurrentART()
@@ -99,7 +115,17 @@ export function getAvailableTurnos(artNow?: ReturnType<typeof getCurrentART>): T
     const schedule = TURNO_SCHEDULE[turno]
     const turnoTimeDecimal = schedule.artHour + schedule.artMinute / 60
 
-    if (art.timeDecimal >= turnoTimeDecimal) {
+    if (turno === "Nocturna") {
+      // Nocturna belongs to yesterday if called after midnight (00:00-06:00 ART)
+      // It should still be available for scraping in the early morning
+      if (art.hour < 6) {
+        // After midnight but before 6am — yesterday's Nocturna is still available
+        result.push(turno)
+      } else if (art.timeDecimal >= turnoTimeDecimal) {
+        // During normal hours — available after 21:00 ART
+        result.push(turno)
+      }
+    } else if (art.timeDecimal >= turnoTimeDecimal) {
       result.push(turno)
     }
   }
@@ -143,6 +169,8 @@ export function artDateTimeToUTC(dateStr: string, turno: TurnoName): Date {
  * Returns true if we're within the scraping window:
  * - After the official time (+ 2 min buffer for page update)
  * - Before the next turno's official time
+ * CRITICAL: Nocturna's window extends to 06:00 ART the next day
+ * (it belongs to yesterday's game until 6am).
  */
 export function isWithinScrapeWindow(turno: TurnoName, artNow?: ReturnType<typeof getCurrentART>): boolean {
   const art = artNow || getCurrentART()
@@ -161,7 +189,18 @@ export function isWithinScrapeWindow(turno: TurnoName, artNow?: ReturnType<typeo
     scrapeEnd = nextSchedule.artHour + nextSchedule.artMinute / 60
   }
 
-  return art.timeDecimal >= scrapeStart && art.timeDecimal < scrapeEnd
+  // During normal hours: check if within the window
+  if (art.timeDecimal >= scrapeStart && art.timeDecimal < scrapeEnd) {
+    return true
+  }
+
+  // CRITICAL: Nocturna extends to 06:00 ART the next day
+  // After midnight (00:00-06:00), yesterday's Nocturna is still scrapable
+  if (turno === "Nocturna" && art.hour < 6) {
+    return true
+  }
+
+  return false
 }
 
 /**

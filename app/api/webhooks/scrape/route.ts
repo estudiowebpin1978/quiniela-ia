@@ -24,6 +24,7 @@ import {
   getAvailableTurnos,
   getTurnoDate,
   canScrapeTurno,
+  getYesterdayART,
   type TurnoName,
 } from "@/lib/quiniela-time"
 import { fetchWithConsensus } from "@/lib/scrapers/consensus"
@@ -119,29 +120,48 @@ export async function POST(request: Request) {
 
     const existingTurnos = new Set((existingDraws || []).map((d) => d.turno))
 
-    // ── 4-7. Process each available turno ────────────────────────────────
+    // ── 3b. CATCH-UP: Check yesterday's Nocturna if after midnight ──────
+    // Between 00:00-06:00 ART, yesterday's Nocturna might have been missed
+    const turnosToProcess: Array<{ turno: TurnoName; date: string }> = []
+    
+    for (const turno of availableTurnos) {
+      const effectiveDate = getTurnoDate(turno, artNow)
+      
+      // Check if this turno+date already exists
+      const { data: existingCheck } = await supabase
+        .from("draws")
+        .select("turno")
+        .eq("date", effectiveDate)
+        .eq("turno", turno)
+        .maybeSingle()
+      
+      if (!existingCheck) {
+        turnosToProcess.push({ turno, date: effectiveDate })
+      }
+    }
+
+    logger.info("[webhooks/scrape] Turnos to process", {
+      count: turnosToProcess.length,
+      turnos: turnosToProcess.map(t => `${t.turno}@${t.date}`),
+    })
+
+    // ── 4-7. Process each turno ────────────────────────────────────────
     const results: ScrapeResult[] = []
 
-    for (const turno of availableTurnos) {
-      // Already scraped?
-      if (existingTurnos.has(turno)) {
-        results.push({ turno, status: "exists" })
-        continue
-      }
-
+    for (const { turno, date: effectiveDate } of turnosToProcess) {
       // Not yet in scrape window?
       if (!canScrapeTurno(turno, artNow)) {
         results.push({ turno, status: "skipped" })
         continue
       }
 
-      // ── 4. Dual-source consensus scrape ──────────────────────────────
+      // ── 4. Tri-consensus scrape ──────────────────────────────────────
       try {
-        const [yyyy, mm, dd] = todayStr.split("-")
+        const [yyyy, mm, dd] = effectiveDate.split("-")
         const fechaUrl = `${dd}-${mm}-${yyyy.slice(-2)}`
         const sourceStats: SourceStats = {}
 
-        const consensus = await fetchWithConsensus(todayStr, fechaUrl, turno, sourceStats)
+        const consensus = await fetchWithConsensus(effectiveDate, fechaUrl, turno, sourceStats)
 
         // ABORT: No quorum reached (0/3, 1/3, or 3 different values)
         if (!consensus.ok && consensus.consensusMethod === "abort_no_quorum") {
@@ -176,7 +196,7 @@ export async function POST(request: Request) {
         // ── 5. Save draw ────────────────────────────────────────────────
         const jurisdiccion = ["Primera", "Nocturna"].includes(turno) ? "provincia" : "nacional"
         const { error: saveError } = await supabase.rpc("upsert_draw" as never, {
-          p_date: todayStr,
+          p_date: effectiveDate,
           p_turno: turno,
           p_numbers: consensus.numbers,
           p_source: consensus.source,
@@ -191,13 +211,9 @@ export async function POST(request: Request) {
         }
 
         // ── 5b. SSOT: Direct upsert to official_draws (belt-and-suspenders) ──
-        // Uses sv-SE locale for guaranteed ART date string
         try {
-          const officialDate = new Date().toLocaleDateString("sv-SE", {
-            timeZone: "America/Argentina/Buenos_Aires",
-          })
           await supabase.rpc("upsert_official_draw" as never, {
-            p_date: officialDate,
+            p_date: effectiveDate,
             p_turno: turno,
             p_premios: consensus.numbers.slice(0, 5),
             p_source: consensus.source,
