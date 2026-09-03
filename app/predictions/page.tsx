@@ -46,7 +46,7 @@ import { getQuinielaEntry, getQuinielaIcon, getQuinielaName, getLast2CifrasEntry
 import AutoPilotToggle from "@/components/AutoPilotToggle";
 import NotificationBell from "@/components/NotificationBell";
 import StreakBar from "@/components/StreakBar";
-import WinShareCard from "@/components/WinShareCard";
+
 
 import type { SavedPrediction, NumeroItem, ResultadoControl, DrawData, BacktestItem } from "@/lib/types/client";
 import "./predictions.css";
@@ -115,7 +115,7 @@ function PageInner() {
   const sound = useSound();
   const { settings } = useSettings();
   const [showConfetti, setShowConfetti] = useState(false);
-  const [winShareData, setWinShareData] = useState<{ date: string; turno: string; hitCount: number; hitNumbers: string[] } | null>(null);
+  
   const [pr, setPr] = useState(false);
   const [em, setEm] = useState("");
   const [tab, setTab] = useState<"pred" | "rdbl" | "freq" | "trend" | "mis" | "acc" | "hist">("pred");
@@ -632,16 +632,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           sound.win();
           triggerHaptic("success");
           setShowConfetti(true);
-          // Set share data from latest prediction with hits
-          const winPred = apiPreds.find((p: any) => (p.aciertos?.length || 0) > 0)
-          if (winPred) {
-            setWinShareData({
-              date: winPred.date || winPred.fecha || "",
-              turno: winPred.turno || "",
-              hitCount: diff,
-              hitNumbers: (winPred.aciertos || []).map((a: any) => a.numero || ""),
-            })
-          }
           setTimeout(() => setShowConfetti(false), 3000);
           localStorage.setItem(notifiedKey, String(newAciertos))
         }
@@ -895,9 +885,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       <RealtimeVerification userId={userId || ""} />
       <NeonBackground intensity={settings.particlesEnabled ? "low" : "off"} />
       <GlowOrbs />
-      <ConfettiEffect active={showConfetti} />
-      {winShareData && <WinShareCard data={{ ...winShareData, nivel: 0, racha: 0, totalNumbers: 20 }} onClose={() => setWinShareData(null)} />}
-      <style>{`
+<ConfettiEffect active={showConfetti} />
+       <style>{`
         *{box-sizing:border-box;margin:0;padding:0}
         :root{--red:#FE2C55;--cyan:#25F4EE;--green:#22c55e;--bg:#010101;--bg2:#0d0d0d;--bg3:#141b2f;--card:#0d0d0d;--surface:rgba(13,13,13,.9);--text:#FFFFFF;--dim:#94a3b8;--border:rgba(255,255,255,.08);--nav-bg:rgba(6,8,15,.98);--panel-bg:rgba(255,255,255,.04);--panel-border:rgba(255,255,255,.08);--shadow:rgba(0,0,0,.32)}
         body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
