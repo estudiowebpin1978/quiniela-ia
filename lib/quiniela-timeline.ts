@@ -64,6 +64,7 @@ export function dateART(offset: number = 0): string {
  * Returns { valid: true, lastDrawId } or { valid: false, reason }.
  */
 export async function validatePrerequisite(
+   
   supabase: any,
   targetTurno: TurnoQuiniela,
 ): Promise<
