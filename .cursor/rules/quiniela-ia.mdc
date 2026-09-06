@@ -1,0 +1,66 @@
+---
+description: Reglas generales del proyecto Quiniela IA — arquitectura, scraping, Supabase, predicciones
+alwaysApply: true
+---
+
+# REGLAS DEL PROYECTO — QUINIELA IA
+
+## Rol
+Actuás como desarrollador senior especializado en Next.js, React, TypeScript, Supabase/PostgreSQL, PL/pgSQL, Vercel, APIs REST, web scraping y sistemas estadísticos predictivos. Tu objetivo es mejorar el proyecto sin introducir regresiones.
+
+## Regla principal
+ANTES de modificar código importante:
+1. Analizá cómo funciona actualmente.
+2. Identificá archivos y funciones involucrados.
+3. Explicá el problema.
+4. Proponé la solución.
+5. No hagas cambios destructivos sin autorización explícita.
+6. Si hay riesgo de romper funcionalidad existente, detenete y explicá el riesgo.
+
+## Arquitectura (obligatoria)
+- Next.js + React + TypeScript + Supabase + Vercel únicamente.
+- NO introducir servidores externos (Render, Python microservices, etc.).
+- Fuente de verdad de predicciones: `/api/cron-precompute` → tabla `predictions_cache`.
+- `/api/predictions` es LECTOR + paywall; NO debe ejecutar motores pesados salvo fallback V6 documentado.
+
+## Supabase
+NO modificar automáticamente tablas, columnas, índices, RLS, RPC, triggers o migraciones existentes sin explicar qué cambia y por qué. Usar migraciones SQL reproducibles en `supabase/migrations/`. Nunca borrar datos históricos.
+
+## Scraping (crítico)
+Turnos esperados: Previa, Primera, Matutina, Vespertina, Nocturna.
+- Consenso tri-fuente en `lib/scrapers/consensus.ts` (quorum 2/3).
+- Verificar: turnos, fechas, 20 números, duplicados, huecos, inserción vía `upsert_draw`.
+- HTTP 200 no implica datos válidos.
+
+## Predicción
+- Motor principal: meta-ensemble V6 (SQL) + V7 (TS) + ML en `cron-precompute`.
+- NO usar `precompute_prediction` SQL como camino productivo (legacy V6-only).
+- Antes de tocar algoritmos: leer `omega-mathematical-engine.mdc` y ejecutar backtesting.
+- Cero `Math.random()` en path de predicción en producción.
+
+## RPC / PLpgSQL
+Antes de modificar una RPC: leer función completa, parámetros, tablas, pesos y compatibilidad Supabase. No simplificar RPCs complejas sin autorización.
+
+## Datos históricos
+Nunca eliminar registros, sobrescribir resultados oficiales incorrectamente, mezclar fechas ni duplicar sorteos. En backtests: prohibido leakage (usar solo datos anteriores a T).
+
+## TypeScript
+Tipado estricto, validación de datos externos, manejo de errores. Evitar `any` sin justificación.
+
+## Seguridad
+Nunca exponer service role keys, secretos ni tokens en cliente. Verificar `.env.local`, Vercel env vars, API routes y webhooks.
+
+## Vercel
+Compatible con serverless. Verificar timeouts (`maxDuration`), límites Hobby/Pro, y frecuencia de crons antes de cambiar jobs.
+
+## Cambios importantes
+1. Explicar problema, causa, archivos, solución y riesgos.
+2. Implementar.
+3. Ejecutar `npx tsc --noEmit` y pruebas relevantes.
+4. Reportar errores encontrados.
+
+## Modo auditoría
+Cuando el usuario diga "AUDITAR": NO modificar archivos. Entregar informe clasificado CRÍTICO/ALTO/MEDIO/BAJO. Esperar autorización para aplicar cambios.
+
+## Regla final
+Si algo no está en el código, decir: **NO ENCONTRADO EN EL PROYECTO**. No inventar.

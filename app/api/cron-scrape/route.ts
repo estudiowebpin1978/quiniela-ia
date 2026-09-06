@@ -20,6 +20,7 @@ import { fetchWithConsensus } from "@/lib/scrapers/consensus"
 import { SourceStats, TURNOS, TurnoType, GAME_ID } from "@/lib/scrapers/types"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
+import { invalidateAllPredictionCaches } from "@/lib/cache/prediction-cache-invalidation"
 import { updateEnginePerformance } from "@/lib/ensemble/meta-ensemble"
 import logger from "@/lib/logger"
 
@@ -70,6 +71,9 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
       supabase.rpc("refresh_cached_predictions_3_4" as never, { turno_objetivo: turno } as never),
       supabase.rpc("refresh_all_prediction_stats" as never),
     ]).catch(() => {})
+
+    // Invalidar caches de predicción (Redis) tras nuevo sorteo + trigger precompute
+    invalidateAllPredictionCaches().catch(() => {})
 
     // Pre-compute predictions for this turno (stores in predictions_cache)
     try {

@@ -18,6 +18,7 @@ import { predictEnsembleV7 } from "@/lib/analisis/engine-v7"
 import { loadV7Weights, v7WeightsToFactorBreakdown } from "@/lib/analisis/v7-weights"
 import { getMLPredictions } from "@/lib/ml/integration"
 import { loadEngineWeights, logEnginePredictions } from "@/lib/ensemble/meta-ensemble"
+import { invalidateAllPredictionCaches } from "@/lib/cache/prediction-cache-invalidation"
 import logger from "@/lib/logger"
 import { SUENOS } from "@/lib/suenos"
 import type { Draw } from "@/lib/analisis/engine-v7"
@@ -283,6 +284,9 @@ export async function GET(req: NextRequest) {
   const elapsed = Date.now() - t0
   logger.info("[cron-precompute] Completed", { turnos: results.length, elapsed })
   logCronExecution("cron-precompute", { results, elapsed }, t0)
+
+  // Invalidar Redis / generation bump para que /api/predictions no sirva cache obsoleto
+  await invalidateAllPredictionCaches()
 
   // On-Demand ISR: purge static pages so fresh predictions appear immediately
   try {

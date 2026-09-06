@@ -1,0 +1,46 @@
+---
+description: Reglas estrictas para el motor OMEGA — backtesting obligatorio antes de cambiar fórmulas
+globs: lib/analisis/**,lib/ml/**,lib/ensemble/**,app/api/cron-precompute/**,app/api/backtest*/**,supabase/migrations/**
+alwaysApply: false
+---
+
+# REGLAS MATEMÁTICAS — MOTOR OMEGA (Quiniela IA)
+
+## Propósito
+OMEGA es un motor estadístico. NO garantiza aciertos. Genera rankings y probabilidades relativas basadas en histórico real en Supabase.
+
+## Fuente de verdad productiva
+- **Precompute:** `app/api/cron-precompute/route.ts` (V6 RPC + V7 TS + ML → `predictions_cache`, engine `meta-ensemble-v1`).
+- **Lectura:** `app/api/predictions/route.ts` (cache + paywall).
+- **Fallback live:** solo `calculate_omega_v6` si cache miss (documentar como degradación, no como ensemble completo).
+
+## Prohibido en path de predicción
+- `Math.random()` para scores finales.
+- Datos simulados o mock en producción.
+- Leakage: usar información posterior a la fecha T en backtests.
+
+## Walk-forward obligatorio
+Para cada fecha T: entrenar/calcular SOLO con datos anteriores a T, predecir, revelar resultado, medir, avanzar.
+
+## Métricas mínimas
+Hit@1, Hit@3, Hit@5, Hit@10, cobertura, rendimiento por turno. Comparar contra baseline (frecuencia, azar, versión productiva actual).
+
+## Pesos y versiones
+- V6: `calculate_omega_v6` (SQL, migración `20260821100000_omega_v6_adaptive_engine.sql`).
+- V7: `lib/analisis/engine-v7.ts`.
+- Meta-ensemble: `lib/ensemble/meta-ensemble.ts`.
+- NO cambiar pesos sin baseline + candidato + backtest + validación fuera de muestra.
+
+## Criterio de aceptación
+Una versión nueva solo reemplaza producción si mejora de forma robusta en Hit@10 (y no degrada gravemente otros turnos), sin leakage, con complejidad razonable.
+
+## Modo AUDITAR OMEGA
+NO modificar código. Localizar todos los caminos de cálculo, reconstruir flujo, detectar divergencias entre SQL precompute vs cron-precompute TS, y entregar informe.
+
+## Modo EXPERIMENTO
+Crear versión experimental paralela. Nunca destruir producción. Esperar autorización antes de promover.
+
+## Regla de oro
+**NO cambiar la fórmula porque "parece mejor".** Cambiarla solo si datos + backtest + validación fuera de muestra + robustez lo respaldan.
+
+Si no ejecutaste backtest: decir **BACKTEST NO EJECUTADO**. Si datos insuficientes: **DATOS INSUFICIENTES**.

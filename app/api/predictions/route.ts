@@ -12,7 +12,7 @@ const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
 // ── In-memory prediction cache (survives warm serverless instances) ──
 interface MemCacheEntry { payload: unknown; expiresAt: number }
 const predictionMemCache = new Map<string, MemCacheEntry>()
-const MEM_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+const MEM_CACHE_TTL = 60 * 1000 // 1 min (warm instances; Redis/Supabase es fuente)
 const MEM_CACHE_MAX = 50
 
 function memCacheKey(date: string, turno: string, tier: string) {
