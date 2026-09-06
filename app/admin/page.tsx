@@ -67,9 +67,10 @@ export default function AdminPage() {
       const s = JSON.parse(raw)
       if (!s?.access_token) { window.location.href = "/login"; return }
       setToken(s.access_token)
-      loadUsers(s.access_token)
+      void loadUsers(s.access_token)
       loadPendingPayments()
     } catch { window.location.href = "/login" }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function loadUsers(tk?: string) {

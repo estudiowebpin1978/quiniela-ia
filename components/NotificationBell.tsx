@@ -54,8 +54,9 @@ export default function NotificationBell() {
   }, [])
 
   useEffect(() => {
-    fetchNotifications()
-    intervalRef.current = setInterval(fetchNotifications, 30000)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchNotifications()
+    intervalRef.current = setInterval(() => { void fetchNotifications() }, 30000)
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [fetchNotifications])
 

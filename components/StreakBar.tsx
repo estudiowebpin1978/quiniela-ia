@@ -33,8 +33,9 @@ export default function StreakBar() {
   }, [])
 
   useEffect(() => {
-    fetchData()
-    const handler = () => fetchData()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchData()
+    const handler = () => { void fetchData() }
     window.addEventListener("gamification-update", handler)
     return () => window.removeEventListener("gamification-update", handler)
   }, [fetchData])

@@ -63,7 +63,6 @@ export function dateART(offset: number = 0): string {
  * Validate that the prerequisite draw exists in the database.
  * Returns { valid: true, lastDrawId } or { valid: false, reason }.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function validatePrerequisite(
   supabase: any,
   targetTurno: TurnoQuiniela,
