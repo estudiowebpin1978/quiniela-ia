@@ -49,7 +49,7 @@ async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
 async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const supabase = getSupabaseAdmin()
-    const jurisdiccion = ["Primera", "Nocturna"].includes(turno) ? "provincia" : "nacional"
+    const jurisdiccion = "nacional" // App predice Quiniela de la Ciudad (CABA / ex Nacional)
 
     // Use .rpc() to avoid int4[] ↔ text[] type mismatch with PostgREST
     const { error } = await supabase.rpc("upsert_draw" as never, {

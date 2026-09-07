@@ -194,7 +194,7 @@ export async function POST(request: Request) {
         }
 
         // ── 5. Save draw ────────────────────────────────────────────────
-        const jurisdiccion = ["Primera", "Nocturna"].includes(turno) ? "provincia" : "nacional"
+        const jurisdiccion = "nacional" // CABA / Ciudad (ex Nacional) — NO provincia
         const { error: saveError } = await supabase.rpc("upsert_draw" as never, {
           p_date: effectiveDate,
           p_turno: turno,
