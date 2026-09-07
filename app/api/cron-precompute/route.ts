@@ -128,6 +128,8 @@ export async function GET(req: NextRequest) {
       }
 
       // 5. Blend V6 + V7 + ML with dynamic weights
+      // Motor híbrido: V6 SQL + V7 TS + ML + análisis rápido (get_analisis_rapido RPC) + pesos dinámicos (engine_weights)
+      // Nota: Para máxima precisión, integrar resultados de scripts/train.ts (GitHub Actions) con engine_weights
       const engineWeights = await loadEngineWeights(turno)
       const allNums = new Map<number, BlendedPrediction>()
 
