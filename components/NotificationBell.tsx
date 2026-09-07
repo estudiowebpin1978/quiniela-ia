@@ -54,10 +54,12 @@ export default function NotificationBell() {
   }, [])
 
   useEffect(() => {
-    void fetchNotifications()
+    const initialLoad = window.setTimeout(() => { void fetchNotifications() }, 0)
     intervalRef.current = setInterval(() => { void fetchNotifications() }, 30000)
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    return () => {
+      window.clearTimeout(initialLoad)
+      if (intervalRef.current) clearInterval(intervalRef.current)
+    }
   }, [fetchNotifications])
 
   useEffect(() => {

@@ -46,10 +46,7 @@ export async function GET() {
 
     if (data?.created_at) {
       const lastScrape = new Date(data.created_at)
-      const nowBue = new Date(
-        new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }),
-      )
-      const diffMinutes = (nowBue.getTime() - lastScrape.getTime()) / 60000
+      const diffMinutes = (Date.now() - lastScrape.getTime()) / 60000
       checks.scraper = {
         ok: diffMinutes < 120,
         detail: `Last scrape: ${Math.round(diffMinutes)}min ago`,
