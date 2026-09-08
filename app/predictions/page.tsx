@@ -697,19 +697,19 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     setControlando(true);
     setResultadoControl(null);
     try {
-      const hoy = hoyArgentina();
-      const r2 = await fetch(`/api/resultado?date=${hoy}&turno=${encodeURIComponent(so)}`);
+      const fechaPrediccion = fechaSorteo(so); // Usa la fecha real de la predicción, no hoy
+      const r2 = await fetch(`/api/resultado?date=${fechaPrediccion}&turno=${encodeURIComponent(so)}`);
       const drawData = await r2.json();
       if (!drawData?.found || !drawData?.numbers?.length) {
         setResultadoControl({
-          error: `Todavia no hay resultado para ${so} del ${hoy}. Los resultados se cargan automaticamente hasta 30 min despues del sorteo.`,
+          error: `Aún no hay resultado oficial para ${so} del ${fechaPrediccion}. Se cargan automáticamente hasta 30 min después del sorteo.`,
         });
         return;
       }
       const reales = drawData.numbers.map((n: string | number) => String(Number(n) % 100).padStart(2, "0"));
       const predichos = cur.slice(0, 10).map((p) => p.numero);
       const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }));
-      setResultadoControl({ aciertos, predichos, reales, fecha: hoy, turno: so } as ResultadoControl);
+      setResultadoControl({ aciertos, predichos, reales, fecha: fechaPrediccion, turno: so } as ResultadoControl);
       mostrarNotifResultado(so, reales, aciertos.map((a) => a.numero));
     } catch (e: unknown) {
       setResultadoControl({ error: "Error: " + (e instanceof Error ? e.message : "Unknown"), aciertos: [] });
