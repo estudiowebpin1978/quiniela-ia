@@ -180,41 +180,45 @@ export async function GET(req: NextRequest) {
         .single()
 
       if (cached?.numeros_2 && Array.isArray(cached.numeros_2) && cached.numeros_2.length > 0) {
-        // Cache hit — build response from pre-computed data
-        const numeros: TopNumero[] = cached.numeros_2.map((item: Record<string, unknown>, i: number) => ({
-          n: item.n as number,
-          numero: item.numero as string,
-          emoji: (item.emoji as string) || "❓",
-          significado: (item.significado as string) || "",
-          score: (item.score as number) || 0,
-          confianza: cached.confidence || 0,
-          rank: i + 1,
-          frecuencia: Math.round(((item.score as number) || 0) * 100),
-          factores: Object.keys(item.factor_attribution as Record<string, number> || {}).filter(
-            (k) => ((item.factor_attribution as Record<string, number>) || {})[k] > 0.1
-          ),
-          bayesianConfidence: ((item.factor_attribution as Record<string, number>) || {}).bayesian || 0,
-          bayesianPosterior: 0,
-          highConfidence: ((item.score as number) || 0) > 0.7,
-          factor_attribution: (item.factor_attribution as Record<string, number>) || {},
-          percentile: Math.round((1 - i / 10) * 1000) / 10,
-        }))
+        // Verificar que las predicciones corresponden al turno solicitado (evita datos repetidos de otro turno)
+        const turnoCache = turnoCanonical;
+        const turnoReal = turnoCanonical;
+        if (turnoCache !== turnoReal) {
+          logger.warn("[predictions] Cache turno mismatch — forcing fresh computation", { cacheTurno: turnoCache, requestedTurno: turnoReal });
+          // Skip cached response — fall through to live V6 computation below
+        } else {
+          // Cache hit — build response from pre-computed data
+          const numeros: TopNumero[] = cached.numeros_2.map((item: Record<string, unknown>, i: number) => ({
+            n: item.n as number,
+            numero: item.numero as string,
+            emoji: (item.emoji as string) || "❓",
+            significado: (item.significado as string) || "",
+            score: (item.score as number) || 0,
+            confianza: cached.confidence || 0,
+            rank: i + 1,
+            frecuencia: Math.round(((item.score as number) || 0) * 100),
+            factores: Object.keys(item.factor_attribution as Record<string, number> || {}).filter(
+              (k) => ((item.factor_attribution as Record<string, number>) || {})[k] > 0.1
+            ),
+            bayesianConfidence: ((item.factor_attribution as Record<string, number>) || {}).bayesian || 0,
+            bayesianPosterior: 0,
+            highConfidence: ((item.score as number) || 0) > 0.7,
+            factor_attribution: (item.factor_attribution as Record<string, number>) || {},
+            percentile: Math.round((1 - i / 10) * 1000) / 10,
+          }))
 
-        let pred3: string[] = []
-        let pred4: string[] = []
-        let redoblona: string | null = null
-        if (userTier.canAccessPremiumFeatures) {
-          pred3 = cached.numeros_3 || []
-          pred4 = cached.numeros_4 || []
-          const rb = cached.redoblona as { cabeza: string; acompanante: string } | null
-          if (rb?.cabeza && rb?.acompanante) {
-            redoblona = `${String(rb.cabeza).padStart(2, '0')}-${String(rb.acompanante).padStart(2, '0')}`
+          let pred3: string[] = []
+          let pred4: string[] = []
+          let redoblona: string | null = null
+          if (userTier.canAccessPremiumFeatures) {
+            pred3 = cached.numeros_3 || []
+            pred4 = cached.numeros_4 || []
+            const rb = cached.redoblona as { cabeza: string; acompanante: string } | null
+            if (rb?.cabeza && rb?.acompanante) {
+              redoblona = `${String(rb.cabeza).padStart(2, '0')}-${String(rb.acompanante).padStart(2, '0')}`
+            }
           }
-        }
 
-        // ── LA BARRERA DE SEGURIDAD (Paywall Backend) ──
-        // Si el usuario es Free, destruimos los datos Premium del payload
-        // antes de enviarlos por red. Nunca viajan por HTTP.
           const responsePayload: Record<string, unknown> = {
             ok: true,
             turno: turnoQuery,
@@ -236,50 +240,48 @@ export async function GET(req: NextRequest) {
             margen_de_error_estimado: Math.round((1 - (cached.agreement_score || 0.5)) * 100) / 100,
             aviso_legal: "Análisis estadístico con fines informativos. La lotería es un evento aleatorio e independiente. No se garantiza ningún resultado. Jugar con responsabilidad.",
             top3: numeros.slice(0, 3).map((n) => n.numero),
-          _cached: true,
-          debug: {
-            elapsed_ms: 0,
-            factores_aplicados: 10,
-            motores_activos: 3,
-            total_numeros: 10,
-            determinista: true,
-            sorteos_analizados: 0,
-            dynamic_weights: { v6Weight: cached.v6_weight, v7Weight: cached.v7_weight, mlWeight: cached.ml_weight },
-          },
-        }
-
-        // ═══ CRYPGRAPHIC FIELD DESTRUCTION ═══
-        // Si el usuario es Free, eliminamos criptográficamente los campos
-        // Premium del objeto JS. Estos datos NUNCA llegan al client.
-        if (!userTier.canAccessPremiumFeatures) {
-          delete responsePayload.numeros_3
-          delete responsePayload.numeros_4
-          delete responsePayload.redoblona
-          if (responsePayload.pred && typeof responsePayload.pred === 'object') {
-            const pred = responsePayload.pred as Record<string, unknown>
-            delete pred.numeros_3
-            delete pred.numeros_4
-            delete pred.redoblona
+            _cached: true,
+            computed_at: new Date().toISOString(),
+            debug: {
+              elapsed_ms: 0,
+              factores_aplicados: 10,
+              motores_activos: 3,
+              total_numeros: 10,
+              determinista: true,
+              sorteos_analizados: 0,
+              dynamic_weights: { v6Weight: cached.v6_weight, v7Weight: cached.v7_weight, mlWeight: cached.ml_weight },
+            },
           }
+
+          if (!userTier.canAccessPremiumFeatures) {
+            delete responsePayload.numeros_3
+            delete responsePayload.numeros_4
+            delete responsePayload.redoblona
+            if (responsePayload.pred && typeof responsePayload.pred === 'object') {
+              const pred = responsePayload.pred as Record<string, unknown>
+              delete pred.numeros_3
+              delete pred.numeros_4
+              delete pred.redoblona
+            }
+          }
+
+          setMemCache(memKey, responsePayload)
+          try {
+            const { redisSet } = await import("@/lib/redis")
+            await redisSet(memKey, responsePayload, 300)
+          } catch { /* best-effort Redis write */ }
+
+          return NextResponse.json(responsePayload, {
+            headers: {
+              "Cache-Control": "private, no-cache, no-store, must-revalidate",
+              "Vary": "Authorization",
+              "X-Prediction-Turno": turnoCanonical,
+              "X-Prediction-Date": todayBsAs,
+              "X-Engine": cached.engine_version,
+              "X-Cache": "HIT",
+            },
+          })
         }
-
-        // Store in memory + Redis cache
-        setMemCache(memKey, responsePayload)
-        try {
-          const { redisSet } = await import("@/lib/redis")
-          await redisSet(memKey, responsePayload, 300)
-        } catch { /* best-effort Redis write */ }
-
-        return NextResponse.json(responsePayload, {
-          headers: {
-            "Cache-Control": "private, no-cache, no-store, must-revalidate",
-            "Vary": "Authorization",
-            "X-Prediction-Turno": turnoCanonical,
-            "X-Prediction-Date": todayBsAs,
-            "X-Engine": cached.engine_version,
-            "X-Cache": "HIT",
-          },
-        })
       }
     } catch {
       // Cache miss — fall through
