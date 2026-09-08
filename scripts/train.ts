@@ -36,10 +36,16 @@ async function train() {
     const zScores = frec.map(f => (f - media) / Math.sqrt(varianza || 1));
 
     const pesos = new Array(30).fill(1);
+
     for (let i = 0; i < 100; i++) {
-      pesos[i % 10] = Math.max(0, Math.min(10, (zScores[i] * 0.5 + 1)));
-      pesos[10 + (i % 10)] = Math.max(0, Math.min(10, (frec[i] * 0.1 + 1)));
-      pesos[20 + (i % 10)] = Math.max(0, Math.min(10, (draws.slice(0, 10).some((d: any) => d.numeros?.includes(i)) ? 1.5 : 0.8)));
+      // Each number i gets its own weights — no more cyclic overwrites
+      if (i < 10) {
+        pesos[i] = Math.max(0, Math.min(10, (zScores[i] * 0.5 + 1)));
+      } else if (i < 20) {
+        pesos[i] = Math.max(0, Math.min(10, (frec[i] * 0.1 + 1)));
+      } else if (i < 30) {
+        pesos[i] = Math.max(0, Math.min(10, (draws.slice(0, 10).some((d: any) => d.numeros?.includes(i)) ? 1.5 : 0.8)));
+      }
     }
 
     await supabase.from('engine_weights').upsert(

@@ -322,6 +322,23 @@ export async function predictV7Fast(
     }
     cScore = Math.min(1, cScore)
 
+    // Markov: transition probability from the last drawn number
+    // stats.markov contains precomputed transitions; _markovByFrom maps from_num → transitions
+    let markovScore = 0
+    if (stats.markov.length > 0 && stats._markovByFrom) {
+      // Find the most recent draw's first number (the "from" state)
+      const recentDraws = stats.drawStats
+        .sort((a, b) => a.last_seen_rank - b.last_seen_rank)
+      // Use the number with lowest last_seen_rank as proxy for last drawn head
+      const lastDrawn = recentDraws.length > 0 ? recentDraws[0].num : -1
+      const transitions = stats._markovByFrom.get(lastDrawn)
+      if (transitions && transitions.length > 0) {
+        const total = transitions.reduce((s, t) => s + t.transition_count, 0)
+        const match = transitions.find(t => t.to_num === num)
+        markovScore = match ? match.transition_count / total : 0
+      }
+    }
+
     // Spacing: use avg_gap from stats
     const ds = stats.drawStats.find((s) => s.num === num)
     const avgGap = ds?.avg_gap || totalDraws
@@ -337,9 +354,6 @@ export async function predictV7Fast(
     // Recency: exponential decay from last_seen_rank
     const lastSeenRank = ds?.last_seen_rank || totalDraws
     const recencyScore = Math.exp(-0.05 * lastSeenRank)
-
-    // Markov: not available in fast path (no last-drawn context), use 0
-    const markovScore = 0
 
     // Cycles: use avg_gap as cycle proxy
     const cycleScore = avgGap > 0 ? 1 / avgGap : 0

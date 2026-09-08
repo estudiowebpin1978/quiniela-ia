@@ -118,19 +118,21 @@ export async function updateEnginePerformance(): Promise<void> {
 
 /**
  * Incremental update for a single engine's performance.
- * Calls update_engine_performance(p_engine_name, p_hit, p_near_miss).
+ * Calls update_engine_performance(p_engine_name, p_hit, p_near_miss, p_turno).
  * Use this when you know the hit/miss result for a specific engine.
  */
 export async function recordEngineHit(
   engineName: string,
   hit: boolean,
   nearMiss: boolean,
+  turno: string = "ALL",
 ): Promise<void> {
   const supabase = getSupabaseAdmin()
   const { error } = await supabase.rpc("update_engine_performance" as never, {
     p_engine_name: engineName,
     p_hit: hit,
     p_near_miss: nearMiss,
+    p_turno: turno,
   } as never)
   if (error) {
     logger.error("[meta-ensemble] recordEngineHit failed", { error: error.message })
