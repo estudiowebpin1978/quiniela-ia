@@ -252,6 +252,7 @@ function PageInner() {
 
   const tkRef = useRef("");
   const soRef = useRef(so);
+  useEffect(() => { soRef.current = so; }, [so]);
   const pollPremiumRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isAdminRef = useRef(false);
 
