@@ -295,6 +295,9 @@ export async function predictV7Fast(
     .sort((a, b) => b.global_freq - a.global_freq)
     .slice(0, 3)
 
+  // Pre-compute last drawn numbers for Markov (outside loop — compute once)
+  const lastDrawnNums = stats.lastDrawnNumbers || []
+
   // Score each number (0-99)
   // Daily seed for ±2% perturbation — use contextSeed if provided, else date-based
   let dateHash: number
@@ -322,21 +325,20 @@ export async function predictV7Fast(
     }
     cScore = Math.min(1, cScore)
 
-    // Markov: transition probability from the last drawn number
-    // stats.markov contains precomputed transitions; _markovByFrom maps from_num → transitions
+    // Markov: average transition probability from ALL numbers in the last draw
     let markovScore = 0
-    if (stats.markov.length > 0 && stats._markovByFrom) {
-      // Find the most recent draw's first number (the "from" state)
-      const recentDraws = stats.drawStats
-        .sort((a, b) => a.last_seen_rank - b.last_seen_rank)
-      // Use the number with lowest last_seen_rank as proxy for last drawn head
-      const lastDrawn = recentDraws.length > 0 ? recentDraws[0].num : -1
-      const transitions = stats._markovByFrom.get(lastDrawn)
-      if (transitions && transitions.length > 0) {
-        const total = transitions.reduce((s, t) => s + t.transition_count, 0)
-        const match = transitions.find(t => t.to_num === num)
-        markovScore = match ? match.transition_count / total : 0
+    if (lastDrawnNums.length > 0 && stats._markovByFrom) {
+      let totalTransitions = 0
+      for (const prev of lastDrawnNums) {
+        const transitions = stats._markovByFrom.get(prev)
+        if (transitions && transitions.length > 0) {
+          const rowTotal = transitions.reduce((s, t) => s + t.transition_count, 0)
+          const match = transitions.find(t => t.to_num === num)
+          totalTransitions += rowTotal
+          markovScore += match ? match.transition_count : 0
+        }
       }
+      markovScore = totalTransitions > 0 ? markovScore / totalTransitions : 0
     }
 
     // Spacing: use avg_gap from stats

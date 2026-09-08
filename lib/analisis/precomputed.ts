@@ -38,6 +38,7 @@ export interface PrecomputedStats {
   drawStats: DrawStat[]
   markov: MarkovTransition[]
   cooccurrences: Cooccurrence[]
+  lastDrawnNumbers: number[]   // numbers from the most recent draw (mod 100)
   computedAt: string
   // Index maps for O(1) lookup
   _drawStatsMap?: Map<number, DrawStat>
@@ -64,11 +65,17 @@ export async function loadPrecomputedStats(turno: string): Promise<PrecomputedSt
   try {
     const supabase = getSupabaseAdmin()
 
-    // Load all three materialized views in parallel
-    const [drawStatsResult, markovResult, cooccurResult] = await Promise.all([
+    // Load all three materialized views in parallel + last drawn numbers
+    const [drawStatsResult, markovResult, cooccurResult, lastDrawnResult] = await Promise.all([
       supabase.rpc("get_draw_stats" as never, { p_turno: turno } as never),
       supabase.rpc("get_markov_transitions" as never, { p_turno: turno } as never),
       supabase.rpc("get_cooccurrences" as never, { p_turno: turno } as never),
+      supabase.from("draws" as never)
+        .select("numbers" as never)
+        .eq("turno", turno)
+        .order("date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ])
 
     if (drawStatsResult.error || !drawStatsResult.data) {
@@ -109,12 +116,17 @@ export async function loadPrecomputedStats(turno: string): Promise<PrecomputedSt
 
     const total_draws = drawStats.length > 0 ? drawStats[0].total_draws : 0
 
+    // Extract last drawn numbers (mod 100) from the most recent draw
+    const lastRow = lastDrawnResult.data as unknown as { numbers: number[] } | null
+    const lastDrawnNumbers: number[] = (lastRow?.numbers || []).map((n: number) => n % 100)
+
     const stats: PrecomputedStats = {
       turno,
       total_draws,
       drawStats,
       markov,
       cooccurrences,
+      lastDrawnNumbers,
       computedAt: new Date().toISOString(),
     }
 

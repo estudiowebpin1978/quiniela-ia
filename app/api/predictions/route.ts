@@ -174,19 +174,12 @@ export async function GET(req: NextRequest) {
       const { data: cached } = await supabaseAdmin
         .from("predictions_cache")
         .select("numeros_2, numeros_3, numeros_4, redoblona, engine_version, confidence, agreement_score, v6_weight, v7_weight, ml_weight")
-        .eq("game_id", "ac593199-c299-4f03-b1b7-8675fe4fa6d9")
+        .eq("game_id", GAME_ID)
         .eq("date", targetDate)
         .eq("turno", turnoCanonical)
         .single()
 
       if (cached?.numeros_2 && Array.isArray(cached.numeros_2) && cached.numeros_2.length > 0) {
-        // Verificar que las predicciones corresponden al turno solicitado (evita datos repetidos de otro turno)
-        const turnoCache = turnoCanonical;
-        const turnoReal = turnoCanonical;
-        if (turnoCache !== turnoReal) {
-          logger.warn("[predictions] Cache turno mismatch — forcing fresh computation", { cacheTurno: turnoCache, requestedTurno: turnoReal });
-          // Skip cached response — fall through to live V6 computation below
-        } else {
           // Cache hit — build response from pre-computed data
           const numeros: TopNumero[] = cached.numeros_2.map((item: Record<string, unknown>, i: number) => ({
             n: item.n as number,
@@ -281,7 +274,6 @@ export async function GET(req: NextRequest) {
               "X-Cache": "HIT",
             },
           })
-        }
       }
     } catch {
       // Cache miss — fall through

@@ -90,7 +90,7 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
       const currentIdx = TURNOS_ORDER.indexOf(turno)
       if (currentIdx >= 0 && currentIdx < TURNOS_ORDER.length - 1) {
         const nextTurno = TURNOS_ORDER[currentIdx + 1]
-        fetch(`${baseUrl}/api/cron-auto-predict?turno=${encodeURIComponent(nextTurno)}`, {
+        fetch(`${baseUrl}/api/cron-autopilot?turno=${encodeURIComponent(nextTurno)}`, {
           headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
         }).catch(() => {})
       }
