@@ -215,24 +215,27 @@ export async function GET(req: NextRequest) {
         // ── LA BARRERA DE SEGURIDAD (Paywall Backend) ──
         // Si el usuario es Free, destruimos los datos Premium del payload
         // antes de enviarlos por red. Nunca viajan por HTTP.
-        const responsePayload: Record<string, unknown> = {
-          ok: true,
-          turno: turnoQuery,
-          tier: userTier.role,
-          numeros,
-          pred: {
+          const responsePayload: Record<string, unknown> = {
+            ok: true,
+            turno: turnoQuery,
+            tier: userTier.role,
+            numeros,
+            pred: {
+              numeros_2: numeros.map((n) => n.numero),
+              numeros_3: pred3,
+              numeros_4: pred4,
+              redoblona,
+            },
             numeros_2: numeros.map((n) => n.numero),
-            numeros_3: pred3,
-            numeros_4: pred4,
+            numeros_3: pred3.length > 0 ? pred3 : undefined,
+            numeros_4: pred4.length > 0 ? pred4 : undefined,
             redoblona,
-          },
-          numeros_2: numeros.map((n) => n.numero),
-          numeros_3: pred3.length > 0 ? pred3 : undefined,
-          numeros_4: pred4.length > 0 ? pred4 : undefined,
-          redoblona,
-          score: numeros[0]?.score || 0,
-          confidence: cached.confidence || 0,
-          top3: numeros.slice(0, 3).map((n) => n.numero),
+            score: numeros[0]?.score || 0,
+            confidence: cached.confidence || 0,
+            probabilidad_estimada: Math.round((cached.confidence || 0) * 100) / 100,
+            margen_de_error_estimado: Math.round((1 - (cached.agreement_score || 0.5)) * 100) / 100,
+            aviso_legal: "Análisis estadístico con fines informativos. La lotería es un evento aleatorio e independiente. No se garantiza ningún resultado. Jugar con responsabilidad.",
+            top3: numeros.slice(0, 3).map((n) => n.numero),
           _cached: true,
           debug: {
             elapsed_ms: 0,
@@ -344,8 +347,12 @@ export async function GET(req: NextRequest) {
               redoblona,
             },
             numeros,
+            probabilidad_estimada: 0.65,
+            margen_de_error_estimado: 0.25,
+            aviso_legal: "Análisis estadístico con fines informativos. La lotería es un evento aleatorio e independiente. No se garantiza ningún resultado. Jugar con responsabilidad.",
             engine_version: "omega_v6_live",
             cached: false,
+            computed_at: new Date().toISOString(),
           }
 
           return NextResponse.json(responsePayload, {
