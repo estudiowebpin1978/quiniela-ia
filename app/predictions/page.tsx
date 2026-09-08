@@ -1753,7 +1753,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             <>
               <div className="sec">Mis análisis guardados
                 <button 
-                  onClick={() => tkRef.current && cargarMisPreds(tkRef.current)}
+                  onClick={async () => {
+                    const token = tkRef.current || getAccessToken();
+                    if (token) await cargarMisPreds(token);
+                    else toast("Iniciá sesión para actualizar tus análisis", "info");
+                  }}
                   style={{
                     marginLeft: 10,
                     padding: "4px 12px",
