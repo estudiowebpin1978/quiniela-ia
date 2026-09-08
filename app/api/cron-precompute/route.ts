@@ -174,12 +174,20 @@ export async function GET(req: NextRequest) {
       const v6Nums = (v6Rows || []).slice(0, 10).map((r: Record<string, unknown>) => r.numero as number)
       const v7Nums = v7Predictions.slice(0, 10).map(p => p.n)
       const mlNums = mlPredictions.slice(0, 10).map(p => p.n)
-      await logEnginePredictions(lastDrawId, turno, v6Nums, v7Nums, mlNums)
+      try {
+        await logEnginePredictions(lastDrawId, turno, v6Nums, v7Nums, mlNums)
+      } catch { /* non-fatal — don't crash the turno for logging failures */ }
 
       // Sort and take top 10
       const blended = Array.from(allNums.values())
         .sort((a, b) => b.score - a.score)
         .slice(0, 10)
+
+      // Guard: if all engines produced nothing, skip this turno
+      if (blended.length === 0) {
+        results.push({ turno, ok: false, error: "All engines produced empty predictions" })
+        continue
+      }
 
       // Generate 3/4 cifras and redoblona from blended top 10
       const top10nums = blended.map((p) => p.n)

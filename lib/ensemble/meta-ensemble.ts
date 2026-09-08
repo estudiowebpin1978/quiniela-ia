@@ -7,7 +7,7 @@ interface EngineWeights {
   ML: number
 }
 
-const FALLBACK_WEIGHTS: EngineWeights = { V6: 0.33, V7: 0.33, ML: 0.34 }
+const FALLBACK_WEIGHTS: EngineWeights = { V6: 0.40, V7: 0.35, ML: 0.25 }
 
 // ─── Exponential Decay Constants ─────────────────────────────────────────────
 const DECAY_LAMBDA = 0.1
