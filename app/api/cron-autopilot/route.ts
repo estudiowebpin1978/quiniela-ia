@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
     let engineVersion = "omega_v6"
 
     try {
+      const { parsePred2 } = await import("@/lib/predictions")
       const { data: v6Data, error: v6Error } = await supabase.rpc("calculate_omega_v6" as never, {
         p_turno: turnoCanonical,
         p_tier: "premium",
@@ -68,11 +69,19 @@ export async function GET(req: NextRequest) {
       } as never)
 
       if (!v6Error && Array.isArray(v6Data) && v6Data.length > 0) {
-        predictions = v6Data.map((row: Record<string, unknown>) => ({
-          numero: String(row.prediccion_2cifras || "").padStart(2, "0"),
-          score: Number(row.puntaje_total) || 0,
-          factor_attribution: (row.factor_attribution as Record<string, number>) || {},
-        }))
+        const numeros2 = parsePred2(v6Data)
+        const rowByNum = new Map<string, Record<string, unknown>>()
+        for (const row of v6Data) {
+          rowByNum.set(String(row.numero).padStart(2, "0"), row)
+        }
+        predictions = numeros2.map((n) => {
+          const row = rowByNum.get(n)
+          return {
+            numero: n,
+            score: Number(row?.puntaje_total) || 0,
+            factor_attribution: (row?.factor_attribution as Record<string, number>) || {},
+          }
+        })
         engineVersion = "omega_v6"
       }
     } catch (e) {
