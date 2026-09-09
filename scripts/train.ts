@@ -48,11 +48,7 @@ async function train() {
       }
     }
 
-    await supabase.from('engine_weights').upsert(
-      { turno, pesos, actualizado_en: new Date().toISOString() },
-      { onConflict: 'turno' }
-    );
-    console.log(`✅ ${turno} — pesos actualizados`);
+    console.log(`✅ ${turno} — pesos calculados (pesos.length=${pesos.length})`);
   }
   console.log('🏁 Entrenamiento completado');
 }

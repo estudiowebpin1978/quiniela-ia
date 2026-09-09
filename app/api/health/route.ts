@@ -58,7 +58,7 @@ export async function GET() {
     checks.scraper = { ok: false, detail: String(e) }
   }
 
-  // 3. Overall status
+  // 3. Overall status — 200 always (degraded is not an error)
   const allOk = Object.values(checks).every((c) => c.ok)
 
   return NextResponse.json(
@@ -67,6 +67,6 @@ export async function GET() {
       checks,
       timestamp: new Date().toISOString(),
     },
-    { status: allOk ? 200 : 500 },
+    { status: 200 },
   )
 }
