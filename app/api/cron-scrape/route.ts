@@ -87,26 +87,15 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
     // Invalidar caches de predicción (Redis) tras nuevo sorteo + trigger precompute
     invalidateAllPredictionCaches().catch(() => {})
 
-    // Pre-compute predictions for this turno (stores in predictions_cache)
-    try {
-      const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia-two.vercel.app"
-      fetch(`${baseUrl}/api/cron-precompute?turno=${encodeURIComponent(turno)}`, {
-        headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
-      }).catch(() => {})
-
-      // Event-driven: trigger auto-predict for the NEXT turno
-      // This replaces the cron-job.org schedule — the scraper drives the pipeline
-      const TURNOS_ORDER = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
-      const currentIdx = TURNOS_ORDER.indexOf(turno)
-      if (currentIdx >= 0 && currentIdx < TURNOS_ORDER.length - 1) {
-        const nextTurno = TURNOS_ORDER[currentIdx + 1]
-        fetch(`${baseUrl}/api/cron-autopilot?turno=${encodeURIComponent(nextTurno)}`, {
+      // Pre-compute predictions for this turno (stores in predictions_cache)
+      try {
+        const baseUrl = process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia-two.vercel.app"
+        fetch(`${baseUrl}/api/cron-precompute?turno=${encodeURIComponent(turno)}`, {
           headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
         }).catch(() => {})
-      }
-    } catch { /* non-fatal */ }
+      } catch { /* non-fatal */ }
 
     // Clear precomputed stats cache for this turno (materialized view will refresh async)
     try {
@@ -260,6 +249,14 @@ export async function GET(req: NextRequest) {
         .single()
       
       if (existing && JSON.stringify(existing.numbers) === JSON.stringify(consensus.numbers)) {
+        // Draw already exists with same numbers — still verify PENDING predictions
+        try {
+          const { data: vData, error: vErr } = await supabase.rpc("verify_predictions_for_draw" as never, {
+            p_date: fechaISO, p_turno: turno,
+          } as never)
+          if (vErr) logger.warn("cron-scrape: verify (exists) failed", { error: vErr.message, turno })
+          else if (vData) logger.info("cron-scrape: verified (exists)", { resultado: vData, turno })
+        } catch { /* non-fatal */ }
         return { turno, status: "exists" as const }
       }
       // Numbers changed — update
