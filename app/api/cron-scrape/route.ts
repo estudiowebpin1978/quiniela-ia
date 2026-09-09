@@ -72,6 +72,15 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
       supabase.rpc("refresh_all_prediction_stats" as never),
     ]).catch(() => {})
 
+    // Verify PENDING predictions against this draw (fire-and-forget)
+    Promise.resolve(supabase.rpc("verify_predictions_for_draw" as never, {
+      p_date: fechaISO,
+      p_turno: turno,
+    } as never)).then(({ data, error }) => {
+      if (error) logger.warn("cron-scrape: verify failed", { error: error.message, turno })
+      else if (data) logger.info("cron-scrape: verified predictions", { resultado: data, turno })
+    }).catch(() => {})
+
     // Invalidar caches de predicción (Redis) tras nuevo sorteo + trigger precompute
     invalidateAllPredictionCaches().catch(() => {})
 

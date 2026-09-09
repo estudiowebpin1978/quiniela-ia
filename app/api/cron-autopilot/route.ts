@@ -1,25 +1,20 @@
 /**
  * /api/cron-autopilot
  *
- * CLOSED-LOOP AUTOMATION — FASE 2: Piloto Automático
+ * CLOSED-LOOP AUTOMATION — Piloto Automático
  *
- * Corre 15 minutos ANTES de cada sorteo.
- * Lee las predicciones pre-calculadas del cache y las asigna
- * a los usuarios Premium que tengan auto_predict_enabled=true.
+ * Corre ~10 minutos ANTES de cada sorteo.
+ * Genera predicciones usando V6 engine directamente (no depende de cache).
+ * Las guarda como PENDING para todos los usuarios premium con autopilot activo.
+ * Cuando el scraper guarda el resultado oficial, el trigger trg_verify_on_official_draw
+ * verifica automáticamente las predicciones PENDING.
  *
- * Timing (ART → UTC):
- *   Previa:     10:00 ART → 13:00 UTC
- *   Primera:    11:45 ART → 14:45 UTC
- *   Matutina:   14:45 ART → 17:45 UTC
- *   Vespertina: 17:45 ART → 20:45 UTC
- *   Nocturna:   20:45 ART → 23:45 UTC
- *
- * Arquitectura:
- *   1. Busca usuarios premium con autopilot activo
- *   2. Lee predicciones de predictions_cache (pre-computadas)
- *   3. Inserta en user_predictions con status='PENDING'
- *   4. El trigger trg_verify_on_official_draw se encarga de verificar
- *      cuando el scraper guarde el resultado oficial.
+ * Timing (cron-job.org → UTC):
+ *   Previa:     10:05 ART → 13:05 UTC
+ *   Primera:    11:50 ART → 14:50 UTC
+ *   Matutina:   14:50 ART → 17:50 UTC
+ *   Vespertina: 17:50 ART → 20:50 UTC
+ *   Nocturna:   20:50 ART → 23:50 UTC
  */
 
 import { NextRequest, NextResponse } from "next/server"
@@ -61,7 +56,59 @@ export async function GET(req: NextRequest) {
   const turnoCanonical = turno.charAt(0).toUpperCase() + turno.slice(1).toLowerCase()
 
   try {
-    // ── 1. Buscar usuarios elegibles (premium + auto_predict_enabled) ──
+    // ── 1. Generate predictions directly from V6 engine ─────────────
+    let predictions: Array<{ numero: string; score: number; factor_attribution: Record<string, number> }> = []
+    let engineVersion = "omega_v6"
+
+    try {
+      const { data: v6Data, error: v6Error } = await supabase.rpc("calculate_omega_v6" as never, {
+        p_turno: turnoCanonical,
+        p_tier: "premium",
+        p_date: today,
+      } as never)
+
+      if (!v6Error && Array.isArray(v6Data) && v6Data.length > 0) {
+        predictions = v6Data.map((row: Record<string, unknown>) => ({
+          numero: String(row.prediccion_2cifras || "").padStart(2, "0"),
+          score: Number(row.puntaje_total) || 0,
+          factor_attribution: (row.factor_attribution as Record<string, number>) || {},
+        }))
+        engineVersion = "omega_v6"
+      }
+    } catch (e) {
+      logger.warn("[cron-autopilot] V6 RPC failed, trying fallback", { error: String(e) })
+    }
+
+    // Fallback: try reading from predictions_cache if V6 RPC failed
+    if (predictions.length === 0) {
+      try {
+        const { data: cached } = await supabase
+          .from("predictions_cache")
+          .select("numeros_2, engine_version, confidence")
+          .eq("game_id", GAME_ID)
+          .eq("date", today)
+          .eq("turno", turnoCanonical)
+          .single()
+
+        if (cached?.numeros_2 && Array.isArray(cached.numeros_2) && cached.numeros_2.length > 0) {
+          predictions = cached.numeros_2.map((item: Record<string, unknown>) => ({
+            numero: String(item.numero ?? item.n ?? "").padStart(2, "0"),
+            score: Number(item.score) || 0,
+            factor_attribution: (item.factor_attribution as Record<string, number>) || {},
+          }))
+          engineVersion = cached.engine_version || "meta-ensemble-v1"
+        }
+      } catch { /* cache miss — continue with empty */ }
+    }
+
+    if (predictions.length === 0) {
+      return NextResponse.json({
+        ok: false,
+        error: "No se pudieron generar predicciones (V6 RPC + cache fallaron)",
+      }, { status: 500 })
+    }
+
+    // ── 2. Get eligible users (premium + auto_predict_enabled) ──────
     const { data: rawUsers, error: usersError } = await supabase
       .from("user_profiles")
       .select("id, email, role, premium_until, auto_predict_enabled")
@@ -73,7 +120,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, message: "No autopilot users", processed: 0 })
     }
 
-    // Filter: ONLY premium/admin users (auto-pilot is premium-only)
     const eligible: EligibleUser[] = (rawUsers as Array<Record<string, unknown>>)
       .filter(u => u.role === "premium" || u.role === "admin")
       .map(u => ({
@@ -87,44 +133,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, message: "No premium autopilot users", processed: 0 })
     }
 
-    // ── 2. Verificar que ya existen predicciones pre-calculadas ──
-    const { data: cached, error: cacheError } = await supabase
-      .from("predictions_cache")
-      .select("numeros_2, numeros_3, numeros_4, redoblona, engine_version, confidence")
-      .eq("game_id", GAME_ID)
-      .eq("date", today)
-      .eq("turno", turnoCanonical)
-      .single()
-
-    if (cacheError || !cached?.numeros_2 || !Array.isArray(cached.numeros_2) || cached.numeros_2.length === 0) {
-      logger.warn("[cron-autopilot] No cached predictions", { turno: turnoCanonical, date: today })
-      return NextResponse.json({
-        ok: false,
-        error: "Sin predicciones pre-calculadas en cache",
-        detail: "El cron-precompute debe correr antes que el autopilot",
-        retry_in_seconds: 60,
-      }, {
-        status: 425,
-        headers: { "Retry-After": "60" },
-      })
-    }
-
-    // ── 3. Extraer predicciones del cache ──
-    const numeros_2: string[] = cached.numeros_2.map((item: Record<string, unknown>) => {
-      const n = item.numero ?? item.n
-      return String(n).padStart(2, "0")
-    })
-
-    const numeros_3: string[] = cached.numeros_3 || []
-    const numeros_4: string[] = cached.numeros_4 || []
-    const redoblona: string | null = cached.redoblona
-      ? `${String(cached.redoblona.cabeza).padStart(2, "0")}-${String(cached.redoblona.acompanante).padStart(2, "0")}`
-      : null
-
-    const engineVersion = cached.engine_version || "meta-ensemble-v1"
-    const confidence = cached.confidence || 0
-
-    // ── 4. Verificar qué usuarios ya tienen predicciones para esta fecha+turno ──
+    // ── 3. Check which users already have predictions ───────────────
     const eligibleIds = eligible.map(u => u.user_id)
     const { data: existingPreds } = await supabase
       .from("user_predictions")
@@ -145,13 +154,38 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // ── 5. Construir filas de predicciones ──
+    // ── 4. Build prediction rows ────────────────────────────────────
+    const top10 = predictions.slice(0, 10)
+    const numeros_2 = top10.map(p => p.numero)
+
+    // Build 3/4 cifras from V6 data if available
+    let numeros_3: string[] = []
+    let numeros_4: string[] = []
+    let redoblona: string | null = null
+
+    try {
+      const { data: v6Full } = await supabase.rpc("calculate_omega_v6" as never, {
+        p_turno: turnoCanonical,
+        p_tier: "premium",
+        p_date: today,
+      } as never)
+
+      if (Array.isArray(v6Full) && v6Full.length > 0) {
+        const first = v6Full[0] as Record<string, unknown>
+        if (Array.isArray(first.prediccion_3cifras)) numeros_3 = first.prediccion_3cifras.map(String)
+        if (Array.isArray(first.prediccion_4cifras)) numeros_4 = first.prediccion_4cifras.map(String)
+        if (first.redoblona && typeof first.redoblona === "object") {
+          const rb = first.redoblona as { cabeza: number; acompanante: number }
+          redoblona = `${String(rb.cabeza).padStart(2, "0")}-${String(rb.acompanante).padStart(2, "0")}`
+        }
+      }
+    } catch { /* non-fatal — 2 cifras is sufficient */ }
+
     const rows = toPredict.map(user => {
-      // Premium: store JSON with 2/3/4 cifras + redoblona
       const isPremium = user.role === "premium" || user.role === "admin"
       let numeros: string[]
 
-      if (isPremium && numeros_3.length > 0) {
+      if (isPremium && (numeros_3.length > 0 || numeros_4.length > 0 || redoblona)) {
         numeros = [JSON.stringify({
           "2": numeros_2,
           "3": numeros_3,
@@ -169,27 +203,22 @@ export async function GET(req: NextRequest) {
         turno: turnoCanonical,
         numeros,
         engine_version: engineVersion,
-        confidence,
+        confidence: top10[0]?.score || 0,
         status: "PENDING",
       }
     })
 
-    // ── 6. Batch upsert en chunks de 1000 con time-budget ──
-    const CHUNK_SIZE = 1000
-    const TIME_BUDGET_MS = 200_000 // Leave 40s buffer from 240s maxDuration
+    // ── 5. Batch upsert in chunks ───────────────────────────────────
+    const CHUNK_SIZE = 500
+    const TIME_BUDGET_MS = 200_000
     let succeeded = 0
     let failed = 0
     const errors: string[] = []
 
     for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-      // Time-budget check: abort if approaching Vercel limit
       if (Date.now() - t0 > TIME_BUDGET_MS) {
-        logger.warn("[cron-autopilot] Time budget exhausted", {
-          elapsed: Date.now() - t0,
-          remaining: rows.length - i,
-        })
         failed += rows.length - i
-        errors.push(`TIME_BUDGET: ${rows.length - i} users skipped (elapsed ${Date.now() - t0}ms)`)
+        errors.push(`TIME_BUDGET: ${rows.length - i} users skipped`)
         break
       }
 
@@ -206,16 +235,20 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── 7. Log results ──
+    // ── 6. Store in predictions_cache for fast API reads ─────────────
     try {
-      await supabase.from("auto_predict_log").insert({
-        turno: turnoCanonical,
+      await supabase.from("predictions_cache" as never).upsert({
+        game_id: GAME_ID,
         date: today,
-        status: failed > 0 ? "partial" : "success",
-        usuarios_afectados: succeeded,
-        errores: errors.length > 0 ? errors : null,
-      })
-    } catch { /* noop */ }
+        turno: turnoCanonical,
+        numeros_2: top10.map(p => ({ n: parseInt(p.numero), numero: p.numero, score: p.score, factor_attribution: p.factor_attribution })),
+        engine_version: engineVersion,
+        confidence: top10[0]?.score || 0,
+        agreement_score: 0.8,
+        computed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as never, { onConflict: "game_id,date,turno" })
+    } catch { /* non-fatal — predictions are already in user_predictions */ }
 
     const elapsed = Date.now() - t0
     logger.info("[cron-autopilot] Completed", {
@@ -223,6 +256,8 @@ export async function GET(req: NextRequest) {
       processed: succeeded,
       failed,
       skipped: eligible.length - toPredict.length,
+      engine: engineVersion,
+      predictionsCount: predictions.length,
       elapsed,
     })
     logCronExecution("cron-autopilot", {
@@ -240,7 +275,8 @@ export async function GET(req: NextRequest) {
       failed,
       skipped: eligible.length - toPredict.length,
       total_eligible: eligible.length,
-      cached_at: cached.engine_version,
+      engine: engineVersion,
+      predictions: numeros_2,
       errors: errors.length > 0 ? errors : undefined,
     })
   } catch (e) {
