@@ -66,7 +66,7 @@ const DEFAULT_WEIGHTS: FactorBreakdown = {
   cycles: 0.06,
   temporal: 0.07,
   debt: 0.10,
-  bayesian: 0.00,
+  bayesian: 0.03,
 }
 
 const ENSEMBLE_WEIGHTS: FactorBreakdown[] = [
@@ -212,11 +212,9 @@ export function predictV7(
     // Bayesian
     const bScore = bayesianScores[num] || 0
 
-    // Combine with weights + daily perturbation (±2% to break ties and create daily variation)
-    const dailyPerturb = ((dateHash * 31 + num * 17) | 0) % 100
-    const perturbation = 1 + (dailyPerturb - 50) * 0.0004
+    // Combine with weights (no daily perturbation — pure deterministic scoring)
     const combined =
-      (weights.survival * sNormalized +
+      weights.survival * sNormalized +
       weights.correlation * cScore +
       weights.spacing * spScore +
       weights.frequency * fScore +
@@ -225,7 +223,7 @@ export function predictV7(
       weights.cycles * cycleScore +
       weights.temporal * tScore +
       weights.debt * dScore +
-      weights.bayesian * bScore) * perturbation
+      weights.bayesian * bScore
 
     const numStr = num < 10 ? `0${num}` : `${num}`
     scores.push({
@@ -374,11 +372,9 @@ export async function predictV7Fast(
     // Bayesian: frequency / total as posterior
     const bScore = freq ? (freq.global + 1) / (totalDraws + 100) : 1 / 100
 
-    // Combine with weights + daily perturbation (±2%)
-    const dailyPerturb = ((dateHash * 31 + num * 17) | 0) % 100
-    const perturbation = 1 + (dailyPerturb - 50) * 0.0004
+    // Combine with weights (deterministic — no perturbation)
     const combined =
-      (weights.survival * sNormalized +
+      weights.survival * sNormalized +
       weights.correlation * cScore +
       weights.spacing * spScore +
       weights.frequency * fScore +
@@ -387,7 +383,7 @@ export async function predictV7Fast(
       weights.cycles * cycleScore +
       weights.temporal * tScore +
       weights.debt * dScore +
-      weights.bayesian * bScore) * perturbation
+      weights.bayesian * bScore
 
     const numStr = num < 10 ? `0${num}` : `${num}`
     scores.push({

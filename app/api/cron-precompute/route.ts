@@ -188,45 +188,34 @@ export async function GET(req: NextRequest) {
         continue
       }
 
-      // Generate 3/4 cifras and redoblona from blended top 10
+      // Generate 3/4 cifras using V6 SQL full 10-factor analysis
       const top10nums = blended.map((p) => p.n)
 
-      // Build co-occurrence maps from historical draws for deterministic 3/4 cifras
-      const hundredsFreq = new Map<number, Map<number, number>>() // 2-digit -> hundreds digit -> count
-      const thousandsFreq = new Map<number, Map<number, number>>() // 2-digit -> thousands pair -> count
-      for (const draw of histDraws) {
-        const nums = draw.numbers as number[]
-        if (!Array.isArray(nums)) continue
-        for (const fullNum of nums) {
-          const twoDigit = fullNum % 100
-          const hundreds = Math.floor(fullNum / 100) % 10
-          const thousands = Math.floor(fullNum / 100)
-          if (!hundredsFreq.has(twoDigit)) hundredsFreq.set(twoDigit, new Map())
-          if (!thousandsFreq.has(twoDigit)) thousandsFreq.set(twoDigit, new Map())
-          const hMap = hundredsFreq.get(twoDigit)!
-          hMap.set(hundreds, (hMap.get(hundreds) || 0) + 1)
-          const tMap = thousandsFreq.get(twoDigit)!
-          tMap.set(thousands, (tMap.get(thousands) || 0) + 1)
-        }
-      }
+      const [v6_3rows, v6_4rows] = await Promise.all([
+        supabase.rpc("score_numbers_v6", {
+          p_turno: turno,
+          p_date: today,
+          p_digit_space: "3",
+          p_modulus: 1000,
+          p_series_start: 0,
+          p_series_end: 999,
+        }),
+        supabase.rpc("score_numbers_v6", {
+          p_turno: turno,
+          p_date: today,
+          p_digit_space: "4",
+          p_modulus: 10000,
+          p_series_start: 0,
+          p_series_end: 9999,
+        }),
+      ])
 
-      function mostFrequent(map: Map<number, number> | undefined, fallback: number): number {
-        if (!map || map.size === 0) return fallback
-        let best = fallback, bestCount = 0
-        for (const [val, count] of map) {
-          if (count > bestCount) { best = val; bestCount = count }
-        }
-        return best
-      }
-
-      const numeros_3 = top10nums.slice(0, 10).map((n) => {
-        const prefix = mostFrequent(hundredsFreq.get(n), 0)
-        return `${prefix}${String(n).padStart(2, "0")}`
-      })
-      const numeros_4 = top10nums.slice(0, 10).map((n) => {
-        const prefix = mostFrequent(thousandsFreq.get(n), 0)
-        return `${String(prefix).padStart(2, "0")}${String(n).padStart(2, "0")}`
-      })
+      const numeros_3 = (v6_3rows.data || [])
+        .slice(0, 10)
+        .map((r: Record<string, unknown>) => String(r.num_val).padStart(3, "0"))
+      const numeros_4 = (v6_4rows.data || [])
+        .slice(0, 10)
+        .map((r: Record<string, unknown>) => String(r.num_val).padStart(4, "0"))
       const redoblona = top10nums.length >= 2
         ? { cabeza: String(top10nums[0]).padStart(2, "0"), acompanante: String(top10nums[1]).padStart(2, "0") }
         : null
