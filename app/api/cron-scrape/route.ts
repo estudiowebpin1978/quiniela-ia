@@ -206,10 +206,17 @@ export async function GET(req: NextRequest) {
       if (officialTimeUTC) {
         const now = new Date()
         const [h, m] = officialTimeUTC.split(":").map(Number)
-        const officialDate = new Date(`${fechaISO}T${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:00Z`)
-        if (turno === "Nocturna") officialDate.setUTCDate(officialDate.getUTCDate() + 1)
-        if (now.getTime() < officialDate.getTime() + 5 * 60 * 1000) {
-          logger.info("cron-scrape: skip early scrape (before official time)", { fecha: fechaISO, turno, officialTimeUTC })
+        let officialCutoffUTC: Date
+        if (turno === "Nocturna") {
+          // Nocturna is at 00:00 UTC (21:00 ART previous day)
+          // Check against yesterday's midnight UTC (fechaISO is ART date, which is still yesterday in UTC for early hours)
+          officialCutoffUTC = new Date(`${fechaISO}T${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:00Z`)
+          officialCutoffUTC.setUTCDate(officialCutoffUTC.getUTCDate() + 1)
+        } else {
+          officialCutoffUTC = new Date(`${fechaISO}T${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:00Z`)
+        }
+        if (now.getTime() < officialCutoffUTC.getTime() + 5 * 60 * 1000) {
+          logger.info("cron-scrape: skip early scrape (before official time)", { fecha: fechaISO, turno, officialTimeUTC, cutoffUTC: officialCutoffUTC.toISOString() })
           return { turno, status: "skipped" as const }
         }
       }
