@@ -921,7 +921,7 @@ export async function parseNacionalQuiniela(
       const idx = htmlUpper.indexOf(h)
       if (idx >= 0) {
         const after = html.substring(idx + h.length, idx + h.length + 100)
-        if (/^\s*<\/th>|^\s+\d{1,2}\s+-|^\s*<\/\w/.test(after)) {
+        if (/^\s*<\/th>|^\s*<\/tr>|^\s*<tr|^\s+\d{1,2}\s+-/.test(after)) {
           headerIdx = idx
           break
         }
@@ -943,12 +943,15 @@ export async function parseNacionalQuiniela(
     }
     const section = html.substring(headerIdx, sectionEnd)
 
+    // Strip HTML tags for cleaner parsing
+    const cleanSection = section.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ")
+
     // Parse position+number pairs: "  1 1892  2 6677  ..." or "1 1892  2 6677"
     const pairRx = /(\d{1,2})\s+(\d{4})/g
     const nums: number[] = []
     const seen = new Set<number>()
     let mx: RegExpExecArray | null
-    while ((mx = pairRx.exec(section)) !== null) {
+    while ((mx = pairRx.exec(cleanSection)) !== null) {
       const pos = parseInt(mx[1])
       const num = parseInt(mx[2])
       if (pos >= 1 && pos <= 20 && num >= 0 && num <= 9999 && !seen.has(pos)) {
