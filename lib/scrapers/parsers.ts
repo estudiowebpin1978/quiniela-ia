@@ -918,12 +918,10 @@ export async function parseNacionalQuiniela(
     const headers = turnoHeaders[turno]
     let headerIdx = -1
     for (const h of headers) {
-      // Search for turno header followed by a number (cabeza) to avoid matching navigation links
       const idx = htmlUpper.indexOf(h)
       if (idx >= 0) {
-        // Verify it's followed by digits (the cabeza number), not a link
-        const after = html.substring(idx + h.length, idx + h.length + 50)
-        if (/^\s+\d{1,2}\s+-/.test(after)) {
+        const after = html.substring(idx + h.length, idx + h.length + 100)
+        if (/^\s*<\/th>|^\s+\d{1,2}\s+-|^\s*<\/\w/.test(after)) {
           headerIdx = idx
           break
         }
@@ -931,13 +929,17 @@ export async function parseNacionalQuiniela(
     }
     if (headerIdx < 0) return null
 
-    // Extract the section from this turno header to the next turno or end
     const nextTurnos = ["PREVIA", "PRIMERA", "MATUTINA", "VESPERTINA", "NOCTURNA"]
     let sectionEnd = html.length
     for (const nt of nextTurnos) {
       if (nt === turno.toUpperCase()) continue
-      const ntIdx = htmlUpper.indexOf(nt, headerIdx + 10)
-      if (ntIdx > headerIdx && ntIdx < sectionEnd) sectionEnd = ntIdx
+      const ntIdx = htmlUpper.indexOf("<th>" + nt, headerIdx + 10)
+      if (ntIdx < 0) {
+        const ntIdx2 = htmlUpper.indexOf(">" + nt + "<", headerIdx + 10)
+        if (ntIdx2 > headerIdx && ntIdx2 < sectionEnd) sectionEnd = ntIdx2
+      } else if (ntIdx > headerIdx && ntIdx < sectionEnd) {
+        sectionEnd = ntIdx
+      }
     }
     const section = html.substring(headerIdx, sectionEnd)
 
