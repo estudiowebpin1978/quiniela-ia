@@ -139,11 +139,6 @@ export function generarRanking(
 
   const scores2Cifras: ScoreItem[] = [];
   
-  // Daily seed for redoblona variation: hash of today's date adds small perturbation
-  const todayStr = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
-  let dailySeed = 0
-  for (let i = 0; i < todayStr.length; i++) { dailySeed = ((dailySeed << 5) - dailySeed + todayStr.charCodeAt(i)) | 0 }
-  
   for (let n = 0; n < 100; n++) {
     const freq = freqMap.get(n) ?? null;
     const ausencia = ausenciaMap.get(n) ?? null;
@@ -152,9 +147,6 @@ export function generarRanking(
     const ultimoIdx = ultimosIndices.get(n) || 0;
 
     const score = calcularScore(n, freq, ausencia, transicion, ciclo, ultimoIdx, totalSorteos, maxIdx);
-    // Add tiny date-based perturbation (±3%) to break ties and shift ranking daily
-    const hash = ((dailySeed * 31 + n * 17) | 0) % 100
-    score.score = score.score * (1 + (hash - 50) * 0.0006)
     scores2Cifras.push(score);
   }
 
