@@ -918,15 +918,19 @@ export async function parseNacionalQuiniela(
     const headers = turnoHeaders[turno]
     let headerIdx = -1
     for (const h of headers) {
-      const idx = htmlUpper.indexOf(h)
-      if (idx >= 0) {
+      let searchIdx = 0
+      while (searchIdx < htmlUpper.length) {
+        const idx = htmlUpper.indexOf(h, searchIdx)
+        if (idx < 0) break
         const before = html.substring(Math.max(0, idx - 60), idx)
         const after = html.substring(idx + h.length, idx + h.length + 100)
         if (/<TH[\s>]/.test(before.toUpperCase()) && /<\/TH>/.test(after.toUpperCase())) {
           headerIdx = idx
           break
         }
+        searchIdx = idx + h.length
       }
+      if (headerIdx >= 0) break
     }
     if (headerIdx < 0) return null
 
