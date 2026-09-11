@@ -105,6 +105,50 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
   }
 }
 
+const MAX_DRAWS = 2000
+const MIN_DRAWS = 1500
+
+async function limpiarSorteosViejos(): Promise<number> {
+  try {
+    const supabase = getSupabaseAdmin()
+
+    const { count: totalDraws } = await supabase
+      .from("draws")
+      .select("*", { count: "exact", head: true })
+
+    if (!totalDraws || totalDraws <= MAX_DRAWS) return 0
+
+    const toDelete = totalDraws - MIN_DRAWS
+    if (toDelete <= 0) return 0
+
+    const { data: oldest } = await supabase
+      .from("draws")
+      .select("id")
+      .order("date", { ascending: true })
+      .limit(toDelete)
+
+    if (!Array.isArray(oldest) || oldest.length === 0) return 0
+
+    const ids = oldest.map((d: { id: string }) => d.id)
+
+    const { error } = await supabase
+      .from("draws")
+      .delete()
+      .in("id", ids)
+
+    if (error) {
+      logger.error("cron-scrape: error deleting old draws", { error: error.message, count: ids.length })
+      return 0
+    }
+
+    logger.info("cron-scrape: old draws deleted", { count: ids.length, remainingTotal: totalDraws - ids.length })
+    return ids.length
+  } catch (e) {
+    logger.warn("cron-scrape: error in limpiarSorteosViejos", { error: String(e) })
+    return 0
+  }
+}
+
 async function limpiarPrediccionesViejas(): Promise<number> {
   try {
     const supabase = getSupabaseAdmin()
@@ -309,6 +353,17 @@ export async function GET(req: NextRequest) {
     logger.warn("cron-scrape: error limpiando predicciones", { error: String(e) })
   }
 
+  // Limpiar sorteos antiguos si DB excede MAX_DRAWS
+  let drawsDeleted = 0
+  try {
+    drawsDeleted = await limpiarSorteosViejos()
+    if (drawsDeleted > 0) {
+      logger.info("cron-scrape: sorteos antiguos eliminados", { cantidad: drawsDeleted })
+    }
+  } catch (e) {
+    logger.warn("cron-scrape: error limpiando sorteos viejos", { error: String(e) })
+  }
+
   const duration = Date.now() - start
 
   // ── Verification: runs immediately after draw save via verify_predictions_for_draw ──
@@ -330,6 +385,7 @@ export async function GET(req: NextRequest) {
     errores,
     divergences,
     eliminadas,
+    drawsDeleted,
     totalVerified,
     sourceStats
   }, start)
