@@ -1,17 +1,19 @@
 /**
- * Tri-Consensus Scraper (3-Node Quorum)
+ * Quad-Consensus Scraper (4-Node Quorum)
  *
- * Fetches from THREE sources in PARALLEL via Promise.allSettled():
+ * Fetches from FOUR sources in PARALLEL via Promise.allSettled():
  *   1. quinieleando.com.ar
  *   2. numerosenvivo.com.ar
  *   3. loteriadelaciudad.gob.ar (official CABA government)
+ *   4. quinielanacionaln.com.ar
  *
  * Quorum matrix:
- *   3/3 match       → ✅ APPROVED (highest confidence)
- *   2/3 match       → ✅ APPROVED (majority wins)
- *   1/3 responds    → ❌ ABORT (insufficient data)
- *   0/3 responds    → ❌ ABORT (all sources down)
- *   3 different     → ❌ ABORT (anomaly — possible data corruption)
+ *   4/4 match       → ✅ APPROVED (highest confidence)
+ *   3/4 match       → ✅ APPROVED (strong majority)
+ *   2/4 match       → ✅ APPROVED (weak majority)
+ *   1/4 responds    → ❌ ABORT (insufficient data)
+ *   0/4 responds    → ❌ ABORT (all sources down)
+ *   4 different     → ❌ ABORT (anomaly — possible data corruption)
  */
 
 import { parseQuinieleando, parseNumerosEnvivo } from "./parsers"

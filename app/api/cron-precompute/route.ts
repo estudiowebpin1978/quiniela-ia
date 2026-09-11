@@ -23,7 +23,7 @@ import logger from "@/lib/logger"
 import { SUENOS } from "@/lib/suenos"
 import type { Draw } from "@/lib/analisis/engine-v7"
 
-export const maxDuration = 60
+export const maxDuration = 300
 
 const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"

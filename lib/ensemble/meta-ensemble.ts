@@ -48,9 +48,9 @@ export async function loadEngineWeightsDecayed(turno: string): Promise<EngineWei
     let total = 0
 
     for (const row of data) {
-      const hitCount = Number(row.hit_count) ?? 0
-      const nearMisses = Number(row.near_miss_count) ?? 0
-      const totalRuns = Number(row.total_runs) ?? 1
+      const hitCount = row.hit_count != null ? Number(row.hit_count) : 0
+      const nearMisses = row.near_miss_count != null ? Number(row.near_miss_count) : 0
+      const totalRuns = row.total_runs != null ? Math.max(1, Number(row.total_runs)) : 1
       const rawRate = totalRuns > 0 ? hitCount / totalRuns : 0.3333
       const updatedAt = row.updated_at ? new Date(row.updated_at).getTime() : now
       const daysSince = (now - updatedAt) / (1000 * 60 * 60 * 24)
@@ -63,9 +63,9 @@ export async function loadEngineWeightsDecayed(turno: string): Promise<EngineWei
     if (total <= 0) return FALLBACK_WEIGHTS
 
     return {
-      V6: (rates.V6 || 0.3333) / total,
-      V7: (rates.V7 || 0.3333) / total,
-      ML: (rates.ML || 0.3333) / total,
+      V6: (rates.V6 ?? 0.3333) / total,
+      V7: (rates.V7 ?? 0.3333) / total,
+      ML: (rates.ML ?? 0.3333) / total,
     }
   } catch {
     return FALLBACK_WEIGHTS

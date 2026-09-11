@@ -22,7 +22,16 @@ import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { todayART } from "@/lib/quiniela-timeline"
 import { esDiaSinSorteo } from "@/lib/feriados"
+import { SUENOS } from "@/lib/suenos"
 import logger from "@/lib/logger"
+
+function getEmoji(n: number): string {
+  return SUENOS[n]?.emoji || "❓"
+}
+
+function getSignificado(n: number): string {
+  return SUENOS[n]?.nombre || "❓"
+}
 
 export const maxDuration = 240
 
@@ -250,7 +259,14 @@ export async function GET(req: NextRequest) {
         game_id: GAME_ID,
         date: today,
         turno: turnoCanonical,
-        numeros_2: top10.map(p => ({ n: parseInt(p.numero), numero: p.numero, score: p.score, factor_attribution: p.factor_attribution })),
+        numeros_2: top10.map(p => ({
+          n: parseInt(p.numero),
+          numero: p.numero,
+          score: p.score,
+          emoji: getEmoji(parseInt(p.numero)),
+          significado: getSignificado(parseInt(p.numero)),
+          factor_attribution: p.factor_attribution,
+        })),
         engine_version: engineVersion,
         confidence: top10[0]?.score || 0,
         agreement_score: 0.8,
