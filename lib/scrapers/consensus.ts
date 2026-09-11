@@ -15,7 +15,7 @@
  */
 
 import { parseQuinieleando, parseNumerosEnvivo } from "./parsers"
-import { parseLoteriaOficial } from "./parsers"
+import { parseLoteriaOficial, parseQuinielaNacionalN } from "./parsers"
 import type { ScraperStrategy } from "./strategy"
 import { isSourceQuarantined, recordSourceResult } from "./circuit-breaker"
 import type { SourceStats, TurnoType, ScrapeResult } from "./types"
@@ -45,6 +45,13 @@ const STRATEGIES: ScraperStrategy[] = [
     baseUrl: "https://quiniela.loteriadelaciudad.gob.ar/",
     async fetch(fechaISO, fechaUrl, turno) {
       return parseLoteriaOficial(fechaISO, fechaUrl, turno)
+    },
+  },
+  {
+    name: "quinielanacionaln.com.ar",
+    baseUrl: "https://quinielanacionaln.com.ar/",
+    async fetch(fechaISO, fechaUrl, turno) {
+      return parseQuinielaNacionalN(fechaISO, fechaUrl, turno)
     },
   },
 ]
@@ -221,22 +228,24 @@ export async function fetchWithConsensus(
   const okCount = nodes.filter((n) => n.ok).length
   const quorum = computeQuorum(nodes)
 
-  // ── QUORUM MATRIX ──
+  // ── QUORUM MATRIX (4 sources) ──
 
-  // CASE 1: 3/3 match → full consensus
-  if (okCount === 3 && quorum.matchCount === 3) {
-    logger.info("[tri-consensus] 3/3 FULL MATCH", {
+  // CASE 1: 4/4 or 3/4 match → full/majority consensus
+  if (okCount >= 3 && quorum.matchCount >= 3) {
+    logger.info("[tri-consensus] FULL/MAJORITY MATCH", {
       fecha: fechaISO,
       turno,
       cabeza: quorum.matchValue,
+      okCount,
+      matchCount: quorum.matchCount,
       duration: Date.now() - startTime,
     })
-    return buildResult("tri_full_match", quorum.majorityNumbers, `${nodes.map((n) => n.name).join("+")}`, nodes, quorum, startTime)
+    return buildResult(quorum.matchCount === okCount ? "tri_full_match" : "tri_majority", quorum.majorityNumbers, `${nodes.filter(n => n.ok).map((n) => n.name).join("+")}`, nodes, quorum, startTime)
   }
 
-  // CASE 2: 2/3 match → majority quorum
+  // CASE 2: 2/4 match → weak majority (approved with lower confidence)
   if (okCount >= 2 && quorum.matchCount >= 2) {
-    logger.info("[tri-consensus] 2/3 MAJORITY", {
+    logger.info("[tri-consensus] WEAK MAJORITY", {
       fecha: fechaISO,
       turno,
       cabeza: quorum.matchValue,
@@ -247,7 +256,7 @@ export async function fetchWithConsensus(
     return buildResult("tri_majority", quorum.majorityNumbers, quorum.majoritySource, nodes, quorum, startTime)
   }
 
-  // CASE 3: 1/3 responds → ABORT (need at least 2 sources for quorum)
+  // CASE 3: 1 source responds → ABORT (need at least 2 for quorum)
   if (okCount === 1) {
     const survivor = nodes.find((n) => n.ok)!
     logger.warn("[tri-consensus] ABORT — only 1 source responded", {
@@ -259,22 +268,22 @@ export async function fetchWithConsensus(
     return buildAbortResult("abort_no_quorum", nodes, quorum, `Only 1 source responded: ${survivor.name}`, startTime)
   }
 
-  // CASE 4: 3 different values → anomaly, abort
-  if (okCount === 3 && quorum.matchCount === 1) {
-    const detail = nodes.map((n) => `${n.name}=cabeza:${n.cabeza}`).join(" vs ")
-    logger.error("[tri-consensus] ABORT — 3 DIFFERENT VALUES (anomaly)", {
+  // CASE 4: all sources disagree → anomaly, abort
+  if (okCount >= 2 && quorum.matchCount === 1) {
+    const detail = nodes.filter(n => n.ok).map((n) => `${n.name}=cabeza:${n.cabeza}`).join(" vs ")
+    logger.error("[tri-consensus] ABORT — ALL SOURCES DIFFER (anomaly)", {
       fecha: fechaISO,
       turno,
       detail,
       duration: Date.now() - startTime,
     })
-    return buildAbortResult("abort_no_quorum", nodes, quorum, `3 different values: ${detail}`, startTime)
+    return buildAbortResult("abort_no_quorum", nodes, quorum, `All sources differ: ${detail}`, startTime)
   }
 
-  // CASE 5: 0/3 or 2 disagree + 1 different → no quorum, abort
+  // CASE 5: 0/4 or no quorum
   {
     const detail = okCount === 0
-      ? "All 3 sources failed"
+      ? "All 4 sources failed"
       : `${quorum.matchCount}/${okCount} agreement — insufficient for quorum`
     logger.error("[tri-consensus] ABORT — NO QUORUM", {
       fecha: fechaISO,

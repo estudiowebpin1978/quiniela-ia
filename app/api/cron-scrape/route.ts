@@ -46,13 +46,13 @@ async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
   } catch { return false }
 }
 
-async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string): Promise<{ ok: boolean; error?: string }> {
+async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string): Promise<{ ok: boolean; error?: string; verifyResult?: Record<string, unknown> }> {
   try {
     const supabase = getSupabaseAdmin()
-    const jurisdiccion = "nacional" // App predice Quiniela de la Ciudad (CABA / ex Nacional)
+    const jurisdiccion = "nacional"
 
-    // Use .rpc() to avoid int4[] ↔ text[] type mismatch with PostgREST
-    const { error } = await supabase.rpc("upsert_draw" as never, {
+    // ATOMIC: save draw + verify predictions in one RPC call
+    const { data: rpcData, error: rpcError } = await supabase.rpc("save_draw_and_verify" as never, {
       p_date: fechaISO,
       p_turno: turno,
       p_numbers: nums,
@@ -61,49 +61,36 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
       p_jurisdiccion: jurisdiccion,
     } as never)
 
-    if (error) {
-      logger.error("cron-scrape: guardarDraw failed", { error: error.message, code: error.code, details: error.details, fecha: fechaISO, turno, source, numsCount: nums.length })
-      return { ok: false, error: error.message }
+    if (rpcError) {
+      logger.error("cron-scrape: save_draw_and_verify failed", { error: rpcError.message, code: rpcError.code, fecha: fechaISO, turno, source, numsCount: nums.length })
+      return { ok: false, error: rpcError.message }
     }
 
-    // Post-save: trigger refresh functions as separate RPCs (fire-and-forget, non-blocking)
-    Promise.allSettled([
-      supabase.rpc("refresh_cached_predictions_3_4" as never, { turno_objetivo: turno } as never),
-      supabase.rpc("refresh_all_prediction_stats" as never),
-    ]).catch(() => {})
-
-    // Verify PENDING predictions against this draw (non-blocking but logged)
-    try {
-      const { data: verifyData, error: verifyErr } = await supabase.rpc("verify_predictions_for_draw" as never, {
-        p_date: fechaISO,
-        p_turno: turno,
-      } as never)
-      if (verifyErr) logger.warn("cron-scrape: verify failed", { error: verifyErr.message, turno })
-      else if (verifyData) logger.info("cron-scrape: verified predictions", { resultado: verifyData, turno })
-    } catch (e) {
-      logger.warn("cron-scrape: verify exception", { error: String(e), turno })
+    const verifyResult = rpcData as Record<string, unknown> | null
+    if (verifyResult?.won || verifyResult?.near_miss || verifyResult?.lost) {
+      logger.info("cron-scrape: atomic verify completed", { resultado: verifyResult, turno })
     }
 
-    // Invalidar caches de predicción (Redis) tras nuevo sorteo + trigger precompute
+    // Invalidate caches (non-blocking)
     invalidateAllPredictionCaches().catch(() => {})
 
-      // Pre-compute predictions for this turno (stores in predictions_cache)
-      try {
-        const baseUrl = process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}`
-          : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia-two.vercel.app"
-        fetch(`${baseUrl}/api/cron-precompute?turno=${encodeURIComponent(turno)}`, {
-          headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
-        }).catch(() => {})
-      } catch { /* non-fatal */ }
+    // Pre-compute predictions for next turnos (non-blocking)
+    try {
+      const baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia-two.vercel.app"
+      fetch(`${baseUrl}/api/cron-precompute?turno=${encodeURIComponent(turno)}`, {
+        headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+      }).catch(() => {})
+    } catch { /* non-fatal */ }
 
-    // Clear precomputed stats cache for this turno (materialized view will refresh async)
+    // Clear precomputed stats cache
     try {
       const { clearStatsCache } = await import("@/lib/analisis/precomputed")
       clearStatsCache(turno)
     } catch { /* non-fatal */ }
 
-    return { ok: true }
+    return { ok: true, verifyResult: verifyResult || undefined }
   } catch (e) {
     const msg = String(e)
     logger.error("cron-scrape: guardarDraw exception", { error: msg, fecha: fechaISO, turno })
@@ -215,7 +202,7 @@ export async function GET(req: NextRequest) {
         } else {
           officialCutoffUTC = new Date(`${fechaISO}T${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:00Z`)
         }
-        if (now.getTime() < officialCutoffUTC.getTime() + 5 * 60 * 1000) {
+        if (now.getTime() < officialCutoffUTC.getTime() + 2 * 60 * 1000) {
           logger.info("cron-scrape: skip early scrape (before official time)", { fecha: fechaISO, turno, officialTimeUTC, cutoffUTC: officialCutoffUTC.toISOString() })
           return { turno, status: "skipped" as const }
         }
@@ -249,17 +236,19 @@ export async function GET(req: NextRequest) {
       const supabase = getSupabaseAdmin()
       const { data: existing } = await supabase
         .from("draws")
-        .select("numbers")
+        .select("numbers, source")
         .eq("date", fechaISO)
         .eq("turno", turno)
         .limit(1)
         .single()
       
       if (existing && JSON.stringify(existing.numbers) === JSON.stringify(consensus.numbers)) {
-        // Draw already exists with same numbers — still verify PENDING predictions
+        // Draw already exists with same numbers — still verify PENDING predictions (atomic)
         try {
-          const { data: vData, error: vErr } = await supabase.rpc("verify_predictions_for_draw" as never, {
+          const { data: vData, error: vErr } = await supabase.rpc("save_draw_and_verify" as never, {
             p_date: fechaISO, p_turno: turno,
+            p_numbers: existing.numbers, p_source: existing.source || "cached",
+            p_game_id: GAME_ID,
           } as never)
           if (vErr) logger.warn("cron-scrape: verify (exists) failed", { error: vErr.message, turno })
           else if (vData) logger.info("cron-scrape: verified (exists)", { resultado: vData, turno })
@@ -317,8 +306,7 @@ export async function GET(req: NextRequest) {
 
   const duration = Date.now() - start
 
-  // ── Verification handled by trg_verify_on_official_draw (SQL trigger) ──
-  // No TypeScript verification needed — eliminates dual-path race condition.
+  // ── Verification is ATOMIC: done inside guardarDraw via save_draw_and_verify ──
   let totalVerified = 0
   if (guardados > 0) {
     try {
