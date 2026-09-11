@@ -255,11 +255,11 @@ export async function GET(req: NextRequest) {
 
     // ── 6. Store in predictions_cache for fast API reads ─────────────
     try {
-      await supabase.from("predictions_cache" as never).upsert({
-        game_id: GAME_ID,
-        date: today,
-        turno: turnoCanonical,
-        numeros_2: top10.map(p => ({
+      await supabase.rpc("predictions_cache_upsert" as never, {
+        p_game_id: GAME_ID,
+        p_date: today,
+        p_turno: turnoCanonical,
+        p_numeros_2: top10.map(p => ({
           n: parseInt(p.numero),
           numero: p.numero,
           score: p.score,
@@ -267,12 +267,12 @@ export async function GET(req: NextRequest) {
           significado: getSignificado(parseInt(p.numero)),
           factor_attribution: p.factor_attribution,
         })),
-        engine_version: engineVersion,
-        confidence: top10[0]?.score || 0,
-        agreement_score: 0.8,
-        computed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      } as never, { onConflict: "game_id,date,turno" })
+        p_engine_version: engineVersion,
+        p_confidence: top10[0]?.score || 0,
+        p_agreement_score: 0.8,
+        p_computed_at: new Date().toISOString(),
+        p_updated_at: new Date().toISOString(),
+      } as never)
     } catch { /* non-fatal — predictions are already in user_predictions */ }
 
     const elapsed = Date.now() - t0

@@ -237,36 +237,31 @@ export async function GET(req: NextRequest) {
       // Confidence: based on draws count + agreement
       const confidence = Math.min(1.0, (histDraws.length / 100) * 0.5 + agreement * 0.5)
 
-      // 7. Store in predictions_cache
-      const { error: upsertError } = await supabase
-        .from("predictions_cache")
-        .upsert(
-          {
-            game_id: GAME_ID,
-            date: today,
-            turno,
-            numeros_2: blended.map((p) => ({
-              n: p.n,
-              numero: p.numero,
-              score: Math.round(p.score * 1000) / 1000,
-              emoji: getEmoji(p.n),
-              significado: getSignificado(p.n),
-              factor_attribution: p.factor_attribution,
-            })),
-            numeros_3,
-            numeros_4,
-            redoblona,
-            engine_version: "meta-ensemble-v1",
-            v6_weight: Math.round(engineWeights.V6 * 10000) / 10000,
-            v7_weight: Math.round(engineWeights.V7 * 10000) / 10000,
-            ml_weight: Math.round(engineWeights.ML * 10000) / 10000,
-            confidence: Math.round(confidence * 100) / 100,
-            agreement_score: Math.round(agreement * 100) / 100,
-            computed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "game_id,date,turno" }
-        )
+      // 7. Store in predictions_cache via api schema RPC
+      const { error: upsertError } = await supabase.rpc("predictions_cache_upsert" as never, {
+        p_game_id: GAME_ID,
+        p_date: today,
+        p_turno: turno,
+        p_numeros_2: blended.map((p) => ({
+          n: p.n,
+          numero: p.numero,
+          score: Math.round(p.score * 1000) / 1000,
+          emoji: getEmoji(p.n),
+          significado: getSignificado(p.n),
+          factor_attribution: p.factor_attribution,
+        })),
+        p_numeros_3: numeros_3,
+        p_numeros_4: numeros_4,
+        p_redoblona: redoblona,
+        p_engine_version: "meta-ensemble-v1",
+        p_v6_weight: Math.round(engineWeights.V6 * 10000) / 10000,
+        p_v7_weight: Math.round(engineWeights.V7 * 10000) / 10000,
+        p_ml_weight: Math.round(engineWeights.ML * 10000) / 10000,
+        p_confidence: Math.round(confidence * 100) / 100,
+        p_agreement_score: Math.round(agreement * 100) / 100,
+        p_computed_at: new Date().toISOString(),
+        p_updated_at: new Date().toISOString(),
+      } as never)
 
       if (upsertError) {
         throw upsertError

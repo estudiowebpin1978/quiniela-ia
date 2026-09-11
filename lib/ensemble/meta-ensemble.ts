@@ -90,16 +90,21 @@ export async function logEnginePredictions(
   predsML: number[],
 ): Promise<void> {
   const supabase = getSupabaseAdmin()
-  const { error } = await supabase.from("engine_predictions_log").upsert(
-    [
-      { draw_id: drawId, turno, engine_name: "V6", predicted_numbers: predsV6 },
-      { draw_id: drawId, turno, engine_name: "V7", predicted_numbers: predsV7 },
-      { draw_id: drawId, turno, engine_name: "ML", predicted_numbers: predsML },
-    ],
-    { onConflict: "draw_id,engine_name" },
-  )
-  if (error) {
-    logger.error("[meta-ensemble] logEnginePredictions failed", { error: error.message })
+  const engines = [
+    { engine_name: "V6", predicted_numbers: predsV6 },
+    { engine_name: "V7", predicted_numbers: predsV7 },
+    { engine_name: "ML", predicted_numbers: predsML },
+  ]
+  for (const eng of engines) {
+    const { error } = await supabase.rpc("engine_predictions_log_upsert" as never, {
+      p_draw_id: drawId,
+      p_turno: turno,
+      p_engine_name: eng.engine_name,
+      p_predicted_numbers: eng.predicted_numbers,
+    } as never)
+    if (error) {
+      logger.error("[meta-ensemble] logEnginePredictions failed", { engine: eng.engine_name, error: error.message })
+    }
   }
 }
 
