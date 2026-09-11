@@ -708,13 +708,18 @@ export async function parseNumerosEnvivo(
     // Data is embedded as JSON in a <script> block:
     // window.__INITIAL_STATE__ = {...} or similar
     // Look for turno data with "numeros" array
-    const turnoKey = turno === "Primera" ? "Primero" : turno
+    const turnoKey = turno
     // Pattern: "Vespertina":{"cabeza":"4086","numeros":["4086","6054",...],...}
+    // Try turnoKey first, then "Primero" as fallback for older site versions
     const jsonPattern = new RegExp(
       `"${turnoKey}"\\s*:\\s*\\{[^}]*"numeros"\\s*:\\s*\\[([^\\]]+)\\]`,
       "i"
     )
-    const match = html.match(jsonPattern)
+    const jsonPatternFallback = turno === "Primera" ? new RegExp(
+      `"Primero"\\s*:\\s*\\{[^}]*"numeros"\\s*:\\s*\\[([^\\]]+)\\]`,
+      "i"
+    ) : null
+    const match = html.match(jsonPattern) || (jsonPatternFallback ? html.match(jsonPatternFallback) : null)
     if (!match) return null
 
     // Parse the numeros array (strings like "0395", "1635")
