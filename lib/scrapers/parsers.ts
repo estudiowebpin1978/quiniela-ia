@@ -920,8 +920,9 @@ export async function parseNacionalQuiniela(
     for (const h of headers) {
       const idx = htmlUpper.indexOf(h)
       if (idx >= 0) {
+        const before = html.substring(Math.max(0, idx - 60), idx)
         const after = html.substring(idx + h.length, idx + h.length + 100)
-        if (/^\s*<\/th>|^\s*<\/tr>|^\s*<tr|^\s+\d{1,2}\s+-/.test(after)) {
+        if (/<TH[\s>]/.test(before.toUpperCase()) && /<\/TH>/.test(after.toUpperCase())) {
           headerIdx = idx
           break
         }
@@ -933,12 +934,12 @@ export async function parseNacionalQuiniela(
     let sectionEnd = html.length
     for (const nt of nextTurnos) {
       if (nt === turno.toUpperCase()) continue
-      const ntIdx = htmlUpper.indexOf("<th>" + nt, headerIdx + 10)
-      if (ntIdx < 0) {
-        const ntIdx2 = htmlUpper.indexOf(">" + nt + "<", headerIdx + 10)
-        if (ntIdx2 > headerIdx && ntIdx2 < sectionEnd) sectionEnd = ntIdx2
-      } else if (ntIdx > headerIdx && ntIdx < sectionEnd) {
-        sectionEnd = ntIdx
+      const ntIdx = htmlUpper.indexOf(nt, headerIdx + 10)
+      if (ntIdx > headerIdx && ntIdx < sectionEnd) {
+        const ntBefore = html.substring(Math.max(0, ntIdx - 60), ntIdx)
+        if (/<TH[\s>]/.test(ntBefore.toUpperCase())) {
+          sectionEnd = ntIdx
+        }
       }
     }
     const section = html.substring(headerIdx, sectionEnd)
