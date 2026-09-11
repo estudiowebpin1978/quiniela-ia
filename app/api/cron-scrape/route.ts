@@ -46,13 +46,13 @@ async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
   } catch { return false }
 }
 
-async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string): Promise<{ ok: boolean; error?: string; verifyResult?: Record<string, unknown> }> {
+async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const supabase = getSupabaseAdmin()
     const jurisdiccion = "nacional"
 
-    // ATOMIC: save draw + verify predictions in one RPC call
-    const { data: rpcData, error: rpcError } = await supabase.rpc("save_draw_and_verify" as never, {
+    // Save draw
+    const { error } = await supabase.rpc("upsert_draw" as never, {
       p_date: fechaISO,
       p_turno: turno,
       p_numbers: nums,
@@ -61,14 +61,21 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
       p_jurisdiccion: jurisdiccion,
     } as never)
 
-    if (rpcError) {
-      logger.error("cron-scrape: save_draw_and_verify failed", { error: rpcError.message, code: rpcError.code, fecha: fechaISO, turno, source, numsCount: nums.length })
-      return { ok: false, error: rpcError.message }
+    if (error) {
+      logger.error("cron-scrape: guardarDraw failed", { error: error.message, code: error.code, fecha: fechaISO, turno, source, numsCount: nums.length })
+      return { ok: false, error: error.message }
     }
 
-    const verifyResult = rpcData as Record<string, unknown> | null
-    if (verifyResult?.won || verifyResult?.near_miss || verifyResult?.lost) {
-      logger.info("cron-scrape: atomic verify completed", { resultado: verifyResult, turno })
+    // Verify PENDING predictions immediately (same pipeline, non-blocking)
+    try {
+      const { data: verifyData, error: verifyErr } = await supabase.rpc("verify_predictions_for_draw" as never, {
+        p_date: fechaISO,
+        p_turno: turno,
+      } as never)
+      if (verifyErr) logger.warn("cron-scrape: verify failed", { error: verifyErr.message, turno })
+      else if (verifyData) logger.info("cron-scrape: verified predictions", { resultado: verifyData, turno })
+    } catch (e) {
+      logger.warn("cron-scrape: verify exception", { error: String(e), turno })
     }
 
     // Invalidate caches (non-blocking)
@@ -90,7 +97,7 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
       clearStatsCache(turno)
     } catch { /* non-fatal */ }
 
-    return { ok: true, verifyResult: verifyResult || undefined }
+    return { ok: true }
   } catch (e) {
     const msg = String(e)
     logger.error("cron-scrape: guardarDraw exception", { error: msg, fecha: fechaISO, turno })
@@ -243,12 +250,10 @@ export async function GET(req: NextRequest) {
         .single()
       
       if (existing && JSON.stringify(existing.numbers) === JSON.stringify(consensus.numbers)) {
-        // Draw already exists with same numbers — still verify PENDING predictions (atomic)
+        // Draw already exists with same numbers — still verify PENDING predictions
         try {
-          const { data: vData, error: vErr } = await supabase.rpc("save_draw_and_verify" as never, {
+          const { data: vData, error: vErr } = await supabase.rpc("verify_predictions_for_draw" as never, {
             p_date: fechaISO, p_turno: turno,
-            p_numbers: existing.numbers, p_source: existing.source || "cached",
-            p_game_id: GAME_ID,
           } as never)
           if (vErr) logger.warn("cron-scrape: verify (exists) failed", { error: vErr.message, turno })
           else if (vData) logger.info("cron-scrape: verified (exists)", { resultado: vData, turno })
@@ -306,7 +311,7 @@ export async function GET(req: NextRequest) {
 
   const duration = Date.now() - start
 
-  // ── Verification is ATOMIC: done inside guardarDraw via save_draw_and_verify ──
+  // ── Verification: runs immediately after draw save via verify_predictions_for_draw ──
   let totalVerified = 0
   if (guardados > 0) {
     try {
