@@ -33,18 +33,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export async function generateStaticParams() {
-  const supabase = getSupabaseAdmin();
-  const { data: draws } = await supabase
-    .from("draws")
-    .select("date")
-    .order("date", { ascending: false })
-    .limit(90);
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return [];
+  }
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data: draws } = await supabase
+      .from("draws")
+      .select("date")
+      .order("date", { ascending: false })
+      .limit(90);
 
-  if (!draws) return [];
+    if (!draws) return [];
 
-  return draws.map((draw) => ({
-    fecha: draw.date,
-  }));
+    return draws.map((draw) => ({
+      fecha: draw.date,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export default async function PronosticoFechaPage({ params }: Props) {
