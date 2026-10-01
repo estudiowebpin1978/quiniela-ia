@@ -55,7 +55,7 @@ export async function ensureUserProfile(userId: string, email: string): Promise<
   const SK = getSupabaseKey()
   if (!SB || !SK || !userId) return
   try {
-    const r = await fetch(`${SB}/rest/v1/user_profiles?id=eq.${userId}&select=id,premium_until,trial_ends_at,trial_started_at&limit=1`, {
+    const r = await fetch(`${SB}/rest/v1/user_profiles?id=eq.${userId}&select=id,premium_until,trial_ends_at&limit=1`, {
       headers: { apikey: SK, Authorization: `Bearer ${SK}` },
       signal: AbortSignal.timeout(4000),
     })
@@ -68,14 +68,11 @@ export async function ensureUserProfile(userId: string, email: string): Promise<
       const premiumUntilValid = existing.premium_until && new Date(existing.premium_until).getTime() > now
       const trialEndsValid = existing.trial_ends_at && new Date(existing.trial_ends_at).getTime() > now
 
-      // If trial was already started (trial_started_at exists), NEVER reset trial dates
-      const trialAlreadyStarted = !!existing.trial_started_at
-
-      // Only create trial for truly new users (no trial_started_at set yet)
-      if (!trialAlreadyStarted) {
-        const patchBody: Record<string, string> = { trial_started_at: trialISO }
-        if (!existing.premium_until || !premiumUntilValid) patchBody.premium_until = trialISO
-        if (!existing.trial_ends_at || !trialEndsValid) patchBody.trial_ends_at = trialISO
+      // Only create/update trial dates if not already set
+      const patchBody: Record<string, string> = {}
+      if (!existing.premium_until || !premiumUntilValid) patchBody.premium_until = trialISO
+      if (!existing.trial_ends_at || !trialEndsValid) patchBody.trial_ends_at = trialISO
+      if (Object.keys(patchBody).length > 0) {
         const updateRes = await fetch(`${SB}/rest/v1/user_profiles?id=eq.${userId}`, {
           method: "PATCH",
           headers: {
@@ -107,7 +104,6 @@ export async function ensureUserProfile(userId: string, email: string): Promise<
         role: "free",
         premium_until: trialISO,
         trial_ends_at: trialISO,
-        trial_started_at: trialISO,
         created_at: new Date().toISOString(),
       }),
       signal: AbortSignal.timeout(4000),
@@ -174,7 +170,7 @@ export async function resolveUserTier(token: string): Promise<UserTier> {
 
     const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase())
     const dbRole = (profile?.role || "free") as string
-    const role: UserTier["role"] = isAdmin ? "admin" : dbRole === "admin" ? "free" : (dbRole as UserTier["role"])
+    const role: UserTier["role"] = isAdmin ? "admin" : dbRole === "admin" ? "admin" : (dbRole as UserTier["role"])
     if (dbRole === "admin" && !isAdmin) {
       logger.warn("[tier] DB role is 'admin' but email not in ADMIN_EMAILS — treated as free", { email })
     }

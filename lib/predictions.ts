@@ -43,7 +43,9 @@ export function parsePred2(rows: OmegaRow[]): string[] {
 export function extractPred3(rows: OmegaRow[]): string[] {
   for (const r of rows) {
     if (r.prediccion_3cifras && Array.isArray(r.prediccion_3cifras) && r.prediccion_3cifras.length > 0) {
-      return r.prediccion_3cifras.map((n: string) => n.padStart(3, '0'))
+      return r.prediccion_3cifras
+        .map((n: unknown) => String(n).padStart(3, '0'))
+        .filter((s: string) => /^\d{3}$/.test(s))
     }
   }
   return []
@@ -55,7 +57,9 @@ export function extractPred3(rows: OmegaRow[]): string[] {
 export function extractPred4(rows: OmegaRow[]): string[] {
   for (const r of rows) {
     if (r.prediccion_4cifras && Array.isArray(r.prediccion_4cifras) && r.prediccion_4cifras.length > 0) {
-      return r.prediccion_4cifras.map((n: string) => n.padStart(4, '0'))
+      return r.prediccion_4cifras
+        .map((n: unknown) => String(n).padStart(4, '0'))
+        .filter((s: string) => /^\d{4}$/.test(s))
     }
   }
   return []

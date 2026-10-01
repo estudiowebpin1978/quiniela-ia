@@ -30,13 +30,16 @@ export default function HitRateBanner() {
         if (!resp.ok) return
         const json = await resp.json()
 
-        // Build hit rate data from engine metrics
+        // Build hit rate data from engine metrics (top10_hit_rate es un % ; total_tests = sorteos evaluados)
         if (json.metrics && Array.isArray(json.metrics)) {
           const byTurno = new Map<string, { hits: number; total: number }>()
           for (const m of json.metrics) {
+            if (m.turno === "ALL") continue
+            const total = Number(m.total_tests) || 0
+            const hits = Math.round(total * ((Number(m.top10_hit_rate) || 0) / 100))
             const existing = byTurno.get(m.turno) || { hits: 0, total: 0 }
-            existing.hits += m.correct_predictions || 0
-            existing.total += m.total_predictions || 0
+            existing.hits += hits
+            existing.total += total
             byTurno.set(m.turno, existing)
           }
 

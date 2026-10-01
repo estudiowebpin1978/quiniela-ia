@@ -3,11 +3,12 @@
  * Diseñado para ser llamado cada 15 min por Vercel Cron.
  * No hace backfill (para eso usar /api/cron-nacional?fill=deep).
  *
- * Orquestador de scraping con CONSENSO DUAL:
- *   - quinieleando.com.ar + numerosenvivo.com.ar en paralelo
- *   - Ambas coinciden → 100% oficial
- *   - Una falla → usa sobreviviente
- *   - Ambas responden pero difieren → ABORT (409)
+ * Fuente única autorizada: quiniela.loteriadelaciudad.gob.ar (quiniela)
+ *                          poceada.loteriadelaciudad.gob.ar (poceada)
+ *   - fetchWithConsensus → parseOficial (HTML de resultados + resultados-data.php)
+ *   - fetchPoceadaDraw   → oficial LOTBA (home + resultados-data.php)
+ *   - Auto-healing: si un sorteo oficial de hoy no quedó en DB, se carga
+ *     al final del mismo run (mismo módulo oficial).
  *
  * Verificación ATÓMICA: se ejecuta inmediatamente después del guardado
  * en el mismo pipeline (verify predictions + update engine weights).
@@ -17,12 +18,18 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { esDiaSinSorteo } from "@/lib/feriados"
 import { fetchWithConsensus } from "@/lib/scrapers/consensus"
+import { fetchPoceadaDraw } from "@/lib/scrapers/poceada"
+import { fetchQuinielaDraw, fetchPoceadaDrawOficial, SOURCE_LOTBA } from "@/lib/scrapers/lotba-oficial"
 import { SourceStats, TURNOS, TurnoType, GAME_ID } from "@/lib/scrapers/types"
+import { POCEADA_GAME_ID } from "@/lib/config"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { invalidateAllPredictionCaches } from "@/lib/cache/prediction-cache-invalidation"
 import { updateEnginePerformance } from "@/lib/ensemble/meta-ensemble"
+import { getNextToPredictAfter } from "@/lib/quiniela-timeline"
+import type { TurnoQuiniela } from "@/types/engine"
 import logger from "@/lib/logger"
+import { getCalibration } from "@/lib/probability/calibration"
 
 export const maxDuration = 300
 
@@ -46,10 +53,12 @@ async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
   } catch { return false }
 }
 
+import { LOTBA } from "@/lib/config/lotba"
+
 async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const supabase = getSupabaseAdmin()
-    const jurisdiccion = "nacional"
+    const jurisdiccion = LOTBA.jurisdiction
 
     // Save draw
     const { error } = await supabase.rpc("upsert_draw" as never, {
@@ -68,7 +77,7 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
 
     // Verify PENDING predictions immediately (same pipeline, non-blocking)
     try {
-      const { data: verifyData, error: verifyErr } = await supabase.rpc("verify_predictions_for_draw" as never, {
+      const { data: verifyData, error: verifyErr } = await supabase.schema("api").rpc("verify_predictions_for_draw" as never, {
         p_date: fechaISO,
         p_turno: turno,
       } as never)
@@ -81,14 +90,19 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
     // Invalidate caches (non-blocking)
     invalidateAllPredictionCaches().catch(() => {})
 
-    // Pre-compute predictions for next turnos (non-blocking)
+    // Trigger precompute for the NEXT turno (event-driven)
+    // When this turno's draw is saved, the next turno's dependency is met
     try {
-      const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia-two.vercel.app"
-      fetch(`${baseUrl}/api/cron-precompute?turno=${encodeURIComponent(turno)}`, {
-        headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
-      }).catch(() => {})
+      const next = getNextToPredictAfter(turno as TurnoQuiniela)
+      if (next) {
+        const baseUrl = process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia-two.vercel.app"
+        const cronKey = process.env.CRON_SECRET || ""
+        fetch(`${baseUrl}/api/cron-precompute?turno=${encodeURIComponent(next.turno)}`, {
+          headers: { Authorization: `Bearer ${cronKey}` },
+        }).catch(() => {})
+      }
     } catch { /* non-fatal */ }
 
     // Clear precomputed stats cache
@@ -123,26 +137,27 @@ async function limpiarSorteosViejos(): Promise<number> {
 
     const { data: oldest } = await supabase
       .from("draws")
-      .select("id")
+      .select("date")
       .order("date", { ascending: true })
       .limit(toDelete)
 
     if (!Array.isArray(oldest) || oldest.length === 0) return 0
 
-    const ids = oldest.map((d: { id: string }) => d.id)
+    // Delete by date cutoff (a .in("id", [...1000]) exceeds PostgREST limits → "Bad Request")
+    const cutoffDate = oldest[oldest.length - 1].date
 
     const { error } = await supabase
       .from("draws")
       .delete()
-      .in("id", ids)
+      .lte("date", cutoffDate)
 
     if (error) {
-      logger.error("cron-scrape: error deleting old draws", { error: error.message, count: ids.length })
+      logger.error("cron-scrape: error deleting old draws", { error: error.message, count: oldest.length })
       return 0
     }
 
-    logger.info("cron-scrape: old draws deleted", { count: ids.length, remainingTotal: totalDraws - ids.length })
-    return ids.length
+    logger.info("cron-scrape: old draws deleted", { count: oldest.length, remainingTotal: totalDraws - oldest.length })
+    return oldest.length
   } catch (e) {
     logger.warn("cron-scrape: error in limpiarSorteosViejos", { error: String(e) })
     return 0
@@ -235,7 +250,8 @@ export async function GET(req: NextRequest) {
 
   // Parallelize turnos for faster scraping (each turno is independent)
   const TURNO_TIMES_UTC: Record<string, string> = {
-    Previa: "13:15", Primera: "15:00", Matutina: "18:00", Vespertina: "21:00", Nocturna: "00:00",
+    Previa: "13:15", Primera: "15:00", Matutina: "18:00", Vespertina: "21:00", 
+    Nocturna: "00:00", Poceada: "00:00",
   }
   const turnoResults = await Promise.allSettled(turnosToScrape.map(async (turno) => {
     // Time guard: don't save draws before the official turno time (+5 min buffer)
@@ -245,9 +261,9 @@ export async function GET(req: NextRequest) {
         const now = new Date()
         const [h, m] = officialTimeUTC.split(":").map(Number)
         let officialCutoffUTC: Date
-        if (turno === "Nocturna") {
-          // Nocturna is at 00:00 UTC (21:00 ART previous day)
-          // Check against yesterday's midnight UTC (fechaISO is ART date, which is still yesterday in UTC for early hours)
+        if (turno === "Nocturna" || turno === "Poceada") {
+          // Nocturna & Poceada are at 00:00 UTC (21:00 ART previous day)
+          // Check against next day's midnight UTC (fechaISO is ART date, which is still yesterday in UTC for early hours)
           officialCutoffUTC = new Date(`${fechaISO}T${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:00Z`)
           officialCutoffUTC.setUTCDate(officialCutoffUTC.getUTCDate() + 1)
         } else {
@@ -273,13 +289,22 @@ export async function GET(req: NextRequest) {
 
     // ABORT: no quorum reached
     if (!consensus.ok && consensus.consensusMethod === "abort_no_quorum") {
-      logger.error("cron-scrape: TRI-CONSENSUS ABORT", { fecha: fechaISO, turno, quorum: consensus.quorum, details: consensus.divergenceDetails })
+      logger.warn("cron-scrape: consensus abort (no quorum)", { fecha: fechaISO, turno, quorum: consensus.quorum, details: consensus.divergenceDetails })
       return { turno, status: "divergence" as const, error: consensus.divergenceDetails }
     }
 
     if (consensus.numbers.length < 20) {
       logger.warn("cron-scrape: pocas fuentes", { fecha: fechaISO, turno, count: consensus.numbers.length })
       return { turno, status: "insufficient" as const, count: consensus.numbers.length }
+    }
+
+    // Validación LOTBA oficial
+    if (consensus.numbers.length !== 20) {
+      throw new Error(`LOTBA ${turno}: se esperaban 20 números, recibidos ${consensus.numbers.length}`)
+    }
+    const invalid = consensus.numbers.some((n: number) => !/^\d{4}$/.test(String(n)))
+    if (invalid) {
+      throw new Error(`LOTBA ${turno}: resultado contiene números inválidos`)
     }
 
     // If draw exists, check if numbers changed — update if so, skip if same
@@ -296,7 +321,7 @@ export async function GET(req: NextRequest) {
       if (existing && JSON.stringify(existing.numbers) === JSON.stringify(consensus.numbers)) {
         // Draw already exists with same numbers — still verify PENDING predictions
         try {
-          const { data: vData, error: vErr } = await supabase.rpc("verify_predictions_for_draw" as never, {
+          const { data: vData, error: vErr } = await supabase.schema("api").rpc("verify_predictions_for_draw" as never, {
             p_date: fechaISO, p_turno: turno,
           } as never)
           if (vErr) logger.warn("cron-scrape: verify (exists) failed", { error: vErr.message, turno })
@@ -325,7 +350,7 @@ export async function GET(req: NextRequest) {
         logger.info("cron-scrape: guardado", { fecha: fechaISO, turno: v.turno, cantidad: v.numbers!.length, source: v.source, consensusMethod: v.consensusMethod, updated: v.status === 'updated' })
       } else if (v.status === 'divergence') {
         saveErrors.push(`${v.turno}: DIVERGENCIA — ${v.error}`)
-        logger.error("cron-scrape: consensus divergence", { fecha: fechaISO, turno: v.turno, details: v.error })
+        logger.warn("cron-scrape: consensus divergence", { fecha: fechaISO, turno: v.turno, details: v.error })
         divergences++
         errores++
       } else if (v.status === 'insufficient') {
@@ -431,7 +456,7 @@ export async function GET(req: NextRequest) {
             n: r.numero, score: r.puntaje_total, rank: 0
           })),
           p_weights_used: { w_frequency: 0.18, w_markov: 0.15, w_hot: 0.18, w_cold: 0.12, w_gap: 0.10, w_cooccurrence: 0.10, w_positional: 0.07, w_pattern: 0.05, w_trend: 0.05 },
-          p_confidence: 50,
+          p_confidence: getCalibration(turno === "Poceada").confidencePct,
           p_factor_attribution: predData[0]?.factor_attribution || null,
         } as never)
 
@@ -440,6 +465,78 @@ export async function GET(req: NextRequest) {
     }
   } catch (e) {
     logger.error("cron-scrape: error generating engine predictions", { error: String(e) })
+  }
+
+  // ── Poceada LOTBA scraping ──
+  try {
+    const poceadaDraw = await fetchPoceadaDraw(fechaISO)
+    if (poceadaDraw && poceadaDraw.numbers.length >= 8) {
+      const supabasePoceada = getSupabaseAdmin()
+      const poceadaTurno = "Poceada"
+
+      // Check if draw already exists
+      const { data: existingPoceada } = await supabasePoceada
+        .from("draws")
+        .select("id, numbers")
+        .eq("date", fechaISO)
+        .eq("turno", poceadaTurno)
+        .limit(1)
+
+      if (existingPoceada && existingPoceada.length > 0) {
+        if (JSON.stringify(existingPoceada[0].numbers) !== JSON.stringify(poceadaDraw.numbers)) {
+          // Numbers changed — update
+          await supabasePoceada.rpc("upsert_draw" as never, {
+            p_date: fechaISO,
+            p_turno: poceadaTurno,
+            p_numbers: poceadaDraw.numbers,
+            p_source: poceadaDraw.source,
+            p_game_id: POCEADA_GAME_ID,
+            p_jurisdiccion: "ciudad",
+          } as never)
+          guardados++
+          resultados[poceadaTurno] = poceadaDraw.numbers
+          logger.info("cron-scrape: poceada updated", { fecha: fechaISO, numbers: poceadaDraw.numbers })
+        }
+      } else {
+        // New draw
+        await supabasePoceada.rpc("upsert_draw" as never, {
+          p_date: fechaISO,
+          p_turno: poceadaTurno,
+          p_numbers: poceadaDraw.numbers,
+          p_source: poceadaDraw.source,
+          p_game_id: POCEADA_GAME_ID,
+          p_jurisdiccion: "ciudad",
+        } as never)
+        guardados++
+        resultados[poceadaTurno] = poceadaDraw.numbers
+        logger.info("cron-scrape: poceada saved", { fecha: fechaISO, numbers: poceadaDraw.numbers })
+      }
+
+      // Verify Poceada predictions immediately
+      try {
+        const { data: verifyData, error: verifyErr } = await supabasePoceada.schema("api").rpc("verify_predictions_for_draw" as never, {
+          p_date: fechaISO,
+          p_turno: poceadaTurno,
+        } as never)
+        if (verifyErr) logger.warn("cron-scrape: poceada verify failed", { error: verifyErr.message })
+        else if (verifyData) logger.info("cron-scrape: poceada verified", { resultado: verifyData })
+      } catch (e) {
+        logger.warn("cron-scrape: poceada verify exception", { error: String(e) })
+      }
+
+      // Trigger precompute for Poceada
+      try {
+        const baseUrl = process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia-two.vercel.app"
+        const cronKey = process.env.CRON_SECRET || ""
+        fetch(`${baseUrl}/api/cron-precompute?turno=Poceada`, {
+          headers: { Authorization: `Bearer ${cronKey}` },
+        }).catch(() => {})
+      } catch { /* non-fatal */ }
+    }
+  } catch (e) {
+    logger.warn("cron-scrape: poceada scrape failed", { error: String(e) })
   }
 
   // Background tasks (after response) — logging only
@@ -507,6 +604,60 @@ export async function GET(req: NextRequest) {
     after(backgroundTasks)
   } catch {
     backgroundTasks().catch(() => {})
+  }
+
+  // ── Auto-healing oficial LOTBA: cargar sorteos de hoy que falten en DB ──
+  try {
+    const quinielaTurnos = (singleTurno
+      ? [singleTurno as TurnoType]
+      : (["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"] as TurnoType[])
+    ).filter((t) => t !== "Poceada")
+
+    for (const turno of quinielaTurnos) {
+      if (resultados[turno] && resultados[turno].length >= 20) continue
+      if (await tieneDraw(fechaISO, turno)) continue
+
+      const nums = await fetchQuinielaDraw(fechaISO, turno)
+      if (nums && nums.length >= 20) {
+        const saveResult = await guardarDraw(fechaISO, turno, nums, SOURCE_LOTBA)
+        if (saveResult.ok) {
+          guardados++
+          resultados[turno] = nums
+          logger.info("[cron-scrape] auto-healed from official LOTBA", { fecha: fechaISO, turno })
+        }
+      }
+    }
+
+    // Poceada: idem si la sección principal no pudo guardarla
+    if (!singleTurno && !(resultados["Poceada"] && resultados["Poceada"].length >= 20) && !(await tieneDraw(fechaISO, "Poceada"))) {
+      const nums = await fetchPoceadaDrawOficial(fechaISO)
+      if (nums && nums.length >= 20) {
+        const { error } = await getSupabaseAdmin().rpc("upsert_draw" as never, {
+          p_date: fechaISO,
+          p_turno: "Poceada",
+          p_numbers: nums,
+          p_source: SOURCE_LOTBA,
+          p_game_id: POCEADA_GAME_ID,
+          p_jurisdiccion: "ciudad",
+        } as never)
+        if (!error) {
+          guardados++
+          resultados["Poceada"] = nums
+          logger.info("[cron-scrape] auto-healed poceada from official LOTBA", { fecha: fechaISO })
+        }
+      }
+    }
+  } catch (e) {
+    logger.warn("[cron-scrape] official auto-healing skipped", { error: String(e) })
+  }
+
+  // Refresh draw_stats manually (trigger removed; best-effort, non-blocking)
+  try {
+    const supabase = getSupabaseAdmin()
+    await supabase.schema("public").rpc("refresh_draw_stats_rpc" as never)
+    logger.info("[cron-scrape] draw_stats refreshed")
+  } catch (e: unknown) {
+    logger.warn("[cron-scrape] draw_stats refresh failed (non-blocking)", { error: String(e) })
   }
 
   return NextResponse.json({

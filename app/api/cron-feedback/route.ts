@@ -2,13 +2,14 @@
  * Cron: Factor Weight Feedback Loop
  *
  * Runs after each draw (~15 min after scrape cron).
- * Evaluates factor accuracy and adjusts weights for the 12-factor ensemble.
+ * Evaluates V6 factor accuracy against the official draw and records it
+ * in factor_weight_history (sección "Rendimiento por Factor" de /rendimiento).
  *
  * Called by Vercel Cron or cron-job.org.
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { evaluateAndAdjustWeights } from "@/lib/analisis/factor-feedback"
+import { evaluateV6Factors } from "@/lib/analisis/factor-evaluation"
 import { adjustV7Weights } from "@/lib/analisis/v7-weights"
 import { updateEnginePerformance } from "@/lib/ensemble/meta-ensemble"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
@@ -79,8 +80,8 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  // Evaluate and adjust V6 factor weights
-  const result = await evaluateAndAdjustWeights(turno, fecha)
+  // Evaluar efectividad de los factores V6 vs el sorteo oficial
+  const result = await evaluateV6Factors(turno, fecha)
 
   // Also adjust V7 adaptive weights
   let v7Result = null
@@ -154,13 +155,11 @@ export async function GET(req: NextRequest) {
     turno: result.turno,
     fecha: result.fecha,
     hitRate: Math.round(result.hitRate * 100),
+    // Ratios 0.1–2.0 ×100 (100 = neutral)
     factorAccuracies: Object.fromEntries(
       Object.entries(result.factorAccuracies).map(([k, v]) => [k, Math.round(v * 100)])
     ),
-    weightsChanged: Object.keys(result.newWeights).some(
-      k => result.newWeights[k as keyof typeof result.newWeights] !==
-           result.previousWeights[k as keyof typeof result.previousWeights]
-    ),
+    samples: result.samples,
     v7_adjusted: !!v7Result,
     v7_hitRate: v7Result ? Math.round(v7Result.hitRate * 100) : null,
     elapsed_ms: Date.now() - t0,

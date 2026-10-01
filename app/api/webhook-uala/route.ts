@@ -1,10 +1,14 @@
 /**
- * Webhook Ualá Bis v2 — Pago aprobado → upgrade a premium.
+ * Webhook Ualá Bis v2 — Pago aprobado → upgrade a premium + notificación al admin.
  *
- * La API v2 NO usa HMAC secret. El webhook:
- * 1. Recibe notificación de Ualá cuando cambia el estado de la orden
- * 2. Verifica la orden consultando la API de Ualá (GET /orders/{id})
- * 3. Si está APPROVED, activa premium en Supabase
+ * La doc oficial (developers.ualabis.com.ar/v2/orders/create/webhook) NO define
+ * firma HMAC: el payload es { uuid, external_reference, status, ... } sin headers
+ * de firma. La fuente de verdad es la verificación server-side contra la API
+ * (GET /orders/{id}) — cualquier payload falsificado muere ahí.
+ * Si llega un header de firma, se valida best-effort y se loguea, pero no bloquea.
+ *
+ * Ante cualquier fallo de verificación/activación se notifica al admin (campanita)
+ * para activación manual desde /api/admin.
  *
  * URL a registrar en Ualá Bis (se envía via notification_url al crear la orden):
  *   https://quiniela-ia-two.vercel.app/api/webhook-uala
@@ -14,7 +18,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { timingSafeEqual, createHmac } from "crypto"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
-import { PLAN_DAYS, AMOUNT_PLAN_MAP } from "@/lib/config"
+import { PLAN_DAYS, AMOUNT_PLAN_MAP, ADMIN_EMAILS } from "@/lib/config"
 import logger from "@/lib/logger"
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
@@ -142,6 +146,37 @@ function checkRateLimit(ip: string): boolean {
   return entry.count <= RATE_LIMIT_MAX
 }
 
+// ─── Admin notification (in-app bell) ────────────────────────────────────────
+
+async function notifyAdmins(
+  title: string,
+  body: string,
+  data: Record<string, unknown>
+): Promise<void> {
+  try {
+    const supabase = getSupabaseAdmin()
+    const [byRole, byEmail] = await Promise.all([
+      supabase.from("user_profiles").select("id").eq("role", "admin").limit(10),
+      supabase.from("user_profiles").select("id").in("email", ADMIN_EMAILS).limit(10),
+    ])
+    const ids = [...new Set(
+      [...(byRole.data || []), ...(byEmail.data || [])].map(r => String(r.id))
+    )]
+    for (const id of ids) {
+      await supabase.from("notifications").insert({
+        user_id: id,
+        type: "system",
+        title,
+        body,
+        data,
+      })
+    }
+    if (ids.length > 0) logger.info("[webhook-uala] Admin notified", { title, admins: ids.length })
+  } catch (e) {
+    logger.error("[webhook-uala] Admin notify failed", { error: String(e), title })
+  }
+}
+
 // ─── Main Handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -158,11 +193,11 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text()
   logger.info("[webhook-uala] Received notification")
 
-  // ── 0b. Verify HMAC signature ────────────────────────────────────────
+  // ── 0b. Optional signature check (best-effort — Ualá v2 no la define) ──
+  // La validación real es el GET de la orden contra la API de Ualá (paso 5).
   const signature = req.headers.get("x-signature") || req.headers.get("x-uala-signature") || req.headers.get("x-webhook-signature")
-  if (!verifyWebhookSignature(rawBody, signature)) {
-    logger.warn("[webhook-uala] Invalid signature", { hasSignature: !!signature })
-    return NextResponse.json({ ok: true }) // Return 200 to prevent retries
+  if (signature && !verifyWebhookSignature(rawBody, signature)) {
+    logger.warn("[webhook-uala] Signature present but invalid — continuing with API verification", { hasSignature: true })
   }
 
   // ── 1. Parse payload ──────────────────────────────────────────────────
@@ -197,6 +232,11 @@ export async function POST(req: NextRequest) {
   const verification = await verifyUalaOrder(String(orderId))
   if (!verification.verified) {
     logger.warn("[webhook-uala] Could not verify order", { orderId })
+    await notifyAdmins(
+      "💰 Pago Ualá pendiente de verificación",
+      `No se pudo verificar la orden ${orderId} contra la API de Ualá. Revisá y activá premium manualmente desde Admin si el pago es real.`,
+      { orderId: String(orderId), verifyStatus: verification.status }
+    )
     return NextResponse.json({ ok: true })
   }
 
@@ -209,12 +249,22 @@ export async function POST(req: NextRequest) {
   const userId = verification.externalReference || body.external_reference || null
   if (!userId) {
     logger.warn("[webhook-uala] No external_reference")
+    await notifyAdmins(
+      "💰 Pago Ualá sin usuario asociado",
+      `La orden ${orderId} está aprobada pero no tiene external_reference. Identificá el usuario y activá premium manualmente desde Admin.`,
+      { orderId: String(orderId), amount: verification.amount }
+    )
     return NextResponse.json({ ok: true })
   }
 
   const safeUserId = String(userId).replace(/[^a-zA-Z0-9_-]/g, "")
   if (!UUID_REGEX.test(safeUserId)) {
     logger.warn("[webhook-uala] Invalid userId format", { userId: safeUserId })
+    await notifyAdmins(
+      "💰 Pago Ualá con referencia inválida",
+      `La orden ${orderId} tiene external_reference inválido (${safeUserId}). Activá premium manualmente desde Admin.`,
+      { orderId: String(orderId), externalReference: safeUserId }
+    )
     return NextResponse.json({ ok: true })
   }
 
@@ -224,6 +274,11 @@ export async function POST(req: NextRequest) {
   const plan = AMOUNT_PLAN_MAP[amountStr]
   if (!plan) {
     logger.warn("[webhook-uala] Unknown amount, rejecting", { amount: amountStr })
+    await notifyAdmins(
+      "💰 Pago Ualá con monto no reconocido",
+      `La orden ${orderId} está aprobada con monto $${amountStr} (no corresponde a ningún plan). Verificá y asigná el plan manualmente desde Admin.`,
+      { orderId: String(orderId), userId: safeUserId, amount: amountStr }
+    )
     return NextResponse.json({ ok: true })
   }
   const days = PLAN_DAYS[plan]
@@ -309,6 +364,11 @@ export async function POST(req: NextRequest) {
 
   if (updateError) {
     logger.error("[webhook-uala] Update failed", { error: updateError.message })
+    await notifyAdmins(
+      "💰 Pago Ualá: activación manual requerida",
+      `Orden ${orderId} aprobada (${plan}) pero falló la actualización del perfil de ${safeUserId}: ${updateError.message}. Activá premium manualmente desde Admin.`,
+      { orderId: String(orderId), userId: safeUserId, plan, days, until: premiumUntil.toISOString() }
+    )
     return NextResponse.json({ ok: false, error: "Update failed" }, { status: 500 })
   }
 
@@ -327,5 +387,10 @@ export async function POST(req: NextRequest) {
   try { revalidatePath("/predictions", "page") } catch {}
 
   logger.info("[webhook-uala] Premium activated", { userId: safeUserId, plan, until: premiumUntil.toISOString() })
+  await notifyAdmins(
+    "✅ Pago Ualá aprobado — premium activado",
+    `Plan ${plan} (${days} días) activado para ${safeUserId} hasta ${premiumUntil.toISOString()}. Orden ${orderId}.`,
+    { orderId: String(orderId), userId: safeUserId, plan, days, until: premiumUntil.toISOString() }
+  )
   return NextResponse.json({ ok: true })
 }

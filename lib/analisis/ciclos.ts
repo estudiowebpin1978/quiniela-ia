@@ -36,11 +36,11 @@ function calcStd(values: number[]): number {
 
 export function analizarCiclos(
   sorteos: { fecha: string; turno: string; numbers: number[] }[],
-  opciones: { diasAnalisis?: number; tamanioVentana?: number } = {}
+  opciones: { diasAnalisis?: number; tamanioVentana?: number; fechaReferencia?: string } = {}
 ): AnalisisCiclos {
-  const { diasAnalisis = 180, tamanioVentana = 20 } = opciones;
+  const { diasAnalisis = 180, tamanioVentana = 20, fechaReferencia } = opciones;
 
-  const fechaLimite = new Date();
+  const fechaLimite = fechaReferencia ? new Date(fechaReferencia) : new Date();
   fechaLimite.setDate(fechaLimite.getDate() - diasAnalisis);
 
   const sorteosFiltrados = sorteos.filter(s => new Date(s.fecha) >= fechaLimite)

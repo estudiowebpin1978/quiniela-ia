@@ -191,6 +191,16 @@ body {
   100% { transform: scale(4); opacity: 0; }
 }
 
+@keyframes bell-ring {
+  0%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(14deg); }
+  20% { transform: rotate(-14deg); }
+  30% { transform: rotate(10deg); }
+  40% { transform: rotate(-8deg); }
+  50% { transform: rotate(4deg); }
+  60% { transform: rotate(0deg); }
+}
+
 @keyframes particle-rise {
   0% { transform: translateY(100vh) scale(0); opacity: 0; }
   10% { opacity: 1; transform: translateY(90vh) scale(1); }

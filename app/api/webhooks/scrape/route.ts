@@ -194,7 +194,7 @@ export async function POST(request: Request) {
         }
 
         // ── 5. Save draw ────────────────────────────────────────────────
-        const jurisdiccion = "nacional" // CABA / Ciudad (ex Nacional) — NO provincia
+        const jurisdiccion = "CABA" // Lotería de la Ciudad (ex Nacional) — NO provincia
         const { error: saveError } = await supabase.rpc("upsert_draw" as never, {
           p_date: effectiveDate,
           p_turno: turno,
@@ -389,8 +389,8 @@ export async function POST(request: Request) {
     // Invalidate in-memory prediction cache so fresh predictions are served
     if (saved > 0) {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"
+        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
+          || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
         await fetch(`${baseUrl}/api/predictions?invalidate=1`, {
           signal: AbortSignal.timeout(3000),
         }).catch(() => {})

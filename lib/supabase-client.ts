@@ -58,7 +58,7 @@ export function getSupabaseAdmin(): SupabaseClient {
       global: {
         fetch: (url, options) => {
           const controller = new AbortController()
-          const timeout = setTimeout(() => controller.abort(), 15000)
+          const timeout = setTimeout(() => controller.abort(), 30000)
           if (options?.signal) {
             options.signal.addEventListener("abort", () => controller.abort())
           }

@@ -1,6 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { updateMotorPerformance, ALL_MOTORS } from "@/lib/analisis/motor-performance"
+import { POCEADA_GAME_ID, POCEADA_MATCHES } from "@/lib/config"
 import logger from "@/lib/logger"
 
 interface ParsedNumeros {
@@ -81,6 +82,133 @@ function normalizeTurno(t: string): string {
   return base.charAt(0).toUpperCase() + base.slice(1)
 }
 
+async function _verifyPoceada(supabase: SupabaseClient, fecha: string, normalizedTurno: string, draw: { numbers: number[]; game_id?: string }): Promise<VerificationResult[]> {
+  const drawNums2 = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
+
+  const { data: allPredictions } = await supabase
+    .from("user_predictions")
+    .select("id, user_id, date, turno, numeros")
+    .eq("date", fecha)
+    .or("status.eq.PENDING,status.is.null")
+
+  if (!allPredictions?.length) return []
+
+  const predictions = (allPredictions as PredictionRow[]).filter((p) => normalizeTurno(p.turno || "") === normalizedTurno)
+  if (!predictions.length) return []
+
+  const predIds = predictions.map((p) => p.id).filter(Boolean)
+  const { data: existing } = await supabase
+    .from("prediction_history")
+    .select("prediction_id")
+    .in("prediction_id", predIds)
+
+  const verifiedSet = new Set((existing || []).map((e: { prediction_id: string }) => e.prediction_id))
+
+  const results: VerificationResult[] = []
+  const historyInserts: HistoryInsert[] = []
+  const statsUpdates = new Map<string, UserStats>()
+
+  const userIds = [...new Set(predictions.map((p) => p.user_id).filter(Boolean))]
+  const { data: allStats } = userIds.length > 0
+    ? await supabase.from("user_stats").select("user_id, total_predictions, total_hits, best_streak, current_streak").in("user_id", userIds)
+    : { data: [] }
+  const statsMap = new Map<string, UserStats>()
+  for (const s of (allStats || [])) statsMap.set(s.user_id, s)
+
+  for (const pred of predictions) {
+    if (verifiedSet.has(pred.id)) continue
+
+    const predNumeros = parseNumeros(pred.numeros)
+    const predNums2 = predNumeros.numeros_2
+
+    const aciertos2 = predNums2
+      .filter((n: string) => drawNums2.includes(n))
+      .map((n: string) => ({ numero: n, puesto: drawNums2.indexOf(n) + 1 }))
+
+    const totalAciertos = aciertos2.length
+    const isWinner = POCEADA_MATCHES.includes(totalAciertos)
+
+    historyInserts.push({
+      prediction_id: pred.id,
+      user_id: pred.user_id,
+      date: pred.date,
+      turno: pred.turno,
+      numeros_2: predNums2,
+      numeros_3: [],
+      numeros_4: [],
+      redoblonas: [],
+      resultado_oficial: draw.numbers,
+      aciertos_2: aciertos2,
+      aciertos_3: [],
+      aciertos_4: [],
+      aciertos_redoblona: [],
+      total_aciertos: totalAciertos,
+      verified: true,
+      verified_at: new Date().toISOString(),
+      game_id: draw.game_id || POCEADA_GAME_ID,
+    })
+
+    if (pred.user_id) {
+      const prev = statsMap.get(pred.user_id) || { total_predictions: 0, total_hits: 0, best_streak: 0, current_streak: 0 }
+      const newStreak = isWinner ? prev.current_streak + 1 : 0
+      statsMap.set(pred.user_id, {
+        user_id: pred.user_id,
+        total_predictions: prev.total_predictions + 1,
+        total_hits: prev.total_hits + totalAciertos,
+        current_streak: newStreak,
+        best_streak: Math.max(prev.best_streak, newStreak),
+        last_verified: new Date().toISOString(),
+      })
+    }
+
+    results.push({
+      id: pred.id,
+      fecha,
+      turno: pred.turno,
+      aciertos_2: aciertos2,
+      aciertos_3: [],
+      aciertos_4: [],
+      aciertos_redoblona: [],
+      total_aciertos: totalAciertos,
+      resultado_oficial: draw.numbers,
+    })
+  }
+
+  if (historyInserts.length > 0) {
+    await supabase.from("prediction_history").insert(historyInserts)
+
+    const wonIds = results.filter(r => POCEADA_MATCHES.includes(r.total_aciertos)).map(r => r.id)
+    const lostIds = results.filter(r => !POCEADA_MATCHES.includes(r.total_aciertos)).map(r => r.id)
+    const now = new Date().toISOString()
+
+    if (wonIds.length > 0) {
+      await supabase.from("user_predictions").update({ status: "WON", verified_at: now }).in("id", wonIds)
+    }
+    if (lostIds.length > 0) {
+      await supabase.from("user_predictions").update({ status: "LOST", verified_at: now }).in("id", lostIds)
+    }
+  }
+
+  const statsArray = Array.from(statsMap.values()).filter(s => s.user_id)
+  if (statsArray.length > 0) {
+    const statsRows = statsArray.map(stat => ({
+      user_id: stat.user_id,
+      total_predictions: stat.total_predictions,
+      total_hits: stat.total_hits,
+      current_streak: stat.current_streak,
+      best_streak: stat.best_streak,
+      last_verified: stat.last_verified,
+    }))
+    await supabase.from("user_stats").upsert(statsRows, { onConflict: "user_id" })
+  }
+
+  if (results.length > 0) {
+    logger.info("[auto-verify] Verified Poceada predictions", { fecha, turno: normalizedTurno, count: results.length })
+  }
+
+  return results
+}
+
 export async function autoVerifyPredictions(fecha: string, turno: string, maxRetries = 2): Promise<VerificationResult[]> {
   const supabase = getSupabaseAdmin()
   if (!supabase) return []
@@ -118,6 +246,12 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
   if (!draw.numbers?.length) {
     logger.warn("[auto-verify] Draw exists but numbers empty — skipping", { fecha, turno: normalizedTurno })
     return []
+  }
+
+  const isPoceada = draw.game_id === POCEADA_GAME_ID || normalizedTurno === "Poceada"
+
+  if (isPoceada) {
+    return await _verifyPoceada(supabase, fecha, normalizedTurno, draw)
   }
 
   const nums2 = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))

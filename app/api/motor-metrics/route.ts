@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     // ── Get prediction results (hits) ──────────────────────────
     const { data: results } = await supabase
       .from("prediction_results" as never)
-      .select("turno, prediction_date, hits_top10, hits_top5, hits_top1, hit_rate")
+      .select("turno, prediction_date, hits_top1_2c, hits_top3_2c, hits_top5_2c, hits_top10_2c, avg_rank, mrr")
       .eq("engine_version" as never, "omega_v6" as never)
       .gte("prediction_date" as never, cutoffDate as never)
       .order("prediction_date" as never, { ascending: false } as never)
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
         : 0
 
       const avgHitRate = res.length > 0
-        ? res.reduce((sum, r) => sum + (Number(r.hit_rate) || 0), 0) / res.length
+        ? res.reduce((sum, r) => sum + (Number(r.mrr) || 0), 0) / res.length
         : 0
 
       return {

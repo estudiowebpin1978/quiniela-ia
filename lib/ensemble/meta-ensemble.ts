@@ -36,31 +36,76 @@ export function applyDecay(
 export async function loadEngineWeightsDecayed(turno: string): Promise<EngineWeights> {
   const supabase = getSupabaseAdmin()
   try {
+    // 1. Datos acumulados del sistema de verificación en producción (engine_performance)
     const { data, error } = await supabase
       .from("engine_performance")
       .select("engine_name, hit_count, near_miss_count, total_runs, updated_at")
       .eq("turno", turno)
 
+    // 2. Datos del walk-forward backtest real (replay histórico con datos previos como contexto)
+    // Esto es más objetivo que engine_performance porque es out-of-sample
+    const { data: wfData, error: wfError } = await supabase
+      .from("walkforward_results")
+      .select("engine_name, is_hit, is_near_miss, test_date")
+      .eq("turno", turno)
+
     if (error || !data || data.length === 0) return FALLBACK_WEIGHTS
+
+    // Procesar datos del backtest real (prioridad alta: datos fuera de muestra)
+    const wfStats: Record<string, { hits: number; nearMisses: number; total: number; lastTest: number }> = {}
+    if (wfData && !wfError && wfData.length > 0) {
+      for (const row of wfData) {
+        const eng = row.engine_name as string
+        if (!wfStats[eng]) wfStats[eng] = { hits: 0, nearMisses: 0, total: 0, lastTest: 0 }
+        wfStats[eng].total += 1
+        if (row.is_hit) wfStats[eng].hits += 1
+        if (row.is_near_miss) wfStats[eng].nearMisses += 1
+        const testTime = new Date(row.test_date).getTime()
+        if (testTime > wfStats[eng].lastTest) wfStats[eng].lastTest = testTime
+      }
+    }
 
     const now = Date.now()
     const rates: Record<string, number> = {}
     let total = 0
 
-    for (const row of data) {
-      const hitCount = row.hit_count != null ? Number(row.hit_count) : 0
-      const nearMisses = row.near_miss_count != null ? Number(row.near_miss_count) : 0
-      const totalRuns = row.total_runs != null ? Math.max(1, Number(row.total_runs)) : 1
-      const rawRate = totalRuns > 0 ? hitCount / totalRuns : 0.3333
-      const updatedAt = row.updated_at ? new Date(row.updated_at).getTime() : now
-      const daysSince = (now - updatedAt) / (1000 * 60 * 60 * 24)
+    // Combinar: usar datos del backtest si existen (más objetivo, OOS);
+    // si no, usar engine_performance con decaída.
+    const engines = ["V6", "V7", "ML"]
+    for (const eng of engines) {
+      // Intentar datos del backtest real primero
+      const wf = wfStats[eng]
+      if (wf && wf.total >= 10) {
+        const rawRate = wf.total > 0 ? wf.hits / wf.total : 0.3333
+        const nearRatio = wf.total > 0 ? wf.nearMisses / wf.total : 0
+        const blendedRate = (rawRate * 0.8) + (nearRatio * 0.2)
+        // Decay más rápido para datos del replay histórico
+        const daysSince = wf.lastTest > 0 ? (now - wf.lastTest) / (1000 * 60 * 60 * 24) : 90
+        const decayed = applyDecay(rawRate, Math.max(0, daysSince), wf.nearMisses, wf.total)
+        rates[eng] = decayed
+        total += decayed
+        continue
+      }
 
+      // Fallback a engine_performance con decaída exponencial
+      const perfRow = data.find((r) => r.engine_name === eng)
+      if (!perfRow) {
+        rates[eng] = 0.3333
+        total += 0.3333
+        continue
+      }
+      const hitCount = perfRow.hit_count != null ? Number(perfRow.hit_count) : 0
+      const nearMisses = perfRow.near_miss_count != null ? Number(perfRow.near_miss_count) : 0
+      const totalRuns = perfRow.total_runs != null ? Math.max(1, Number(perfRow.total_runs)) : 1
+      const rawRate = totalRuns > 0 ? hitCount / totalRuns : 0.3333
+      const updatedAt = perfRow.updated_at ? new Date(perfRow.updated_at).getTime() : now
+      const daysSince = (now - updatedAt) / (1000 * 60 * 60 * 24)
       const decayedRate = applyDecay(rawRate, daysSince, nearMisses, totalRuns)
-      rates[row.engine_name] = decayedRate
+      rates[eng] = decayedRate
       total += decayedRate
     }
 
-    if (total <= 0) return FALLBACK_WEIGHTS
+    if (total <= 0 || total < 0.01) return FALLBACK_WEIGHTS
 
     return {
       V6: (rates.V6 ?? 0.3333) / total,

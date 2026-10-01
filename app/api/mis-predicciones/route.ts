@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
     const supabase = getSupabaseAdmin()
 
-    const { data: predictions, error: predErr } = await supabase
+    let { data: predictions, error: predErr } = await supabase
       .from("user_predictions")
       .select("id,date,turno,numeros,created_at,status,aciertos,verified_at")
       .eq("user_id", userId)
@@ -31,6 +31,51 @@ export async function GET(req: NextRequest) {
     }
 
     const uniqueDates = [...new Set(predictions.map((p) => (p.date || "").trim()).filter(Boolean))]
+
+    // ── INLINE AUTO-VERIFY: if draw exists but prediction is PENDING, verify NOW ──
+    try {
+      const pendingToVerify = predictions.filter((p) => {
+        const st = (p.status || "").toUpperCase()
+        return st !== "WON" && st !== "LOST" && st !== "NEAR_MISS"
+      })
+      if (pendingToVerify.length > 0) {
+        const verifyKeys = new Set<string>()
+        for (const p of pendingToVerify) {
+          const d = (p.date || "").trim()
+          const t = (p.turno || "").trim()
+          if (d && t) verifyKeys.add(`${d}|${t}`)
+        }
+        for (const key of verifyKeys) {
+          const [vDate, vTurno] = key.split("|")
+          // Only verify if draw exists
+          const { data: drawCheck } = await supabase
+            .from("draws")
+            .select("id")
+            .eq("date", vDate)
+            .eq("turno", vTurno)
+            .limit(1)
+          if (drawCheck && drawCheck.length > 0) {
+            try {
+              await supabase.schema("api").rpc("verify_predictions_for_draw" as never, {
+                p_date: vDate, p_turno: vTurno,
+              } as never)
+            } catch { /* non-fatal */ }
+          }
+        }
+        // Re-fetch predictions after inline verification
+        const { data: refreshed } = await supabase
+          .from("user_predictions")
+          .select("id,date,turno,numeros,created_at,status,aciertos,verified_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(50)
+        if (refreshed && refreshed.length > 0) {
+          predictions = refreshed
+        }
+      }
+    } catch (e) {
+      logger.warn("mis-predicciones: inline verify failed", { error: String(e) })
+    }
 
     const drawsMap: Record<string, DrawRow> = {}
     if (uniqueDates.length > 0) {
@@ -245,7 +290,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate turno
-    const VALID_TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
+    const VALID_TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"]
     const turnoCanonical = turno.charAt(0).toUpperCase() + turno.slice(1).toLowerCase()
     if (!VALID_TURNOS.includes(turnoCanonical)) {
       return NextResponse.json({ error: "Turno inválido" }, { status: 400 })
@@ -261,20 +306,27 @@ export async function POST(req: NextRequest) {
     }
     const numsArr = Array.isArray(numeros) ? numeros : null
     const numsObj = !numsArr && typeof numeros === "object" ? numeros : null
+    // Poceada: exactly 8 numbers, simple array (not object with 2/3/4)
+    if (turnoCanonical === "Poceada" && numsArr) {
+      if (numsArr.length !== 8 || !validateNums(numsArr, 8, 99)) {
+        return NextResponse.json({ error: "Poceada requiere exactamente 8 números de 2 cifras (00-99)" }, { status: 400 })
+      }
+    }
+
     if (numsArr && !validateNums(numsArr, 20, 99)) {
       return NextResponse.json({ error: "Números inválidos" }, { status: 400 })
     }
     if (numsObj) {
       const n2 = numsObj?.["2"] || numsObj?.numeros_2
-      if (n2 && !validateNums(n2, 20, 99)) {
+      if (n2 && n2.length > 0 && !validateNums(n2, 20, 99)) {
         return NextResponse.json({ error: "Números 2 cifras inválidos" }, { status: 400 })
       }
       const n3 = numsObj?.["3"] || numsObj?.numeros_3
-      if (n3 && !validateNums(n3, 20, 999)) {
+      if (n3 && n3.length > 0 && !validateNums(n3, 20, 999)) {
         return NextResponse.json({ error: "Números 3 cifras inválidos" }, { status: 400 })
       }
       const n4 = numsObj?.["4"] || numsObj?.numeros_4
-      if (n4 && !validateNums(n4, 20, 9999)) {
+      if (n4 && n4.length > 0 && !validateNums(n4, 20, 9999)) {
         return NextResponse.json({ error: "Números 4 cifras inválidos" }, { status: 400 })
       }
     }

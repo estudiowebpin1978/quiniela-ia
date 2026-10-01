@@ -10,9 +10,9 @@
  * - Non-determinism (Math.random, Date.now())
  */
 
-export type TurnoQuiniela = "Previa" | "Primera" | "Matutina" | "Vespertina" | "Nocturna"
+export type TurnoQuiniela = "Previa" | "Primera" | "Matutina" | "Vespertina" | "Nocturna" | "Poceada"
 
-export const TURNOS: TurnoQuiniela[] = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
+export const TURNOS: TurnoQuiniela[] = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"]
 
 export const TURNO_INDEX: Record<TurnoQuiniela, number> = {
   Previa: 0,
@@ -20,6 +20,7 @@ export const TURNO_INDEX: Record<TurnoQuiniela, number> = {
   Matutina: 2,
   Vespertina: 3,
   Nocturna: 4,
+  Poceada: 5,
 }
 
 /**

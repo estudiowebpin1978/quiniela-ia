@@ -1,16 +1,15 @@
 /**
- * Orchestrator: parallel consensus across sources with fallback.
+ * Orchestrator: official LOTBA source only.
  *
- * Priority order:
- *   1. quinieleando.com.ar       (static HTML, all turnos — PRIMARY)
- *   2. loteria-ciudad.gob.ar     (official CABA AJAX)
- *   3. quinielanacionaln.com.ar  (HTTP homepage, all turnos — FALLBACK)
+ * Única fuente autorizada: quiniela.loteriadelaciudad.gob.ar
+ * (HTML de resultados + resultados-data.php) — ver lib/scrapers/lotba-oficial.ts
  *
  * Strategy:
- *   - Sources 1 & 2 run in parallel (Promise.allSettled).
- *   - First successful result with >= 20 numbers wins.
- *   - Both fail → sequential fallback to source 3.
- *   - Date validation: parsers reject data from wrong dates.
+ *   - Single official source with retry + timeout.
+ *   - Success requires >= 20 numbers for the exact (fecha, turno).
+ *   - If the sorteo is not yet published (racing vs schedule) → null,
+ *     caller waits for the next cron tick (verification is 5-min cadence).
+ *   - Optional cabeza cross-validation is non-fatal.
  */
 
 import {
@@ -23,12 +22,6 @@ import {
 } from "./types"
 import {
   parseOficial,
-  parseQuinieleando,
-  parseLoteriaOficial,
-  parseQuinielaNacionalN,
-  parseNacionalQuiniela,
-  parseNumerosEnvivo,
-  parseLoteriaMundiales,
   verifyCabeza,
 } from "./parsers"
 import { isSourceQuarantined, recordSourceResult } from "./circuit-breaker"
@@ -41,12 +34,6 @@ const TOP_N_CONSENSUS = 5
 
 const PARSERS: { fn: ParserFn; name: string }[] = [
   { fn: parseOficial, name: "quiniela.loteriadelaciudad.gob.ar" },
-  { fn: parseQuinieleando, name: "quinieleando.com.ar" },
-  { fn: parseNumerosEnvivo, name: "numerosenvivo.com.ar" },
-  { fn: parseLoteriaMundiales, name: "loteriasmundiales.com.ar" },
-  { fn: parseLoteriaOficial, name: "loteria-ciudad.gob.ar" },
-  { fn: parseQuinielaNacionalN, name: "quinielanacionaln.com.ar" },
-  { fn: parseNacionalQuiniela, name: "nacionalquiniela.com" },
 ]
 
 function track(stats: SourceStats, src: string, ok: boolean, duration: number): void {

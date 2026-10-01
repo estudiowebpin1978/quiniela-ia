@@ -5,15 +5,28 @@
  * Runs every 5 min via cron-job.org — catches predictions immediately after
  * draws are saved by cron-scrape.
  *
+ * Verifies ALL turnos of the day that have an official draw + PENDING
+ * predictions (no dependence on the current clock turno), so a late-arriving
+ * draw (e.g. Nocturna) is verified on the next tick without waiting for a
+ * specific time window.
+ *
  * Uses the SAME draw data already in the DB (scraped by cron-scrape).
+ *
+ * Además, cuando el turno ya tiene sorteo oficial, registra la evaluación
+ * de la efectividad de los factores V6 en factor_weight_history
+ * (sección "Rendimiento por Factor" de /rendimiento). Idempotente: solo
+ * escribe si falta la fila para esa fecha.
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
+import { ensureFactorHistory } from "@/lib/analisis/factor-evaluation"
 import logger from "@/lib/logger"
 
 export const maxDuration = 120
+
+const TODOS_TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"] as const
 
 function fechaArgentina(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -22,24 +35,18 @@ function fechaArgentina(): string {
   }).format()
 }
 
-function turnoActualArgentina(): string {
-  const now = new Date()
-  const argStr = now.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" })
-  const argDate = new Date(argStr)
-  const h = argDate.getHours()
-  const m = argDate.getMinutes()
-  const totalMin = h * 60 + m
-
-  if (totalMin >= 600 && totalMin < 705) return "Previa"
-  if (totalMin >= 705 && totalMin < 870) return "Primera"
-  if (totalMin >= 870 && totalMin < 1050) return "Matutina"
-  if (totalMin >= 1050 && totalMin < 1230) return "Vespertina"
-  return "Nocturna"
-}
-
 function normalizeTurno(t: string): string {
   const base = t.replace(/-\d+cifras?$/i, "").toLowerCase().trim()
   return base.charAt(0).toUpperCase() + base.slice(1)
+}
+
+/** Normaliza campos de `numeros` que pueden llegar como array, string único o null. */
+function toStrArray(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((x) => x != null).map((x) => String(x))
+  if (typeof v === "string" && v.trim().length > 0) {
+    return v.split(",").map((s) => s.trim()).filter(Boolean)
+  }
+  return []
 }
 
 interface PredictionRow {
@@ -70,25 +77,21 @@ interface HistoryInsert {
   game_id: string
 }
 
-export async function GET(req: NextRequest) {
-  const t0 = Date.now()
+interface TurnoResult {
+  turno: string
+  status: "verified" | "no_draw" | "no_predictions" | "already_verified" | "error"
+  verified?: number
+  reason?: string
+}
 
-  const auth = await validateCronAuth(req)
-  if (!auth.authorized) return unauthorizedResponse()
+// ─── Verify a single turno for a given fecha ────────────────────────────────
 
-  const overrideDate = req.nextUrl.searchParams.get("date")
-  const fecha = (overrideDate && /^\d{4}-\d{2}-\d{2}$/.test(overrideDate)) ? overrideDate : fechaArgentina()
-  const turnoParam = req.nextUrl.searchParams.get("turno")
-  const turno = turnoParam || turnoActualArgentina()
-  const catchupParam = req.nextUrl.searchParams.get("catchup")
-  const catchupDays = catchupParam ? Math.min(parseInt(catchupParam) || 3, 7) : 0
-
-  if (!["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"].includes(turno)) {
-    return NextResponse.json({ error: `Turno inválido: ${turno}` }, { status: 400 })
-  }
-
-  const supabase = getSupabaseAdmin()
-
+async function verificarTurno(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  fecha: string,
+  turno: string,
+  dates: string[],
+): Promise<TurnoResult> {
   // 1. Get draw numbers for this turno
   const { data: draws } = await supabase
     .from("draws")
@@ -98,12 +101,7 @@ export async function GET(req: NextRequest) {
     .limit(1)
 
   if (!draws?.length || !draws[0].numbers?.length) {
-    return NextResponse.json({
-      ok: true,
-      skipped: true,
-      reason: `No hay sorteo para ${turno} en ${fecha}`,
-      elapsed_ms: Date.now() - t0,
-    })
+    return { turno, status: "no_draw", reason: `No hay sorteo para ${turno} en ${fecha}` }
   }
 
   const draw = draws[0]
@@ -111,16 +109,7 @@ export async function GET(req: NextRequest) {
   const nums3 = draw.numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
   const nums4 = draw.numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
 
-  // 2. Get all predictions for this date + catch-up dates if enabled
-  const dates = [fecha]
-  if (catchupDays > 0) {
-    for (let d = 1; d <= catchupDays; d++) {
-      const past = new Date()
-      past.setDate(past.getDate() - d)
-      dates.push(past.toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }))
-    }
-  }
-  
+  // 2. Get PENDING predictions for this turno (incl. catch-up dates)
   const { data: allPredictions } = await supabase
     .from("user_predictions")
     .select("id, user_id, date, turno, numeros")
@@ -129,45 +118,36 @@ export async function GET(req: NextRequest) {
     .in("turno", [turno])
 
   if (!allPredictions?.length) {
-    return NextResponse.json({
-      ok: true,
-      skipped: true,
-      reason: `No hay predicciones para ${fecha}`,
-      elapsed_ms: Date.now() - t0,
-    })
+    return { turno, status: "no_predictions", reason: `No hay predicciones pendientes para ${fecha}` }
   }
 
-  // Filter to matching turno
   const normalizedTurno = normalizeTurno(turno)
-  const predictions = (allPredictions as PredictionRow[]).filter((p) =>
-    normalizeTurno(p.turno || "") === normalizedTurno
+  const predictions = (allPredictions as PredictionRow[]).filter(
+    (p) => normalizeTurno(p.turno || "") === normalizedTurno,
   )
 
   if (!predictions.length) {
-    return NextResponse.json({
-      ok: true,
-      skipped: true,
-      reason: `No hay predicciones para turno ${turno} en ${fecha}`,
-      elapsed_ms: Date.now() - t0,
-    })
+    return { turno, status: "no_predictions", reason: `No hay predicciones para turno ${turno} en ${fecha}` }
   }
 
   // 3. Check which are already verified
-  const predIds = predictions.map((p: { id: string }) => p.id).filter(Boolean)
+  const predIds = predictions.map((p) => p.id).filter(Boolean)
   const { data: existing } = await supabase
     .from("prediction_history")
     .select("prediction_id")
     .in("prediction_id", predIds)
 
-  const verifiedSet = new Set((existing || []).map((e: { prediction_id: string }) => e.prediction_id))
+  const verifiedSet = new Set((existing || []).map((e) => e.prediction_id))
+  const unverified = predictions.filter((p) => !verifiedSet.has(p.id))
+
+  if (unverified.length === 0) {
+    return { turno, status: "already_verified", verified: 0, reason: `${verifiedSet.size} ya verificadas` }
+  }
 
   // 4. Verify each unverified prediction
   const historyInserts: HistoryInsert[] = []
-  let verifiedCount = 0
 
-  for (const pred of predictions) {
-    if (verifiedSet.has(pred.id)) continue
-
+  for (const pred of unverified) {
     let numeros: unknown = pred.numeros
     if (Array.isArray(numeros) && numeros.length === 1 && typeof numeros[0] === "string") {
       try { numeros = JSON.parse(numeros[0] as string) } catch {}
@@ -180,11 +160,11 @@ export async function GET(req: NextRequest) {
       numeros_4 = []
       redoblonas = []
     } else {
-      const obj = numeros as Record<string, string[]> | null
-      numeros_2 = (obj?.["2"] || []).map((n: string) => String(n).padStart(2, "0"))
-      numeros_3 = (obj?.["3"] || []).map((n: string) => String(n).padStart(3, "0"))
-      numeros_4 = (obj?.["4"] || []).map((n: string) => String(n).padStart(4, "0"))
-      redoblonas = (obj?.["r"] || []).map((n: string) => String(n))
+      const obj = (numeros ?? null) as Record<string, unknown> | null
+      numeros_2 = toStrArray(obj?.["2"]).map((n) => n.padStart(2, "0"))
+      numeros_3 = toStrArray(obj?.["3"]).map((n) => n.padStart(3, "0"))
+      numeros_4 = toStrArray(obj?.["4"]).map((n) => n.padStart(4, "0"))
+      redoblonas = toStrArray(obj?.["r"])
     }
 
     const aciertos2 = numeros_2
@@ -232,41 +212,40 @@ export async function GET(req: NextRequest) {
       verified_at: new Date().toISOString(),
       game_id: draw.game_id || "ac593199-c299-4f03-b1b7-8675fe4fa6d9",
     })
-    verifiedCount++
   }
 
   // 5. Batch insert history
+  let predUpdateErrors = 0
   if (historyInserts.length > 0) {
     const { error: insertErr } = await supabase.from("prediction_history").insert(historyInserts)
     if (insertErr) {
-      logger.error("[cron-verify] insert error", { error: insertErr.message })
-      return NextResponse.json({ error: insertErr.message }, { status: 500 })
+      logger.error("[cron-verify] insert error", { error: insertErr.message, turno })
+      return { turno, status: "error", reason: insertErr.message }
     }
 
-    // 5b. Batch update user_predictions (1 call instead of N)
-    const predUpdates = historyInserts.map((h) => {
-      const positions2 = (h.aciertos_2 || []).map((a: {puesto:number}) => a.puesto)
-      const positions3 = (h.aciertos_3 || []).map((a: {puesto:number}) => a.puesto)
-      const positions4 = (h.aciertos_4 || []).map((a: {puesto:number}) => a.puesto)
-      const aciertosArr = [...new Set([...positions2, ...positions3, ...positions4])].filter((p: number) => p >= 1 && p <= 20)
-      return {
-        id: h.prediction_id,
-        status: h.total_aciertos > 0 ? "WON" : "LOST",
-        aciertos: aciertosArr,
-        verified_at: h.verified_at,
+    // 5b. Batch update user_predictions
+    // NOTE: supabase upsert(onConflict:"id") fails on this table (not-null date
+    // violation on the insert path) — use explicit updates keyed by id instead.
+    const isPoceada = turno === "Poceada" || draw.game_id === "d0e1f2a3-b4c5-6789-0abc-def012345678"
+    for (const h of historyInserts) {
+      const positions2 = (h.aciertos_2 || []).map((a) => a.puesto)
+      const positions3 = (h.aciertos_3 || []).map((a) => a.puesto)
+      const positions4 = (h.aciertos_4 || []).map((a) => a.puesto)
+      const aciertosArr = [...new Set([...positions2, ...positions3, ...positions4])].filter((p) => p >= 1 && p <= 20)
+      const won = isPoceada ? h.total_aciertos >= 5 : h.total_aciertos > 0
+
+      const { error: updErr } = await supabase
+        .from("user_predictions")
+        .update({ status: won ? "WON" : "LOST", aciertos: aciertosArr, verified_at: h.verified_at })
+        .eq("id", h.prediction_id)
+
+      if (updErr) {
+        predUpdateErrors++
+        logger.error("[cron-verify] update user_predictions error", { error: updErr.message, turno, predId: h.prediction_id })
       }
-    })
-
-    const { error: batchUpdErr } = await supabase
-      .from("user_predictions")
-      .upsert(predUpdates, { onConflict: "id" })
-
-    if (batchUpdErr) {
-      logger.error("[cron-verify] batch update predictions error", { error: batchUpdErr.message })
     }
 
     // 5c. Batch update user_stats via single RPC with arrays
-    const userIds = historyInserts.map((h) => h.user_id).filter(Boolean)
     const hitsMap = new Map<string, number>()
     for (const h of historyInserts) {
       if (!h.user_id) continue
@@ -288,21 +267,104 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  if (predUpdateErrors > 0) {
+    return { turno, status: "error", verified: historyInserts.length, reason: `${predUpdateErrors} user_predictions updates failed` }
+  }
+
+  return { turno, status: "verified", verified: historyInserts.length }
+}
+
+// ─── Main endpoint ──────────────────────────────────────────────────────────
+
+export async function GET(req: NextRequest) {
+  const t0 = Date.now()
+
+  const auth = await validateCronAuth(req)
+  if (!auth.authorized) return unauthorizedResponse()
+
+  const overrideDate = req.nextUrl.searchParams.get("date")
+  const fecha = (overrideDate && /^\d{4}-\d{2}-\d{2}$/.test(overrideDate)) ? overrideDate : fechaArgentina()
+  const turnoParam = req.nextUrl.searchParams.get("turno")
+  const catchupParam = req.nextUrl.searchParams.get("catchup")
+  const catchupDays = catchupParam ? Math.min(parseInt(catchupParam) || 3, 7) : 0
+
+  let turnos: string[]
+  if (turnoParam) {
+    if (!TODOS_TURNOS.includes(turnoParam as (typeof TODOS_TURNOS)[number])) {
+      return NextResponse.json({ error: `Turno inválido: ${turnoParam}` }, { status: 400 })
+    }
+    turnos = [turnoParam]
+  } else {
+    // Default: verify ALL turnos of the day (late draws get caught next tick)
+    turnos = [...TODOS_TURNOS]
+  }
+
+  const supabase = getSupabaseAdmin()
+
+  // Dates: today + catch-up window
+  const dates = [fecha]
+  if (catchupDays > 0) {
+    for (let d = 1; d <= catchupDays; d++) {
+      const past = new Date()
+      past.setDate(past.getDate() - d)
+      dates.push(past.toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }))
+    }
+  }
+
+  // Verify each turno independently (fast no-op when no draw/predictions)
+  const porTurno: TurnoResult[] = []
+  let totalVerified = 0
+  let totalErrors = 0
+
+  for (const turno of turnos) {
+    try {
+      const r = await verificarTurno(supabase, fecha, turno, dates)
+      porTurno.push(r)
+      if (r.status === "verified") totalVerified += r.verified || 0
+      if (r.status === "error") totalErrors++
+
+      // Evaluar la efectividad de los factores V6 contra el sorteo del día
+      // (no bloqueante en el resultado de verificación; idempotente)
+      if (r.status !== "no_draw") {
+        try {
+          const evaluacion = await ensureFactorHistory(turno, fecha, supabase)
+          if (evaluacion) {
+            logger.info("[cron-verify] evaluación de factores guardada", {
+              turno,
+              fecha,
+              hitRate: Math.round(evaluacion.hitRate * 100),
+              samples: evaluacion.samples,
+            })
+          }
+        } catch (e) {
+          logger.warn("[cron-verify] evaluación de factores falló", { turno, error: String(e) })
+        }
+      }
+    } catch (e) {
+      porTurno.push({ turno, status: "error", reason: String(e) })
+      totalErrors++
+      logger.error("[cron-verify] turno exception", { turno, error: String(e) })
+    }
+  }
+
+  const verifiedTurnos = porTurno.filter((r) => r.status === "verified").map((r) => r.turno)
+
   logCronExecution("cron-verify", {
     fecha,
-    turno,
-    verified: verifiedCount,
-    alreadyVerified: verifiedSet.size,
-    totalPredictions: predictions.length,
+    turnos,
+    verified: totalVerified,
+    verifiedTurnos,
+    errors: totalErrors,
   }, t0)
 
   return NextResponse.json({
-    ok: true,
+    ok: totalErrors === 0,
     fecha,
-    turno,
-    verified: verifiedCount,
-    alreadyVerified: verifiedSet.size,
-    totalPredictions: predictions.length,
+    turnosChecked: turnos,
+    verified: totalVerified,
+    verifiedTurnos,
+    totalErrors,
+    porTurno,
     elapsed_ms: Date.now() - t0,
   })
 }

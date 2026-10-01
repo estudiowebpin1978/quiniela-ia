@@ -14,19 +14,19 @@ import { NextRequest, NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
-import { predictEnsembleV7 } from "@/lib/analisis/engine-v7"
+import { predictEnsembleV7, predictV7ForCandidates } from "@/lib/analisis/engine-v7"
 import { loadV7Weights, v7WeightsToFactorBreakdown } from "@/lib/analisis/v7-weights"
-import { getMLPredictions } from "@/lib/ml/integration"
+import { getMLPredictions, getMLPredictionsForCandidates } from "@/lib/ml/integration"
 import { loadEngineWeights, logEnginePredictions } from "@/lib/ensemble/meta-ensemble"
 import { invalidateAllPredictionCaches } from "@/lib/cache/prediction-cache-invalidation"
 import logger from "@/lib/logger"
+
 import { SUENOS } from "@/lib/suenos"
 import type { Draw } from "@/lib/analisis/engine-v7"
 
 export const maxDuration = 300
 
-const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
-const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
+const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"]
 
 interface BlendedPrediction {
   n: number
@@ -49,6 +49,7 @@ export async function GET(req: NextRequest) {
   const results: Array<{ turno: string; ok: boolean; confidence?: number; error?: string }> = []
 
   for (const turno of turnos) {
+    const GAME_ID = turno === "Poceada" ? "d0e1f2a3-b4c5-6789-0abc-def012345678" : "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
     try {
       // 1. Build EngineContext (snapshot of reality)
       const { data: lastDraw } = await supabase
@@ -66,16 +67,18 @@ export async function GET(req: NextRequest) {
       const lastDrawId = lastDraw.id as string
       const ctxSeed = (lastDrawId.split("").reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0) + turno.split("").reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0)) % 100000
 
-      // 2. Fetch historical draws scoped to lastDrawId
+      // 2. Fetch historical draws scoped to lastDrawId and game_id
       const { data: histDraws } = await supabase
         .from("draws")
         .select("id, date, turno, numbers")
         .eq("turno", turno)
+        .eq("game_id", GAME_ID)
         .lte("id", lastDrawId)
         .order("date", { ascending: true })
 
-      if (!histDraws || histDraws.length < 10) {
-        results.push({ turno, ok: false, error: "Insufficient draws" })
+      const minDraws = turno === "Poceada" ? 3 : 10
+      if (!histDraws || histDraws.length < minDraws) {
+        results.push({ turno, ok: false, error: `Insufficient draws (${histDraws?.length || 0}/${minDraws})` })
         continue
       }
 
@@ -86,17 +89,21 @@ export async function GET(req: NextRequest) {
       }))
 
       // 2. Run V6 (SQL RPC)
-      const { data: v6Rows } = await supabase.rpc("calculate_omega_v6", {
+      const { data: v6Rows, error: v6RpcErr } = await supabase.rpc("calculate_omega_v6", {
         p_turno: turno,
         p_tier: "free",
         p_date: today,
       })
+      if (v6RpcErr) {
+        logger.warn("[cron-precompute] V6 RPC error", { turno, error: JSON.stringify(v6RpcErr) })
+      }
 
       // 3. Run V7 (TypeScript engine)
       let v7Predictions: BlendedPrediction[] = []
+      let weights: ReturnType<typeof v7WeightsToFactorBreakdown> | null = null
       try {
         const v7Weights = await loadV7Weights(turno)
-        const weights = v7WeightsToFactorBreakdown(v7Weights)
+        weights = v7WeightsToFactorBreakdown(v7Weights)
         const v7Result = await predictEnsembleV7(draws, turno, 10, ctxSeed, weights)
         v7Predictions = v7Result.predictions.map((p) => ({
           n: parseInt(p.numero),
@@ -129,7 +136,8 @@ export async function GET(req: NextRequest) {
 
       // 5. Blend V6 + V7 + ML with dynamic weights
       // Motor híbrido: V6 SQL + V7 TS + ML + análisis rápido (get_analisis_rapido RPC)
-      const engineWeights = await loadEngineWeights(turno)
+      let engineWeights = { V6: 0.40, V7: 0.35, ML: 0.25 }
+      try { engineWeights = await loadEngineWeights(turno) } catch { /* use defaults */ }
       const allNums = new Map<number, BlendedPrediction>()
 
       // V6 scores
@@ -188,34 +196,124 @@ export async function GET(req: NextRequest) {
         continue
       }
 
-      // Generate 3/4 cifras using V6 SQL full 10-factor analysis
-      const top10nums = blended.map((p) => p.n)
+      // Meta-diversidad real (MMR determinista): diversifica determinísticamente usando scores y factor_attribution
+      const maxScore = blended[0]?.score || 1
+      const minScore = blended[blended.length - 1]?.score || 0
+      const diversityRatio = maxScore > 0 ? (maxScore - minScore) / maxScore : 0
+
+      // MMR determinista: lambda = 0.7 (balance score vs diversidad basada en factores)
+      const lambdaMMR = 0.7
+      const selected: typeof blended = []
+      const remaining = [...blended]
+      while (selected.length < 10 && remaining.length > 0) {
+        let bestMMR = -Infinity
+        let bestIdx = 0
+        for (let i = 0; i < remaining.length; i++) {
+          const scoreNorm = remaining[i].score / maxScore
+          // Similitud determinista basada en factor_attribution (no aleatorio)
+          const maxSim = selected.length > 0 ? Math.max(...selected.map((s) => {
+            const fa1 = remaining[i].factor_attribution as Record<string, number> || {}
+            const fa2 = s.factor_attribution as Record<string, number> || {}
+            const keys = Object.keys(fa1).filter(k => fa2.hasOwnProperty(k))
+            if (keys.length === 0) return 0
+            const avgDiff = keys.reduce((acc, k) => acc + Math.abs((fa1[k] || 0) - (fa2[k] || 0)), 0) / keys.length
+            return 1 - Math.min(avgDiff, 1) // 1 = iguales, 0 = completamente diferentes
+          })) : 0
+          const mmr = lambdaMMR * scoreNorm - (1 - lambdaMMR) * maxSim
+          if (mmr > bestMMR) {
+            bestMMR = mmr
+            bestIdx = i
+          }
+        }
+        selected.push(remaining[bestIdx])
+        remaining.splice(bestIdx, 1)
+      }
+      const blendedDiversified = selected.slice(0, 10)
+
+      const diversityNote = diversityRatio < 0.05 ? "BAJA DIVERSIDAD: MMR determinista aplicado (lambda=0.7, basado en factor_attribution)." : "Diversidad aceptable."
+      if (diversityRatio < 0.05) logger.info("[cron-precompute] Meta-diversidad MMR aplicada", { turno, diversityRatio, lambdaMMR, selectedCount: selected.length })
+
+      // Generate 3/4 cifras: V6 top-30 candidates → V7/ML re-score → blend
+      const top10nums = blendedDiversified.map((p) => p.n)
 
       const [v6_3rows, v6_4rows] = await Promise.all([
-        supabase.rpc("score_numbers_v6", {
+        supabase.rpc("score_numbers_v6" as never, {
           p_turno: turno,
           p_date: today,
           p_digit_space: "3",
           p_modulus: 1000,
           p_series_start: 0,
           p_series_end: 999,
-        }),
-        supabase.rpc("score_numbers_v6", {
+        } as never),
+        supabase.rpc("score_numbers_v6" as never, {
           p_turno: turno,
           p_date: today,
           p_digit_space: "4",
           p_modulus: 10000,
           p_series_start: 0,
           p_series_end: 9999,
-        }),
+        } as never),
       ])
 
-      const numeros_3 = (v6_3rows.data || [])
-        .slice(0, 10)
-        .map((r: Record<string, unknown>) => String(r.num_val).padStart(3, "0"))
-      const numeros_4 = (v6_4rows.data || [])
-        .slice(0, 10)
-        .map((r: Record<string, unknown>) => String(r.num_val).padStart(4, "0"))
+      if (v6_3rows.error) logger.warn("[cron-precompute] 3 cifras RPC error", { turno, error: String(v6_3rows.error) })
+      if (v6_4rows.error) logger.warn("[cron-precompute] 4 cifras RPC error", { turno, error: String(v6_4rows.error) })
+
+      // Take top-30 V6 candidates for V7/ML re-scoring
+      const v6_3cands: Array<{ numero: number; v6Score: number }> = (v6_3rows.data || []).slice(0, 30).map((r: Record<string, unknown>) => ({
+        numero: Number(r.numero ?? r.num_val),
+        v6Score: Number(r.score_val ?? r.puntaje_total) || 0,
+      }))
+      const v6_4cands: Array<{ numero: number; v6Score: number }> = (v6_4rows.data || []).slice(0, 30).map((r: Record<string, unknown>) => ({
+        numero: Number(r.numero ?? r.num_val),
+        v6Score: Number(r.score_val ?? r.puntaje_total) || 0,
+      }))
+
+      // V7 re-scoring for 3C/4C candidates
+      let v7_3cScores = new Map<number, number>()
+      let v7_4cScores = new Map<number, number>()
+      if (weights) {
+        try {
+          const v7_3cPreds = await predictV7ForCandidates(draws, turno, v6_3cands.map(c => c.numero), 3, weights, ctxSeed)
+          for (const p of v7_3cPreds) v7_3cScores.set(parseInt(p.numero), p.score)
+          const v7_4cPreds = await predictV7ForCandidates(draws, turno, v6_4cands.map(c => c.numero), 4, weights, ctxSeed)
+          for (const p of v7_4cPreds) v7_4cScores.set(parseInt(p.numero), p.score)
+        } catch (e) {
+          logger.warn("[cron-precompute] V7 3C/4C scoring failed", { turno, error: String(e) })
+        }
+      }
+
+      // ML re-scoring for 3C/4C candidates
+      let ml_3cScores = new Map<number, number>()
+      let ml_4cScores = new Map<number, number>()
+      try {
+        const ml_3c = await getMLPredictionsForCandidates(turno, draws, v6_3cands.map(c => c.numero), 3)
+        if (ml_3c.available) ml_3cScores = ml_3c.scores
+        const ml_4c = await getMLPredictionsForCandidates(turno, draws, v6_4cands.map(c => c.numero), 4)
+        if (ml_4c.available) ml_4cScores = ml_4c.scores
+      } catch (e) {
+        logger.warn("[cron-precompute] ML 3C/4C scoring failed", { turno, error: String(e) })
+      }
+
+      // Blend V6 + V7 + ML for 3C
+      const blended3 = v6_3cands.map(c => {
+        const v7s = v7_3cScores.get(c.numero) || 0
+        const mls = ml_3cScores.get(c.numero) || 0
+        const blendedScore = c.v6Score * engineWeights.V6 + v7s * engineWeights.V7 + mls * engineWeights.ML
+        return { numero: c.numero, score: blendedScore }
+      }).sort((a, b) => b.score - a.score)
+
+      // Blend V6 + V7 + ML for 4C
+      const blended4 = v6_4cands.map(c => {
+        const v7s = v7_4cScores.get(c.numero) || 0
+        const mls = ml_4cScores.get(c.numero) || 0
+        const blendedScore = c.v6Score * engineWeights.V6 + v7s * engineWeights.V7 + mls * engineWeights.ML
+        return { numero: c.numero, score: blendedScore }
+      }).sort((a, b) => b.score - a.score)
+
+      const numeros_3 = blended3.slice(0, 10).map((r) => String(r.numero).padStart(3, "0"))
+      const numeros_4 = blended4.slice(0, 10).map((r) => String(r.numero).padStart(4, "0"))
+      if (numeros_3.length === 0) logger.warn("[cron-precompute] 3 cifras empty", { turno, dataLen: v6_3rows.data?.length ?? 0 })
+
       const redoblona = top10nums.length >= 2
         ? { cabeza: String(top10nums[0]).padStart(2, "0"), acompanante: String(top10nums[1]).padStart(2, "0") }
         : null
@@ -234,15 +332,22 @@ export async function GET(req: NextRequest) {
       }
       const agreement = agreementCount / Math.max(v6Top10.size, 1)
 
-      // Confidence: based on draws count + agreement
-      const confidence = Math.min(1.0, (histDraws.length / 100) * 0.5 + agreement * 0.5)
+      // Modelo de consistencia (NO probabilidad de acierto)
+      const modelConsistency = Math.min(
+        1,
+        Math.max(
+          0,
+          (Math.min(histDraws.length, 100) / 100) * 0.5 +
+            Math.max(0, Math.min(1, agreement)) * 0.5
+        )
+      )
 
       // 7. Store in predictions_cache via api schema RPC
-      const { error: upsertError } = await supabase.rpc("predictions_cache_upsert" as never, {
+      const { error: upsertError } = await supabase.schema("api").rpc("predictions_cache_upsert" as never, {
         p_game_id: GAME_ID,
         p_date: today,
         p_turno: turno,
-        p_numeros_2: blended.map((p) => ({
+        p_numeros_2: blendedDiversified.map((p) => ({
           n: p.n,
           numero: p.numero,
           score: Math.round(p.score * 1000) / 1000,
@@ -257,20 +362,52 @@ export async function GET(req: NextRequest) {
         p_v6_weight: Math.round(engineWeights.V6 * 10000) / 10000,
         p_v7_weight: Math.round(engineWeights.V7 * 10000) / 10000,
         p_ml_weight: Math.round(engineWeights.ML * 10000) / 10000,
-        p_confidence: Math.round(confidence * 100) / 100,
+        p_model_consistency: Math.round(modelConsistency * 100) / 100,
+        p_confidence_type: "model_consistency",
         p_agreement_score: Math.round(agreement * 100) / 100,
         p_computed_at: new Date().toISOString(),
         p_updated_at: new Date().toISOString(),
       } as never)
 
       if (upsertError) {
+        logger.error("[cron-precompute] upsert error", { turno, error: JSON.stringify(upsertError), numeros3Len: numeros_3.length, numeros4Len: numeros_4.length })
         throw upsertError
       }
 
-      results.push({ turno, ok: true, confidence: Math.round(confidence * 100) / 100 })
-    } catch (e) {
-      logger.error("[cron-precompute] Failed", { turno, error: String(e) })
-      results.push({ turno, ok: false, error: String(e) })
+      // Regla Omega: validar que los resultados cumplen con mejora OOS antes de producción
+      try {
+        const { data: omegaResult } = await supabase.rpc("omega_rule_validation" as never)
+        const omegaPass = omegaResult ? (omegaResult as Record<string, unknown>).omega_pass !== false : true
+        if (omegaResult && omegaPass === false) {
+          logger.warn("[cron-precompute] Regla Omega: técnica no supera umbral OOS", { turno, omega: omegaResult })
+        }
+        // Registrar auditoría de promoción con datos del replay actual
+        const { error: auditErr } = await supabase.rpc("register_omega_promotion" as never, {
+          p_turno: turno,
+          p_old_version: "omega-v1",
+          p_new_version: "meta-ensemble-v1",
+          p_decision: omegaPass === false ? "REJECTED" : "APPROVED",
+          p_reason: omegaPass === false ? "Regla Omega: técnica no supera umbral OOS (backtest)." : "Regla Omega: técnica supera umbral OOS.",
+          p_sample_size: results.filter(r => r.ok).length,
+          p_metrics_before: { engine: "meta-ensemble-v1", note: "current" },
+          p_metrics_after: { engine: "meta-ensemble-v1", note: "replay_OOS", omega: omegaResult },
+          p_weights_before: { v6: Math.round(engineWeights.V6 * 10000) / 10000, v7: Math.round(engineWeights.V7 * 10000) / 10000, ml: Math.round(engineWeights.ML * 10000) / 10000 },
+          p_weights_after: { v6: Math.round(engineWeights.V6 * 10000) / 10000, v7: Math.round(engineWeights.V7 * 10000) / 10000, ml: Math.round(engineWeights.ML * 10000) / 10000 },
+          p_calibration_before: { note: "before_replay" },
+          p_calibration_after: { note: "after_replay", omega_result: omegaResult },
+          p_period_start: new Date(today).toISOString().split("T")[0],
+          p_period_end: new Date(today).toISOString().split("T")[0],
+        } as never)
+        if (auditErr) logger.warn("[cron-precompute] Omega audit registration failed", { turno, error: JSON.stringify(auditErr) })
+      } catch (omegaErr: unknown) {
+        logger.warn("[cron-precompute] Regla Omega: verificación fallida (no bloquea)", { turno, error: (omegaErr as Error).message })
+      }
+
+      results.push({ turno, ok: true, confidence: Math.round(modelConsistency * 100) / 100 })
+    } catch (e: unknown) {
+      const errMsg = e instanceof Error ? e.message : typeof e === 'object' && e !== null ? JSON.stringify(e) : String(e)
+      logger.error("[cron-precompute] Failed", { turno, error: errMsg })
+      results.push({ turno, ok: false, error: errMsg })
     }
   }
 

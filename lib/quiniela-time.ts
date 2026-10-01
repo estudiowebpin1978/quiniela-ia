@@ -12,9 +12,10 @@ export const TURNO_SCHEDULE: Record<string, { artHour: number; artMinute: number
   Matutina:   { artHour: 15, artMinute: 0  },
   Vespertina: { artHour: 18, artMinute: 0  },
   Nocturna:   { artHour: 21, artMinute: 0  },
+  Poceada:    { artHour: 21, artMinute: 0  },
 }
 
-export const ALL_TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"] as const
+export const ALL_TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"] as const
 export type TurnoName = (typeof ALL_TURNOS)[number]
 
 /**

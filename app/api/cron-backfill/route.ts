@@ -96,7 +96,7 @@ async function scrapeDate(fechaISO: string): Promise<{ saved: number; errors: nu
       p_numbers: result.numbers,
       p_source: result.source,
       p_game_id: GAME_ID,
-      p_jurisdiccion: "nacional",
+      p_jurisdiccion: "CABA",
     } as never)
 
     if (error) {

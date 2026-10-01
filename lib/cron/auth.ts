@@ -10,7 +10,7 @@ import logger from "@/lib/logger"
 export interface CronAuthResult {
   authorized: boolean
   reason?: string
-  source: "vercel-cron" | "cron-secret" | "admin" | "unknown"
+  source: "cron-secret" | "admin" | "unknown"
 }
 
 function safeCompare(a: string, b: string): boolean {
@@ -24,17 +24,13 @@ function safeCompare(a: string, b: string): boolean {
 /**
  * Validate cron job authorization.
  * Checks for:
- * 1. Vercel Cron header (x-vercel-cron)
- * 2. CRON_SECRET query parameter or Authorization header
- * 3. Admin user token (optional)
+ * 1. CRON_SECRET query parameter or Authorization header
+ * 2. Admin user token (optional)
  */
 export async function validateCronAuth(req: NextRequest): Promise<CronAuthResult> {
-  // 1. Vercel Cron
-  if (req.headers.get("x-vercel-cron") === "1") {
-    return { authorized: true, source: "vercel-cron" }
-  }
-
-  // 2. CRON_SECRET (timing-safe comparison)
+  // Never trust x-vercel-cron as authentication: callers can send that header.
+  // Vercel Cron jobs must be configured to send CRON_SECRET as a bearer token.
+  // 1. CRON_SECRET (timing-safe comparison)
   const secret = req.nextUrl.searchParams.get("secret") || ""
   const authHeader = req.headers.get("authorization")?.replace("Bearer ", "") || ""
   // Normalize: strip "Bearer " prefix if user accidentally included it in env var
@@ -49,7 +45,7 @@ export async function validateCronAuth(req: NextRequest): Promise<CronAuthResult
     }
   }
 
-  // 3. Admin token (optional)
+  // 2. Admin token (optional)
   if (authHeader) {
     try {
       const { validateJwt } = await import("@/lib/auth/jwt")

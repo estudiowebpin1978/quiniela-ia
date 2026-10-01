@@ -43,7 +43,6 @@ import { validatePredData } from "@/lib/api/predictions";
 import { RealtimeResults, RealtimeBadge } from "@/components/RealtimeResults";
 import { RealtimeVerification } from "@/components/RealtimeVerification";
 import { getQuinielaEntry, getQuinielaIcon, getQuinielaName, getLast2CifrasEntry } from "@/lib/utils/quinielaDictionary";
-import AutoPilotToggle from "@/components/AutoPilotToggle";
 import NotificationBell from "@/components/NotificationBell";
 import StreakBar from "@/components/StreakBar";
 
@@ -82,6 +81,7 @@ const HORAS: Record<string, string> = {
   Matutina: "15:00",
   Vespertina: "18:00",
   Nocturna: "21:00",
+  Poceada: "21:00"
 };
 type LocalRankingItem = {
   [key: string]: unknown;
@@ -242,6 +242,29 @@ function PageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
+  // Auto-check: when predictions load, if draw already exists, show "Si hubieras jugado"
+  useEffect(() => {
+    if (!dn || !dt?.numeros_2?.length) return;
+    const currentTurno = soRef.current;
+    const fechaPred = fechaSorteo(currentTurno);
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/resultado?date=${fechaPred}&turno=${encodeURIComponent(currentTurno)}&t=${Date.now()}`);
+        const drawData = await r.json();
+        if (cancelled) return;
+        if (drawData?.found && drawData?.numbers?.length) {
+          const reales = drawData.numbers.map((n: string | number) => String(Number(n) % 100).padStart(2, "0"));
+          const predichos = dt.numeros_2.slice(0, currentTurno === "Poceada" ? 8 : 10).map((n: any) => String(n.num ?? n.numero ?? n).padStart(2, "0"));
+          const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }));
+          setResultadoControl({ aciertos, predichos, reales, fecha: fechaPred, turno: currentTurno } as ResultadoControl);
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dn, dt]);
+
   async function installApp() {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
@@ -338,8 +361,8 @@ function PageInner() {
       setShowHowItWorks(true);
       localStorage.setItem("quiniela-ia-tour-visto", "true");
     }
-    const HORARIOS_POLL: Record<string, number> = { Previa: 10, Primera: 12, Matutina: 15, Vespertina: 18, Nocturna: 21 }
-    const TURNOS_LIST = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
+    const HORARIOS_POLL: Record<string, number> = { Previa: 10, Primera: 12, Matutina: 15, Vespertina: 18, Nocturna: 21, Poceada: 21 }
+    const TURNOS_LIST = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"]
 
     const pollInterval = setInterval(async () => {
       const artNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }))
@@ -478,6 +501,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         heatmap: d.heatmap,
         ranking: d.numeros,
         numeros: d.numeros,
+        redoblona: d.redoblona ?? d.pred?.redoblona,
         confidence: d.confidence,
         aiInsight: d.aiInsight,
       };
@@ -521,7 +545,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
           body: JSON.stringify({
             turno: currentTurno,
-            topNumbers: (validatedPredData?.numeros || []).slice(0, 10).map((n) => (n as Record<string, unknown>).num || (n as Record<string, unknown>).numero),
+            topNumbers: (validatedPredData?.numeros || []).slice(0, currentTurno === "Poceada" ? 8 : 10).map((n) => (n as Record<string, unknown>).num || (n as Record<string, unknown>).numero),
           }),
         }).catch(() => {})
       }
@@ -708,9 +732,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         return;
       }
       const reales = drawData.numbers.map((n: string | number) => String(Number(n) % 100).padStart(2, "0"));
-      const predichos = cur.slice(0, 10).map((p) => p.numero);
-      const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }));
-      setResultadoControl({ aciertos, predichos, reales, fecha: fechaPrediccion, turno: so } as ResultadoControl);
+      const predichos2 = nums2.slice(0, maxNums);
+      const aciertos = predichos2.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }));
+      setResultadoControl({ aciertos, predichos: predichos2, reales, fecha: fechaPrediccion, turno: so } as ResultadoControl);
       mostrarNotifResultado(so, reales, aciertos.map((a) => a.numero));
     } catch (e: unknown) {
       setResultadoControl({ error: "Error: " + (e instanceof Error ? e.message : "Unknown"), aciertos: [] });
@@ -728,7 +752,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     }
     setGuardando(true);
     const fechaSorteoStr = fechaSorteo(so);
-    const nums = cur.slice(0, 10).map((p) => p.numero);
+    const nums = cur.slice(0, maxNums).map((p) => p.numero);
 
     // Check if already saved in state (synced from API)
     const yaExiste = misPreds.some((p) => (p.date || p.fecha) === fechaSorteoStr && p.turno === so);
@@ -738,8 +762,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       return;
     }
 
-    const nums3Save = (pr || userRole === "admin") ? nums3.slice(0, 10) : [];
-    const nums4Save = (pr || userRole === "admin") ? nums4.slice(0, 10) : [];
+    const nums3Save = (pr || userRole === "admin") ? nums3.slice(0, maxNums) : [];
+    const nums4Save = (pr || userRole === "admin") ? nums4.slice(0, maxNums) : [];
     const rdblSave = (pr || userRole === "admin") && rdbl ? [rdbl] : [];
 
     const nuevaPred: SavedPrediction = {
@@ -823,7 +847,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     if (!dt?.numeros_2?.length) {
       return;
     }
-    const lineas = cur.slice(0, 10).map((p, i) => {
+    const lineas = cur.slice(0, maxNums).map((p, i) => {
       const emoji = getEmoji(p.numero);
       const nombre = getNombreQuiniela(p.numero);
       return "#" + (i + 1) + " " + p.numero + " " + emoji + " " + nombre;
@@ -867,6 +891,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   const rdbl = useMemo(() => (dt?.redoblona ?? ""), [dt?.redoblona]);
   const rankingData = useMemo<LocalRankingItem[]>(() => (dt?.ranking ?? []) as LocalRankingItem[], [dt?.ranking]);
   const ranking = rankingData;
+  const isPoceada = so === "Poceada";
+  const maxNums = isPoceada ? 8 : 10;
 
 // Previously calculated numeric math heavy expressions (useMemo to prevent unnecessary recalculations)
   // Use current numeric data for rendering (avoid recreating objects each render)
@@ -912,7 +938,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .sv{font-size:26px;font-weight:900;background:linear-gradient(180deg,#a855f7,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
         .sl{font-size:11px;color:#a5b4fc;margin-top:6px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
         .sorteo-label{font-size:12px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:3px;margin-bottom:10px;text-align:center}
-        .sorteo-btns{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}
+        .sorteo-btns{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px}
         .sb{padding:18px 8px 16px;border-radius:20px;background:linear-gradient(180deg,#1e1e3a,#0f0f1f);color:#94a3b8;border:2px solid rgba(255,255,255,.1);box-shadow:0 8px 0 #050510,0 10px 28px rgba(0,0,0,.6);cursor:pointer;font-family:'Inter',sans-serif;font-weight:900;font-size:14px;text-align:center;transition:all .2s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;align-items:center;gap:8px;user-select:none;letter-spacing:.5px;position:relative;overflow:hidden}
         .sb::before{content:'';position:absolute;top:0;left:0;right:0;height:50%;background:linear-gradient(180deg,rgba(255,255,255,.05),transparent);border-radius:20px 20px 0 0;pointer-events:none}
         .sb .sh{font-size:12px;font-weight:700;opacity:.9;color:#64748b;transition:all .2s}
@@ -945,6 +971,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .dk:not(.on){opacity:.5}
         .pbdg{position:absolute;top:-10px;right:4px;background:#fff;color:#1e1b4b;font-size:8px;font-weight:900;padding:3px 8px;border-radius:10px}
         .g5{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
+        .g8{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
         .cd{background:linear-gradient(180deg,#1a1a2e 0%,#16162a 50%,#0f0f1f 100%);border:2px solid rgba(167,139,250,.15);border-radius:24px;padding:22px 6px 18px;text-align:center;position:relative;box-shadow:0 10px 0 rgba(0,0,0,.6),0 14px 36px rgba(139,92,246,.15),inset 0 1px 0 rgba(255,255,255,.1),inset 0 -1px 0 rgba(0,0,0,.3);transition:all .25s cubic-bezier(.4,0,.2,1);cursor:default;overflow:hidden}
         .cd::before{content:'';position:absolute;top:0;left:0;right:0;height:50%;background:linear-gradient(180deg,rgba(167,139,250,.08),transparent);border-radius:24px 24px 0 0;pointer-events:none}
         .cd:hover{transform:translateY(-8px) scale(1.02);border-color:rgba(167,139,250,.6);box-shadow:0 18px 0 rgba(0,0,0,.6),0 24px 48px rgba(139,92,246,.35),inset 0 1px 0 rgba(255,255,255,.15);background:linear-gradient(180deg,#222240 0%,#1a1a35 50%,#14142a 100%)}
@@ -1183,17 +1210,25 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           <div className="sorteo-btns">
             {SORTEOS.map((s) => (
               <button key={s} className={"sb" + (so === s ? " on" : "")} onClick={() => { sound.pop(); triggerHaptic("light"); setSo(s); setDt(null); setDn(false); setEr(""); }}>
-                <span>{s === "Vespertina" ? "Vesp" : s === "Primera" ? "1era" : s === "Matutina" ? "Mat" : s === "Nocturna" ? "Noct" : s}</span>
+                <span>{s === "Vespertina" ? "Vesp" : s === "Primera" ? "1era" : s === "Matutina" ? "Mat" : s === "Nocturna" ? "Noct" : s === "Poceada" ? "Poce" : s}</span>
                 <span className="sh">{HORAS[s]}</span>
                 {confianzaTurnos[s] != null && <span className="sc">{confianzaTurnos[s]}%</span>}
               </button>
             ))}
+            {/* Poceada: botón horizontal en misma fila */}
+            <button
+              key="Poceada-full"
+              className={"sb" + (so === "Poceada" ? " on" : "")}
+              onClick={() => { sound.pop(); triggerHaptic("light"); setSo("Poceada"); setDt(null); setDn(false); setEr(""); }}
+            >
+              <span>Poce</span>
+              <span className="sh">{HORAS["Poceada"]}</span>
+            </button>
           </div>
           <div className="gen-row">
             <button className="btn3d btn-gen" onClick={() => { sound.whoosh(); gen(); }} disabled={ld} style={{ opacity: ld ? 0.6 : 1, flex: 1 }}>
               {ld ? "⏳ Analizando datos..." : "⚡ Generar Análisis Ahora"}
             </button>
-            <AutoPilotToggle userId={userId || ""} userRole={userRole} premiumUntil={premExpiry.premium_until} compact />
           </div>
           <div style={{ display: "grid", gap: 10, margin: "16px 0 18px" }}>
             <button
@@ -1358,8 +1393,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     <div className="skeleton" style={{width:50,height:10,borderRadius:4}}/>
                     <div className="skeleton" style={{width:"80%",height:4,borderRadius:2}}/>
                   </div>
-                ))}
-              </div>
+                        ))}
+                      </div>
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
                 <div className="sp" />
                 <div style={{fontSize:12,color:"#94a3b8",fontWeight:600}}>Analizando datos históricos...</div>
@@ -1433,7 +1468,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 </button>
                 <button className={"tb tb-rdbl" + (tab === "rdbl" ? " on" : "")} onClick={() => { sound.pop(); triggerHaptic("light"); setTab("rdbl"); }}>
                   <span className="tb-ico">📊</span>
-                  <span className="tb-lbl">Correlación</span>
+                  <span className="tb-lbl">Redoblona</span>
                 </button>
                 <button className={"tb tb-freq" + (tab === "freq" ? " on" : "")} onClick={() => { sound.pop(); triggerHaptic("light"); setTab("freq"); }}>
                   <span className="tb-ico">🔥</span>
@@ -1481,15 +1516,19 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   <div className={dg > 2 && !pr ? "lk" : ""}>
                     <div style={{ position: "relative" }}>
                       <div
-                        className="g5"
+                        className={isPoceada ? "g8" : "g5"}
                         style={(guestMode || (userRole === "free" && dg > 2)) ? { filter: "blur(8px)", userSelect: "none", pointerEvents: "none" } : {}}
                       >
-                        {cur.slice(0, 10).map((p, i) => {
+                        {cur.slice(0, maxNums).map((p, i) => {
                           const r = ranking?.find((r) => r.numero === p.numero);
                           const isCabeza = i === 0;
                           const post = r?.bayesianPosterior ? (Number(r.bayesianPosterior) * 100).toFixed(2) + "%" : "";
+                          const fa = (p as { factor_attribution?: Record<string, number> }).factor_attribution || {};
+                          const recencyFactor = fa.recency || 0;
+                          const heatLabel = recencyFactor > 0.6 ? "🔥" : recencyFactor > 0.3 ? "🌡️" : "❄️";
+                          const poceadaProb = (dt as any)?.poceada_probs?.numbers?.find((x: any) => x.numero === p.numero);
                           return (
-                          <div className="cd" key={i} onClick={() => setNumDetail(r || p)} style={{cursor:"pointer", position:"relative"}}>
+                          <div className={`cd${dg===3?" c3":""}${dg===4?" c4":""}`} key={i} onClick={() => setNumDetail(r || p)} style={{cursor:"pointer", position:"relative"}}>
                             {isCabeza && <span className="cabeza-badge">CABEZA</span>}
                             <div className="cr2">#{i + 1}</div>
                             <div className="ce">{getEmoji(p.numero)}</div>
@@ -1506,13 +1545,25 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                                 background:"linear-gradient(90deg,#a855f7,#ec4899)"
                               }}/>
                             </div>
-                            <div style={{fontSize:9,color:"#a78bfa",marginTop:3,fontWeight:600}}>
+                            <div style={{fontSize:9,color:"#a78bfa",marginTop:3,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center",gap:3}}>
                               {r?.score ? (r.score * 100).toFixed(0) + "%" : ""}
+                              <span title={recencyFactor > 0.6 ? "Caliente" : recencyFactor > 0.3 ? "Tibio" : "Frío"} style={{fontSize:8}}>{heatLabel}</span>
                             </div>
+                            {poceadaProb?.p_draw != null && (
+                              <div style={{fontSize:8,color:"#22c55e",marginTop:2,fontWeight:700}}>
+                                P: {(poceadaProb.p_draw * 100).toFixed(0)}%
+                              </div>
+                            )}
+                            {/* Factores de predicción */}
+                            {Object.entries(fa).filter(([k, v]) => (v as number) > 0.1).map(([k, v]) => `${k}:${Math.round((v as number) * 100)}%`).slice(0, 3).join(" · ") ? (
+                              <div style={{fontSize: 9, color: "#a78bfa", marginTop: 3, fontStyle: "italic"}}>
+                                {Object.entries(fa).filter(([k, v]) => (v as number) > 0.1).map(([k, v]) => `${k}:${Math.round((v as number) * 100)}%`).slice(0, 3).join(" · ")}
+                              </div>
+                            ) : null}
                             {post && <div style={{fontSize:7,color:"#22c55e",marginTop:2,fontWeight:700}}>Post: {post}</div>}
-                          </div>
-                        )})}
-                      </div>
+                            </div>
+                          )})}
+                        </div>
                       {userRole === "free" && dg > 2 && (
                         <div
                           style={{
@@ -1535,7 +1586,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                           }}>
                             {guestMode ? "✨ Crear cuenta gratis" : "🔓 Desbloquear Análisis"}
                           </div>
-                          <div style={{ fontSize: 10, color: "#64748b", marginTop: 8 }}>Desde $3.500 ARS · Sin suscripción</div>
+                           <div style={{ fontSize: 10, color: "#64748b", marginTop: 8 }}>Desde $3.500 ARS · Sin suscripción</div>
                         </div>
                       )}
                     </div>
@@ -1556,11 +1607,19 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
                   {rdbl && tab === "pred" && (pr || userRole === "admin") && (
                     <div className="rdbl" style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 12, color: "#25F4EE", marginBottom: 4, fontWeight: 700 }}>🎯 Par óptimo (Correlación)</div>
+                      <div style={{ fontSize: 12, color: "#25F4EE", marginBottom: 4, fontWeight: 700 }}>🎯 Redoblona — Par óptimo</div>
                       <div className="rpair">{rdbl}</div>
                       <div style={{ fontSize: 11, color: "#64748b" }}>Analizá la correlación entre ambos números en el mismo sorteo.</div>
                     </div>
                   )}
+
+                  {(() => {
+                    if (tab !== "pred") return null;
+                    const fechaActual = fechaSorteo(so);
+                    const miPred = misPreds.find((p) => (p.date || p.fecha) === fechaActual && p.turno === so);
+                    if (!miPred || !Array.isArray(miPred.numeros) || miPred.numeros.length === 0) return null;
+                    return null;
+                  })()}
 
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     {guestMode ? (
@@ -1580,13 +1639,13 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               )}
               {tab === "rdbl" && (
                 <>
-                  <div className="sec">Análisis de correlación</div>
+                  <div className="sec">Análisis de Redoblona</div>
                   <div style={{ minHeight: 160 }}>
                     {pr ? (
                       <>
                         {rdbl && (
                           <div className="rdbl">
-                            <div style={{ fontSize: 12, color: "#25F4EE", marginBottom: 4, fontWeight: 700 }}>Par optimo recomendado</div>
+                            <div style={{ fontSize: 12, color: "#25F4EE", marginBottom: 4, fontWeight: 700 }}>🎯 Redoblona recomendada</div>
                             <div className="rpair">{rdbl}</div>
                             <div style={{ fontSize: 11, color: "#64748b" }}>Analizá la correlación entre ambos números en el mismo sorteo.</div>
                           </div>
@@ -1633,53 +1692,59 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 <>
                   <div className="sec">Mapa de calor - Frecuencia</div>
                   {dt?.heatmap && dt.heatmap.length > 0 ? (
-                    <div className="heatmap-grid">
-                      {dt?.heatmap?.map((h, i) => {
-                        const intensity = Math.min(1, h.f / 10);
-                        return (
-                          <div
-                            key={i}
-                            className="heatmap-cell"
-                            style={{
-                              backgroundColor: `rgba(254, 44, 85, ${intensity})`,
-                              opacity: h.f > 0 ? 1 : 0.3,
-                            }}
-                            title={`${h.n.toString().padStart(2, '0')} - ${h.s} (Frecuencia: ${h.f})`}
-                          >
-                            <span className="hm-num">{h.n}</span>
+                    (() => {
+                      const cells = (dt?.heatmap ?? []);
+                      const maxF = Math.max(1, ...cells.map((x) => x.f || 0));
+                      const sorted = [...cells].sort((a, b) => (b.f || 0) - (a.f || 0));
+                      const totalF = sorted.reduce((a, b) => a + (b.f || 0), 0);
+                      const pctTop = (k: number) =>
+                        totalF > 0 ? (sorted.slice(0, k).reduce((a, b) => a + (b.f || 0), 0) / totalF) * 100 : 0;
+                      return (
+                        <>
+                          <div className="heatmap-grid">
+                            {cells.map((h, i) => {
+                              const s = ((typeof h.s === "string" ? { emoji: "", nombre: h.s } : h.s) || undefined) as { emoji?: string; nombre?: string } | undefined;
+                              const intensity = Math.min(1, 0.1 + 0.9 * ((h.f || 0) / maxF));
+                              return (
+                                <div
+                                  key={i}
+                                  className="heatmap-cell"
+                                  style={{
+                                    backgroundColor: `rgba(254, 44, 85, ${intensity})`,
+                                    opacity: h.f > 0 ? 1 : 0.3,
+                                  }}
+                                  title={`${String(h.n).padStart(2, "0")} ${s?.nombre || ""} ${s?.emoji || ""} (Frecuencia: ${h.f})`}
+                                >
+                                  <span style={{ fontSize: 9, lineHeight: 1 }}>{s?.emoji}</span>
+                                  <span className="hm-num">{String(h.n).padStart(2, "0")}</span>
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
-                    </div>
+                          <div className="heatmap-stats">
+                            <div style={{fontSize:10,fontWeight:800,color:"#22c55e",marginBottom:6}}>📈 Frecuencia acumulada (top 100)</div>
+                            <div className="heatmap-stat-row">
+                              <span className="heatmap-stat-label">Top 10 (%):</span>
+                              <span className="heatmap-stat-value">{pctTop(10).toFixed(1)}%</span>
+                            </div>
+                            <div className="heatmap-stat-row">
+                              <span className="heatmap-stat-label">Top 20 (%):</span>
+                              <span className="heatmap-stat-value">{pctTop(20).toFixed(1)}%</span>
+                            </div>
+                            <div className="heatmap-stat-row">
+                              <span className="heatmap-stat-label">Sorteos analizados:</span>
+                              <span className="heatmap-stat-value">{dt.totalSorteos || cells.length || 0}</span>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()
                   ) : (
                     <div style={{ padding: 20, textAlign: "center", color: "#64748b" }}>
                       Cargando mapa de calor...
                     </div>
-                    )}
-                    
-                    {dt?.heatmap && dt.heatmap.length > 0 && (
-                      <div className="heatmap-stats">
-                        <div style={{fontSize:10,fontWeight:800,color:"#22c55e",marginBottom:6}}>📈 Frecuencia acumulada (top 100)</div>
-                        <div className="heatmap-stat-row">
-                          <span className="heatmap-stat-label">Top 10 (%):</span>
-                          <span className="heatmap-stat-value">
-                            {((dt.heatmap.slice(0,10).reduce((a,b)=>a+(b.f||0),0) / dt.heatmap.reduce((a,b)=>a+(b.f||0),1)) * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="heatmap-stat-row">
-                          <span className="heatmap-stat-label">Top 20 (%):</span>
-                          <span className="heatmap-stat-value">
-                            {((dt.heatmap.slice(0,20).reduce((a,b)=>a+(b.f||0),0) / dt.heatmap.reduce((a,b)=>a+(b.f||0),1)) * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="heatmap-stat-row">
-                          <span className="heatmap-stat-label">Sorteos analizados:</span>
-                          <span className="heatmap-stat-value">{dt.totalSorteos || dt?.numeros?.length || 0}</span>
-                        </div>
-                      </div>
-                    )}
-                    
-                  </>
+                  )}
+                </>
               )}
               {tab === "trend" && (
                 <>
@@ -1856,6 +1921,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     const nums2: string[] = Array.isArray(p.numeros) ? p.numeros : (typeof p.numeros === "object" && p.numeros?.["2"] ? p.numeros["2"] : []);
                     const nums3: string[] = Array.isArray(p.numeros_3) ? p.numeros_3 : (typeof p.numeros === "object" && p.numeros?.["3"] ? p.numeros["3"] : []);
                     const nums4: string[] = Array.isArray(p.numeros_4) ? p.numeros_4 : (typeof p.numeros === "object" && p.numeros?.["4"] ? p.numeros["4"] : []);
+                    const rdblStr: string = (typeof p.numeros === "object" && p.numeros?.["r"]) ? (Array.isArray(p.numeros["r"]) ? p.numeros["r"][0] || "" : p.numeros["r"] || "") : "";
                     return (
                       <div key={i} className={`saved-card ${tieneAciertos ? "saved-card-success" : ""}`}>
                         <div className="saved-card-header">
@@ -1910,6 +1976,21 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                                     border: hit4 ? "1px solid rgba(34,197,94,.4)" : "1px solid rgba(168,85,247,.2)" }}>{n}</span>
                                 );
                               })}
+                            </div>
+                          </div>
+                        )}
+                        {(pr || userRole === "admin") && rdblStr && (
+                          <div style={{ marginTop: 8, padding: "8px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}>
+                            <div className="saved-section-label saved-section-rdbl">🎯 REDOBOLONA</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4 }}>
+                              <span className="saved-number rdbl-num" style={{ fontSize: 14, fontWeight: 900, letterSpacing: 2 }}>
+                                {rdblStr}
+                              </span>
+                              {p.aciertos_rdbl && p.aciertos_rdbl.length > 0 && (
+                                <span style={{ fontSize: 11, color: "#22c55e", fontWeight: 700 }}>
+                                  ✓ {p.aciertos_rdbl.length} acierto{p.aciertos_rdbl.length > 1 ? "s" : ""}
+                                </span>
+                              )}
                             </div>
                           </div>
                         )}
@@ -1998,10 +2079,18 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 <button onClick={async () => {
                   setBacktestLoading(true)
                   try {
-                    const r = await fetch(`/api/backtest?turno=${so}&days=90`)
-                    const d = await r.json()
-                    setBacktestData(d)
-                   } catch {}
+                    const r = await fetch(`/api/backtest?turno=${so}&days=90`, {
+                      headers: { Authorization: "Bearer " + (tkRef.current || getAccessToken() || "") },
+                    })
+                    const d = await r.json().catch(() => null)
+                    if (!r.ok || !d || !d.metrics_top_10) {
+                      toast(d?.error === "Forbidden" ? "Esta función es para usuarios Premium" : (d?.error || "No se pudieron calcular las métricas. Intentá de nuevo."), "error")
+                    } else {
+                      setBacktestData(d)
+                    }
+                  } catch {
+                    toast("Error de conexión al calcular las métricas", "error")
+                  }
                   setBacktestLoading(false)
                 }} style={{width:"100%",padding:14,borderRadius:12,border:"1.5px solid rgba(99,102,241,.4)",background:"rgba(99,102,241,.08)",color:"#818cf8",fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:14}}>
                   📊 Calcular métricas de precisión

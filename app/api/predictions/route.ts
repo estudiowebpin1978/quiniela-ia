@@ -3,11 +3,13 @@ import { resolveUserTier } from "@/lib/auth/tier"
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limiter"
 import { parsePred2, extractPred3, extractPred4, extractRedoblona } from "@/lib/predictions"
 import logger from "@/lib/logger"
+import { SUENOS } from "@/lib/suenos"
 import type { PredictionResponse, TopNumero, HeatmapItem } from "./types"
 
 export const maxDuration = 30
 
 const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
+const POCEADA_GAME_ID = "d0e1f2a3-b4c5-6789-0abc-def012345678"
 
 // ── In-memory prediction cache (survives warm serverless instances) ──
 interface MemCacheEntry { payload: unknown; expiresAt: number }
@@ -39,9 +41,15 @@ function invalidateMemCache(): void { predictionMemCache.clear() }
 function normalizeTurno(t: string): string {
   const map: Record<string, string> = {
     previa: "Previa", primera: "Primera", matutina: "Matutina",
-    vespertina: "Vespertina", nocturna: "Nocturna"
+    vespertina: "Vespertina", nocturna: "Nocturna", poceada: "Poceada"
   }
   return map[t.toLowerCase()] || t
+}
+
+// Look-up Tabla de los Sueños por número 2-cifras (acepta 4 dígitos → %100)
+function suenoDe(n: number | string): { emoji: string; nombre: string } {
+  const k = ((Number(n) % 100) + 100) % 100
+  return SUENOS[k] || { emoji: "❓", nombre: "" }
 }
 
 /**
@@ -121,8 +129,8 @@ export async function GET(req: NextRequest) {
     const turnoRaw = searchParams.get("sorteo") || "previa"
     const turnoQuery = turnoRaw.toLowerCase()
 
-    if (!["previa", "primera", "matutina", "vespertina", "nocturna"].includes(turnoQuery)) {
-      return NextResponse.json({ error: `Sorteo inválido. Válidos: previa, primera, matutina, vespertina, nocturna` }, { status: 400 })
+    if (!["previa", "primera", "matutina", "vespertina", "nocturna", "poceada"].includes(turnoQuery)) {
+      return NextResponse.json({ error: `Sorteo inválido. Válidos: previa, primera, matutina, vespertina, nocturna, poceada` }, { status: 400 })
     }
 
     const turnoCanonical = normalizeTurno(turnoQuery)
@@ -169,23 +177,56 @@ export async function GET(req: NextRequest) {
       }
     } catch { /* Redis unavailable — fall through to Supabase */ }
 
+    // ── Heatmap de frecuencias (00-99) — fuente: draws oficiales (últimos ≤400) ──
+    let heatmap: HeatmapItem[] = []
+    let totalSorteos = 0
+    try {
+      const { data: heatmapRows } = await supabaseAdmin
+        .from("draws")
+        .select("numbers")
+        .eq("turno", turnoCanonical)
+        .order("date", { ascending: false })
+        .limit(400)
+      const rows = Array.isArray(heatmapRows) ? heatmapRows : []
+      totalSorteos = rows.length
+      const freq: number[] = new Array(100).fill(0)
+      for (const row of rows) {
+        const nums = (row as { numbers: number[] }).numbers
+        if (!Array.isArray(nums)) continue
+        for (const raw of nums) {
+          const n2 = ((Number(raw) % 100) + 100) % 100
+          if (n2 >= 0 && n2 < 100 && Number.isFinite(n2)) freq[n2]++
+        }
+      }
+      // Orden 00→99 (tabla clásica); el frontend ordena copia para "Top N"
+      heatmap = freq.map((f, n) => ({
+        n,
+        f,
+        s: SUENOS[n] || { emoji: "❓", nombre: "—" },
+        pct: totalSorteos > 0 ? Math.round((f / totalSorteos) * 1000) / 10 : 0,
+      }))
+    } catch (e) {
+      logger.warn("[predictions] Heatmap computation failed", { error: String(e) })
+    }
+
     // ── 1. Leer del caché ultrarrápido (< 200ms) via service_role ──
     try {
-      const { data: cached } = await supabaseAdmin
+      const { data: cachedRows } = await supabaseAdmin
         .from("predictions_cache")
-        .select("numeros_2, numeros_3, numeros_4, redoblona, engine_version, confidence, agreement_score, v6_weight, v7_weight, ml_weight")
-        .eq("game_id", GAME_ID)
-        .eq("date", targetDate)
+        .select("numeros_2, numeros_3, numeros_4, redoblona, engine_version, confidence, agreement_score, v6_weight, v7_weight, ml_weight, date")
         .eq("turno", turnoCanonical)
-        .single()
+        .lte("date", targetDate)
+        .order("date", { ascending: false })
+        .limit(1)
+      const cached = Array.isArray(cachedRows) && cachedRows.length > 0 ? cachedRows[0] : null
 
       if (cached?.numeros_2 && Array.isArray(cached.numeros_2) && cached.numeros_2.length > 0) {
           // Cache hit — build response from pre-computed data
           const numeros: TopNumero[] = cached.numeros_2.map((item: Record<string, unknown>, i: number) => ({
             n: item.n as number,
             numero: item.numero as string,
-            emoji: (item.emoji as string) || "❓",
-            significado: (item.significado as string) || "",
+            emoji: suenoDe((item.n ?? item.numero) as number | string).emoji || (item.emoji as string) || "❓",
+            significado: suenoDe((item.n ?? item.numero) as number | string).nombre || (item.significado as string) || "",
             score: (item.score as number) || 0,
             confianza: cached.confidence || 0,
             rank: i + 1,
@@ -233,6 +274,8 @@ export async function GET(req: NextRequest) {
             margen_de_error_estimado: Math.round((1 - (cached.agreement_score || 0.5)) * 100) / 100,
             aviso_legal: "Análisis estadístico con fines informativos. La lotería es un evento aleatorio e independiente. No se garantiza ningún resultado. Jugar con responsabilidad.",
             top3: numeros.slice(0, 3).map((n) => n.numero),
+            heatmap,
+            totalSorteos,
             _cached: true,
             computed_at: new Date().toISOString(),
             debug: {
@@ -241,7 +284,7 @@ export async function GET(req: NextRequest) {
               motores_activos: 3,
               total_numeros: 10,
               determinista: true,
-              sorteos_analizados: 0,
+              sorteos_analizados: totalSorteos,
               dynamic_weights: { v6Weight: cached.v6_weight, v7Weight: cached.v7_weight, mlWeight: cached.ml_weight },
             },
           }
@@ -318,8 +361,8 @@ export async function GET(req: NextRequest) {
             return {
               n: num,
               numero: n,
-              emoji: num <= 9 ? `0${num}` : `${num}`,
-              significado: `Predicción ${n}`,
+              emoji: suenoDe(num).emoji,
+              significado: suenoDe(num).nombre || `Predicción ${n}`,
               score,
               confianza: Math.round(score * 100),
               rank: i + 1,
@@ -333,14 +376,17 @@ export async function GET(req: NextRequest) {
             ok: true,
             date: targetDate,
             turno: turnoCanonical,
-            game_id: GAME_ID,
+            game_id: turnoCanonical === "Poceada" ? POCEADA_GAME_ID : GAME_ID,
             pred: {
               numeros_2,
               numeros_3,
               numeros_4,
               redoblona,
             },
+            redoblona,
             numeros,
+            heatmap,
+            totalSorteos,
             probabilidad_estimada: 0.65,
             margen_de_error_estimado: 0.25,
             aviso_legal: "Análisis estadístico con fines informativos. La lotería es un evento aleatorio e independiente. No se garantiza ningún resultado. Jugar con responsabilidad.",
@@ -429,7 +475,10 @@ export async function POST(req: NextRequest) {
         p_date: date,
       } as never)
 
-    if (rpcError) throw rpcError
+    if (rpcError) {
+      logger.warn("[predictions POST] RPC error", { error: rpcError.message })
+      return NextResponse.json({ error: "Sin datos disponibles", detail: rpcError.message }, { status: 404 })
+    }
 
     const rows = (rpcResult || []) as Array<{
       numero: number

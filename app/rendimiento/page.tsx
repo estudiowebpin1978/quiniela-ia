@@ -41,11 +41,16 @@ interface RendimientoData {
 }
 
 const FACTOR_LABELS: Record<string, string> = {
-  calor: "Calor",
-  demora: "Demora",
+  frequency: "Frecuencia",
+  hot: "Calor",
+  cold: "Frío",
+  gap: "Demora",
+  trend: "Tendencia",
+  markov: "Markov",
+  pattern: "Patrón",
+  positional: "Posicional",
+  cooccurrence: "Co-ocurrencia",
   bayesian: "Bayesiano",
-  entropy: "Entropía",
-  survival: "Supervivencia",
 }
 
 const TREND_ICONS: Record<string, string> = { up: "↑", down: "↓", stable: "→" }
@@ -98,7 +103,7 @@ export default function RendimientoPage() {
               Rendimiento del Algoritmo
             </span>
           </h1>
-          <p className="text-gray-400 text-lg">Engine Omega v3 — 12-Factor Ensemble</p>
+          <p className="text-gray-400 text-lg">Engine Omega — Ensemble V6 + V7 + ML</p>
         </div>
       </div>
 
@@ -167,8 +172,12 @@ export default function RendimientoPage() {
         </div>
 
         {/* Factor Performance */}
+        {factorPerformance.length > 0 && (
         <div className="bg-slate-900 rounded-xl p-6 border border-slate-800 mb-8">
-          <h2 className="text-lg font-bold mb-4">Rendimiento por Factor</h2>
+          <h2 className="text-lg font-bold mb-1">Rendimiento por Factor</h2>
+          <p className="text-xs text-gray-500 mb-4">
+            Efectividad relativa de cada factor del motor en las últimas evaluaciones (50% = neutro; ↑ mejora, ↓ empeora).
+          </p>
           <div className="space-y-3">
             {factorPerformance.map((f) => (
               <div key={f.factor} className="flex items-center gap-4">
@@ -185,6 +194,7 @@ export default function RendimientoPage() {
             ))}
           </div>
         </div>
+        )}
 
         {/* Recent Hits */}
         <div className="bg-slate-900 rounded-xl p-6 border border-slate-800 mb-12">

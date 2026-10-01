@@ -48,9 +48,11 @@ DECLARE
   v_markov_window INT;
   v_prior NUMERIC;
   v_total_draws INT;
+  v_pattern_enabled BOOLEAN;
+  v_pattern_enabled BOOLEAN;
 BEGIN
   SELECT * INTO cfg
-  FROM engine_config
+  FROM public.engine_config
   WHERE engine_version = 'omega_v6' AND turno = p_turno
   LIMIT 1;
 
@@ -64,6 +66,7 @@ BEGIN
   v_decay := COALESCE(cfg.decay_lambda, 0.02);
   v_markov_window := COALESCE(cfg.markov_window_days, 90);
   v_prior := COALESCE(cfg.bayesian_prior, 100);
+  v_pattern_enabled := COALESCE(cfg.pattern_penalty_enabled, true);
 
   SELECT COUNT(*) INTO v_total_draws
   FROM draws d WHERE d.turno = p_turno AND d.date < p_date;
@@ -275,7 +278,7 @@ BEGIN
        COALESCE(cfg.w_gap, 0.10) * s_gap +
        COALESCE(cfg.w_cooccurrence, 0.10) * s_coor +
        COALESCE(cfg.w_positional, 0.07) * s_pos +
-       COALESCE(cfg.w_pattern, 0.05) * (1.0 - s_pattern) +
+        CASE WHEN v_pattern_enabled THEN (COALESCE(cfg.w_pattern, 0.05) * (1.0 - s_pattern)) ELSE 0 END +
        COALESCE(cfg.w_bayesian, 0.03) * s_bay +
        COALESCE(cfg.w_trend, 0.02) * s_trend
       )::NUMERIC(7,5) AS score_val,

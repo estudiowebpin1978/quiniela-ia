@@ -25,7 +25,7 @@ self.addEventListener("push", (event) => {
   const options = {
     body: data.body,
     icon: data.icon || "/icon-192.png",
-    badge: data.badge || "/badge-72.png",
+    badge: data.badge || "/icon-192.png",
     vibrate: isReminder ? [300, 100, 300, 100, 300] : [200, 100, 200],
     tag: isReminder ? `quiniela-reminder-${data.data?.turno || "x"}` : "quiniela-notification",
     renotify: true,

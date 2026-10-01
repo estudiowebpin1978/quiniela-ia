@@ -116,11 +116,11 @@ function calcularEntropia(matriz: number[][]): number {
 
 export function analizarTransicion(
   sorteos: { fecha: string; turno: string; numbers: number[] }[],
-  opciones: { diasAnalisis?: number } = {}
+  opciones: { diasAnalisis?: number; fechaReferencia?: string } = {}
 ): AnalisisTransicion {
-  const { diasAnalisis = 90 } = opciones;
+  const { diasAnalisis = 90, fechaReferencia } = opciones;
 
-  const fechaLimite = new Date();
+  const fechaLimite = fechaReferencia ? new Date(fechaReferencia) : new Date();
   fechaLimite.setDate(fechaLimite.getDate() - diasAnalisis);
 
   const sorteosFiltrados = sorteos.filter(s => new Date(s.fecha) >= fechaLimite);

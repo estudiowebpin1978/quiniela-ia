@@ -28,16 +28,18 @@ export function analizarFrecuencia(
     incluir3Cifras?: boolean;
     incluir4Cifras?: boolean;
     diasAnalisis?: number;
+    fechaReferencia?: string; // ISO date (YYYY-MM-DD) — corte temporal para backtesting OOS
   } = {}
 ): AnalisisFrecuencia {
   const {
     incluir2Cifras = true,
     incluir3Cifras = true,
     incluir4Cifras = true,
-    diasAnalisis = 90
+    diasAnalisis = 90,
+    fechaReferencia
   } = opciones;
 
-  const fechaLimite = new Date();
+  const fechaLimite = fechaReferencia ? new Date(fechaReferencia) : new Date();
   fechaLimite.setDate(fechaLimite.getDate() - diasAnalisis);
 
   const sorteosFiltrados = sorteos.filter(s => new Date(s.fecha) >= fechaLimite);

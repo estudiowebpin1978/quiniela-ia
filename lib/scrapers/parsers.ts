@@ -11,6 +11,7 @@
  */
 
 import { ScrapeResult, TurnoType, GAME_ID } from "./types"
+import { fetchQuinielaDraw, SOURCE_LOTBA } from "./lotba-oficial"
 import { esFeriado } from "@/lib/feriados"
 import logger from "@/lib/logger"
 
@@ -40,72 +41,10 @@ function extractNums(html: string, rx: RegExp, max = 20): number[] {
   return nums
 }
 
-// ─── Source 1: Official API (PRIMARY — most reliable) ─────────────────────────
-// API: POST https://quiniela.loteriadelaciudad.gob.ar/resultadosQuiniela/consultaResultados.php
-// Params: codigo=0080, jurisdiccion=51, sorteo={sorteoCode}
-// Sorteo codes are sequential numbers found in the main page's select element
-// Each day has 5 sorteo codes (one per turno), ordered: Previa < Primera < Matutina < Vespertina < Nocturna
-const SORTEO_CACHE: { codes: Record<string, number[]>; fetchedAt: number } = { codes: {}, fetchedAt: 0 }
-const SORTEO_CACHE_TTL = 60_000 // 1 minute
-
-async function fetchSorteoCodes(): Promise<Record<string, number[]>> {
-  const now = Date.now()
-  if (SORTEO_CACHE.codes && Object.keys(SORTEO_CACHE.codes).length > 0 && now - SORTEO_CACHE.fetchedAt < SORTEO_CACHE_TTL) {
-    return SORTEO_CACHE.codes
-  }
-
-  try {
-    const resp = await fetch("https://quiniela.loteriadelaciudad.gob.ar/", {
-      headers: { "User-Agent": rotationUA(), Accept: "text/html" },
-      signal: AbortSignal.timeout(6000),
-    })
-    const html = await resp.text()
-
-    // Extract select element with sorteo codes
-    const selectMatch = html.match(/<select id='valor3'[^>]*>([\s\S]*?)<\/select>/i)
-    if (!selectMatch) return {}
-
-    const selectHtml = selectMatch[1]
-    const optionRegex = /<option value=(\d+)>([^<]+)<\/option>/g
-    const byDate: Record<string, number[]> = {}
-    let match: RegExpExecArray | null
-
-    while ((match = optionRegex.exec(selectHtml)) !== null) {
-      const code = parseInt(match[1])
-      const text = match[2]
-      const dateMatch = text.match(/Fecha:\s*(\d{2})\/(\d{2})\/(\d{4})/)
-      if (dateMatch) {
-        const [, dd, mm, yyyy] = dateMatch
-        const dateISO = `${yyyy}-${mm}-${dd}`
-        if (!byDate[dateISO]) byDate[dateISO] = []
-        byDate[dateISO].push(code)
-      }
-    }
-
-    // Sort codes within each date (lowest = Previa, highest = Nocturna)
-    for (const date of Object.keys(byDate)) {
-      byDate[date].sort((a, b) => a - b)
-    }
-
-    SORTEO_CACHE.codes = byDate
-    SORTEO_CACHE.fetchedAt = now
-    return byDate
-  } catch (e) {
-    logger.warn("[scraper] fetchSorteoCodes failed", { error: String(e) })
-    return {}
-  }
-}
-
-function getTurnoSorteoIndex(turno: TurnoType): number {
-  const map: Record<TurnoType, number> = {
-    Previa: 0,
-    Primera: 1,
-    Matutina: 2,
-    Vespertina: 3,
-    Nocturna: 4,
-  }
-  return map[turno]
-}
+// ─── Source 1: Official LOTBA (PRIMARY — única fuente autorizada) ────────────
+// Lista de sorteos: https://quiniela.loteriadelaciudad.gob.ar/index.php (HTML)
+// Números:          https://quiniela.loteriadelaciudad.gob.ar/includes/resultados-data.php?sorteo=N
+// Ver lib/scrapers/lotba-oficial.ts para el detalle de los formatos.
 
 export async function parseOficial(
   fechaISO: string,
@@ -115,79 +54,30 @@ export async function parseOficial(
   const start = Date.now()
 
   try {
-    const codesByDate = await fetchSorteoCodes()
-    const codes = codesByDate[fechaISO]
-    if (!codes || codes.length === 0) {
-      logger.debug("[scraper] parseOficial: no sorteo codes for date", { fechaISO })
-      return null
-    }
-
-    const turnoIdx = getTurnoSorteoIndex(turno)
-    if (turnoIdx >= codes.length) {
-      logger.debug("[scraper] parseOficial: not enough sorteo codes for turno", { fechaISO, turno, codesLen: codes.length })
-      return null
-    }
-
-    const sorteoCode = codes[turnoIdx]
-
-    // Call the official API
-    const apiResp = await fetch(
-      "https://quiniela.loteriadelaciudad.gob.ar/resultadosQuiniela/consultaResultados.php",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "User-Agent": rotationUA(),
-          "X-Requested-With": "XMLHttpRequest",
-        },
-        body: `codigo=0080&juridiccion=51&sorteo=${sorteoCode}`,
-        signal: AbortSignal.timeout(6000),
-      }
-    )
-
-    const html = await apiResp.text()
-
-    if (html.includes("No hay Sorteo")) {
-      logger.debug("[scraper] parseOficial: no sorteo available", { sorteoCode })
-      return null
-    }
-
-    // Extract 4-digit numbers, filtering out year numbers
-    const currentYear = new Date().getFullYear()
-    const plainNumbers = html.match(/\b\d{4}\b/g) || []
-    const nums: number[] = []
-    for (const num of plainNumbers) {
-      const n = parseInt(num)
-      if (n >= 0 && n <= 9999 && !nums.includes(n) && n !== currentYear && n !== currentYear + 1) {
-        nums.push(n)
-      }
-      if (nums.length >= 20) break
-    }
-
+    // Fuente única autorizada: HTML de resultados + resultados-data.php (LOTBA)
+    const nums = await fetchQuinielaDraw(fechaISO, turno)
     const duration = Date.now() - start
 
-    if (nums.length >= 20) {
+    if (nums && nums.length >= 20) {
       logger.info("[scraper] parseOficial: success", {
         fechaISO,
         turno,
-        sorteoCode,
         numbersCount: nums.length,
         duration,
       })
       return {
         numbers: nums,
-        source: "oficial",
+        source: SOURCE_LOTBA,
         cabezaMatch: null,
         duration,
         retries: 0,
       }
     }
 
-    logger.debug("[scraper] parseOficial: insufficient numbers", {
+    logger.debug("[scraper] parseOficial: sorteo aún no publicado", {
       fechaISO,
       turno,
-      sorteoCode,
-      found: nums.length,
+      found: nums?.length ?? 0,
     })
     return null
   } catch (e) {
@@ -245,6 +135,7 @@ export async function parseQuinieleando(
         Matutina: ["MATUTINA, QUINIELA NACIONAL"],
         Vespertina: ["VESPERTINA, QUINIELA NACIONAL"],
         Nocturna: ["NOCTURNA, QUINIELA NACIONAL"],
+        Poceada: ["POCEADA, QUINIELA POCEADA", "QUINIELA POCEADA"],
       }
 
       // Parse target date as DD/MM/YYYY for header matching
@@ -621,6 +512,7 @@ export async function parseLoteriaSantaFe(
     Matutina: "https://apps.loteriasantafe.gov.ar:8443/Extractos/paginas/mostrarQuinielaMatutina.xhtml?display=0",
     Vespertina: "https://apps.loteriasantafe.gov.ar:8443/Extractos/paginas/mostrarQuinielaVespertina.xhtml?display=0",
     Nocturna: "https://apps.loteriasantafe.gov.ar:8443/Extractos/paginas/mostrarQuinielaNocturna.xhtml?display=0",
+    Poceada: "",
   }
 
   try {
@@ -804,7 +696,7 @@ export async function parseLoteriaMundiales(
 
     // Column index per turno
     const turnoIdxMap: Record<TurnoType, number> = {
-      Previa: 0, Primera: 1, Matutina: 2, Vespertina: 3, Nocturna: 4,
+      Previa: 0, Primera: 1, Matutina: 2, Vespertina: 3, Nocturna: 4, Poceada: 5,
     }
     const colIdx = turnoIdxMap[turno]
 
@@ -913,6 +805,7 @@ export async function parseNacionalQuiniela(
       Matutina: ["MATUTINA"],
       Vespertina: ["VESPERTINA"],
       Nocturna: ["NOCTURNA"],
+      Poceada: ["POCEADA"],
     }
 
     const headers = turnoHeaders[turno]

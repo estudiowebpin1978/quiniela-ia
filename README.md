@@ -26,7 +26,7 @@ Estas variables deben configurarse en Vercel y también localmente para el desar
 
 ### Transferencias / Alias
 - `TRANSFER_AUTO_APPROVE_HOURS` — horas antes de auto-aprobar transferencias pendientes (default: `1`).
-  - Ejemplo: `TRANSFER_AUTO_APPROVE_HOURS=2` → auto-aprueba a las 2h.
+  - Ejemplo: `TRANSFER_AUTO_APPROVE_HOURS=2` â†’ auto-aprueba a las 2h.
 
 ### Push Notifications (VAPID)
 - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` — clave pública VAPID.
@@ -44,41 +44,28 @@ Estas variables deben configurarse en Vercel y también localmente para el desar
 
 ---
 
-## Configuración de Cron Jobs (cron-job.org)
+## Configuración de Cron Jobs (cron-job.org + Vercel Cron)
 
-Todos los jobs programados se gestionan vía **cron-job.org** (no Vercel Cron).
+La mayoría de los jobs se gestionan vía **cron-job.org**; `/api/cron-premium-expiry` se ejecuta con **Vercel Cron** (diario 04:00 UTC, definido en `vercel.json`).
 
 | Job | Endpoint | Frecuencia | Descripción |
 |-----|----------|------------|-------------|
-| Scrape Previa | `/api/cron-scrape?turno=previa` | 10:30 Mon-Sat | Scrape sorteo Previa |
-| Scrape Primera | `/api/cron-scrape?turno=primera` | 12:30 Mon-Sat | Scrape sorteo Primera |
-| Scrape Matutina | `/api/cron-scrape?turno=matutina` | 15:30 Mon-Sat | Scrape sorteo Matutina |
-| Scrape Vespertina | `/api/cron-scrape?turno=vespertina` | 18:30 Mon-Sat | Scrape sorteo Vespertina |
-| Scrape Nocturna | `/api/cron-scrape?turno=nocturna` | 21:30 Mon-Sat | Scrape sorteo Nocturna |
-| **Auto-Predict Previa** | `/api/cron-auto-predict?turno=Previa` | 10:05 Mon-Sat | Genera predicciones antes del sorteo |
-| **Auto-Predict Primera** | `/api/cron-auto-predict?turno=Primera` | 11:50 Mon-Sat | Genera predicciones antes del sorteo |
-| **Auto-Predict Matutina** | `/api/cron-auto-predict?turno=Matutina` | 14:50 Mon-Sat | Genera predicciones antes del sorteo |
-| **Auto-Predict Vespertina** | `/api/cron-auto-predict?turno=Vespertina` | 17:50 Mon-Sat | Genera predicciones antes del sorteo |
-| **Auto-Predict Nocturna** | `/api/cron-auto-predict?turno=Nocturna` | 20:50 Mon-Sat | Genera predicciones antes del sorteo |
+| **Verify predictions** | `/api/cron-verify-predictions` | Cada 5 min | Verifica aciertos contra sorteos oficiales y evalúa los factores V6 (`factor_weight_history`) |
+| **Scrape safety net** | `/api/cron-scrape` | Cada 15 min | Scrapeo periódico de todos los turnos |
+| Scrape Previa | `/api/cron-scrape?turno=Previa` | 10:30 Mon-Sat | Scrape sorteo Previa |
+| Scrape Primera | `/api/cron-scrape?turno=Primera` | 12:30 Mon-Sat | Scrape sorteo Primera |
+| Scrape Matutina | `/api/cron-scrape?turno=Matutina` | 15:30 Mon-Sat | Scrape sorteo Matutina |
+| Scrape Vespertina | `/api/cron-scrape?turno=Vespertina` | 18:30 Mon-Sat | Scrape sorteo Vespertina |
+| Scrape Nocturna | `/api/cron-scrape?turno=Nocturna` | 21:30 Mon-Sat | Scrape sorteo Nocturna |
+| Scrape Poceada | `/api/cron-scrape?turno=Poceada` | 21:15 Mon-Sat | Scrape sorteo Poceada |
 | Auto-approve transfers | `/api/cron-auto-approve-transfers` | Cada 30 min | Auto-aprueba transferencias > N horas |
 | Push notifications | `/api/cron-push` | Cada 15 min | Envía notificaciones push |
 | Verify catchup | `/api/cron-verify-catchup` | 09:00 daily | Verifica predicciones pendientes |
+| **Premium expiry** (Vercel Cron) | `/api/cron-premium-expiry` | Diario 04:00 UTC | Downgrade de premium vencido + push de vencimiento |
 
-**Autenticación**: todos los endpoints cron aceptan `?secret=CRON_SECRET` o header `Authorization: Bearer CRON_SECRET` o header `x-vercel-cron: 1`.
+**Autenticación**: los endpoints cron aceptan `?secret=CRON_SECRET` o el header `Authorization: Bearer CRON_SECRET`. En Vercel, configurá `CRON_SECRET` como variable de entorno: Vercel la envía automáticamente en `Authorization`. En cron-job.org, configurá ese header manualmente. `x-vercel-cron: 1` por sí solo no autentica una solicitud.
 
-### Configuración en cron-job.org
-
-Los jobs de **Auto-Predict** deben ejecutarse ~10 minutos ANTES de cada sorteo para que las predicciones estén listas:
-
-| Turno | Hora sorteo | Hora cron (ART) | Cron expression |
-|-------|-------------|-----------------|-----------------|
-| Previa | 10:15 | 10:05 | `5 10 * * 1-6` |
-| Primera | 12:00 | 11:50 | `50 11 * * 1-6` |
-| Matutina | 15:00 | 14:50 | `50 14 * * 1-6` |
-| Vespertina | 18:00 | 17:50 | `50 17 * * 1-6` |
-| Nocturna | 21:00 | 20:50 | `50 20 * * 1-6` |
-
-**Nota**: Los jobs de scrape se ejecutan DESPUÉS del sorteo (para capturar resultados). Los jobs de auto-predict se ejecutan ANTES (para generar predicciones).
+**Nota**: los jobs de scrape se ejecutan DESPUÉS del sorteo (para capturar resultados). Las predicciones son **on-demand**: se generan cuando el usuario las solicita (`GET /api/predictions`) — el antiguo cron Auto-Predict fue removido.
 
 ---
 

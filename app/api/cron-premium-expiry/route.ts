@@ -14,7 +14,6 @@ interface ExpiryUser {
   email: string
   premium_until: string
   role?: string
-  push_subscriptions: PushSub[] | null
 }
 
 export async function GET(req: NextRequest) {
@@ -24,44 +23,13 @@ export async function GET(req: NextRequest) {
     return unauthorizedResponse()
   }
 
-  const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ""
-  const vapidPrivate = process.env.VAPID_PRIVATE_KEY || ""
-  if (!vapidPublic || !vapidPrivate) {
-    return NextResponse.json({ ok: true, notificados: 0, message: "VAPID keys no configuradas" })
-  }
-  let webpush
-  try { webpush = await import("web-push") } catch { return NextResponse.json({ error: "Error al importar web-push" }, { status: 500 }) }
-  try { webpush.setVapidDetails("mailto:estudiowebpin@gmail.com", vapidPublic, vapidPrivate) } catch { return NextResponse.json({ error: "Error al configurar VAPID" }, { status: 500 }) }
-
   const supabase = getSupabaseAdmin()
 
   const ahora = new Date()
   const enTresDias = new Date(ahora.getTime() + 3 * 86400000)
 
-  // Premium users expiring soon (only those NOT already expired — expired ones are handled below)
-  const { data: expiringUsers, error } = await supabase
-    .from("user_profiles")
-    .select("id, email, premium_until, push_subscriptions(endpoint, p256dh, auth)")
-    .eq("role", "premium")
-    .gte("premium_until", ahora.toISOString())
-    .lt("premium_until", enTresDias.toISOString())
-    .not("premium_until", "is", null)
-
-  // Free users whose trial has expired
-  const { data: expiredTrials } = await supabase
-    .from("user_profiles")
-    .select("id, email, premium_until, push_subscriptions(endpoint, p256dh, auth)")
-    .eq("role", "free")
-    .lt("premium_until", ahora.toISOString())
-    .not("premium_until", "is", null)
-
-  if (error) {
-    logger.error("[cron-premium-expiry] DB error", { error: error.message })
-    return NextResponse.json({ error: "Error de base de datos" }, { status: 500 })
-  }
-
-  // ── DOWNGRADE expired premium users ──────────────────────────────────
-  const { data: expiredPremium } = await supabase
+  // ── DOWNGRADE expired premium users (first — must always run) ────────
+  const { data: expiredPremium, error: expErr } = await supabase
     .from("user_profiles")
     .select("id")
     .eq("role", "premium")
@@ -69,13 +37,38 @@ export async function GET(req: NextRequest) {
     .not("premium_until", "is", null)
 
   let downgraded = 0
-  if (expiredPremium && expiredPremium.length > 0) {
+  if (expErr) {
+    logger.error("[cron-premium-expiry] downgrade query error", { error: expErr.message })
+  } else if (expiredPremium && expiredPremium.length > 0) {
     const ids = expiredPremium.map((u: { id: string }) => u.id)
     const { error: downErr } = await supabase
       .from("user_profiles")
       .update({ role: "free" })
       .in("id", ids)
-    if (!downErr) downgraded = ids.length
+    if (downErr) logger.error("[cron-premium-expiry] downgrade update error", { error: downErr.message })
+    else downgraded = ids.length
+  }
+
+  // Premium users expiring soon (no joins — push subscriptions fetched separately)
+  const { data: expiringUsers, error } = await supabase
+    .from("user_profiles")
+    .select("id, email, role, premium_until")
+    .eq("role", "premium")
+    .gte("premium_until", ahora.toISOString())
+    .lt("premium_until", enTresDias.toISOString())
+    .not("premium_until", "is", null)
+
+  // Free users whose trial has expired
+  const { data: expiredTrials, error: trialErr } = await supabase
+    .from("user_profiles")
+    .select("id, email, role, premium_until")
+    .eq("role", "free")
+    .lt("premium_until", ahora.toISOString())
+    .not("premium_until", "is", null)
+
+  if (error || trialErr) {
+    logger.error("[cron-premium-expiry] DB error", { error: (error || trialErr)?.message, downgraded })
+    return NextResponse.json({ ok: false, error: "Error de base de datos", downgraded }, { status: 500 })
   }
 
   // Combine both lists
@@ -83,14 +76,62 @@ export async function GET(req: NextRequest) {
     ...(expiringUsers || []),
     ...(expiredTrials || []).filter((u: ExpiryUser) => !(expiringUsers || []).some((e: ExpiryUser) => e.id === u.id))
   ]
-  if (!allUsers.length) return NextResponse.json({ ok: true, notificados: 0 })
+  if (!allUsers.length) {
+    logCronExecution("cron-premium-expiry", { notificados: 0, totalUsers: 0, downgraded }, t0)
+    return NextResponse.json({ ok: true, notificados: 0, downgraded })
+  }
+
+  // Expiration/downgrade is core billing behavior and has already run above.
+  // Missing push configuration should disable notifications only, never expiry.
+  const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ""
+  const vapidPrivate = process.env.VAPID_PRIVATE_KEY || ""
+  if (!vapidPublic || !vapidPrivate) {
+    logCronExecution("cron-premium-expiry", {
+      notificados: 0,
+      totalUsers: allUsers.length,
+      downgraded,
+      notificationsSkipped: "VAPID keys not configured",
+    }, t0)
+    return NextResponse.json({
+      ok: true,
+      notificados: 0,
+      totalUsers: allUsers.length,
+      downgraded,
+      message: "VAPID keys no configuradas; vencimientos procesados sin notificaciones",
+    })
+  }
+
+  let webpush: typeof import("web-push")
+  try {
+    webpush = await import("web-push")
+  } catch {
+    return NextResponse.json({ error: "Error al importar web-push", downgraded }, { status: 500 })
+  }
+  try {
+    webpush.setVapidDetails("mailto:estudiowebpin@gmail.com", vapidPublic, vapidPrivate)
+  } catch {
+    return NextResponse.json({ error: "Error al configurar VAPID", downgraded }, { status: 500 })
+  }
+
+  // Push subscriptions fetched separately (no PostgREST embed — no FK relationship cached)
+  const userIds = allUsers.map((u: ExpiryUser) => u.id)
+  const { data: subRows } = await supabase
+    .from("push_subscriptions")
+    .select("user_id, endpoint, p256dh, auth")
+    .in("user_id", userIds)
+  const subsByUser = new Map<string, PushSub[]>()
+  for (const s of subRows || []) {
+    const key = String(s.user_id)
+    if (!subsByUser.has(key)) subsByUser.set(key, [])
+    subsByUser.get(key)!.push({ endpoint: String(s.endpoint), p256dh: String(s.p256dh), auth: String(s.auth) })
+  }
 
   let notificados = 0
   for (const user of allUsers) {
     const daysLeft = Math.ceil((new Date(user.premium_until).getTime() - Date.now()) / 86400000)
     const expired = daysLeft <= 0
     const isTrialExpired = user.role === "free" && expired
-    const subs = user.push_subscriptions || []
+    const subs = subsByUser.get(user.id) || []
     if (!Array.isArray(subs) || subs.length === 0) continue
 
     const title = expired ? (isTrialExpired ? "⏰ Prueba gratuita vencida" : "⏰ Premium vencido") : "⚠️ Premium próximo a vencer"

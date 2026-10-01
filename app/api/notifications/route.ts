@@ -13,11 +13,13 @@ export async function GET(req: NextRequest) {
   const token = auth.replace("Bearer ", "")
   if (!token) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
-  const tier = await resolveUserTier(token)
+  let tier
+  try { tier = await resolveUserTier(token) } catch { return NextResponse.json({ error: "No autorizado" }, { status: 401 }) }
   if (!tier.userId) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
   const url = new URL(req.url)
-  const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 100)
+  const limitParsed = parseInt(url.searchParams.get("limit") || "50", 10)
+  const limit = Math.min(Number.isFinite(limitParsed) ? limitParsed : 50, 100)
   const unreadOnly = url.searchParams.get("unread") === "true"
 
   const supabase = getSupabaseAdmin()

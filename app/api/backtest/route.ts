@@ -10,9 +10,22 @@ export async function GET(req: NextRequest) {
   const SK = getSupabaseKey()
   if (!SB || !SK) return NextResponse.json({ error: "Config error" }, { status: 500 })
 
+  // Requiere usuario autenticado (cualquier tier: free/trial/premium/admin)
+  const authHeader = req.headers.get("authorization")?.replace("Bearer ", "")
+  if (!authHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  try {
+    const { resolveUserTier } = await import("@/lib/auth/tier")
+    const userTier = await resolveUserTier(authHeader)
+    if (!userTier.userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
   const { searchParams } = new URL(req.url)
   const turno = searchParams.get("turno") || "Primera"
-  const days = Math.min(parseInt(searchParams.get("days") || "90"), 365)
+  const days = Math.min(parseInt(searchParams.get("days") || "90", 10), 365)
 
   try {
     const since = new Date()

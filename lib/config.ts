@@ -45,7 +45,12 @@ export const PLAN_AMOUNTS: Record<string, number> = {
 export const AMOUNT_PLAN_MAP: Record<string, string> = {
   "7000": "15_days",
   "10000": "30_days",
-}
+};
+
+/** Poceada de la Ciudad (Santa Fe) — LOTBA */
+export const POCEADA_GAME_ID = "d0e1f2a3-b4c5-6789-0abc-def012345678";
+export const POCEADA_NUMBERS_COUNT = 8;
+export const POCEADA_MATCHES = [5, 6, 7, 8];
 
 /** Ollama local AI configuration */
 export function getOllamaHost(): string {

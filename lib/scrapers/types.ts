@@ -2,10 +2,11 @@
  * Type definitions for the Quiniela scraping & ingestion pipeline.
  */
 
-export const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"] as const
+export const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"] as const
 export type TurnoType = (typeof TURNOS)[number]
 
 export const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
+export const POCEADA_GAME_ID = "d0e1f2a3-b4c5-6789-0abc-def012345678"
 
 export interface ScrapeResult {
   numbers: number[]

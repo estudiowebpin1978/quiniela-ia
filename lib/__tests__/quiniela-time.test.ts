@@ -3,9 +3,9 @@ import { TURNO_SCHEDULE, ALL_TURNOS } from "@/lib/quiniela-time"
 import { esFeriado, esDiaSinSorteo, todosLosFeriados } from "@/lib/feriados"
 
 describe("TURNO_SCHEDULE", () => {
-  it("has all 5 turnos", () => {
-    expect(ALL_TURNOS).toHaveLength(5)
-    expect(ALL_TURNOS).toEqual(["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"])
+  it("has all 6 turnos (5 quiniela + Poceada)", () => {
+    expect(ALL_TURNOS).toHaveLength(6)
+    expect(ALL_TURNOS).toEqual(["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"])
   })
 
   it("each turno has valid hour and minute", () => {
@@ -19,10 +19,10 @@ describe("TURNO_SCHEDULE", () => {
     }
   })
 
-  it("turnos are in chronological order", () => {
+  it("turnos are in chronological order (ties allowed: Poceada = Nocturna 21:00)", () => {
     const hours = ALL_TURNOS.map(t => TURNO_SCHEDULE[t].artHour + TURNO_SCHEDULE[t].artMinute / 60)
     for (let i = 1; i < hours.length; i++) {
-      expect(hours[i]).toBeGreaterThan(hours[i - 1])
+      expect(hours[i]).toBeGreaterThanOrEqual(hours[i - 1])
     }
   })
 })

@@ -1,59 +1,34 @@
 /**
- * Quad-Consensus Scraper (4-Node Quorum)
+ * Official-Only Scraper (LOTBA)
  *
- * Fetches from FOUR sources in PARALLEL via Promise.allSettled():
- *   1. quinieleando.com.ar
- *   2. numerosenvivo.com.ar
- *   3. loteriadelaciudad.gob.ar (official CABA government)
- *   4. quinielanacionaln.com.ar
+ * Única fuente autorizada: quiniela.loteriadelaciudad.gob.ar
+ *   - HTML de resultados (index.php) → mapeo fecha/turno → sorteo Nº
+ *   - resultados-data.php?sorteo=N   → 20 números (jurisdicción 51 = CABA)
+ * Ver lib/scrapers/lotba-oficial.ts
  *
- * Quorum matrix:
- *   4/4 match       → ✅ APPROVED (highest confidence)
- *   3/4 match       → ✅ APPROVED (strong majority)
- *   2/4 match       → ✅ APPROVED (weak majority)
- *   1/4 responds    → ❌ ABORT (insufficient data)
- *   0/4 responds    → ❌ ABORT (all sources down)
- *   4 different     → ❌ ABORT (anomaly — possible data corruption)
+ * Quorum con 1 fuente:
+ *   - oficial responde (>= 20 números) → ✅ APPROVED
+ *   - no responde / sorteo no publicado → ❌ ABORT (reintenta en próximo cron)
  */
 
-import { parseQuinieleando, parseNumerosEnvivo } from "./parsers"
-import { parseLoteriaOficial, parseQuinielaNacionalN } from "./parsers"
+import { parseOficial } from "./parsers"
 import type { ScraperStrategy } from "./strategy"
 import { isSourceQuarantined, recordSourceResult } from "./circuit-breaker"
 import type { SourceStats, TurnoType, ScrapeResult } from "./types"
 import logger from "@/lib/logger"
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Strategy instances — each source is a self-contained module
+// Strategy instances — official LOTBA source only
 // ══════════════════════════════════════════════════════════════════════════════
+
+const OFFICIAL_SOURCE = "quiniela.loteriadelaciudad.gob.ar"
 
 const STRATEGIES: ScraperStrategy[] = [
   {
-    name: "quinieleando.com.ar",
-    baseUrl: "https://www.quinieleando.com.ar/quinielas/nacional/resultados-de-hoy",
+    name: OFFICIAL_SOURCE,
+    baseUrl: "https://quiniela.loteriadelaciudad.gob.ar/index.php",
     async fetch(fechaISO, fechaUrl, turno) {
-      return parseQuinieleando(fechaISO, fechaUrl, turno)
-    },
-  },
-  {
-    name: "numerosenvivo.com.ar",
-    baseUrl: "https://numerosenvivo.com.ar/quiniela/ciudad",
-    async fetch(fechaISO, fechaUrl, turno) {
-      return parseNumerosEnvivo(fechaISO, fechaUrl, turno)
-    },
-  },
-  {
-    name: "loteriadelaciudad.gob.ar",
-    baseUrl: "https://quiniela.loteriadelaciudad.gob.ar/",
-    async fetch(fechaISO, fechaUrl, turno) {
-      return parseLoteriaOficial(fechaISO, fechaUrl, turno)
-    },
-  },
-  {
-    name: "quinielanacionaln.com.ar",
-    baseUrl: "https://quinielanacionaln.com.ar/",
-    async fetch(fechaISO, fechaUrl, turno) {
-      return parseQuinielaNacionalN(fechaISO, fechaUrl, turno)
+      return parseOficial(fechaISO, fechaUrl, turno)
     },
   },
 ]
@@ -258,22 +233,26 @@ export async function fetchWithConsensus(
     return buildResult("tri_majority", quorum.majorityNumbers, quorum.majoritySource, nodes, quorum, startTime)
   }
 
-  // CASE 3: 1 source responds → ABORT (need at least 2 for quorum)
+  // CASE 3: official source responded → APPROVED (fuente única autorizada)
   if (okCount === 1) {
     const survivor = nodes.find((n) => n.ok)!
-    logger.warn("[tri-consensus] ABORT — only 1 source responded", {
+    if (survivor.name === OFFICIAL_SOURCE) {
+      logger.info("[official] APPROVED — official LOTBA responded", { fecha: fechaISO, turno })
+      return buildResult("tri_majority", survivor.numbers, survivor.name, nodes, quorum, startTime)
+    }
+    logger.warn("[official] ABORT — unexpected non-official survivor", {
       fecha: fechaISO,
       turno,
       survivor: survivor.name,
       duration: Date.now() - startTime,
     })
-    return buildAbortResult("abort_no_quorum", nodes, quorum, `Only 1 source responded: ${survivor.name}`, startTime)
+    return buildAbortResult("abort_no_quorum", nodes, quorum, `Unexpected source: ${survivor.name}`, startTime)
   }
 
   // CASE 4: all sources disagree → anomaly, abort
   if (okCount >= 2 && quorum.matchCount === 1) {
     const detail = nodes.filter(n => n.ok).map((n) => `${n.name}=cabeza:${n.cabeza}`).join(" vs ")
-    logger.error("[tri-consensus] ABORT — ALL SOURCES DIFFER (anomaly)", {
+    logger.error("[official] ABORT — ALL SOURCES DIFFER (anomaly)", {
       fecha: fechaISO,
       turno,
       detail,
@@ -282,12 +261,12 @@ export async function fetchWithConsensus(
     return buildAbortResult("abort_no_quorum", nodes, quorum, `All sources differ: ${detail}`, startTime)
   }
 
-  // CASE 5: 0/4 or no quorum
+  // CASE 5: official source failed / sorteo aún no publicado
   {
     const detail = okCount === 0
-      ? "All 4 sources failed"
+      ? "Official LOTBA source failed or sorteo not published yet"
       : `${quorum.matchCount}/${okCount} agreement — insufficient for quorum`
-    logger.error("[tri-consensus] ABORT — NO QUORUM", {
+    logger.warn("[official] ABORT — waiting for official result", {
       fecha: fechaISO,
       turno,
       okCount,
