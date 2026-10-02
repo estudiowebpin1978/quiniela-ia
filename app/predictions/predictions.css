@@ -395,6 +395,12 @@ body {
 }
 .heatmap-cell:hover { transform: scale(1.15); z-index: 10; }
 .hm-num { font-size: 10px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
+/* Celdas del top del degradé (naranja→amarillo): texto oscuro para contraste */
+.heatmap-cell.hot .hm-num { color: #171029; text-shadow: 0 1px 2px rgba(255,255,255,.5); }
+/* Leyenda del degradé: poca frecuencia → mucha frecuencia */
+.heatmap-legend { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.heatmap-legend .hl-bar { flex: 1; height: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,.12); background: linear-gradient(90deg,#181B30 0%,#4C1D95 30%,#BE185D 55%,#EA580C 78%,#FACC15 100%); }
+.heatmap-legend .hl-lbl { font-size: 9px; color: #94a3b8; font-weight: 800; white-space: nowrap; text-transform: uppercase; letter-spacing: .3px; }
 
 /* ─── Redoblona pair display ────────────────────── */
 .rpair {

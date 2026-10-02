@@ -63,6 +63,32 @@ function getCulturalBadge(num: string): { icon: string; name: string } {
   return { icon: entry.icon, name: entry.name }
 }
 
+// ── Mapa de calor: degradé de frecuencia ─────────────────────────
+// Escala "frío → caliente": azul noche (poca frecuencia) → violeta →
+// rosa → naranja → amarillo (máxima frecuencia del período).
+const HEAT_STOPS: Array<[number, [number, number, number]]> = [
+  [0.0,  [24, 27, 48]],    // #181B30 — sin frecuencia
+  [0.3,  [76, 29, 149]],   // #4C1D95 — violeta
+  [0.55, [190, 24, 93]],   // #BE185D — rosa fuerte
+  [0.78, [234, 88, 12]],   // #EA580C — naranja
+  [1.0,  [250, 204, 21]],  // #FACC15 — máximo
+]
+
+function heatColor(t: number): string {
+  const x = Math.max(0, Math.min(1, t))
+  for (let i = 0; i < HEAT_STOPS.length - 1; i++) {
+    const [p0, c0] = HEAT_STOPS[i]
+    const [p1, c1] = HEAT_STOPS[i + 1]
+    if (x <= p1) {
+      const k = p1 === p0 ? 0 : (x - p0) / (p1 - p0)
+      const c = c0.map((v, j) => Math.round(v + (c1[j] - v) * k))
+      return `rgb(${c[0]},${c[1]},${c[2]})`
+    }
+  }
+  const last = HEAT_STOPS[HEAT_STOPS.length - 1][1]
+  return `rgb(${last[0]},${last[1]},${last[2]})`
+}
+
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
@@ -1008,6 +1034,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .heatmap-cell{aspect-ratio:1;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s}
         .heatmap-cell:hover{transform:scale(1.15);z-index:10}
         .hm-num{font-size:10px;font-weight:800;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+        .heatmap-cell.hot .hm-num{color:#171029;text-shadow:0 1px 2px rgba(255,255,255,.5)}
+        .heatmap-legend{display:flex;align-items:center;gap:8px;margin-top:10px}
+        .heatmap-legend .hl-bar{flex:1;height:10px;border-radius:6px;border:1px solid rgba(255,255,255,.12);background:linear-gradient(90deg,#181B30 0%,#4C1D95 30%,#BE185D 55%,#EA580C 78%,#FACC15 100%)}
+        .heatmap-legend .hl-lbl{font-size:9px;color:#94a3b8;font-weight:800;white-space:nowrap;text-transform:uppercase;letter-spacing:.3px}
         .rpair{font-size:42px;font-weight:900;background:linear-gradient(135deg,#22d3ee,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;letter-spacing:10px;margin:14px 0}
         .rg{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
         .rc{background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:14px;padding:14px 6px;text-align:center;transition:.15s}
@@ -1695,6 +1725,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     (() => {
                       const cells = (dt?.heatmap ?? []);
                       const maxF = Math.max(1, ...cells.map((x) => x.f || 0));
+                      const minF = Math.min(...cells.map((x) => x.f || 0));
+                      const rangoF = Math.max(0, maxF - minF);
                       const sorted = [...cells].sort((a, b) => (b.f || 0) - (a.f || 0));
                       const totalF = sorted.reduce((a, b) => a + (b.f || 0), 0);
                       const pctTop = (k: number) =>
@@ -1704,14 +1736,16 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                           <div className="heatmap-grid">
                             {cells.map((h, i) => {
                               const s = ((typeof h.s === "string" ? { emoji: "", nombre: h.s } : h.s) || undefined) as { emoji?: string; nombre?: string } | undefined;
-                              const intensity = Math.min(1, 0.1 + 0.9 * ((h.f || 0) / maxF));
+                              // 0 = mínima frecuencia del período · 1 = máxima → degradé frío→caliente
+                              const t = rangoF > 0 ? Math.min(1, Math.max(0, ((h.f || 0) - minF) / rangoF)) : 0.5;
+                              const hot = t >= 0.85;
                               return (
                                 <div
                                   key={i}
-                                  className="heatmap-cell"
+                                  className={"heatmap-cell" + (hot ? " hot" : "")}
                                   style={{
-                                    backgroundColor: `rgba(254, 44, 85, ${intensity})`,
-                                    opacity: h.f > 0 ? 1 : 0.3,
+                                    backgroundColor: heatColor(t),
+                                    opacity: h.f > 0 ? 1 : 0.5,
                                   }}
                                   title={`${String(h.n).padStart(2, "0")} ${s?.nombre || ""} ${s?.emoji || ""} (Frecuencia: ${h.f})`}
                                 >
@@ -1720,6 +1754,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                                 </div>
                               );
                             })}
+                          </div>
+                          <div className="heatmap-legend">
+                            <span className="hl-lbl">Menos frecuentes ({minF})</span>
+                            <div className="hl-bar" />
+                            <span className="hl-lbl">Más frecuentes ({maxF})</span>
                           </div>
                           <div className="heatmap-stats">
                             <div style={{fontSize:10,fontWeight:800,color:"#22c55e",marginBottom:6}}>📈 Frecuencia acumulada (top 100)</div>
