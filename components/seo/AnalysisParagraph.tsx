@@ -8,9 +8,9 @@ interface AnalysisParagraphProps {
   turno: string;
   dateStr: string;
   stats: {
-    atrasoActual: number;
-    trendAcceleration: number;
-    intervalDeviation: number;
+    atrasoActual?: number;
+    trendAcceleration?: number;
+    intervalDeviation?: number;
     confidenceScore: number;
   };
   className?: string;
@@ -40,7 +40,7 @@ export function AnalysisParagraph({
 
   const factorTexts: string[] = [];
 
-  if (stats.trendAcceleration > 1.2) {
+  if (typeof stats.trendAcceleration === "number" && stats.trendAcceleration > 1.2) {
     factorTexts.push(
       `Además, el motor detecta una fuerte aceleración de tendencia (${stats.trendAcceleration.toFixed(1)}x), indicando que el patrón de salidas en los últimos 10 sorteos está convergiendo rápidamente.`
     );
@@ -50,24 +50,27 @@ export function AnalysisParagraph({
     );
   }
 
-  if (stats.intervalDeviation > 0) {
+  if (typeof stats.intervalDeviation === "number" && stats.intervalDeviation > 0) {
     factorTexts.push(
       `Es fundamental destacar que su desviación de intervalo (${stats.intervalDeviation}) es positiva, superando el promedio histórico de espera.`
     );
   }
 
   const conclusions = [
-    `Combinando estos 30 factores, el índice de calibración alcanza un ${stats.confidenceScore.toFixed(1)}%, convirtiéndolo en un pronóstico sólido.`,
+    `Combinando estos 20 factores y modelos ML, el índice de calibración alcanza un ${stats.confidenceScore.toFixed(1)}%, convirtiéndolo en un pronóstico sólido.`,
     `El modelo predictivo le asigna una confianza de ${stats.confidenceScore.toFixed(1)}% para el extracto de hoy.`,
     `En conclusión, el cruce de datos arroja un nivel de fiabilidad del ${stats.confidenceScore.toFixed(1)}%, ideal para coberturas de 2 cifras.`,
   ];
 
   const intro = intros[seed % intros.length];
-  const atrasoText = atrasosTexts[(seed + 1) % atrasosTexts.length];
+  const atrasoText =
+    typeof stats.atrasoActual === "number"
+      ? atrasosTexts[(seed + 1) % atrasosTexts.length]
+      : "";
   const factorText = factorTexts.join(" ");
   const conclusion = conclusions[(seed + 2) % conclusions.length];
 
-  const fullText = `${intro} ${atrasoText} ${factorText} ${conclusion}`;
+  const fullText = [intro, atrasoText, factorText, conclusion].filter(Boolean).join(" ");
 
   return (
     <p
@@ -112,7 +115,7 @@ export function TurnoSummary({
   const intros = [
     `Pronóstico Quiniela ${lottery} ${turno} (${dateStr}): Los números con mayor probabilidad estadística son ${numbers}, con una confianza promedio del ${avgConfidence.toFixed(1)}%.`,
     `Para el turno ${turno} de la Quiniela ${lottery} hoy ${dateStr}, el análisis destaca ${numbers} como las jugadas más probables (${avgConfidence.toFixed(1)}% confianza media).`,
-    `El modelo de 30 factores para ${lottery} ${turno} (${dateStr}) sitúa a ${numbers} en el top 3 con ${avgConfidence.toFixed(1)}% de fiabilidad.`,
+    `El modelo de 20 factores para ${lottery} ${turno} (${dateStr}) sitúa a ${numbers} en el top 3 con ${avgConfidence.toFixed(1)}% de fiabilidad.`,
   ];
 
   const factorDescriptions = top3
@@ -133,7 +136,7 @@ export function TurnoSummary({
     .join(". ");
 
   const intro = intros[seed % intros.length];
-  const conclusion = `El algoritmo evalúa frecuencia histórica, tendencias de aceleración, desviaciones de intervalo, patrones de transición y simulaciones Monte Carlo.`;
+  const conclusion = `El algoritmo evalúa frecuencia histórica, ausencia, recencia, tendencia, ciclos, patrones de transición y simulaciones Monte Carlo (bootstrap).`;
 
   const fullText = `${intro} ${factorDescriptions}. ${conclusion}`;
 

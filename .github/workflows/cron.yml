@@ -1,5 +1,12 @@
 name: Scheduled draws scraper + predictor ML
 
+# NOTA: el agendado en producción es EXTERNO (cron-job.org para scrape/
+# precompute/run/verify; Vercel Cron en vercel.json para premium-expiry).
+# Este workflow es SOLO de disparo manual (workflow_dispatch) — no define
+# `schedule:` a propósito para no duplicar los jobs externos. El job
+# check-premium-expiry (antes gateado en un evento schedule que nunca ocurría,
+# es decir, código muerto) fue eliminado: Vercel Cron lo cubre a diario.
+
 on:
   workflow_dispatch:
     inputs:
@@ -20,20 +27,6 @@ on:
         default: 'false'
 
 jobs:
-  check-premium-expiry:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule'
-    steps:
-      - name: Check expiring premium subscriptions
-        run: |
-          url="${{ secrets.APP_URL }}/api/cron-premium-expiry?secret=${{ secrets.CRON_SECRET }}"
-          echo "Calling: $url"
-          response=$(curl -s -w "\n%{http_code}" "$url")
-          http_code=$(tail -n1 <<< "$response")
-          body=$(sed '$d' <<< "$response")
-          echo "HTTP status: $http_code"
-          echo "$body"
-
   fetch-draws:
     runs-on: ubuntu-latest
     steps:

@@ -190,7 +190,7 @@ export default function PredictionPageContent({ fecha, draws }: Props) {
           {loading[selectedTurno] ? (
             <div className="glass-panel-3d p-8 text-center">
               <div className="animate-spin w-10 h-10 border-3 border-emerald-400 border-t-transparent rounded-full mx-auto mb-4"></div>
-              <p className="text-slate-400">Calculando 30 factores estadísticos...</p>
+              <p className="text-slate-400">Calculando 20 factores estadísticos...</p>
             </div>
           ) : predictions[selectedTurno] ? (
             <PredictionCardContent prediction={predictions[selectedTurno]} turno={selectedTurno} fecha={fecha} />
@@ -198,7 +198,7 @@ export default function PredictionPageContent({ fecha, draws }: Props) {
             <div className="glass-panel-3d p-8 text-center">
               <p className="text-slate-400 mb-4">
                 Presiona "Generar Pronóstico" para calcular la predicción
-                basada en 30 factores estadísticos para este turno.
+                basada en 20 factores estadísticos para este turno.
               </p>
               <Button3D variant="primary" onClick={() => fetchPrediction(selectedTurno)}>
                 Generar Pronóstico
@@ -267,18 +267,11 @@ function PredictionCardContent({ prediction, turno, fecha }: { prediction: Predi
   const confidenceLabel = confidence > 75 ? "Alta" : confidence > 50 ? "Moderada" : "Baja";
   const confidenceColor = confidence > 75 ? "text-emerald-400" : confidence > 50 ? "text-amber-400" : "text-rose-400";
 
-  const number = parseInt(prediction.cifras2, 10);
-  const seed = number + new Date(fecha).getDate();
-
-  const deterministicRandom = (s: number, max: number) => {
-    let x = Math.sin(s * 12345.6789) * 10000;
-    return (x - Math.floor(x)) * max;
-  };
-
+  // Solo se muestran estos valores si vienen de la API; nunca se fabrican.
   const stats = {
-    atrasoActual: prediction.atrasoActual || Math.floor(deterministicRandom(seed, 30)) + 1,
-    trendAcceleration: prediction.trendAcceleration || 1.0 + deterministicRandom(seed + 1, 0.5),
-    intervalDeviation: prediction.intervalDeviation || deterministicRandom(seed + 2, 10) - 5,
+    atrasoActual: prediction.atrasoActual,
+    trendAcceleration: prediction.trendAcceleration,
+    intervalDeviation: prediction.intervalDeviation,
     confidenceScore: confidence,
   };
 
@@ -334,8 +327,8 @@ function PredictionCardContent({ prediction, turno, fecha }: { prediction: Predi
       )}
 
       <div className="glass-panel-3d p-4 text-center text-slate-500 text-xs border-t border-slate-800">
-        Análisis basado en 30 factores estadísticos: frecuencia histórica, tendencias, patrones de transición, 
-        entropía, Monte Carlo y más. Solo fines de entretenimiento.
+        Análisis basado en 20 factores estadísticos: frecuencia histórica, ausencia, recencia, tendencia, ciclos, 
+        Markov, co-ocurrencia, posiciones, patrones y Monte Carlo. Solo fines de entretenimiento.
       </div>
     </div>
   );

@@ -213,7 +213,7 @@ export async function GET(req: NextRequest) {
     try {
       const { data: cachedRows } = await supabaseAdmin
         .from("predictions_cache")
-        .select("numeros_2, numeros_3, numeros_4, redoblona, engine_version, confidence, agreement_score, v6_weight, v7_weight, ml_weight, date")
+        .select("numeros_2, numeros_3, numeros_4, redoblona, engine_version, confidence, agreement_score, v6_weight, v7_weight, ml_weight, date, monte_carlo")
         .eq("turno", turnoCanonical)
         .lte("date", targetDate)
         .order("date", { ascending: false })
@@ -270,7 +270,10 @@ export async function GET(req: NextRequest) {
             redoblona,
             score: numeros[0]?.score || 0,
             confidence: cached.confidence || 0,
-            probabilidad_estimada: Math.round((cached.confidence || 0) * 100) / 100,
+            // confidence = consistencia del modelo (NO probabilidad de acierto)
+            confidence_type: "model_consistency",
+            consistencia_modelo: cached.confidence || 0,
+            monte_carlo: cached.monte_carlo ?? null,
             margen_de_error_estimado: Math.round((1 - (cached.agreement_score || 0.5)) * 100) / 100,
             aviso_legal: "Análisis estadístico con fines informativos. La lotería es un evento aleatorio e independiente. No se garantiza ningún resultado. Jugar con responsabilidad.",
             top3: numeros.slice(0, 3).map((n) => n.numero),
@@ -279,10 +282,10 @@ export async function GET(req: NextRequest) {
             _cached: true,
             computed_at: new Date().toISOString(),
             debug: {
-              elapsed_ms: 0,
-              factores_aplicados: 10,
-              motores_activos: 3,
-              total_numeros: 10,
+              elapsed_ms: Date.now() - t0,
+              factores_aplicados: Object.keys(numeros[0]?.factor_attribution || {}).length,
+              motores_activos: [cached.v6_weight, cached.v7_weight, cached.ml_weight].filter((w) => (w || 0) > 0).length,
+              total_numeros: numeros.length,
               determinista: true,
               sorteos_analizados: totalSorteos,
               dynamic_weights: { v6Weight: cached.v6_weight, v7Weight: cached.v7_weight, mlWeight: cached.ml_weight },
@@ -387,8 +390,11 @@ export async function GET(req: NextRequest) {
             numeros,
             heatmap,
             totalSorteos,
-            probabilidad_estimada: 0.65,
-            margen_de_error_estimado: 0.25,
+            confidence: null,
+            confidence_type: "model_consistency",
+            consistencia_modelo: null,
+            monte_carlo: null,
+            margen_de_error_estimado: null,
             aviso_legal: "Análisis estadístico con fines informativos. La lotería es un evento aleatorio e independiente. No se garantiza ningún resultado. Jugar con responsabilidad.",
             engine_version: "omega_v6_live",
             cached: false,

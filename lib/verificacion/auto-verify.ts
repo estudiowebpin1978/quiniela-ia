@@ -82,6 +82,24 @@ function normalizeTurno(t: string): string {
   return base.charAt(0).toUpperCase() + base.slice(1)
 }
 
+/**
+ * Criterio estricto alineado con la RPC verify_predictions_for_draw:
+ *   WON = la CABEZA (primer número sorteado, mod 100) está en tus 2-cifras;
+ *   NEAR_MISS = la cabeza ±1 está en tus picks;
+ *   si no, LOST.
+ * (Antes: WON = total_aciertos > 0, cualquier solape con los 20 números
+ * sorteados → 87,9% de "WON" que el azar puro también alcanza ~88%.)
+ */
+export function estadoQuiniela(resultadoOficial: number[], numeros2: string[]): "WON" | "NEAR_MISS" | "LOST" {
+  if (!resultadoOficial?.length || !numeros2?.length) return "LOST"
+  const cabeza = String(Number(resultadoOficial[0]) % 100).padStart(2, "0")
+  if (numeros2.includes(cabeza)) return "WON"
+  const c = parseInt(cabeza, 10)
+  const plus = String((c + 1) % 100).padStart(2, "0")
+  const minus = String((c - 1 + 100) % 100).padStart(2, "0")
+  return numeros2.includes(plus) || numeros2.includes(minus) ? "NEAR_MISS" : "LOST"
+}
+
 async function _verifyPoceada(supabase: SupabaseClient, fecha: string, normalizedTurno: string, draw: { numbers: number[]; game_id?: string }): Promise<VerificationResult[]> {
   const drawNums2 = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
 
@@ -175,7 +193,14 @@ async function _verifyPoceada(supabase: SupabaseClient, fecha: string, normalize
   }
 
   if (historyInserts.length > 0) {
-    await supabase.from("prediction_history").insert(historyInserts)
+    // Idempotente bajo concurrencia (ver nota en la rama quiniela).
+    const { error: phErr } = await supabase
+      .from("prediction_history")
+      .upsert(historyInserts, { onConflict: "prediction_id", ignoreDuplicates: true })
+    if (phErr) {
+      logger.error("[auto-verify] Poceada history upsert error", { error: phErr.message })
+      return []
+    }
 
     const wonIds = results.filter(r => POCEADA_MATCHES.includes(r.total_aciertos)).map(r => r.id)
     const lostIds = results.filter(r => !POCEADA_MATCHES.includes(r.total_aciertos)).map(r => r.id)
@@ -343,7 +368,7 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
 
     if (pred.user_id) {
       const prev = statsMap.get(pred.user_id) || { total_predictions: 0, total_hits: 0, best_streak: 0, current_streak: 0 }
-      const newStreak = totalAciertos > 0 ? prev.current_streak + 1 : 0
+      const newStreak = estadoQuiniela(draw.numbers, numeros_2) === "WON" ? prev.current_streak + 1 : 0
       statsMap.set(pred.user_id, {
         user_id: pred.user_id,
         total_predictions: prev.total_predictions + 1,
@@ -368,9 +393,17 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
   }
 
   if (historyInserts.length > 0) {
-    const { error: batchError } = await supabase.from("prediction_history").insert(historyInserts)
+    // upsert idempotente: cron-verify y auto-verify pueden procesar las mismas
+    // filas; el unique (prediction_id) + ignoreDuplicates evita el fallo 23505
+    // que antes tumbaba el lote completo.
+    const { error: batchError } = await supabase
+      .from("prediction_history")
+      .upsert(historyInserts, { onConflict: "prediction_id", ignoreDuplicates: true })
     if (batchError) {
-      logger.error("[auto-verify] Batch insert error", { error: batchError.message })
+      // Sin history NO se marca la predicción: queda PENDING y el próximo
+      // tick reintenta (evita "WON sin historial / sin aciertos").
+      logger.error("[auto-verify] Batch upsert error", { error: batchError.message })
+      return []
     }
 
     const statusUpdates = historyInserts.map(h => {
@@ -388,27 +421,24 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
 
       return {
         id: h.prediction_id,
-        status: h.total_aciertos > 0 ? "WON" : "LOST",
+        status: estadoQuiniela(h.resultado_oficial, h.numeros_2),
         aciertos: allPositions,
         verified_at: h.verified_at,
       }
     })
 
-    // Batch UPDATE: group by status, 2 queries max instead of N
-    const wonIds = statusUpdates.filter(u => u.status === "WON").map(u => u.id)
-    const lostIds = statusUpdates.filter(u => u.status === "LOST").map(u => u.id)
+    // Update por fila: status estricto + aciertos de posiciones (antes faltaba
+    // el campo aciertos y no se contemplaba NEAR_MISS).
     const now = new Date().toISOString()
-
-    if (wonIds.length > 0) {
-      await supabase.from("user_predictions")
-        .update({ status: "WON", verified_at: now })
-        .in("id", wonIds)
+    for (const u of statusUpdates) {
+      const { error: updErr } = await supabase.from("user_predictions")
+        .update({ status: u.status, aciertos: u.aciertos, verified_at: u.verified_at })
+        .eq("id", u.id)
+      if (updErr) {
+        logger.error("[auto-verify] status update failed", { error: updErr.message, predId: u.id })
+      }
     }
-    if (lostIds.length > 0) {
-      await supabase.from("user_predictions")
-        .update({ status: "LOST", verified_at: now })
-        .in("id", lostIds)
-    }
+    void now
   }
 
   const statsArray = Array.from(statsMap.values()).filter(s => s.user_id)

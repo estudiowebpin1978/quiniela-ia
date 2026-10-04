@@ -176,7 +176,7 @@ export function PremiumBanner({ onUpgrade }: { onUpgrade: () => void }) {
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12 }}>
-        {["Top 10 con score detallado", "Números de 3 y 4 cifras", "16 motores de IA"].map((feat, i) => (
+        {["Top 10 con score detallado", "Números de 3 y 4 cifras", "3 motores de IA + ensemble"].map((feat, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-secondary)" }}>
             <span style={{ color: "var(--brand-green)", fontWeight: 900 }}>✓</span>
             {feat}

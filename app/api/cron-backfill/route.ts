@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { esDiaSinSorteo } from "@/lib/feriados"
+import { esDiaSinSorteo, esTurnoSinSorteo } from "@/lib/feriados"
 import { TURNOS, GAME_ID, TurnoType } from "@/lib/scrapers/types"
 import { parseNumerosEnvivo, parseNacionalQuiniela } from "@/lib/scrapers/parsers"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
@@ -73,6 +73,12 @@ async function scrapeDate(fechaISO: string): Promise<{ saved: number; errors: nu
   for (const turno of TURNOS) {
     if (await tieneDraw(fechaISO, turno)) {
       details.push(`${turno}: exists`)
+      continue
+    }
+
+    // Feriado parcial (24/12, 31/12): Matutina/Vespertina no existen oficial
+    if (esTurnoSinSorteo(fechaISO, turno)) {
+      details.push(`${turno}: suspendido (feriado parcial)`)
       continue
     }
 

@@ -30,6 +30,23 @@ interface StoredModel {
   modelo: unknown
 }
 
+// ─── Turnos canónicos (Mayúscula inicial) ─────────────────────────────────────
+// La tabla ml_models guarda turnos en formato canónico ("Matutina"); si el
+// caller pasara minúsculas, PostgREST (.eq es case-sensitive) no encontraría
+// el modelo y ML quedaría "no disponible" sin motivo real.
+const TURNOS_CANONICOS: Record<string, string> = {
+  previa: "Previa",
+  primera: "Primera",
+  matutina: "Matutina",
+  vespertina: "Vespertina",
+  nocturna: "Nocturna",
+  poceada: "Poceada",
+}
+
+function turnoCanonico(turno: string): string {
+  return TURNOS_CANONICOS[turno.trim().toLowerCase()] ?? turno
+}
+
 // ─── Load and Predict ───────────────────────────────────────────────────────
 
 export async function getMLPredictions(
@@ -51,7 +68,7 @@ export async function getMLPredictions(
     const { data: modelData } = await supabase
       .from("ml_models")
       .select("modelos")
-      .eq("turno", turno)
+      .eq("turno", turnoCanonico(turno))
       .order("updated_at", { ascending: false })
       .limit(1)
       .single()
@@ -185,7 +202,7 @@ export async function getMLPredictionsForCandidates(
     const { data: modelData } = await supabase
       .from("ml_models")
       .select("modelos")
-      .eq("turno", turno)
+      .eq("turno", turnoCanonico(turno))
       .order("updated_at", { ascending: false })
       .limit(1)
       .single()

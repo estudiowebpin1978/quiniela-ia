@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { ensureFactorHistory } from "@/lib/analisis/factor-evaluation"
+import { estadoQuiniela } from "@/lib/verificacion/auto-verify"
 import logger from "@/lib/logger"
 
 export const maxDuration = 120
@@ -84,6 +85,107 @@ interface TurnoResult {
   reason?: string
 }
 
+interface DrawRow {
+  date?: string
+  numbers: number[]
+  game_id?: string | null
+}
+
+function deriveNums(numbers: number[]) {
+  return {
+    nums2: numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0")),
+    nums3: numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0")),
+    nums4: numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0")),
+  }
+}
+
+/** Construye la fila de prediction_history para una predicción + SU sorteo. */
+function buildHistoryInsert(pred: PredictionRow, draw: DrawRow): HistoryInsert {
+  let numeros: unknown = pred.numeros
+  if (Array.isArray(numeros) && numeros.length === 1 && typeof numeros[0] === "string") {
+    try { numeros = JSON.parse(numeros[0] as string) } catch {}
+  }
+
+  let numeros_2: string[], numeros_3: string[], numeros_4: string[], redoblonas: string[]
+  if (Array.isArray(numeros)) {
+    numeros_2 = numeros.map((n: unknown) => String(n).padStart(2, "0"))
+    numeros_3 = []
+    numeros_4 = []
+    redoblonas = []
+  } else {
+    const obj = (numeros ?? null) as Record<string, unknown> | null
+    numeros_2 = toStrArray(obj?.["2"]).map((n) => n.padStart(2, "0"))
+    numeros_3 = toStrArray(obj?.["3"]).map((n) => n.padStart(3, "0"))
+    numeros_4 = toStrArray(obj?.["4"]).map((n) => n.padStart(4, "0"))
+    redoblonas = toStrArray(obj?.["r"])
+  }
+
+  const { nums2, nums3, nums4 } = deriveNums(draw.numbers)
+
+  const aciertos2 = numeros_2
+    .filter((n: string) => nums2.includes(n))
+    .map((n: string) => ({ numero: n, puesto: nums2.indexOf(n) + 1 }))
+
+  const aciertos3 = numeros_3
+    .filter((n: string) => nums3.includes(n))
+    .map((n: string) => ({ numero: n, puesto: nums3.indexOf(n) + 1 }))
+
+  const aciertos4 = numeros_4
+    .filter((n: string) => nums4.includes(n))
+    .map((n: string) => ({ numero: n, puesto: nums4.indexOf(n) + 1 }))
+
+  const aciertosRedoblona: { cabeza: string; acompanante: string }[] = []
+  for (const rb of redoblonas) {
+    const parts = rb.split("-")
+    if (parts.length === 2) {
+      const cabeza = parts[0].padStart(2, "0")
+      const acompanante = parts[1].padStart(2, "0")
+      if (nums2.includes(cabeza) && nums2.includes(acompanante)) {
+        aciertosRedoblona.push({ cabeza, acompanante })
+      }
+    }
+  }
+
+  const totalAciertos = aciertos2.length + aciertos3.length + aciertos4.length + aciertosRedoblona.length
+
+  return {
+    prediction_id: pred.id,
+    user_id: pred.user_id,
+    date: pred.date,
+    turno: pred.turno,
+    numeros_2,
+    numeros_3,
+    numeros_4,
+    redoblonas,
+    resultado_oficial: draw.numbers,
+    aciertos_2: aciertos2,
+    aciertos_3: aciertos3,
+    aciertos_4: aciertos4,
+    aciertos_redoblona: aciertosRedoblona,
+    total_aciertos: totalAciertos,
+    verified: true,
+    verified_at: new Date().toISOString(),
+    game_id: draw.game_id || "ac593199-c299-4f03-b1b7-8675fe4fa6d9",
+  }
+}
+
+function posicionesDe(h: HistoryInsert): number[] {
+  const positions2 = (h.aciertos_2 || []).map((a) => a.puesto)
+  const positions3 = (h.aciertos_3 || []).map((a) => a.puesto)
+  const positions4 = (h.aciertos_4 || []).map((a) => a.puesto)
+  return [...new Set([...positions2, ...positions3, ...positions4])].filter((p) => p >= 1 && p <= 20)
+}
+
+/**
+ * Estado final de una predicción. Criterio estricto alineado con la RPC
+ * verify_predictions_for_draw: la rama TS antes usaba total_aciertos > 0
+ * (87,9% de "WON" que el azar también alcanza).
+ */
+function estadoFinal(h: HistoryInsert, esPoceada: boolean): "WON" | "NEAR_MISS" | "LOST" {
+  if (esPoceada) return h.total_aciertos >= 5 ? "WON" : "LOST"
+  return estadoQuiniela(h.resultado_oficial, h.numeros_2)
+}
+
 // ─── Verify a single turno for a given fecha ────────────────────────────────
 
 async function verificarTurno(
@@ -92,22 +194,23 @@ async function verificarTurno(
   turno: string,
   dates: string[],
 ): Promise<TurnoResult> {
-  // 1. Get draw numbers for this turno
-  const { data: draws } = await supabase
+  // 1. Sorteos oficiales de la ventana (hoy + catch-up). CADA predicción se
+  // verifica contra el sorteo de SU fecha (antes, con catch-up, se usaba el
+  // sorteo de hoy para predicciones de días pasados → resultado_oficial falso).
+  const { data: drawRows } = await supabase
     .from("draws")
-    .select("numbers, turno, game_id")
-    .eq("date", fecha)
+    .select("numbers, turno, game_id, date")
+    .in("date", dates)
     .ilike("turno", turno)
-    .limit(1)
 
-  if (!draws?.length || !draws[0].numbers?.length) {
-    return { turno, status: "no_draw", reason: `No hay sorteo para ${turno} en ${fecha}` }
+  const drawsByDate = new Map<string, DrawRow>()
+  for (const d of (drawRows || []) as DrawRow[]) {
+    if (d?.date && Array.isArray(d.numbers) && d.numbers.length > 0) drawsByDate.set(d.date, d)
   }
 
-  const draw = draws[0]
-  const nums2 = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
-  const nums3 = draw.numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
-  const nums4 = draw.numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
+  if (!drawsByDate.has(fecha)) {
+    return { turno, status: "no_draw", reason: `No hay sorteo para ${turno} en ${fecha}` }
+  }
 
   // 2. Get PENDING predictions for this turno (incl. catch-up dates)
   const { data: allPredictions } = await supabase
@@ -117,161 +220,160 @@ async function verificarTurno(
     .or("status.eq.PENDING,status.is.null")
     .in("turno", [turno])
 
-  if (!allPredictions?.length) {
-    return { turno, status: "no_predictions", reason: `No hay predicciones pendientes para ${fecha}` }
-  }
-
   const normalizedTurno = normalizeTurno(turno)
-  const predictions = (allPredictions as PredictionRow[]).filter(
+  const predictions = ((allPredictions || []) as PredictionRow[]).filter(
     (p) => normalizeTurno(p.turno || "") === normalizedTurno,
   )
 
-  if (!predictions.length) {
-    return { turno, status: "no_predictions", reason: `No hay predicciones para turno ${turno} en ${fecha}` }
-  }
-
-  // 3. Check which are already verified
-  const predIds = predictions.map((p) => p.id).filter(Boolean)
-  const { data: existing } = await supabase
-    .from("prediction_history")
-    .select("prediction_id")
-    .in("prediction_id", predIds)
-
-  const verifiedSet = new Set((existing || []).map((e) => e.prediction_id))
-  const unverified = predictions.filter((p) => !verifiedSet.has(p.id))
-
-  if (unverified.length === 0) {
-    return { turno, status: "already_verified", verified: 0, reason: `${verifiedSet.size} ya verificadas` }
-  }
-
-  // 4. Verify each unverified prediction
+  let yaVerificadas = 0
   const historyInserts: HistoryInsert[] = []
 
-  for (const pred of unverified) {
-    let numeros: unknown = pred.numeros
-    if (Array.isArray(numeros) && numeros.length === 1 && typeof numeros[0] === "string") {
-      try { numeros = JSON.parse(numeros[0] as string) } catch {}
+  if (predictions.length > 0) {
+    // 3. Check which are already verified
+    const predIds = predictions.map((p) => p.id).filter(Boolean)
+    const { data: existing } = await supabase
+      .from("prediction_history")
+      .select("prediction_id")
+      .in("prediction_id", predIds)
+
+    const verifiedSet = new Set((existing || []).map((e) => e.prediction_id))
+    yaVerificadas = verifiedSet.size
+    const unverified = predictions.filter((p) => !verifiedSet.has(p.id))
+
+    // 4. Build history rows (una por predicción, contra SU sorteo)
+    for (const pred of unverified) {
+      const predDraw = drawsByDate.get(pred.date)
+      if (!predDraw) continue // sin sorteo oficial para esa fecha aún
+      historyInserts.push(buildHistoryInsert(pred, predDraw))
     }
-
-    let numeros_2: string[], numeros_3: string[], numeros_4: string[], redoblonas: string[]
-    if (Array.isArray(numeros)) {
-      numeros_2 = numeros.map((n: unknown) => String(n).padStart(2, "0"))
-      numeros_3 = []
-      numeros_4 = []
-      redoblonas = []
-    } else {
-      const obj = (numeros ?? null) as Record<string, unknown> | null
-      numeros_2 = toStrArray(obj?.["2"]).map((n) => n.padStart(2, "0"))
-      numeros_3 = toStrArray(obj?.["3"]).map((n) => n.padStart(3, "0"))
-      numeros_4 = toStrArray(obj?.["4"]).map((n) => n.padStart(4, "0"))
-      redoblonas = toStrArray(obj?.["r"])
-    }
-
-    const aciertos2 = numeros_2
-      .filter((n: string) => nums2.includes(n))
-      .map((n: string) => ({ numero: n, puesto: nums2.indexOf(n) + 1 }))
-
-    const aciertos3 = numeros_3
-      .filter((n: string) => nums3.includes(n))
-      .map((n: string) => ({ numero: n, puesto: nums3.indexOf(n) + 1 }))
-
-    const aciertos4 = numeros_4
-      .filter((n: string) => nums4.includes(n))
-      .map((n: string) => ({ numero: n, puesto: nums4.indexOf(n) + 1 }))
-
-    const aciertosRedoblona: { cabeza: string; acompanante: string }[] = []
-    for (const rb of redoblonas) {
-      const parts = rb.split("-")
-      if (parts.length === 2) {
-        const cabeza = parts[0].padStart(2, "0")
-        const acompanante = parts[1].padStart(2, "0")
-        if (nums2.includes(cabeza) && nums2.includes(acompanante)) {
-          aciertosRedoblona.push({ cabeza, acompanante })
-        }
-      }
-    }
-
-    const totalAciertos = aciertos2.length + aciertos3.length + aciertos4.length + aciertosRedoblona.length
-
-    historyInserts.push({
-      prediction_id: pred.id,
-      user_id: pred.user_id,
-      date: pred.date,
-      turno: pred.turno,
-      numeros_2,
-      numeros_3,
-      numeros_4,
-      redoblonas,
-      resultado_oficial: draw.numbers,
-      aciertos_2: aciertos2,
-      aciertos_3: aciertos3,
-      aciertos_4: aciertos4,
-      aciertos_redoblona: aciertosRedoblona,
-      total_aciertos: totalAciertos,
-      verified: true,
-      verified_at: new Date().toISOString(),
-      game_id: draw.game_id || "ac593199-c299-4f03-b1b7-8675fe4fa6d9",
-    })
   }
 
-  // 5. Batch insert history
+  // 4b. Backfill: filas con status ya marcado fuera de este flujo (la RPC
+  // verify_predictions_for_draw marca status pero NO escribe prediction_history
+  // ni stats) → poblar historial + stats exactamente una vez.
+  const backfillInserts: HistoryInsert[] = []
+  const backfillSinAciertos: HistoryInsert[] = []
+  try {
+    const { data: marcadas } = await supabase
+      .from("user_predictions")
+      .select("id, user_id, date, turno, numeros, aciertos")
+      .in("date", dates)
+      .in("turno", [turno])
+      .in("status", ["WON", "LOST", "NEAR_MISS"])
+
+    const marcadasRows = (marcadas || []) as (PredictionRow & { aciertos: number[] | null })[]
+    if (marcadasRows.length > 0) {
+      const { data: existing2 } = await supabase
+        .from("prediction_history")
+        .select("prediction_id")
+        .in("prediction_id", marcadasRows.map((r) => r.id))
+      const have = new Set((existing2 || []).map((e) => e.prediction_id))
+      for (const r of marcadasRows) {
+        if (have.has(r.id)) continue
+        const predDraw = drawsByDate.get(r.date)
+        if (!predDraw) continue
+        const h = buildHistoryInsert(r, predDraw)
+        backfillInserts.push(h)
+        if (!Array.isArray(r.aciertos) || r.aciertos.length === 0) backfillSinAciertos.push(h)
+      }
+    }
+  } catch (e) {
+    logger.warn("[cron-verify] backfill scan failed", { turno, error: String(e) })
+  }
+
+  const totalInserts = [...historyInserts, ...backfillInserts]
+
+  if (totalInserts.length === 0) {
+    if (yaVerificadas > 0) {
+      return { turno, status: "already_verified", verified: 0, reason: `${yaVerificadas} ya verificadas` }
+    }
+    return { turno, status: "no_predictions", reason: `No hay predicciones pendientes para ${fecha}` }
+  }
+
+  // 5. upsert idempotente: dos verificadores concurrentes (cron-verify +
+  // auto-verify) no duplican filas (unique prediction_id + ignoreDuplicates) y
+  // SOLO el escritor que realmente inserta incrementa stats → exactamente una
+  // vez bajo carrera. Antes: .insert() en lote → 23505 tumbaba todo el lote.
   let predUpdateErrors = 0
-  if (historyInserts.length > 0) {
-    const { error: insertErr } = await supabase.from("prediction_history").insert(historyInserts)
-    if (insertErr) {
-      logger.error("[cron-verify] insert error", { error: insertErr.message, turno })
-      return { turno, status: "error", reason: insertErr.message }
-    }
+  const { data: insertedRows, error: insertErr } = await supabase
+    .from("prediction_history")
+    .upsert(totalInserts, { onConflict: "prediction_id", ignoreDuplicates: true })
+    .select("prediction_id, user_id, total_aciertos")
 
-    // 5b. Batch update user_predictions
-    // NOTE: supabase upsert(onConflict:"id") fails on this table (not-null date
-    // violation on the insert path) — use explicit updates keyed by id instead.
-    const isPoceada = turno === "Poceada" || draw.game_id === "d0e1f2a3-b4c5-6789-0abc-def012345678"
-    for (const h of historyInserts) {
-      const positions2 = (h.aciertos_2 || []).map((a) => a.puesto)
-      const positions3 = (h.aciertos_3 || []).map((a) => a.puesto)
-      const positions4 = (h.aciertos_4 || []).map((a) => a.puesto)
-      const aciertosArr = [...new Set([...positions2, ...positions3, ...positions4])].filter((p) => p >= 1 && p <= 20)
-      const won = isPoceada ? h.total_aciertos >= 5 : h.total_aciertos > 0
+  if (insertErr) {
+    logger.error("[cron-verify] upsert error", { error: insertErr.message, turno })
+    return { turno, status: "error", reason: insertErr.message }
+  }
 
-      const { error: updErr } = await supabase
-        .from("user_predictions")
-        .update({ status: won ? "WON" : "LOST", aciertos: aciertosArr, verified_at: h.verified_at })
-        .eq("id", h.prediction_id)
+  const insertedIds = new Set<string>(
+    ((insertedRows || []) as { prediction_id: string }[]).map((r) => r.prediction_id),
+  )
+  const hById = new Map(totalInserts.map((h) => [h.prediction_id, h] as const))
+  const esPoceada = (h: HistoryInsert) =>
+    turno === "Poceada" || h.game_id === "d0e1f2a3-b4c5-6789-0abc-def012345678"
 
-      if (updErr) {
-        predUpdateErrors++
-        logger.error("[cron-verify] update user_predictions error", { error: updErr.message, turno, predId: h.prediction_id })
-      }
-    }
+  // 5b. status estricto SOLO para filas que venían de PENDING (el backfill ya
+  // tiene status marcado por la RPC y no se toca). Antes: total_aciertos > 0.
+  for (const h of historyInserts) {
+    const estado = estadoFinal(h, esPoceada(h))
+    const { error: updErr } = await supabase
+      .from("user_predictions")
+      .update({ status: estado, aciertos: posicionesDe(h), verified_at: h.verified_at })
+      .eq("id", h.prediction_id)
 
-    // 5c. Batch update user_stats via single RPC with arrays
-    const hitsMap = new Map<string, number>()
-    for (const h of historyInserts) {
-      if (!h.user_id) continue
-      hitsMap.set(h.user_id, (hitsMap.get(h.user_id) || 0) + h.total_aciertos)
-    }
-
-    for (const [userId, totalHits] of hitsMap) {
-      try {
-        await supabase.rpc("increment_user_stats" as never, {
-          p_user_id: userId,
-          p_predictions_increment: 1,
-          p_hits_increment: totalHits,
-          p_is_hit: totalHits > 0,
-          p_verified_at: new Date().toISOString(),
-        } as never)
-      } catch (e) {
-        logger.error("[cron-verify] Failed to update user_stats", { userId, error: String(e) })
-      }
+    if (updErr) {
+      predUpdateErrors++
+      logger.error("[cron-verify] update user_predictions error", { error: updErr.message, turno, predId: h.prediction_id })
     }
   }
+
+  // 5c. Completar aciertos en filas del backfill (la RPC deja aciertos NULL
+  // en quiniela → "predicción verificada sin aciertos").
+  for (const h of backfillSinAciertos) {
+    if (!insertedIds.has(h.prediction_id)) continue
+    const { error: acErr } = await supabase
+      .from("user_predictions")
+      .update({ aciertos: posicionesDe(h) })
+      .eq("id", h.prediction_id)
+    if (acErr) logger.warn("[cron-verify] backfill aciertos failed", { turno, error: acErr.message })
+  }
+
+  // 5d. stats: EXACTAMENTE UNA VEZ — solo filas realmente insertadas por esta
+  // corrida (el upsert con ignoreDuplicates devuelve solo las nuevas).
+  const statsPorUsuario = new Map<string, { preds: number; hits: number; won: boolean }>()
+  for (const r of ((insertedRows || []) as { prediction_id: string; user_id: string | null; total_aciertos: number }[])) {
+    if (!r.user_id) continue
+    const h = hById.get(r.prediction_id)
+    const estado = h ? estadoFinal(h, esPoceada(h)) : "LOST"
+    const cur = statsPorUsuario.get(r.user_id) || { preds: 0, hits: 0, won: false }
+    cur.preds++
+    cur.hits += r.total_aciertos || 0
+    cur.won = cur.won || estado === "WON"
+    statsPorUsuario.set(r.user_id, cur)
+  }
+
+  for (const [userId, s] of statsPorUsuario) {
+    try {
+      await supabase.rpc("increment_user_stats" as never, {
+        p_user_id: userId,
+        p_predictions_increment: s.preds,
+        p_hits_increment: s.hits,
+        p_is_hit: s.won,
+        p_verified_at: new Date().toISOString(),
+      } as never)
+    } catch (e) {
+      logger.error("[cron-verify] Failed to update user_stats", { userId, error: String(e) })
+    }
+  }
+
+  const backfilled = backfillInserts.filter((h) => insertedIds.has(h.prediction_id)).length
+  const verifiedTotal = historyInserts.length + backfilled
 
   if (predUpdateErrors > 0) {
-    return { turno, status: "error", verified: historyInserts.length, reason: `${predUpdateErrors} user_predictions updates failed` }
+    return { turno, status: "error", verified: verifiedTotal, reason: `${predUpdateErrors} user_predictions updates failed` }
   }
 
-  return { turno, status: "verified", verified: historyInserts.length }
+  return { turno, status: "verified", verified: verifiedTotal }
 }
 
 // ─── Main endpoint ──────────────────────────────────────────────────────────

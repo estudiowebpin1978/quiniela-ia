@@ -24,7 +24,15 @@ const OLLAMA_MODEL = () => (process.env.OLLAMA_MODEL || "llama3.2:3b").replace(/
 const GROQ_API_KEY = () => (process.env.GROQ_API_KEY || "").replace(/"/g, "").trim()
 const GEMINI_API_KEY = () => (process.env.GEMINI_API_KEY || "").replace(/"/g, "").trim()
 
-const TURNOS = ["previa", "primera", "matutina", "vespertina", "nocturna"]
+const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
+
+// ml_models guarda turnos canónicos ("Matutina"); PostgREST es case-sensitive
+// y una variante en minúscula duplicaría la fila o no encontraría el modelo.
+function turnoCanonico(turno: string): string {
+  const t = (turno || "").trim().toLowerCase()
+  const hit = TURNOS.find((x) => x.toLowerCase() === t)
+  return hit ?? (t ? turno.trim() : turno)
+}
 
 interface TrainResult {
   turno: string
@@ -273,6 +281,7 @@ async function persistToSupabase(turno: string, modelos: MLCachedModel[]): Promi
   const SB = SB_URL()
   const SK = SB_KEY()
   if (!SB || !SK || !modelos.length) return false
+  turno = turnoCanonico(turno) // canónico: evita duplicados (previa vs Previa)
 
   try {
     // Try upsert on public.ml_models (base table), fall back to api.ml_models (view)
@@ -339,6 +348,7 @@ export async function loadFromSupabase(turno: string): Promise<MLCachedModel[] |
   const SB = SB_URL()
   const SK = SB_KEY()
   if (!SB || !SK) return null
+  turno = turnoCanonico(turno) // lookup canónico (eq. es case-sensitive)
 
   try {
     const res = await fetch(

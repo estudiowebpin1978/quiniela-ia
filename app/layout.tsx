@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     template: "%s | Quiniela IA",
   },
   description:
-    "Predicciones inteligentes y análisis de 30 factores estadísticos en tiempo real para la Quiniela Nacional y Ciudad de Buenos Aires. Números probables para 2, 3 y 4 cifras.",
+    "Predicciones inteligentes y análisis de 20 factores estadísticos con Machine Learning en tiempo real para la Quiniela Nacional y Ciudad de Buenos Aires. Números probables para 2, 3 y 4 cifras.",
   keywords: [
     // Principales / Alto Volumen
     "pronostico quiniela nacional",
@@ -67,7 +67,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Quiniela IA | Pronósticos y Cálculos Matemáticos",
     description:
-      "Algoritmo predictivo de 30 factores estadísticos para la Quiniela Nacional de Buenos Aires.",
+      "Algoritmo predictivo de 20 factores estadísticos con Machine Learning para la Quiniela Nacional de Buenos Aires.",
     images: [`${BASE_URL}/icon-512.png`],
   },
   robots: {
@@ -121,7 +121,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               operatingSystem: "Web",
               applicationCategory: "UtilitiesApplication",
               description:
-                "Motor de cálculo y análisis estadístico en tiempo real para predicciones de Quiniela Nacional. Algoritmo de 30 factores con Monte Carlo y análisis probabilístico.",
+                "Motor de cálculo y análisis estadístico en tiempo real para predicciones de Quiniela Nacional. Algoritmo de 20 factores y Machine Learning con Monte Carlo y análisis probabilístico.",
               url: BASE_URL,
               offers: {
                 "@type": "Offer",
@@ -135,8 +135,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 url: BASE_URL,
               },
               featureList: [
-                "Análisis de 30 factores estadísticos",
-                "Simulaciones Monte Carlo (5000+ iteraciones)",
+                "Análisis de 20 factores estadísticos + Machine Learning",
+                "Simulaciones Monte Carlo (5.000 iteraciones, bootstrap)",
                 "Predicciones 2, 3 y 4 cifras",
                 "5 turnos: Previa, Primera, Matutina, Vespertina, Nocturna",
                 "Historial de resultados oficiales",
@@ -153,7 +153,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               "@type": "Dataset",
               name: "Quiniela Nacional - Datos Históricos y Predicciones",
               description:
-                "Base de datos de resultados históricos y predicciones estadísticas para la Quiniela Nacional (Ciudad y Provincia de Buenos Aires). Incluye 5 turnos diarios con 20 números cada uno.",
+                "Base de datos de resultados históricos y predicciones estadísticas para la Quiniela Nacional (Ciudad y Provincia de Buenos Aires). Incluye los 5 turnos de cada día con sorteo, con 20 números cada uno.",
               url: BASE_URL,
               creator: {
                 "@type": "Organization",

@@ -88,7 +88,7 @@ export async function sendWelcomeEmail(to: string, name: string): Promise<EmailR
     </div>
     <div class="card">
       <p style="color:#e2e8f0;font-size:14px;line-height:1.6;margin:0">
-        Quiniela IA usa <strong>30 factores estadísticos + Machine Learning</strong> para generarte predicciones personalizadas de la Quiniela Nacional.
+        Quiniela IA usa <strong>20 factores estadísticos + Machine Learning</strong> para generarte predicciones personalizadas de la Quiniela Nacional.
       </p>
     </div>
     <div style="text-align:center;margin:24px 0">
@@ -97,10 +97,10 @@ export async function sendWelcomeEmail(to: string, name: string): Promise<EmailR
     <div class="card" style="display:flex;gap:12px;text-align:center">
       <div class="stat" style="flex:1">
         <div class="stat-value">5</div>
-        <div class="stat-label">Sorteos diarios</div>
+        <div class="stat-label">Turnos por día con sorteo</div>
       </div>
       <div class="stat" style="flex:1">
-        <div class="stat-value">30</div>
+        <div class="stat-value">20</div>
         <div class="stat-label">Factores IA</div>
       </div>
       <div class="stat" style="flex:1">
@@ -216,7 +216,7 @@ export async function sendReengagementEmail(
     <div class="card" style="text-align:center">
       <p style="color:#94a3b8;font-size:13px;margin:0">
         ⭐ Tu mejor turno: <strong>${data.bestTurno}</strong><br>
-        🎯 Hay 5 sorteos hoy — ¡no los dejes pasar!
+        🎯 Cada día con sorteo tiene 5 turnos — ¡no los dejes pasar!
       </p>
     </div>
     <div class="footer">

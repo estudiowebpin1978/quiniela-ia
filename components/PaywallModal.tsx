@@ -10,7 +10,7 @@ type Props = {
 
 const PLANS = [
   { key: "15_days", label: "Pase 15 Días", price: "$7.000", days: "15 días de acceso", color: "#a855f7", pricePerDay: "$467/día" },
-  { key: "30_days", label: "Pase 30 Días", price: "$10.000", days: "30 días · Todos los turnos", color: "#22c55e", pricePerDay: "$333/día", badge: "MEJOR VALOR", originalPrice: "$14.000", savings: "Ahorras 30% vs comprar dos de 15 días" },
+  { key: "30_days", label: "Pase 30 Días", price: "$10.000", days: "30 días · Los 5 turnos", color: "#22c55e", pricePerDay: "$333/día", badge: "MEJOR VALOR", originalPrice: "$14.000", savings: "Ahorras 30% vs comprar dos de 15 días" },
 ]
 
 const ALIAS = "quinielaia"
@@ -94,7 +94,7 @@ export default function PaywallModal({ open, onClose, userId }: Props) {
                 Desbloqueá el análisis completo
               </h2>
               <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.6 }}>
-                <strong style={{ color: "#a855f7" }}>30 factores estadísticos</strong> + <strong style={{ color: "#a855f7" }}>Machine Learning</strong> para cada sorteo.
+                <strong style={{ color: "#a855f7" }}>20 factores estadísticos</strong> + <strong style={{ color: "#a855f7" }}>Machine Learning</strong> para cada sorteo.
               </p>
             </div>
 
@@ -150,7 +150,7 @@ export default function PaywallModal({ open, onClose, userId }: Props) {
                 {p.badge && (
                   <div style={{ marginTop: 10, padding: "8px 12px", background: "rgba(34,197,94,.12)", borderRadius: 8, border: "1px solid rgba(34,197,94,.2)" }}>
                     <div style={{ fontSize: 11, color: "#4ade80", lineHeight: 1.5 }}>
-                      <strong>~60 sorteos</strong> (Previa, Primera, Matutina, Vespertina, Nocturna) en 30 días vs ~30 en 15 días. Más datos = predicciones más precisas.
+                      <strong>+100 sorteos</strong> (Previa, Primera, Matutina, Vespertina, Nocturna) en 30 días vs +50 en 15 días (domingos y feriados no tienen sorteo). Más datos = predicciones más precisas.
                     </div>
                   </div>
                 )}

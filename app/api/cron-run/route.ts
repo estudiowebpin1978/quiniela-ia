@@ -31,6 +31,8 @@ import { TURNOS_ORDER, getDependency, dateART } from "@/lib/quiniela-timeline"
 import logger from "@/lib/logger"
 import { LOTBA } from "@/lib/config/lotba"
 import { SUENOS } from "@/lib/suenos"
+import { runMonteCarlo } from "@/lib/analisis/monte-carlo"
+import { hashSeed } from "@/lib/math/seeded-rng"
 
 export const maxDuration = 300
 
@@ -269,28 +271,20 @@ async function runPrecompute(
   turno: string,
   today: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  // 1. Get last draw for context seed
+  // 1. Semilla determinista por día+turno (antes: hash del último id UUID,
+  // aleatorio → cambiaba entre corridas al insertarse cualquier fila)
   const turnGameId = turno === "Poceada" ? "d0e1f2a3-b4c5-6789-0abc-def012345678" : GAME_ID
-  const { data: lastDraw } = await supabase
-    .from("draws")
-    .select("id")
-    .order("id", { ascending: false })
-    .limit(1)
-    .single()
+  const ctxSeed = hashSeed(today, turno)
 
-  if (!lastDraw) return { ok: false, error: "No draws in database" }
-
-  const lastDrawId = lastDraw.id as string
-  const ctxSeed = (lastDrawId.split("").reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0) +
-    turno.split("").reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0)) % 100000
-
-  // 2. Fetch historical draws
+  // 2. Histórico COMPLETO del turno con fecha estrictamente anterior a hoy
+  // (antes: .lte("id", lastDrawId) con UUIDs aleatorios → subconjunto
+  // arbitrario del histórico, no determinista y con cambio entre corridas)
   const { data: histDraws } = await supabase
     .from("draws")
     .select("id, date, turno, numbers")
     .eq("turno", turno)
-    .eq("game_id", turno === "Poceada" ? "d0e1f2a3-b4c5-6789-0abc-def012345678" : "ac593199-c299-4f03-b1b7-8675fe4fa6d9")
-    .lte("id", lastDrawId)
+    .eq("game_id", turnGameId)
+    .lt("date", today)
     .order("date", { ascending: true })
 
   const minDraws = turno === "Poceada" ? 3 : 10
@@ -377,10 +371,100 @@ async function runPrecompute(
     else allNums.set(p.n, { ...p, score: p.score * engineWeights.ML })
   }
 
-  const blended = Array.from(allNums.values()).sort((a, b) => b.score - a.score)
-  const top10 = blended.slice(0, 10)
+  const blended = Array.from(allNums.values()).sort((a, b) => b.score - a.score).slice(0, 10)
 
-  if (top10.length === 0) return { ok: false, error: "No predictions generated" }
+  if (blended.length === 0) return { ok: false, error: "No predictions generated" }
+
+  // Log por motor contra el sorteo de HOY de este turno (si ya existe el
+  // resultado): alimenta engine_predictions_log → recalculate_engine_performance
+  // → pesos dinámicos. Mismo camino que cron-precompute.
+  try {
+    const { data: todayDraw } = await supabase
+      .from("draws")
+      .select("id")
+      .eq("turno", turno)
+      .eq("date", today)
+      .eq("game_id", turnGameId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (todayDraw?.id) {
+      const v6Nums = (v6Rows || []).slice(0, 10).map((r) => (r as Record<string, unknown>).numero as number)
+      const v7Nums = v7Predictions.slice(0, 10).map((p) => p.n)
+      const mlNums = mlPredictions.slice(0, 10).map((p) => p.n)
+      const { logEnginePredictions, updateEnginePerformance } = await import("@/lib/ensemble/meta-ensemble")
+      await logEnginePredictions(todayDraw.id as string, turno, v6Nums, v7Nums, mlNums)
+      await updateEnginePerformance()
+    }
+  } catch (e) {
+    logger.warn("[cron-run] engine log failed (non-fatal)", { turno, error: String(e) })
+  }
+
+  // Meta-diversidad real (MMR determinista): MISMA regla que cron-precompute
+  // para que ambos writers sirvan el mismo orden ante empates de score
+  // (antes cada writer ordenaba distinto → el top-10 "parpadeaba").
+  const maxScore = blended[0]?.score || 1
+  const minScore = blended[blended.length - 1]?.score || 0
+  const diversityRatio = maxScore > 0 ? (maxScore - minScore) / maxScore : 0
+
+  const lambdaMMR = 0.7
+  const selected: typeof blended = []
+  const remaining = [...blended]
+  while (selected.length < 10 && remaining.length > 0) {
+    let bestMMR = -Infinity
+    let bestIdx = 0
+    for (let i = 0; i < remaining.length; i++) {
+      const scoreNorm = remaining[i].score / maxScore
+      const maxSim = selected.length > 0 ? Math.max(...selected.map((s) => {
+        const fa1 = remaining[i].factor_attribution as Record<string, number> || {}
+        const fa2 = s.factor_attribution as Record<string, number> || {}
+        const keys = Object.keys(fa1).filter(k => fa2.hasOwnProperty(k))
+        if (keys.length === 0) return 0
+        const avgDiff = keys.reduce((acc, k) => acc + Math.abs((fa1[k] || 0) - (fa2[k] || 0)), 0) / keys.length
+        return 1 - Math.min(avgDiff, 1)
+      })) : 0
+      const mmr = lambdaMMR * scoreNorm - (1 - lambdaMMR) * maxSim
+      if (mmr > bestMMR) {
+        bestMMR = mmr
+        bestIdx = i
+      }
+    }
+    selected.push(remaining[bestIdx])
+    remaining.splice(bestIdx, 1)
+  }
+  const top10 = selected.slice(0, 10)
+  if (diversityRatio < 0.05) logger.info("[cron-run] Meta-diversidad MMR aplicada", { turno, diversityRatio, lambdaMMR, selectedCount: selected.length })
+
+  // Agreement + consistencia del modelo (mismas fórmulas que
+  // cron-precompute; antes: p_confidence null + p_agreement_score 0.8
+  // hardcodeado)
+  const v6Top10 = new Set<number>(
+    (v6Rows || []).slice(0, 10).map((r) => (r as Record<string, unknown>).numero as number)
+  )
+  const v7Top10 = new Set<number>(v7Predictions.slice(0, 10).map((p) => p.n))
+  const mlTop10 = new Set<number>(mlPredictions.slice(0, 10).map((p) => p.n))
+  let agreementCount = 0
+  for (const num of v6Top10) {
+    if (v7Top10.has(num) || mlTop10.has(num)) agreementCount++
+  }
+  const agreement = agreementCount / Math.max(v6Top10.size, 1)
+
+  const modelConsistency = Math.min(
+    1,
+    Math.max(
+      0,
+      (Math.min(histDraws.length, 100) / 100) * 0.5 + Math.max(0, Math.min(1, agreement)) * 0.5
+    )
+  )
+
+  // Monte Carlo sembrado: capa de estabilidad del top-10 (no toca scores ni
+  // ranking; determinista por día+turno).
+  let monteCarlo: ReturnType<typeof runMonteCarlo> = null
+  try {
+    monteCarlo = runMonteCarlo(draws, top10.map((p) => p.n), hashSeed("mc", today, turno))
+  } catch (e) {
+    logger.warn("[cron-run] Monte Carlo failed", { turno, error: String(e) })
+  }
 
   // 7. Get 3C/4C from cache
   // NOTA: redoblona se guarda SIEMPRE como objeto JSONB {cabeza, acompanante}.
@@ -469,10 +553,16 @@ async function runPrecompute(
       p_numeros_4: numeros_4.length > 0 ? numeros_4 : null,
       p_redoblona: redoblona || null,
       p_engine_version: "meta-ensemble-v1",
-      p_confidence: null,
-      p_agreement_score: 0.8,
+      p_v6_weight: Math.round(engineWeights.V6 * 10000) / 10000,
+      p_v7_weight: Math.round(engineWeights.V7 * 10000) / 10000,
+      p_ml_weight: Math.round(engineWeights.ML * 10000) / 10000,
+      // confidence = consistencia del modelo (NO probabilidad de acierto);
+      // antes: null + agreement_score 0.8 hardcodeado
+      p_confidence: Math.round(modelConsistency * 100) / 100,
+      p_agreement_score: Math.round(agreement * 100) / 100,
       p_computed_at: new Date().toISOString(),
       p_updated_at: new Date().toISOString(),
+      p_monte_carlo: monteCarlo,
     } as never)
     if (upsertErr) {
       logger.warn("[cron-run] cache upsert error", { turno, error: upsertErr.message })

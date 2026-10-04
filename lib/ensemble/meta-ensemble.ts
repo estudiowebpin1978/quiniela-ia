@@ -67,7 +67,6 @@ export async function loadEngineWeightsDecayed(turno: string): Promise<EngineWei
 
     const now = Date.now()
     const rates: Record<string, number> = {}
-    let total = 0
 
     // Combinar: usar datos del backtest si existen (más objetivo, OOS);
     // si no, usar engine_performance con decaída.
@@ -76,41 +75,41 @@ export async function loadEngineWeightsDecayed(turno: string): Promise<EngineWei
       // Intentar datos del backtest real primero
       const wf = wfStats[eng]
       if (wf && wf.total >= 10) {
-        const rawRate = wf.total > 0 ? wf.hits / wf.total : 0.3333
-        const nearRatio = wf.total > 0 ? wf.nearMisses / wf.total : 0
-        const blendedRate = (rawRate * 0.8) + (nearRatio * 0.2)
+        const rawRate = wf.total > 0 ? wf.hits / wf.total : 0
         // Decay más rápido para datos del replay histórico
         const daysSince = wf.lastTest > 0 ? (now - wf.lastTest) / (1000 * 60 * 60 * 24) : 90
-        const decayed = applyDecay(rawRate, Math.max(0, daysSince), wf.nearMisses, wf.total)
-        rates[eng] = decayed
-        total += decayed
+        rates[eng] = applyDecay(rawRate, Math.max(0, daysSince), wf.nearMisses, wf.total)
         continue
       }
 
       // Fallback a engine_performance con decaída exponencial
       const perfRow = data.find((r) => r.engine_name === eng)
-      if (!perfRow) {
-        rates[eng] = 0.3333
-        total += 0.3333
-        continue
-      }
+      if (!perfRow) continue // sin fila → se completa con la media más abajo
       const hitCount = perfRow.hit_count != null ? Number(perfRow.hit_count) : 0
       const nearMisses = perfRow.near_miss_count != null ? Number(perfRow.near_miss_count) : 0
       const totalRuns = perfRow.total_runs != null ? Math.max(1, Number(perfRow.total_runs)) : 1
-      const rawRate = totalRuns > 0 ? hitCount / totalRuns : 0.3333
+      const rawRate = totalRuns > 0 ? hitCount / totalRuns : 0
       const updatedAt = perfRow.updated_at ? new Date(perfRow.updated_at).getTime() : now
       const daysSince = (now - updatedAt) / (1000 * 60 * 60 * 24)
-      const decayedRate = applyDecay(rawRate, daysSince, nearMisses, totalRuns)
-      rates[eng] = decayedRate
-      total += decayedRate
+      rates[eng] = applyDecay(rawRate, daysSince, nearMisses, totalRuns)
     }
+
+    const present = engines.map((e) => rates[e]).filter((v): v is number => typeof v === "number")
+    if (present.length === 0) return FALLBACK_WEIGHTS
+
+    // Motor sin datos = NEUTRO (media de los presentes). Un 0.3333 hardcodeado
+    // era peligroso: tras el decaimiento (e^-λ·días) los rates presentes pueden
+    // ser ~0.03 y el motor ausente recibiría ~90% del peso normalizado.
+    const avg = present.reduce((a, b) => a + b, 0) / present.length
+    const final = { V6: rates.V6 ?? avg, V7: rates.V7 ?? avg, ML: rates.ML ?? avg }
+    const total = final.V6 + final.V7 + final.ML
 
     if (total <= 0 || total < 0.01) return FALLBACK_WEIGHTS
 
     return {
-      V6: (rates.V6 ?? 0.3333) / total,
-      V7: (rates.V7 ?? 0.3333) / total,
-      ML: (rates.ML ?? 0.3333) / total,
+      V6: final.V6 / total,
+      V7: final.V7 / total,
+      ML: final.ML / total,
     }
   } catch {
     return FALLBACK_WEIGHTS

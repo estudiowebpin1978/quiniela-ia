@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: `Pronóstico Quiniela Nacional ${formattedDate}`,
-    description: `Predicciones estadísticas para la Quiniela Nacional (Ciudad y Provincia) del ${formattedDate}. Análisis de 30 factores para 2, 3 y 4 cifras en todos los turnos.`,
+    description: `Predicciones estadísticas para la Quiniela Nacional (Ciudad y Provincia) del ${formattedDate}. Análisis de 20 factores + Machine Learning para 2, 3 y 4 cifras en cada turno.`,
     openGraph: {
       title: `Quiniela IA | Pronóstico ${formattedDate}`,
       description: `Números probables para la Quiniela Nacional del ${formattedDate}`,

@@ -3,7 +3,7 @@
  * 
  * Funcionalidades:
  * - Selección de turno (Previa, Primera, Matutina, Vespertina, Nocturna)
- * - Generación de análisis con 30 factores + ML
+ * - Generación de análisis con 20 factores + ML
  * - Mapa de calor de frecuencias
  * - Tendencias y estadísticas
  * - Guardado de análisis y comparación con resultados reales
@@ -530,6 +530,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         redoblona: d.redoblona ?? d.pred?.redoblona,
         confidence: d.confidence,
         aiInsight: d.aiInsight,
+        monte_carlo: d.monte_carlo ?? d.pred?.monte_carlo,
       };
 
       // Strict runtime validation + type safety (protects against malformed API/DB responses)
@@ -1234,7 +1235,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         <div className="wr">
           <div className="hero">
             <h1>Quiniela IA <span onClick={() => setShowHowItWorks(true)} style={{cursor:"pointer",fontSize:14}}>ℹ️</span></h1>
-                <p>Análisis estadístico con 30 factores + Machine Learning. Datos oficiales actualizados.</p>
+                <p>Análisis estadístico con 20 factores + Machine Learning. Datos oficiales actualizados.</p>
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 8, textAlign: "center" }}>🎯 Elegí el sorteo que querés analizar:</div>
           <div className="sorteo-btns">
@@ -1428,7 +1429,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
                 <div className="sp" />
                 <div style={{fontSize:12,color:"#94a3b8",fontWeight:600}}>Analizando datos históricos...</div>
-                <div style={{fontSize:10,color:"#475569"}}>15 motores · 30 factores · Monte Carlo</div>
+                <div style={{fontSize:10,color:"#475569"}}>3 motores + ensemble · 20 factores · Monte Carlo</div>
               </div>
             </div>
           )}
@@ -1531,7 +1532,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
               {tab === "pred" && (
                 <>
-                  <div className="sec">Motor de 30 factores + Bayesian uncertainty</div>
+                  <div className="sec">Motor de 20 factores + Bayesian uncertainty</div>
                   <div className="dtabs">
                     <button className={"dk dk-2" + (dg === 2 ? " on" : "")} onClick={() => setDg(2)}>
                       2 cifras
@@ -1624,7 +1625,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                       <div className="lo">
                         <div style={{ fontSize: 32 }}>🔐</div>
                         <h3>Análisis {dg} dígitos</h3>
-                        <p>El mismo motor de 30 factores predice números de {dg} cifras. Accedé con Premium.</p>
+                        <p>El mismo motor de 20 factores predice números de {dg} cifras. Accedé con Premium.</p>
                         <div style={{fontSize:10,color:"#4ade80",marginTop:6}}>✓ Sin datos de tarjeta</div>
                         <div style={{fontSize:10,color:"#4ade80"}}>✓ Paga desde tu billetera virtual</div>
                         <div style={{fontSize:10,color:"#4ade80"}}>✓ Activación inmediata!</div>
@@ -1634,6 +1635,19 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                       </div>
                     )}
 </div>
+                  {(() => {
+                    const mc = dt?.monte_carlo as { iteraciones?: number; estabilidad?: number; numeros?: Array<{ n?: string; p_top10?: number }> } | undefined;
+                    if (!mc || typeof mc.estabilidad !== "number") return null;
+                    const top1 = Array.isArray(mc.numeros) ? mc.numeros[0] : undefined;
+                    return (
+                      <div style={{marginTop:10,padding:"8px 12px",borderRadius:10,background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.06)",fontSize:10,color:"#94a3b8",lineHeight:1.6}}>
+                        🎲 Estabilidad del top-10: {Math.round(mc.estabilidad * 100)}% · 5.000 simulaciones (bootstrap)
+                        {top1 && typeof top1.p_top10 === "number" && (
+                          <div style={{fontSize:9,color:"#64748b",marginTop:2}}>Top-10 en {Math.round(top1.p_top10 * 100)}% de las simulaciones</div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {rdbl && tab === "pred" && (pr || userRole === "admin") && (
                     <div className="rdbl" style={{ marginTop: 12 }}>
@@ -1791,7 +1805,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   <div className="trend-chart">
                     <div className="trend-info">
                       <div className="trend-info-title">Top Números con Mayor Tendencia</div>
-                      <div className="trend-info-desc">Basado en {dt?.totalSorteos || 121} sorteos reales</div>
+                      <div className="trend-info-desc">Basado en {dt?.totalSorteos || 0} sorteos reales</div>
                     </div>
                     
                     <div className="trend-bars">
@@ -2175,7 +2189,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     </div>
                   </div>
                   <div style={{fontSize:9,color:"var(--dim)",textAlign:"center",lineHeight:1.5}}>
-                     Walk-forward validation con {backtestData.metrics_top_10?.totalDraws || 0} sorteos de {backtestData.total_draws} totales · Motor de 30 factores · Top 10 análisis
+                     Walk-forward parcial (jun–dic 2025) con {backtestData.metrics_top_10?.totalDraws || 0} sorteos de {backtestData.total_draws} totales · Motor de 20 factores · Top 10 análisis
                   </div>
                   <button onClick={() => setBacktestData(null)} style={{width:"100%",padding:10,borderRadius:10,border:"1px solid rgba(255,255,255,.08)",background:"transparent",color:"var(--dim)",fontSize:10,cursor:"pointer",marginTop:10}}>
                     Recalcular
@@ -2207,7 +2221,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div>
                     <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase 15 Días</div>
-                    <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>~30 sorteos · Previa, Primera, Matutina, Vespertina, Nocturna</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>+50 sorteos · Previa, Primera, Matutina, Vespertina, Nocturna</div>
                   </div>
                   <div style={{fontSize:22,fontWeight:900,color:"#a855f7"}}>$7.000</div>
                 </div>
@@ -2266,7 +2280,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 <div style={{padding:"32px 16px 8px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div>
                     <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Pase 30 Días</div>
-                    <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>~60 sorteos · Todos los turnos del mes</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>+100 sorteos · Los 5 turnos del mes (domingos y feriados no tienen sorteo)</div>
                     <div style={{fontSize:12,color:"rgba(255,255,255,.4)",marginTop:4,textDecoration:"line-through"}}>$14.000</div>
                   </div>
                   <div style={{textAlign:"right"}}>
@@ -2410,10 +2424,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           <div style={{background:"var(--card)",borderRadius:16,padding:24,maxWidth:400,width:"100%"}} onClick={e => e.stopPropagation()}>
             <div style={{fontSize:18,fontWeight:800,marginBottom:16,color:"var(--text)"}}>🔬 Cómo funciona</div>
             <div style={{fontSize:13,lineHeight:1.7,color:"var(--dim)"}}>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>1. Datos reales</strong><br/>Scrapeamos resultados oficiales de la Quiniela Nacional cada 15 min. Tenemos +200 sorteos históricos con todos los turnos completos.</p>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>2. 30 factores estadísticos</strong><br/>Cada número recibe un score basado en frecuencia histórica, ausencia, recencia exponencial, tendencia, ciclos, momentum, Markov, entropía, clusters, co-ocurrencia, espejos, vecinos y más. Nada es al azar.</p>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>3. Monte Carlo + Ensemble dinámico</strong><br/>5.000 simulaciones estadísticas combinan los 30 factores con análisis cross-turno. Los pesos se auto-calibran según el rendimiento histórico real.</p>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>4. ML: XGBoost + LightGBM</strong><br/>Modelos de Machine Learning entrenados offline con +200 sorteos reales. Extraen 25 features por número y aprenden patrones que el análisis manual no detecta.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>1. Datos reales</strong><br/>Scrapeamos resultados oficiales de la Quiniela Nacional cada 15 min. Tenemos +260 días de histórico oficial (los domingos y feriados no tienen sorteo).</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>2. 20 factores estadísticos</strong><br/>Cada número recibe un score que combina 20 factores estadísticos de dos motores (frecuencia, ausencia, recencia, tendencia, ciclos, Markov, co-ocurrencia, posiciones y patrones) más 3 modelos de Machine Learning. Nada es al azar: todo el cálculo es determinista y auditable.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>3. Monte Carlo + Ensemble dinámico</strong><br/>5.000 simulaciones (bootstrap sembrado sobre el histórico) estiman la estabilidad del top-10, y los pesos del ensemble se recalibran con el rendimiento verificado de cada motor.</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>4. ML: Random Forest + Red Neuronal</strong><br/>Modelos de Machine Learning (Random Forest, Red Neuronal y Markov) entrenados con +200 sorteos reales. Extraen 152 features por número y aprenden patrones que el análisis manual no detecta.</p>
                <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>5. Cero números aleatorios</strong><br/>No hay random. No hay "magia". Cada análisis es el resultado de cálculos matemáticos verificables sobre datos reales de la Quiniela Nacional.</p>
               <p><strong style={{color:"var(--text)"}}>6. Resultados contrastables</strong><br/>Guardá tus análisis y comparalos con los resultados oficiales automáticamente. Podés verificar cada coincidencia.</p>
             </div>

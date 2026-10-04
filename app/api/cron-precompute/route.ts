@@ -19,6 +19,8 @@ import { loadV7Weights, v7WeightsToFactorBreakdown } from "@/lib/analisis/v7-wei
 import { getMLPredictions, getMLPredictionsForCandidates } from "@/lib/ml/integration"
 import { loadEngineWeights, logEnginePredictions } from "@/lib/ensemble/meta-ensemble"
 import { invalidateAllPredictionCaches } from "@/lib/cache/prediction-cache-invalidation"
+import { runMonteCarlo } from "@/lib/analisis/monte-carlo"
+import { hashSeed } from "@/lib/math/seeded-rng"
 import logger from "@/lib/logger"
 
 import { SUENOS } from "@/lib/suenos"
@@ -51,29 +53,20 @@ export async function GET(req: NextRequest) {
   for (const turno of turnos) {
     const GAME_ID = turno === "Poceada" ? "d0e1f2a3-b4c5-6789-0abc-def012345678" : "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
     try {
-      // 1. Build EngineContext (snapshot of reality)
-      const { data: lastDraw } = await supabase
-        .from("draws")
-        .select("id")
-        .order("id", { ascending: false })
-        .limit(1)
-        .single()
+      // 1. Semilla determinista por día+turno (antes: hash del último id UUID,
+      // que es aleatorio → cambiaba las predicciones al insertarse cualquier fila).
+      const ctxSeed = hashSeed(today, turno)
 
-      if (!lastDraw) {
-        results.push({ turno, ok: false, error: "No draws in database" })
-        continue
-      }
-
-      const lastDrawId = lastDraw.id as string
-      const ctxSeed = (lastDrawId.split("").reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0) + turno.split("").reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0)) % 100000
-
-      // 2. Fetch historical draws scoped to lastDrawId and game_id
+      // 2. Histórico COMPLETO del turno con fecha estrictamente anterior a hoy.
+      // Antes: .lte("id", lastDrawId) — los id son UUIDs aleatorios, así que el
+      // filtro dejaba un subconjunto arbitrario (~50%) del histórico y cambiaba
+      // entre corridas (inestabilidad) además de filtrar de forma no determinista.
       const { data: histDraws } = await supabase
         .from("draws")
         .select("id, date, turno, numbers")
         .eq("turno", turno)
         .eq("game_id", GAME_ID)
-        .lte("id", lastDrawId)
+        .lt("date", today)
         .order("date", { ascending: true })
 
       const minDraws = turno === "Poceada" ? 3 : 10
@@ -177,12 +170,25 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Log raw predictions for each engine (before blend)
+      // Log raw predictions for each engine (before blend) contra el sorteo de
+      // HOY de este turno (si ya existe el resultado): alimenta
+      // engine_predictions_log → recalculate_engine_performance → pesos dinámicos.
       const v6Nums = (v6Rows || []).slice(0, 10).map((r: Record<string, unknown>) => r.numero as number)
       const v7Nums = v7Predictions.slice(0, 10).map(p => p.n)
       const mlNums = mlPredictions.slice(0, 10).map(p => p.n)
       try {
-        await logEnginePredictions(lastDrawId, turno, v6Nums, v7Nums, mlNums)
+        const { data: todayDraw } = await supabase
+          .from("draws")
+          .select("id")
+          .eq("turno", turno)
+          .eq("date", today)
+          .eq("game_id", GAME_ID)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (todayDraw?.id) {
+          await logEnginePredictions(todayDraw.id as string, turno, v6Nums, v7Nums, mlNums)
+        }
       } catch { /* non-fatal — don't crash the turno for logging failures */ }
 
       // Sort and take top 10
@@ -318,6 +324,15 @@ export async function GET(req: NextRequest) {
         ? { cabeza: String(top10nums[0]).padStart(2, "0"), acompanante: String(top10nums[1]).padStart(2, "0") }
         : null
 
+      // Monte Carlo sembrado: capa de estabilidad del top-10 (no toca scores
+      // ni ranking; determinista por día+turno).
+      let monteCarlo: ReturnType<typeof runMonteCarlo> = null
+      try {
+        monteCarlo = runMonteCarlo(draws, top10nums, hashSeed("mc", today, turno))
+      } catch (e) {
+        logger.warn("[cron-precompute] Monte Carlo failed", { turno, error: String(e) })
+      }
+
       // 6. Compute confidence and agreement
       const v6Top10 = new Set<number>(
         (v6Rows || []).slice(0, 10).map((r: Record<string, unknown>) => r.numero as number)
@@ -362,11 +377,13 @@ export async function GET(req: NextRequest) {
         p_v6_weight: Math.round(engineWeights.V6 * 10000) / 10000,
         p_v7_weight: Math.round(engineWeights.V7 * 10000) / 10000,
         p_ml_weight: Math.round(engineWeights.ML * 10000) / 10000,
-        p_model_consistency: Math.round(modelConsistency * 100) / 100,
-        p_confidence_type: "model_consistency",
+        // confidence = consistencia del modelo (NO probabilidad de acierto;
+        // el tipo es fijo en código: "model_consistency")
+        p_confidence: Math.round(modelConsistency * 100) / 100,
         p_agreement_score: Math.round(agreement * 100) / 100,
         p_computed_at: new Date().toISOString(),
         p_updated_at: new Date().toISOString(),
+        p_monte_carlo: monteCarlo,
       } as never)
 
       if (upsertError) {

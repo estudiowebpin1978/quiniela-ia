@@ -16,9 +16,9 @@ async function train() {
   for (const turno of TURNOS) {
     const { data: draws } = await supabase
       .from('draws')
-      .select('numeros')
+      .select('numbers')
       .eq('turno', turno)
-      .order('fecha', { ascending: false })
+      .order('date', { ascending: false })
       .limit(100);
 
     if (!draws || draws.length < 10) {

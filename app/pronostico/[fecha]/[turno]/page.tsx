@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: `Pronóstico Quiniela ${turnoLabels[turno] || turno} ${formattedDate}`,
-    description: `Predicción para el turno ${turnoLabels[turno] || turno} de la Quiniela Nacional del ${formattedDate}. Análisis de 30 factores estadísticos.`,
+    description: `Predicción para el turno ${turnoLabels[turno] || turno} de la Quiniela Nacional del ${formattedDate}. Análisis de 20 factores estadísticos + Machine Learning.`,
     openGraph: {
       title: `Quiniela IA | ${turnoLabels[turno] || turno} ${formattedDate}`,
       description: `Números probables para ${turnoLabels[turno] || turno} del ${formattedDate}`,

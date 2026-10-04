@@ -130,9 +130,9 @@ export default function Home() {
         maxWidth: 360, lineHeight: 1.7, marginBottom: 20,
         fontWeight: 500,
       }}>
-        <strong style={{ color: "#ffffff", textShadow: "0 0 20px rgba(255,45,85,0.3)" }}>Analizá miles de sorteos en segundos</strong> con Inteligencia Artificial.
+        <strong style={{ color: "#ffffff", textShadow: "0 0 20px rgba(255,45,85,0.3)" }}>Analizá todo el histórico de sorteos en segundos</strong> con Inteligencia Artificial.
         <br />
-        <span style={{ color: "#94a3b8", fontSize: 14 }}>30 factores estadísticos · Machine Learning · Monte Carlo · Datos oficiales.</span>
+        <span style={{ color: "#94a3b8", fontSize: 14 }}>20 factores estadísticos · Machine Learning · Monte Carlo · Datos oficiales.</span>
       </p>
 
       {/* Badge */}
@@ -144,9 +144,9 @@ export default function Home() {
       {/* Stats */}
       <div style={{ display: "flex", gap: 12, marginBottom: 28, flexWrap: "wrap", justifyContent: "center" }}>
         <StatCard icon="📊" value="780+" label="Sorteos" color="var(--brand-pink)" />
-        <StatCard icon="🧮" value="30" label="Factores" color="var(--brand-purple)" />
+        <StatCard icon="🧮" value="20" label="Factores + ML" color="var(--brand-purple)" />
         <StatCard icon="🎲" value="5K" label="Simulaciones" color="var(--brand-cyan)" />
-        <StatCard icon="⚡" value="16" label="Motores" color="var(--arg-gold)" />
+        <StatCard icon="⚡" value="3" label="Motores + ensemble" color="var(--arg-gold)" />
       </div>
 
       {/* Buttons */}
@@ -196,7 +196,7 @@ export default function Home() {
           { icon: "🔗", title: "Correlaciones", desc: "Pares que salen juntos" },
           { icon: "📈", title: "Tendencias", desc: "Fríos, calientes y retrasos" },
           { icon: "🧬", title: "Ciclos", desc: "Frecuencia periódica" },
-          { icon: "📊", title: "Monte Carlo", desc: "5.000 simulaciones" },
+          { icon: "📊", title: "Monte Carlo", desc: "5.000 simulaciones (bootstrap)" },
         ].map((f, i) => (
           <div key={i} className="glass-card" style={{ padding: "16px 12px", textAlign: "center", cursor: "default" }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>{f.icon}</div>

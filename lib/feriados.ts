@@ -34,8 +34,26 @@ export function esFeriado(dateStr: string): boolean {
 
 export function esDiaSinSorteo(dateStr: string, diaSemana: number): boolean {
   // Domingos NO tienen sorteos de quiniela
-  if (diaSemana === 0) return true;
+  if (diaSemana === 0) return true
   return esFeriado(dateStr);
+}
+
+/**
+ * Feriados PARCIALES — turnos suspendidos en fechas con sorteo reducido.
+ * Verificado contra el sitio oficial LOTBA (resultados-data.php): el
+ * 24/12/2025 y el 31/12/2025 tuvieron SOLO Previa, Primera y Nocturna —
+ * Matutina y Vespertina NO se sortearon. Regla recurrente para esas fechas.
+ */
+const TURNOS_SUSPENDIDOS_POR_FECHA: Record<string, string[]> = {
+  "12-24": ["Matutina", "Vespertina"],
+  "12-31": ["Matutina", "Vespertina"],
+}
+
+/** true si el turno no se sortea en esa fecha (feriado parcial). */
+export function esTurnoSinSorteo(dateStr: string, turno: string): boolean {
+  const mmdd = dateStr.slice(5) // "12-24"
+  const suspendidos = TURNOS_SUSPENDIDOS_POR_FECHA[mmdd]
+  return !!suspendidos && suspendidos.includes(turno)
 }
 
 export function todosLosFeriados(): string[] {

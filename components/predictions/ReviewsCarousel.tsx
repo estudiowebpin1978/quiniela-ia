@@ -2,8 +2,8 @@
 import { useEffect, useRef } from "react"
 
 const FEATURES = [
-  { i: "📊", t: "Motor de 30 factores estadísticos", s: 5 },
-  { i: "🎲", t: "Simulación Monte Carlo en tiempo real", s: 5 },
+  { i: "📊", t: "Motor de 20 factores estadísticos", s: 5 },
+  { i: "🎲", t: "Simulación Monte Carlo (5.000 iteraciones)", s: 5 },
   { i: "🤖", t: "Machine Learning con Random Forest", s: 5 },
   { i: "🔥", t: "Mapa de calor de frecuencias", s: 5 },
   { i: "📈", t: "Análisis de tendencias por turno", s: 5 },

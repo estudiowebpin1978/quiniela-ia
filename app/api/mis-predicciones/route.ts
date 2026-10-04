@@ -125,7 +125,9 @@ export async function GET(req: NextRequest) {
 
       // FAST PATH: Use server-verified status/aciertos from trigger (user_predictions table)
       const statusUpper = (pred.status || '').toUpperCase()
-      const serverVerified = statusUpper === 'WON' || statusUpper === 'LOST'
+      // NEAR_MISS también es verificación del servidor: si no, cae al fallback
+      // del cliente (allAciertos.length > 0) y se mostraría como "acierto".
+      const serverVerified = statusUpper === 'WON' || statusUpper === 'LOST' || statusUpper === 'NEAR_MISS'
 
       let aciertos: Acierto[] = []
       let aciertos3: Acierto[] = []

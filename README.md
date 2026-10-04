@@ -51,7 +51,7 @@ La mayoría de los jobs se gestionan vía **cron-job.org**; `/api/cron-premium-e
 | Job | Endpoint | Frecuencia | Descripción |
 |-----|----------|------------|-------------|
 | **Verify predictions** | `/api/cron-verify-predictions` | Cada 5 min | Verifica aciertos contra sorteos oficiales y evalúa los factores V6 (`factor_weight_history`) |
-| **Scrape safety net** | `/api/cron-scrape` | Cada 15 min | Scrapeo periódico de todos los turnos |
+| **Scrape safety net** | `/api/cron-scrape` | Cada 15 min | Scrapeo periódico de los turnos con sorteo |
 | Scrape Previa | `/api/cron-scrape?turno=Previa` | 10:30 Mon-Sat | Scrape sorteo Previa |
 | Scrape Primera | `/api/cron-scrape?turno=Primera` | 12:30 Mon-Sat | Scrape sorteo Primera |
 | Scrape Matutina | `/api/cron-scrape?turno=Matutina` | 15:30 Mon-Sat | Scrape sorteo Matutina |
@@ -66,6 +66,8 @@ La mayoría de los jobs se gestionan vía **cron-job.org**; `/api/cron-premium-e
 **Autenticación**: los endpoints cron aceptan `?secret=CRON_SECRET` o el header `Authorization: Bearer CRON_SECRET`. En Vercel, configurá `CRON_SECRET` como variable de entorno: Vercel la envía automáticamente en `Authorization`. En cron-job.org, configurá ese header manualmente. `x-vercel-cron: 1` por sí solo no autentica una solicitud.
 
 **Nota**: los jobs de scrape se ejecutan DESPUÉS del sorteo (para capturar resultados). Las predicciones son **on-demand**: se generan cuando el usuario las solicita (`GET /api/predictions`) — el antiguo cron Auto-Predict fue removido.
+
+**Agendado externo**: `/api/cron-run` (orchestrator scrape + precompute) y la cadencia de 15 min de `/api/cron-scrape` se programan **externamente desde cron-job.org**; no figuran en `vercel.json`, que solo define `/api/cron-premium-expiry`.
 
 ---
 
@@ -90,12 +92,9 @@ El flujo `.github/workflows/ci.yml`:
 
 ## Notas importantes
 
-- El scraper en `app/api/cron-scrape/route.ts` usa 4 fuentes con fallback en cascada:
-  1. `quiniela.loteriadelaciudad.gob.ar` (API oficial AJAX)
-  2. `quinieleando.com.ar` (HTML estático)
-  3. `loteria-ciudad.gob.ar` (CABA AJAX)
-  4. `quinielanacionaln.com.ar` (HTTP fallback)
-- Si las fuentes cambian, el scraping podría dejar de funcionar.
+- El pipeline de scrapeo en vivo (`app/api/cron-scrape/route.ts` + `lib/scrapers/consensus.ts`) usa **1 fuente oficial: LOTBA** (`quiniela.loteriadelaciudad.gob.ar`), con validación de cada sorteo (20 números con formato de 4 dígitos) y cross-check contra la página oficial de CABA antes de guardarlo.
+- El histórico (**+260 días de sorteos**, ~96% de los días con sorteo — domingos y feriados no tienen sorteo) se completó con backfill desde fuentes oficiales y de terceros (`quinieleando.com.ar`, `quinielanacionaln.com.ar`, etc.); esas fuentes de terceros solo se usaron para historia, no para el pipeline en vivo.
+- Si la fuente oficial cambia, el scraping podría dejar de funcionar.
 - Asegúrate que Supabase tenga correctamente las tablas `draws`, `user_predictions`, `prediction_history`, `engine_predictions`, `pending_transfers`, `webhook_logs` con los campos usados.
 - RLS habilitado en todas las tablas sensibles.
 - Trigger `trg_verify_predictions` evalúa predicciones automáticamente al insertar sorteos.

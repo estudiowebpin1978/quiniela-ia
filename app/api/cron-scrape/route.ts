@@ -16,7 +16,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 
-import { esDiaSinSorteo } from "@/lib/feriados"
+import { esDiaSinSorteo, esTurnoSinSorteo } from "@/lib/feriados"
 import { fetchWithConsensus } from "@/lib/scrapers/consensus"
 import { fetchPoceadaDraw } from "@/lib/scrapers/poceada"
 import { fetchQuinielaDraw, fetchPoceadaDrawOficial, SOURCE_LOTBA } from "@/lib/scrapers/lotba-oficial"
@@ -235,9 +235,16 @@ export async function GET(req: NextRequest) {
   }
 
   // If singleTurno is provided, validate it's a valid turno
-  const turnosToScrape = singleTurno && TURNOS.includes(singleTurno as TurnoType)
+  const turnosBase = singleTurno && TURNOS.includes(singleTurno as TurnoType)
     ? [singleTurno as TurnoType]
     : TURNOS
+  // Feriados parciales (24/12 y 31/12): Matutina/Vespertina no se sortean
+  // (verificado contra oficial LOTBA 2025) → no reintentar turnos inexistentes.
+  const suspendidos = turnosBase.filter((t) => esTurnoSinSorteo(fechaISO, t))
+  const turnosToScrape = turnosBase.filter((t) => !suspendidos.includes(t))
+  if (suspendidos.length > 0) {
+    logger.info("cron-scrape: turnos suspendidos por feriado parcial", { fecha: fechaISO, suspendidos })
+  }
 
   logger.info("cron-scrape: iniciando", { fecha: fechaISO, overrideDate: overrideDate || "none", turnos: turnosToScrape })
 
