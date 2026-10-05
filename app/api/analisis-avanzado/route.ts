@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ejecutarAnalisisCompleto, AnalisisCompleto } from "@/lib/analisis/motor";
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth";
 import { resolveUserTier } from "@/lib/auth/tier";
 import logger from "@/lib/logger";
 import { SUENOS } from "@/lib/suenos";
@@ -10,6 +11,11 @@ function pad(n: number, l = 2): string {
 }
 
 export async function GET(req: NextRequest) {
+  // Cómputo pesado (análisis completo sobre hasta 10.000 sorteos) → exige
+  // CRON_SECRET o JWT de admin. Sin callers internos: se exige siempre.
+  const authResult = await validateCronAuth(req);
+  if (!authResult.authorized) return unauthorizedResponse();
+
   const { searchParams } = new URL(req.url);
   const turno = searchParams.get('turno') || 'todos';
   const dias = parseInt(searchParams.get('dias') || '90');

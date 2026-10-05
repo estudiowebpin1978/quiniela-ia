@@ -477,7 +477,9 @@ export async function GET(req: NextRequest) {
   // ── Poceada LOTBA scraping ──
   try {
     const poceadaDraw = await fetchPoceadaDraw(fechaISO)
-    if (poceadaDraw && poceadaDraw.numbers.length >= 8) {
+    // Integridad: Poceada son exactamente 20 números (misma forma que el resto
+    // de los sorteos; la guarda anterior aceptaba desde 8 → parciales en BD).
+    if (poceadaDraw && poceadaDraw.numbers.length === 20) {
       const supabasePoceada = getSupabaseAdmin()
       const poceadaTurno = "Poceada"
 

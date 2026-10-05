@@ -5,7 +5,14 @@
  * firma HMAC: el payload es { uuid, external_reference, status, ... } sin headers
  * de firma. La fuente de verdad es la verificación server-side contra la API
  * (GET /orders/{id}) — cualquier payload falsificado muere ahí.
- * Si llega un header de firma, se valida best-effort y se loguea, pero no bloquea.
+ *
+ * Firma (fail-closed): si UALA_WEBHOOK_SECRET está configurada, un header de
+ * firma ausente o inválido RECHAZA la petición (401) y queda registrado en logs
+ * y webhook_logs. Si la env NO está configurada se emite un warning y se mantiene
+ * el comportamiento anterior (se confía en la verificación contra la API de Ualá).
+ *
+ * Monto: SIEMPRE proviene de la verificación server-side contra la API de Ualá.
+ * El `amount` del body del cliente NUNCA se usa (ver paso 7).
  *
  * Ante cualquier fallo de verificación/activación se notifica al admin (campanita)
  * para activación manual desde /api/admin.
@@ -30,7 +37,8 @@ interface UalaBisPayload {
   status?: string
   state?: string
   external_reference?: string
-  amount?: number | string
+  // `amount` intencionalmente NO se declara: el monto del body del cliente se
+  // ignora por completo; solo vale el monto devuelto por la API de Ualá.
   [key: string]: unknown
 }
 
@@ -40,21 +48,52 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 // ─── HMAC Signature Verification ──────────────────────────────────────────────
 
-function verifyWebhookSignature(rawBody: string, signature: string | null): boolean {
-  const secret = (process.env.UALA_WEBHOOK_SECRET || "").replace(/"/g, "").trim()
-  if (!secret) {
-    logger.error("[webhook-uala] UALA_WEBHOOK_SECRET not configured — rejecting webhook")
-    return false
-  }
+function getWebhookSecret(): string {
+  return (process.env.UALA_WEBHOOK_SECRET || "").replace(/"/g, "").trim()
+}
+
+function verifyWebhookSignature(rawBody: string, signature: string): boolean {
+  const secret = getWebhookSecret()
+  // Sin secret no hay nada que verificar — el caller decide (fail-open + warning).
+  if (!secret) return false
   if (!signature) return false
 
   try {
     const expected = createHmac("sha256", secret).update(rawBody).digest("hex")
-    const sigBuf = Buffer.from(signature.padEnd(64, "\0"))
-    const expectedBuf = Buffer.from(expected.padEnd(64, "\0"))
+    // Comparación timing-safe: solo si las longitudes coinciden.
+    const sigBuf = Buffer.from(signature, "utf8")
+    const expectedBuf = Buffer.from(expected, "utf8")
+    if (sigBuf.length !== expectedBuf.length) return false
     return timingSafeEqual(sigBuf, expectedBuf)
   } catch {
     return false
+  }
+}
+
+/**
+ * Registra un webhook rechazado en webhook_logs (nunca bloquea el handler).
+ *
+ * El `order_id` NUNCA se persiste en rechazos: es la clave de idempotencia
+ * (unique index) y puede venir de un payload no autenticado — usarlo permitiría
+ * que un atacante "envenenara" una orden legítima y bloqueara su activación.
+ * El orderId viaja dentro de `payload`.
+ */
+async function recordWebhookRejection(reason: string, detail: Record<string, unknown>): Promise<void> {
+  try {
+    const supabase = getSupabaseAdmin()
+    const { error } = await supabase.from("webhook_logs").insert({
+      source: "ualabis",
+      order_id: null,
+      payload: JSON.stringify({ rejected: true, reason, ...detail }),
+      user_id: null,
+      status: "rejected",
+      created_at: new Date().toISOString(),
+    })
+    if (error && !error.message?.includes("relation") && !error.message?.includes("does not exist")) {
+      logger.warn("[webhook-uala] Could not persist rejection to webhook_logs", { reason, error: error.message })
+    }
+  } catch {
+    // logging debe ser best-effort
   }
 }
 
@@ -193,11 +232,19 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text()
   logger.info("[webhook-uala] Received notification")
 
-  // ── 0b. Optional signature check (best-effort — Ualá v2 no la define) ──
-  // La validación real es el GET de la orden contra la API de Ualá (paso 5).
+  // ── 0b. Signature check (fail-closed si UALA_WEBHOOK_SECRET está configurada) ──
+  // Con secret configurado: firma ausente o inválida ⇒ 401 + registro en logs/webhook_logs.
+  // Sin secret: se emite warning y se mantiene el comportamiento anterior (la fuente
+  // de verdad sigue siendo la verificación server-side contra la API de Ualá, paso 5).
   const signature = req.headers.get("x-signature") || req.headers.get("x-uala-signature") || req.headers.get("x-webhook-signature")
-  if (signature && !verifyWebhookSignature(rawBody, signature)) {
-    logger.warn("[webhook-uala] Signature present but invalid — continuing with API verification", { hasSignature: true })
+  const secretConfigured = !!getWebhookSecret()
+
+  if (!secretConfigured) {
+    logger.warn("[webhook-uala] UALA_WEBHOOK_SECRET not configured — signature check skipped (fail-open, server-side order verification only)")
+  } else if (!signature || !verifyWebhookSignature(rawBody, signature)) {
+    logger.error("[webhook-uala] Webhook rejected: missing or invalid signature", { hasSignature: !!signature })
+    await recordWebhookRejection("invalid_signature", { hasSignature: !!signature })
+    return NextResponse.json({ ok: false, error: "Firma inválida" }, { status: 401 })
   }
 
   // ── 1. Parse payload ──────────────────────────────────────────────────
@@ -268,9 +315,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  // ── 7. Determine plan from amount ────────────────────────────────────
-  const amount = verification.amount || body.amount
-  const amountStr = String(Math.round(Number(amount) || 0))
+  // ── 7. Determine plan from amount (SOLO monto verificado server-side) ──
+  // El `amount` del body del cliente NUNCA se usa. Si la verificación contra la
+  // API de Ualá no devuelve un monto utilizable, se rechaza el webhook.
+  const amount = Number(verification.amount)
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    logger.warn("[webhook-uala] Rejected: no amount from server-side verification (client amount never used)", { orderId })
+    await recordWebhookRejection("missing_verified_amount", {
+      orderId: String(orderId),
+      ualaStatus: verification.status,
+    })
+    await notifyAdmins(
+      "💰 Pago Ualá sin monto verificado",
+      `La orden ${orderId} está aprobada pero la API de Ualá no devolvió el monto. Verificá el pago y activá premium manualmente desde Admin.`,
+      { orderId: String(orderId), verifyStatus: verification.status }
+    )
+    return NextResponse.json(
+      { ok: false, error: "Monto no disponible en la verificación server-side de Ualá" },
+      { status: 422 }
+    )
+  }
+
+  const amountStr = String(Math.round(amount))
   const plan = AMOUNT_PLAN_MAP[amountStr]
   if (!plan) {
     logger.warn("[webhook-uala] Unknown amount, rejecting", { amount: amountStr })

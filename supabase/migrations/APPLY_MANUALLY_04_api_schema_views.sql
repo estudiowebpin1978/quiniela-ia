@@ -1,3 +1,28 @@
+-- ⚠️ REQUIERE REVISIÓN MANUAL — no es una migración versionada; contenido de
+-- seguridad (ver informe auditoría 2026-10-05). NO ejecutar contra producción
+-- ni convertir a migración versionada sin revisión previa.
+-- Motivo:
+--   * Crea vistas en el schema `api` con invocación de seguridad del PROPIETARIO
+--     (security owner), que saltan el RLS de las tablas subyacentes — en concreto
+--     api.source_health sobre una tabla con RLS "service_role only". Es la misma
+--     clase de riesgo que cerró 20261005010000_security_p0_blindaje.sql (P0-3:
+--     REVOKE ALL ON api.* FROM anon, authenticated), que además documenta que
+--     ningún código del repo usa el schema api (grep: 0 usos de schema:"api"
+--     ni from("api.*")).
+--   * No está cubierto por ninguna migración versionada (no existe
+--     CREATE OR REPLACE VIEW api.draw_stats / markov_transitions /
+--     cooccurrence_matrix / source_health en 2026*.sql).
+--   * No convertible: el schema `api` nunca se crea en el repo (no hay ningún
+--     CREATE SCHEMA) → en una BD nueva fallaría con "schema api does not exist";
+--     y si se situara antes de 20260921020000_poceada_materialized_views.sql,
+--     su `DROP MATERIALIZED VIEW IF EXISTS draw_stats` (sin CASCADE) fallaría
+--     porque api.draw_stats depende de ella.
+--   * Los wrappers api.get_draw_stats / api.get_markov_transitions referencian la
+--     forma VIEJA de draw_stats (num, global_freq, freq_7/30/90, last_seen_rank,
+--     avg_gap) que 20260921020000 sustituye por (game_id, numero, frequency, ...).
+--   * Las versiones públicas de estos RPCs ya viven en 20260823010000_materialized_views.sql
+--     y 20260823020000_source_health_circuit_breaker.sql (fix de tipo en
+--     20260830000001_fix_get_draw_stats_type.sql).
 -- ============================================================
 -- FIX: Expose new objects via api schema views for PostgREST
 -- ============================================================

@@ -37,6 +37,7 @@ import { hashSeed } from "@/lib/math/seeded-rng"
 export const maxDuration = 300
 
 const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
+const POCEADA_GAME_ID = "d0e1f2a3-b4c5-6789-0abc-def012345678"
 
 const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"] as const
 
@@ -118,6 +119,16 @@ export async function GET(req: NextRequest) {
   const turnoFilter = req.nextUrl.searchParams.get("turno")
   const forceAll = req.nextUrl.searchParams.get("force") === "1"
 
+  // Whitelist canónico de turnos: un ?turno= inválido no debe llegar ni a
+  // TURNO_TIMES ni a upsert_draw (los CHECKs de BD lo rechazarían igual,
+  // pero falla temprano y con mensaje claro).
+  if (turnoFilter && !(TURNOS as readonly string[]).includes(turnoFilter)) {
+    return NextResponse.json(
+      { ok: false, error: `turno inválido: ${turnoFilter}`, validos: [...TURNOS] },
+      { status: 400 }
+    )
+  }
+
   logger.info("[cron-run] Starting orchestrator", {
     artDate: artNow.date,
     artTime: `${artNow.hour}:${String(artNow.minute).padStart(2, "0")}`,
@@ -181,6 +192,15 @@ export async function GET(req: NextRequest) {
         continue
       }
 
+      // Integridad de datos: nunca guardar parciales — exactamente 20 números
+      // enteros 0000-9999 (los CHECKs draws_numbers_shape/draws_turno_canonico
+      // lo garantizan también en BD; aquí falla temprano y sin gastar RPC).
+      const nums = scrapeResult.numbers
+      if (nums.length !== 20 || nums.some(n => !Number.isInteger(n) || n < 0 || n > 9999)) {
+        scrapeResults[turno] = `partial/invalid (${nums.length}/20) — not saved`
+        continue
+      }
+
       // Upsert draw via RPC (upsert_draw incluye guard anti-duplicados:
       // rechaza números idénticos al sorteo anterior del mismo turno)
       const { error: upsertErr } = await supabase.rpc("upsert_draw" as never, {
@@ -188,7 +208,9 @@ export async function GET(req: NextRequest) {
         p_turno: turno,
         p_numbers: scrapeResult.numbers,
         p_source: scrapeResult.source || "consensus",
-        p_game_id: GAME_ID,
+        // Poceada pertenece a su propio juego (verificado en BD: sus 263 filas
+        // usan d0e1f2a3..., no el game_id Nacional).
+        p_game_id: turno === "Poceada" ? POCEADA_GAME_ID : GAME_ID,
         p_jurisdiccion: LOTBA.jurisdiction,
       } as never)
 
@@ -392,8 +414,8 @@ async function runPrecompute(
       const v6Nums = (v6Rows || []).slice(0, 10).map((r) => (r as Record<string, unknown>).numero as number)
       const v7Nums = v7Predictions.slice(0, 10).map((p) => p.n)
       const mlNums = mlPredictions.slice(0, 10).map((p) => p.n)
-      const { logEnginePredictions, updateEnginePerformance } = await import("@/lib/ensemble/meta-ensemble")
-      await logEnginePredictions(todayDraw.id as string, turno, v6Nums, v7Nums, mlNums)
+      const { logEnginePredictions, updateEnginePerformance, lineageDelRun } = await import("@/lib/ensemble/meta-ensemble")
+      await logEnginePredictions(todayDraw.id as string, turno, v6Nums, v7Nums, mlNums, lineageDelRun(ctxSeed, engineWeights))
       await updateEnginePerformance()
     }
   } catch (e) {

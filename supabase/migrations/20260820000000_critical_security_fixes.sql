@@ -378,7 +378,7 @@ BEGIN
 
   -- Fallback: use the known secret if setting not configured
   IF secret IS NULL OR length(secret) < 10 THEN
-    secret := 'MDM2ZDVjOGItMzk4Yi00Mjk2LTlmNmYtYjA1OTJkNWQwNGFm';
+    secret := 'ROTATED-SECRET-REMOVED-BY-AUDIT-2026-10-05';
   END IF;
 
   req_id := net.http_get(
@@ -390,7 +390,7 @@ END;
 $$;
 
 -- To configure the secret securely (run once):
--- ALTER DATABASE postgres SET app.settings.cron_secret = 'MDM2ZDVjOGItMzk4Yi00Mjk2LTlmNmYtYjA1OTJkNWQwNGFm';
+-- ALTER DATABASE postgres SET app.settings.cron_secret = 'ROTATED-SECRET-REMOVED-BY-AUDIT-2026-10-05';
 
 
 -- =============================================================================

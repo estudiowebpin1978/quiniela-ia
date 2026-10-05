@@ -22,12 +22,19 @@ import { NextRequest, NextResponse } from "next/server"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { ensureFactorHistory } from "@/lib/analisis/factor-evaluation"
-import { estadoQuiniela } from "@/lib/verificacion/auto-verify"
+import {
+  TODOS_TURNOS,
+  estadoFinal,
+  normalizeTurno,
+  posicionesDe,
+  type DrawRow,
+  type HistoryInsert,
+  type PredictionRow,
+} from "@/lib/verificacion/criterio"
+import { buildHistoryInsert } from "@/lib/verificacion/historial"
 import logger from "@/lib/logger"
 
 export const maxDuration = 120
-
-const TODOS_TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"] as const
 
 function fechaArgentina(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -36,154 +43,11 @@ function fechaArgentina(): string {
   }).format()
 }
 
-function normalizeTurno(t: string): string {
-  const base = t.replace(/-\d+cifras?$/i, "").toLowerCase().trim()
-  return base.charAt(0).toUpperCase() + base.slice(1)
-}
-
-/** Normaliza campos de `numeros` que pueden llegar como array, string único o null. */
-function toStrArray(v: unknown): string[] {
-  if (Array.isArray(v)) return v.filter((x) => x != null).map((x) => String(x))
-  if (typeof v === "string" && v.trim().length > 0) {
-    return v.split(",").map((s) => s.trim()).filter(Boolean)
-  }
-  return []
-}
-
-interface PredictionRow {
-  id: string
-  user_id: string
-  date: string
-  turno: string
-  numeros: unknown
-}
-
-interface HistoryInsert {
-  prediction_id: string
-  user_id: string
-  date: string
-  turno: string
-  numeros_2: string[]
-  numeros_3: string[]
-  numeros_4: string[]
-  redoblonas: string[]
-  resultado_oficial: number[]
-  aciertos_2: { numero: string; puesto: number }[]
-  aciertos_3: { numero: string; puesto: number }[]
-  aciertos_4: { numero: string; puesto: number }[]
-  aciertos_redoblona: { cabeza: string; acompanante: string }[]
-  total_aciertos: number
-  verified: boolean
-  verified_at: string
-  game_id: string
-}
-
 interface TurnoResult {
   turno: string
   status: "verified" | "no_draw" | "no_predictions" | "already_verified" | "error"
   verified?: number
   reason?: string
-}
-
-interface DrawRow {
-  date?: string
-  numbers: number[]
-  game_id?: string | null
-}
-
-function deriveNums(numbers: number[]) {
-  return {
-    nums2: numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0")),
-    nums3: numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0")),
-    nums4: numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0")),
-  }
-}
-
-/** Construye la fila de prediction_history para una predicción + SU sorteo. */
-function buildHistoryInsert(pred: PredictionRow, draw: DrawRow): HistoryInsert {
-  let numeros: unknown = pred.numeros
-  if (Array.isArray(numeros) && numeros.length === 1 && typeof numeros[0] === "string") {
-    try { numeros = JSON.parse(numeros[0] as string) } catch {}
-  }
-
-  let numeros_2: string[], numeros_3: string[], numeros_4: string[], redoblonas: string[]
-  if (Array.isArray(numeros)) {
-    numeros_2 = numeros.map((n: unknown) => String(n).padStart(2, "0"))
-    numeros_3 = []
-    numeros_4 = []
-    redoblonas = []
-  } else {
-    const obj = (numeros ?? null) as Record<string, unknown> | null
-    numeros_2 = toStrArray(obj?.["2"]).map((n) => n.padStart(2, "0"))
-    numeros_3 = toStrArray(obj?.["3"]).map((n) => n.padStart(3, "0"))
-    numeros_4 = toStrArray(obj?.["4"]).map((n) => n.padStart(4, "0"))
-    redoblonas = toStrArray(obj?.["r"])
-  }
-
-  const { nums2, nums3, nums4 } = deriveNums(draw.numbers)
-
-  const aciertos2 = numeros_2
-    .filter((n: string) => nums2.includes(n))
-    .map((n: string) => ({ numero: n, puesto: nums2.indexOf(n) + 1 }))
-
-  const aciertos3 = numeros_3
-    .filter((n: string) => nums3.includes(n))
-    .map((n: string) => ({ numero: n, puesto: nums3.indexOf(n) + 1 }))
-
-  const aciertos4 = numeros_4
-    .filter((n: string) => nums4.includes(n))
-    .map((n: string) => ({ numero: n, puesto: nums4.indexOf(n) + 1 }))
-
-  const aciertosRedoblona: { cabeza: string; acompanante: string }[] = []
-  for (const rb of redoblonas) {
-    const parts = rb.split("-")
-    if (parts.length === 2) {
-      const cabeza = parts[0].padStart(2, "0")
-      const acompanante = parts[1].padStart(2, "0")
-      if (nums2.includes(cabeza) && nums2.includes(acompanante)) {
-        aciertosRedoblona.push({ cabeza, acompanante })
-      }
-    }
-  }
-
-  const totalAciertos = aciertos2.length + aciertos3.length + aciertos4.length + aciertosRedoblona.length
-
-  return {
-    prediction_id: pred.id,
-    user_id: pred.user_id,
-    date: pred.date,
-    turno: pred.turno,
-    numeros_2,
-    numeros_3,
-    numeros_4,
-    redoblonas,
-    resultado_oficial: draw.numbers,
-    aciertos_2: aciertos2,
-    aciertos_3: aciertos3,
-    aciertos_4: aciertos4,
-    aciertos_redoblona: aciertosRedoblona,
-    total_aciertos: totalAciertos,
-    verified: true,
-    verified_at: new Date().toISOString(),
-    game_id: draw.game_id || "ac593199-c299-4f03-b1b7-8675fe4fa6d9",
-  }
-}
-
-function posicionesDe(h: HistoryInsert): number[] {
-  const positions2 = (h.aciertos_2 || []).map((a) => a.puesto)
-  const positions3 = (h.aciertos_3 || []).map((a) => a.puesto)
-  const positions4 = (h.aciertos_4 || []).map((a) => a.puesto)
-  return [...new Set([...positions2, ...positions3, ...positions4])].filter((p) => p >= 1 && p <= 20)
-}
-
-/**
- * Estado final de una predicción. Criterio estricto alineado con la RPC
- * verify_predictions_for_draw: la rama TS antes usaba total_aciertos > 0
- * (87,9% de "WON" que el azar también alcanza).
- */
-function estadoFinal(h: HistoryInsert, esPoceada: boolean): "WON" | "NEAR_MISS" | "LOST" {
-  if (esPoceada) return h.total_aciertos >= 5 ? "WON" : "LOST"
-  return estadoQuiniela(h.resultado_oficial, h.numeros_2)
 }
 
 // ─── Verify a single turno for a given fecha ────────────────────────────────

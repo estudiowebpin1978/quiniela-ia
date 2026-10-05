@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { esDiaSinSorteo, esTurnoSinSorteo } from "@/lib/feriados"
-import { TURNOS, GAME_ID, TurnoType } from "@/lib/scrapers/types"
+import { TURNOS, GAME_ID, POCEADA_GAME_ID, TurnoType } from "@/lib/scrapers/types"
 import { parseNumerosEnvivo, parseNacionalQuiniela } from "@/lib/scrapers/parsers"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
@@ -20,11 +20,12 @@ export const maxDuration = 300
 
 const BATCH_DELAY_MS = 1500
 
-function fechaArgentina(): string {
+function fechaArgentina(offsetDays = 0): string {
+  const d = new Date(Date.now() + offsetDays * 86400_000)
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Argentina/Buenos_Aires",
     year: "numeric", month: "2-digit", day: "2-digit",
-  }).format()
+  }).format(d)
 }
 
 function dateRange(from: string, to: string): string[] {
@@ -90,7 +91,7 @@ async function scrapeDate(fechaISO: string): Promise<{ saved: number; errors: nu
       result = await parseNacionalQuiniela(fechaISO, fUrl, turno as TurnoType)
     }
 
-    if (!result || result.numbers.length < 20) {
+    if (!result || result.numbers.length !== 20) {
       details.push(`${turno}: no data`)
       errors++
       continue
@@ -101,7 +102,9 @@ async function scrapeDate(fechaISO: string): Promise<{ saved: number; errors: nu
       p_turno: turno,
       p_numbers: result.numbers,
       p_source: result.source,
-      p_game_id: GAME_ID,
+      // Cada turno con su juego: Poceada pertenece a su propio game_id
+      // (verificado en BD:263 filas Poceada usan d0e1f2a3..., no el Nacional).
+      p_game_id: turno === "Poceada" ? POCEADA_GAME_ID : GAME_ID,
       p_jurisdiccion: "CABA",
     } as never)
 
@@ -183,6 +186,26 @@ export async function GET(req: NextRequest) {
     logger.info("cron-backfill: auto-detected gaps", { count: gaps.length, from: fromDate, to: toDate })
   }
 
+  // P0 auditoría 2026-10-05 — fuentes secundarias SOLO para fechas pasadas:
+  // el día de hoy (y cualquier fecha futura) corresponde exclusivamente a las
+  // fuentes oficiales LOTBA vía cron-scrape. Así un ?to= futuro o el modo
+  // days=30 (que calcula hasta hoy) nunca escribe datos de hoy desde
+  // numerosenvivo/nacionalquiniela.
+  const maxDateSecundarias = fechaArgentina(-1)
+  let rangeNote: string | null = null
+  if (toDate > maxDateSecundarias) {
+    rangeNote = `to=${toDate} limitado a ${maxDateSecundarias} (fuentes secundarias solo cubren fechas pasadas)`
+    logger.info("cron-backfill: range clamped to past dates", { note: rangeNote })
+    toDate = maxDateSecundarias
+  }
+  if (fromDate > toDate) {
+    return NextResponse.json({
+      ok: true,
+      message: "Rango vacío tras limitar a fechas pasadas (usa ?to= con fecha anterior a hoy)",
+      from: fromDate, maxDate: maxDateSecundarias,
+    })
+  }
+
   if (dryRun) {
     const dates = dateRange(fromDate, toDate)
     const skipCount = dates.filter(d => {
@@ -229,11 +252,13 @@ export async function GET(req: NextRequest) {
   logCronExecution("cron-backfill", {
     from: fromDate, to: toDate,
     datesProcessed, totalSaved, totalErrors,
+    ...(rangeNote ? { rangeNote } : {}),
   }, Date.now())
 
   return NextResponse.json({
     ok: true,
     from: fromDate, to: toDate,
+    ...(rangeNote ? { rangeNote } : {}),
     datesProcessed, totalSaved, totalErrors,
     results: results.slice(0, 50),
   })

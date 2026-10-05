@@ -12,7 +12,7 @@ RETURNS void
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  secret TEXT := 'MDM2ZDVjOGItMzk4Yi00Mjk2LTlmNmYtYjA1OTJkNWQwNGFm';
+  secret TEXT := 'ROTATED-SECRET-REMOVED-BY-AUDIT-2026-10-05';
   req_id BIGINT;
 BEGIN
   req_id := net.http_get(

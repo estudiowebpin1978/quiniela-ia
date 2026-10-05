@@ -66,12 +66,14 @@ export async function GET(req: NextRequest) {
       elapsed_ms: Date.now() - t0,
     })
   } catch (e) {
-    logger.error("cron-learning: pipeline failed", {
-      error: e instanceof Error ? e.message : String(e),
-    })
+    const errMsg = e instanceof Error ? e.message : "Unknown error"
+    logger.error("cron-learning: pipeline failed", { error: errMsg })
+    // Registrar también el fallo en cron_logs: antes solo se logueaba el éxito
+    // y los fallos quedaban invisibles para /api/health y el monitoreo.
+    logCronExecution("cron-learning", { ok: false, error: errMsg }, t0)
     return NextResponse.json({
       ok: false,
-      error: e instanceof Error ? e.message : "Unknown error",
+      error: errMsg,
       elapsed_ms: Date.now() - t0,
     }, { status: 500 })
   }

@@ -1,3 +1,19 @@
+-- ⚠️ REQUIERE REVISIÓN MANUAL — no es una migración versionada; contenido
+-- destructivo/de seguridad (ver informe auditoría 2026-10-05). NO ejecutar
+-- contra producción ni convertir a migración versionada sin revisión previa.
+-- Motivo:
+--   * Incluye `ALTER TABLE public.source_health DISABLE ROW LEVEL SECURITY` =
+--     regresión de seguridad. En producción el RLS de source_health sigue
+--     ACTIVO (verificado 2026-10-05), con la política "Service role only"
+--     creada por 20260823020000_source_health_circuit_breaker.sql.
+--   * Los GRANT SELECT sobre api.source_health/draw_stats/markov_transitions/
+--     cooccurrence_matrix y los GRANT EXECUTE sobre las RPCs de api.* concedidos
+--     a anon, authenticated están intencionalmente revertidos por
+--     20261005010000_security_p0_blindaje.sql (P0-3: REVOKE de todo el acceso
+--     de clientes al schema api, porque saltaban el RLS).
+--   * El fix de tipo de public.get_draw_stats (avg_gap::double precision) ya está
+--     cubierto por 20260830000001_fix_get_draw_stats_type.sql; la variante
+--     api.get_draw_stats depende de APPLY_MANUALLY_04_api_schema_views.sql.
 -- ============================================================
 -- FIX: Type mismatch + RLS for new objects
 -- ============================================================

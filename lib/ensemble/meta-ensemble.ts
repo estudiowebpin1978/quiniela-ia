@@ -124,7 +124,22 @@ export async function loadEngineWeights(turno: string): Promise<EngineWeights> {
 }
 
 /**
+ * Metadatos de lineage (Objetivo 11): con qué versión/semilla se generó
+ * cada fila de engine_predictions_log. Todos opcionales → backward compatible.
+ */
+export interface LineageInfo {
+  /** Versión por motor (V6/V7/ML); si falta se usa el engine_name. */
+  engineVersions?: Partial<Record<string, string>>
+  /** Identificador de los pesos usados (p.ej. fecha de la fila de factor_weight_history). */
+  weightsVersion?: string | null
+  /** Semilla del run (hashSeed) para reproducibilidad. */
+  seed?: string | null
+}
+
+/**
  * Log raw engine predictions for later evaluation.
+ * Si se pasa `lineage`, pobla las columnas engine_version/weights_version/seed/
+ * generated_at vía UPDATE posterior (la RPC upsert no conoce esas columnas).
  */
 export async function logEnginePredictions(
   drawId: string,
@@ -132,6 +147,7 @@ export async function logEnginePredictions(
   predsV6: number[],
   predsV7: number[],
   predsML: number[],
+  lineage?: LineageInfo,
 ): Promise<void> {
   const supabase = getSupabaseAdmin()
   const engines = [
@@ -148,7 +164,46 @@ export async function logEnginePredictions(
     } as never)
     if (error) {
       logger.error("[meta-ensemble] logEnginePredictions failed", { engine: eng.engine_name, error: error.message })
+      continue
     }
+    if (lineage) {
+      // Mejor esfuerzo: si falla (p.ej. columnas aún no agregadas), solo warning.
+      const { error: linErr } = await supabase
+        .from("engine_predictions_log")
+        .update({
+          engine_version: lineage.engineVersions?.[eng.engine_name] ?? eng.engine_name,
+          weights_version: lineage.weightsVersion ?? null,
+          seed: lineage.seed ?? null,
+          generated_at: new Date().toISOString(),
+        })
+        .eq("draw_id", drawId)
+        .eq("engine_name", eng.engine_name)
+      if (linErr) {
+        logger.warn("[meta-ensemble] lineage update failed", { engine: eng.engine_name, error: linErr.message })
+      }
+    }
+  }
+}
+
+/**
+ * Lineage estándar de un run, compartido por los dos writers de
+ * engine_predictions_log (cron-run y cron-precompute) para que produzcan
+ * metadatos idénticos.
+ *
+ * - engineVersions: identificadores EXISTENTES del sistema (la tabla
+ *   omega_promotion_audit usa old='omega-v1' / new='meta-ensemble-v1').
+ *   ML no tiene identificador de versión → se omite y logEnginePredictions
+ *   cae a engine_name ("ML"), sin inventar un número de versión.
+ * - weightsVersion: registra los pesos de blend REALMENTE usados (reproducible).
+ */
+export function lineageDelRun(
+  seed: number | string,
+  blend: { V6: number; V7: number; ML: number },
+): LineageInfo {
+  return {
+    seed: String(seed),
+    engineVersions: { V6: "omega-v1", V7: "meta-ensemble-v1" },
+    weightsVersion: `blend:v6=${blend.V6.toFixed(3)},v7=${blend.V7.toFixed(3)},ml=${blend.ML.toFixed(3)}`,
   }
 }
 

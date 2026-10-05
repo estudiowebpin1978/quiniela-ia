@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 
 export async function POST(req: NextRequest) {
-  const authHeader = req.headers.get("authorization")?.replace("Bearer ", "")
-  if (authHeader !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  // Auth centralizada y fail-closed: la comparación anterior
+  // (`!== process.env.CRON_SECRET`) dejaba pasar TODO si la env estaba sin
+  // definir (undefined !== undefined → false). validateCronAuth rechaza por
+  // defecto y compara con timing-safe.
+  const authResult = await validateCronAuth(req)
+  if (!authResult.authorized) return unauthorizedResponse()
 
   const supabase = getSupabaseAdmin()
 

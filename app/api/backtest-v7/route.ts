@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import { predictV7, predictEnsembleV7 } from "@/lib/analisis/engine-v7"
 import type { Draw, FactorBreakdown } from "@/lib/analisis/engine-v7"
 import logger from "@/lib/logger"
@@ -23,6 +24,10 @@ const DEFAULT_V7_WEIGHTS: FactorBreakdown = {
 }
 
 export async function GET(req: NextRequest) {
+  // Cómputo pesado (hasta 300s de CPU) → exige CRON_SECRET o JWT de admin.
+  const authResult = await validateCronAuth(req)
+  if (!authResult.authorized) return unauthorizedResponse()
+
   const t0 = Date.now()
 
   try {

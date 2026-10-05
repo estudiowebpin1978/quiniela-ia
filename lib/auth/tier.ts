@@ -170,7 +170,13 @@ export async function resolveUserTier(token: string): Promise<UserTier> {
 
     const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase())
     const dbRole = (profile?.role || "free") as string
-    const role: UserTier["role"] = isAdmin ? "admin" : dbRole === "admin" ? "admin" : (dbRole as UserTier["role"])
+    // El rol "admin" SOLO se concede si el email está en la allowlist (ADMIN_EMAILS).
+    // Un role 'admin' en BD sin email allowlist degrada a 'free'.
+    const role: UserTier["role"] = isAdmin
+      ? "admin"
+      : dbRole === "admin"
+        ? "free"
+        : (dbRole as UserTier["role"])
     if (dbRole === "admin" && !isAdmin) {
       logger.warn("[tier] DB role is 'admin' but email not in ADMIN_EMAILS — treated as free", { email })
     }

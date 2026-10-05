@@ -78,7 +78,16 @@ export function logCronExecution(
   startTime: number,
 ): void {
   const elapsed = Date.now() - startTime
-  const hasError = !!(result as Record<string, unknown>).error
+  // Detección de fallo real: antes solo `result.error` existente hacía que
+  // corridas completamente fallidas se registraran como "success" (p.ej.
+  // rutas que devuelven ok:false o totales de error sin campo `error`).
+  const r = result as Record<string, unknown>
+  const hasError =
+    r.error != null ||
+    r.ok === false ||
+    r.success === false ||
+    (typeof r.totalErrors === "number" && r.totalErrors > 0) ||
+    (typeof r.errors === "number" && r.errors > 0)
 
   logger.info(`[CRON] ${endpoint} completed`, {
     elapsed,

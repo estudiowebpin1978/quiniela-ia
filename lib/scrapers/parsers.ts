@@ -597,6 +597,18 @@ export async function parseNumerosEnvivo(
     if (!resp.ok) return null
     const html = await resp.text()
 
+    // P0 auditoría 2026-10-05 — validación de la fecha del contenido:
+    // verificado en vivo, ?fecha=2026-10-02 devuelve HTML que contiene "02/10/2026".
+    // Sin esta validación, si el sitio ignora el parámetro (o redirige al último
+    // sorteo) el backfill insertaría los números del día más reciente con la
+    // fecha pedida. Fail-closed: sin fecha esperada → no se usa la fuente.
+    const [ny, nm, nd] = fechaISO.split("-")
+    const fechaEsperada = `${nd}/${nm}/${ny}`
+    if (!html.includes(fechaEsperada)) {
+      logger.debug("[scraper] parseNumerosEnvivo: date mismatch", { targetDate: fechaISO, turno })
+      return null
+    }
+
     // Data is embedded as JSON in a <script> block:
     // window.__INITIAL_STATE__ = {...} or similar
     // Look for turno data with "numeros" array
@@ -635,29 +647,40 @@ export async function parseNumerosEnvivo(
       }
     }
 
-    // Fallback: try the dedicated JSON API
+    // Fallback: dataset JSON histórico estructurado (verificado en vivo:
+    // records[] = {fecha, turno, posicion, numero, ...} — el dataset NO tiene
+    // claves de turno en top-level, por lo que el acceso anterior
+    // jsonData[turnoKey] era código muerto y nunca devolvía números).
+    // Solo se aceptan registros de la MISMA fecha y turno con las 20
+    // posiciones (1..20) completas y números 0000-9999.
     const apiResp = await fetch("https://numerosenvivo.com.ar/api/datos/quiniela/ciudad.json", {
       headers: { "User-Agent": rotationUA() },
       signal: AbortSignal.timeout(6000),
     })
     if (apiResp.ok) {
-      const jsonData = await apiResp.json()
-      const turnoData = jsonData[turnoKey] || jsonData[turno]
-      if (turnoData && Array.isArray(turnoData.numeros)) {
+      const jsonData: unknown = await apiResp.json()
+      const recs: Array<{ fecha?: string; turno?: string; posicion?: unknown; numero?: unknown }> =
+        Array.isArray((jsonData as { records?: unknown })?.records)
+          ? ((jsonData as { records: Array<{ fecha?: string; turno?: string; posicion?: unknown; numero?: unknown }> }).records)
+          : []
+      const porPosicion = new Map<number, number>()
+      for (const rec of recs) {
+        if (rec.fecha !== fechaISO || rec.turno !== turno) continue
+        const pos = Number(rec.posicion)
+        const n = parseInt(String(rec.numero), 10)
+        if (!Number.isInteger(pos) || pos < 1 || pos > 20) continue
+        if (!Number.isInteger(n) || n < 0 || n > 9999) continue
+        if (!porPosicion.has(pos)) porPosicion.set(pos, n)
+      }
+      if (porPosicion.size === 20) {
         const apiNums: number[] = []
-        for (const n of turnoData.numeros) {
-          const parsed = typeof n === "string" ? parseInt(n) : n
-          if (parsed >= 0 && parsed <= 9999 && !apiNums.includes(parsed)) apiNums.push(parsed)
-          if (apiNums.length >= 20) break
-        }
-        if (apiNums.length >= 20) {
-          return {
-            numbers: apiNums,
-            source: "numerosenvivo.com.ar",
-            cabezaMatch: null,
-            duration: Date.now() - start,
-            retries: 0,
-          }
+        for (let p = 1; p <= 20; p++) apiNums.push(porPosicion.get(p) as number)
+        return {
+          numbers: apiNums,
+          source: "numerosenvivo.com.ar",
+          cabezaMatch: null,
+          duration: Date.now() - start,
+          retries: 0,
         }
       }
     }
