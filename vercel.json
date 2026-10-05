@@ -1,13 +1,17 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron-premium-expiry",
-      "schedule": "0 4 * * *"
-    }
-  ],
-  "functions": {
-    "app/api/**/*.ts": {
-      "maxDuration": 300
-    }
-  }
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "framework": "next",
+  "installCommand": "npm ci",
+  "outputDirectory": ".next",
+  "public": true,
+  "rewrites": [
+    { "source": "/api/cron-scrape", "destination": "/api/cron-scrape" },
+    { "source": "/api/cron-backfill", "destination": "/api/cron-backfill" },
+    { "source": "/api/cron-run", "destination": "/api/cron-run" },
+    { "source": "/api/cron-precompute", "destination": "/api/cron-precompute" },
+    { "source": "/api/cron-verify-predictions", "destination": "/api/cron-verify-predictions" },
+    { "source": "/api/cron-verify-catchup", "destination": "/api/cron-verify-catchup" },
+    { "source": "/api/health", "destination": "/api/health" }
+  ]
 }
