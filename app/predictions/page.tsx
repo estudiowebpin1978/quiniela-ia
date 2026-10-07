@@ -1131,8 +1131,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .saved-card{background:var(--surface);border:1.5px solid var(--panel-border);border-radius:16px;padding:16px;margin-bottom:14px;position:relative;transition:transform .2s,box-shadow .2s}
         .saved-card:hover{transform:translateY(-2px);box-shadow:0 14px 28px rgba(0,0,0,.08)}
         .saved-card-success{background:linear-gradient(135deg,rgba(34,197,94,.12),rgba(34,197,94,.05));border-color:rgba(34,197,94,.35);box-shadow:0 8px 24px rgba(34,197,94,.12)}
-        .saved-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
-        .saved-card-title{font-size:13px;font-weight:800;color:var(--text)}
+        .saved-card-header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+        .saved-card-title{font-size:13px;font-weight:800;color:var(--text);min-width:0}
         .saved-card-status{font-size:12px;font-weight:800;padding:5px 12px;border-radius:999px}
         .saved-card-status.hit{color:#166534;background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.25)}
         .saved-card-status.miss{color:#475569;background:rgba(255,255,255,.08);border:1px solid rgba(148,163,184,.2)}
@@ -1979,7 +1979,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                       <div key={i} className={`saved-card ${tieneAciertos ? "saved-card-success" : ""}`}>
                         <div className="saved-card-header">
                           <div className="saved-card-title">{titulo}</div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
                             <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>{nums2.length} nums</span>
                             {p.resultado && p.resultado.length > 0 ? (
                               <div className={`saved-card-status ${tieneAciertos ? "hit" : "miss"}`}>

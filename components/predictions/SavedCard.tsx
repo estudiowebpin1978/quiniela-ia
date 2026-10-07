@@ -31,7 +31,7 @@ export function SavedCard({ p, pr, userRole, index }: SavedCardProps) {
     <div key={index} className={`saved-card ${tieneAciertos ? "saved-card-success" : ""}`}>
       <div className="saved-card-header">
         <div className="saved-card-title">{titulo}</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
           <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>{nums2.length} nums</span>
           {p.resultado && p.resultado.length > 0 ? (
             <div className={`saved-card-status ${tieneAciertos ? "hit" : "miss"}`}>
