@@ -3,7 +3,8 @@ import { resolveUserTier, FREE_MAX_PREDICTIONS } from "@/lib/auth/tier"
 import { GAME_ID } from "@/lib/scrapers/types"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import logger from "@/lib/logger"
-import type { PredictionRow, PredictionHistoryRow, Acierto, DrawRow } from "@/lib/api/types"
+import type { PredictionHistoryRow, DrawRow } from "@/lib/api/types"
+import { calcularAciertosApi } from "@/lib/verificacion/api-aciertos"
 
 // In-memory rate limiter for POST
 const rateLimitMap = new Map<string, { count: number; windowStart: number }>()
@@ -123,86 +124,34 @@ export async function GET(req: NextRequest) {
       const history = historyMap[pred.id] || null
       const disponible = !!draw
 
-      // FAST PATH: Use server-verified status/aciertos from trigger (user_predictions table)
+      // status del servidor (RPC / verificadores): define que el sorteo ya se
+      // resolvió (hasResult) y se expone al cliente, pero NO decide "hubo
+      // coincidencias" — eso lo decide allAciertos (ver nota más abajo).
       const statusUpper = (pred.status || '').toUpperCase()
-      // NEAR_MISS también es verificación del servidor: si no, cae al fallback
-      // del cliente (allAciertos.length > 0) y se mostraría como "acierto".
       const serverVerified = statusUpper === 'WON' || statusUpper === 'LOST' || statusUpper === 'NEAR_MISS'
 
-      let aciertos: Acierto[] = []
-      let aciertos3: Acierto[] = []
-      let aciertos4: Acierto[] = []
-      let numerosReales: string[] = []
-      let numerosReales3: string[] = []
-      let numerosReales4: string[] = []
+      // Cálculo puro de aciertos → lib/verificacion/api-aciertos.ts
+      // (1) historial = criterio unificado; (2) sin historial = picks × sorteo.
+      // NO se lee user_predictions.aciertos: esa columna es mixta (posiciones,
+      // 0 placeholder del ±1 de NEAR_MISS, centinelas 3/4/5 de 3C/4C/redoblona
+      // y conteo 5-8 en Poceada) — ver nota en api-aciertos.ts.
+      const calc = calcularAciertosApi({
+        numeros: pred.numeros,
+        premium: tier.canAccessPremiumFeatures,
+        historial: history,
+        numerosSorteo: draw?.numbers && Array.isArray(draw.numbers) ? draw.numbers : null,
+      })
+      const pred2 = calc.numeros_2
+      const pred3 = calc.numeros_3
+      const pred4 = calc.numeros_4
+      const aciertos = calc.aciertos_2
+      const aciertos3 = calc.aciertos_3
+      const aciertos4 = calc.aciertos_4
+      const numerosReales = calc.resultado_2
+      const numerosReales3 = calc.resultado_3
+      const numerosReales4 = calc.resultado_4
+      const allAciertos = calc.todos
 
-      let numerosData: number[] | Record<string, string[]> = pred.numeros as number[] | Record<string, string[]>
-      if (Array.isArray(numerosData) && numerosData.length === 1 && typeof numerosData[0] === "string") {
-        try { numerosData = JSON.parse(numerosData[0] as string) as Record<string, string[]> } catch { /* noop */ }
-      }
-      const norm2 = (v: string) => { const s = String(v).replace(/^0+/, ''); return s.slice(-2).padStart(2, '0') }
-      const norm3 = (v: string) => { const s = String(v).replace(/^0+/, ''); return s.slice(-3).padStart(3, '0') }
-      const norm4 = (v: string) => String(v).padStart(4, '0')
-      const pred2: string[] = Array.isArray(numerosData)
-        ? numerosData.map((n: number | string) => norm2(String(n)))
-        : (numerosData?.["2"] || []).map(norm2)
-      let pred3: string[] = []
-      let pred4: string[] = []
-      if (!Array.isArray(numerosData) && tier.canAccessPremiumFeatures) {
-        pred3 = (numerosData?.["3"] || []).map(norm3)
-        pred4 = (numerosData?.["4"] || []).map(norm4)
-      }
-
-      if (serverVerified && disponible && draw?.numbers && pred.aciertos && Array.isArray(pred.aciertos)) {
-        // Fast path: use server-verified aciertos from trigger (POSITIONS 1-20)
-        // Only for free users (2 cifras only). Premium users need prediction_history for 3/4 cifra breakdown.
-        const officialNums2 = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
-        aciertos = pred.aciertos
-          .filter((pos: number) => pos >= 1 && pos <= 20)
-          .map((pos: number) => ({
-            numero: officialNums2[pos - 1] || String(pos).padStart(2, "0"),
-            puesto: pos,
-            tipo: 2 as const
-          }))
-        numerosReales = officialNums2
-        numerosReales3 = draw.numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
-        numerosReales4 = draw.numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
-      } else if (history) {
-        aciertos = (history.aciertos_2 || []).map((a: Acierto) => ({ ...a, tipo: 2 as const }))
-        if (tier.canAccessPremiumFeatures) {
-          aciertos3 = (history.aciertos_3 || []).map((a: Acierto) => ({ ...a, tipo: 3 as const }))
-          aciertos4 = (history.aciertos_4 || []).map((a: Acierto) => ({ ...a, tipo: 4 as const }))
-        }
-        const resultNums = history.resultado_oficial || []
-        numerosReales = resultNums.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
-        numerosReales3 = resultNums.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
-        numerosReales4 = resultNums.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
-      } else if (draw?.numbers && Array.isArray(draw.numbers)) {
-        numerosReales = draw.numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
-        numerosReales3 = draw.numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
-        numerosReales4 = draw.numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
-
-        const predNumeros2 = pred2.map((n: string) => String(n).padStart(2, "0"))
-        aciertos = predNumeros2.filter((n: string) => numerosReales.includes(n)).map((n: string) => ({
-          numero: n, puesto: numerosReales.indexOf(n) + 1, tipo: 2
-        }))
-
-        if (pred3.length > 0) {
-          const predNumeros3 = pred3.map((n: string) => String(n).padStart(3, "0"))
-          aciertos3 = predNumeros3.filter((n: string) => numerosReales3.includes(n)).map((n: string) => ({
-            numero: n, puesto: numerosReales3.indexOf(n) + 1, tipo: 3
-          }))
-        }
-
-        if (pred4.length > 0) {
-          const predNumeros4 = pred4.map((n: string) => String(n).padStart(4, "0"))
-          aciertos4 = predNumeros4.filter((n: string) => numerosReales4.includes(n)).map((n: string) => ({
-            numero: n, puesto: numerosReales4.indexOf(n) + 1, tipo: 4
-          }))
-        }
-      }
-
-      const allAciertos = [...aciertos, ...aciertos3, ...aciertos4]
       const hasResult = serverVerified || !!history || disponible
 
       results.push({
@@ -218,7 +167,16 @@ export async function GET(req: NextRequest) {
         aciertos_2: hasResult ? aciertos : [],
         aciertos_3: hasResult ? aciertos3 : [],
         aciertos_4: hasResult ? aciertos4 : [],
-        acerto: hasResult ? (serverVerified ? statusUpper === 'WON' : allAciertos.length > 0) : false,
+        // "acerto" = hubo al menos una coincidencia (2/3/4 cifras), el mismo
+        // criterio del resumen (misSummary) y del resto de las fuentes
+        // (historial, cálculo y localStorage). ANTES: para filas verificadas
+        // valía `status === 'WON'` → una predicción LOST/NEAR_MISS con
+        // aciertos reales se mostraba "Sin coincidencias" mientras el cuerpo
+        // de la tarjeta listaba "🎉 NN → Puesto X".
+        acerto: hasResult ? allAciertos.length > 0 : false,
+        // Estado de la verificación (WON = acertó la cabeza / NEAR_MISS = ±1 /
+        // LOST), para que la UI lo muestre aparte de las coincidencias.
+        status: serverVerified ? statusUpper : null,
         created_at: pred.created_at,
         sorteoRealizado: hasResult
       })

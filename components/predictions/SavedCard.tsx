@@ -34,11 +34,21 @@ export function SavedCard({ p, pr, userRole, index }: SavedCardProps) {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>{nums2.length} nums</span>
           {p.resultado && p.resultado.length > 0 ? (
-            <div className={`saved-card-status ${p.acerto ? "hit" : "miss"}`}>
-              {p.acerto ? `📊 ${p.aciertos.length} coincidencia(s)` : "Sin coincidencias"}
+            <div className={`saved-card-status ${tieneAciertos ? "hit" : "miss"}`}>
+              {tieneAciertos ? `📊 ${p.aciertos.length} coincidencia(s)` : "Sin coincidencias"}
             </div>
           ) : (
             <div className="saved-card-status miss">⏳ Esperando resultado</div>
+          )}
+          {/* Estado de verificación aparte de las coincidencias (ganar ≠ coincidir) */}
+          {p.status === "WON" && (
+            <div className="saved-card-status hit">🏆 Ganado</div>
+          )}
+          {p.status === "NEAR_MISS" && (
+            <div className="saved-card-status" style={{ color: "#b45309", background: "rgba(245,158,11,.15)", border: "1px solid rgba(245,158,11,.3)" }}>🔥 Casi (±1)</div>
+          )}
+          {p.status === "LOST" && (
+            <div className="saved-card-status miss">✗ No ganado</div>
           )}
         </div>
       </div>

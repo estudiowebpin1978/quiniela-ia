@@ -104,6 +104,7 @@ export const MisPrediccionSchema = z.object({
     puesto: z.number(),
   })).optional(),
   acerto: z.boolean().optional(),
+  status: z.enum(["WON", "NEAR_MISS", "LOST"]).nullable().optional(),
   created_at: z.string().optional(),
   resultado_original: z.array(z.string()).optional(),
 });
