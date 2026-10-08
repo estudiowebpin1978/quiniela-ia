@@ -11,6 +11,7 @@ export const RankingItemSchema = z.object({
   factores: z.array(z.string()).optional(),
   bayesianConfidence: z.number().optional(),
   bayesianPosterior: z.number().optional(),
+  confidenceCalibrated: z.number().optional(), // audit: calibración obligatoria antes de exponer probabilidad
 });
 
 export const PredDataSchema = z.object({

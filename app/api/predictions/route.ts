@@ -228,7 +228,11 @@ export async function GET(req: NextRequest) {
             emoji: suenoDe((item.n ?? item.numero) as number | string).emoji || (item.emoji as string) || "❓",
             significado: suenoDe((item.n ?? item.numero) as number | string).nombre || (item.significado as string) || "",
             score: (item.score as number) || 0,
-            confianza: cached.confidence || 0,
+            // confianza por número = score del número × 100 (consistente con el
+            // camino no-cache: confianza = Math.round(score * 100)). Antes usaba
+            // cached.confidence (consistencia del modelo, 0-1) → mostraba "0.7%"
+            // en cache-hit vs "70%" en no-cache.
+            confianza: Math.round(((item.score as number) || 0) * 100),
             rank: i + 1,
             frecuencia: Math.round(((item.score as number) || 0) * 100),
             factores: Object.keys(item.factor_attribution as Record<string, number> || {}).filter(
