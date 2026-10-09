@@ -792,18 +792,27 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     const nums3Save = (pr || userRole === "admin") ? nums3.slice(0, maxNums) : [];
     const nums4Save = (pr || userRole === "admin") ? nums4.slice(0, maxNums) : [];
     const rdblSave = (pr || userRole === "admin") && rdbl ? [rdbl] : [];
+    // Poceada (so === "Poceada") es un juego SOLO de 2 cifras (00-99):
+    // se guarda SIEMPRE como array plano — nunca con claves "3"/"4"/"r".
+    // ANTES un usuario premium guardaba {2,3,4,r} incluso en Poceada y la UI
+    // mostraba secciones "3 CIFRAS"/"4 CIFRAS" que no existen en ese juego.
+    const esPoceadaGuardar = so === "Poceada";
+    const esPremiumGuardar = (pr || userRole === "admin") && !esPoceadaGuardar;
+    const numerosGuardar: unknown = esPremiumGuardar
+      ? { "2": nums, "3": nums3Save, "4": nums4Save, "r": rdblSave }
+      : nums;
 
     const nuevaPred: SavedPrediction = {
       id: "local_" + Date.now(),
       fecha: fechaSorteoStr,
       turno: so,
-      numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3Save, "4": nums4Save, "r": rdblSave } as Record<string, string[]> : nums,
+      numeros: numerosGuardar as Record<string, string[]>,
       created_at: new Date().toISOString(),
       resultado_original: [],
       aciertos: [],
       acerto: false,
     };
-    if (pr || userRole === "admin") {
+    if (esPremiumGuardar) {
       nuevaPred.numeros_3 = nums3Save;
       nuevaPred.numeros_4 = nums4Save;
     }
@@ -815,7 +824,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         const res = await fetch("/api/mis-predicciones", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
-          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: (pr || userRole === "admin") ? { "2": nums, "3": nums3Save, "4": nums4Save, "r": rdblSave } : nums }),
+          body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: numerosGuardar }),
         });
         const data = await res.json();
         if (res.status === 409) {
@@ -1972,9 +1981,13 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     const fechaValida = fecha && !isNaN(Date.parse(fecha));
                     const titulo = fechaValida ? `${p.turno} — ${new Date(fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}` : `${p.turno} — ${fecha || "Sin fecha"}`;
                     const nums2: string[] = Array.isArray(p.numeros) ? p.numeros : (typeof p.numeros === "object" && p.numeros?.["2"] ? p.numeros["2"] : []);
-                    const nums3: string[] = Array.isArray(p.numeros_3) ? p.numeros_3 : (typeof p.numeros === "object" && p.numeros?.["3"] ? p.numeros["3"] : []);
-                    const nums4: string[] = Array.isArray(p.numeros_4) ? p.numeros_4 : (typeof p.numeros === "object" && p.numeros?.["4"] ? p.numeros["4"] : []);
-                    const rdblStr: string = (typeof p.numeros === "object" && p.numeros?.["r"]) ? (Array.isArray(p.numeros["r"]) ? p.numeros["r"][0] || "" : p.numeros["r"] || "") : "";
+                    // Poceada es un juego SOLO de 2 cifras (00-99), distinto de
+                    // la Quiniela: nunca mostrar 3/4 cifras ni redoblona, aunque
+                    // datos legacy tengan esas claves.
+                    const esPoceadaPred = /poceada/i.test(p.turno || "");
+                    const nums3: string[] = esPoceadaPred ? [] : (Array.isArray(p.numeros_3) ? p.numeros_3 : (typeof p.numeros === "object" && p.numeros?.["3"] ? p.numeros["3"] : []));
+                    const nums4: string[] = esPoceadaPred ? [] : (Array.isArray(p.numeros_4) ? p.numeros_4 : (typeof p.numeros === "object" && p.numeros?.["4"] ? p.numeros["4"] : []));
+                    const rdblStr: string = esPoceadaPred ? "" : ((typeof p.numeros === "object" && p.numeros?.["r"]) ? (Array.isArray(p.numeros["r"]) ? p.numeros["r"][0] || "" : p.numeros["r"] || "") : "");
                     return (
                       <div key={i} className={`saved-card ${tieneAciertos ? "saved-card-success" : ""}`}>
                         <div className="saved-card-header">
@@ -2070,7 +2083,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                                 const hit3 = p.aciertos_3?.some((a: any) => a.numero === n3)
                                 const hit2 = p.aciertos_2?.some((a: any) => a.numero === n2)
                                 const isHit = hit4 || hit3 || hit2
-                                const hitType = hit4 ? "4" : hit3 ? "3" : hit2 ? "2" : null
+                                // Poceada: solo 2 cifras — el "tipo" de acierto
+                                // es siempre "2" (sin 3/4 cifras).
+                                const hitType = esPoceadaPred ? (hit2 ? "2" : null) : (hit4 ? "4" : hit3 ? "3" : hit2 ? "2" : null)
                                 return (
                                   <span key={idx} style={{
                                     padding:"4px 7px",borderRadius:6,fontSize:11,fontWeight:700,
@@ -2090,15 +2105,19 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                                       : "1px solid rgba(168,85,247,0.4)"
                                       : "1px solid rgba(255,255,255,0.08)"
                                   }}>
-                                    {n4}
+                                    {esPoceadaPred ? n2 : n4}
                                   </span>
                                 );
                               })}
                             </div>
                             <div style={{display:"flex",gap:10,marginTop:6,fontSize:9,color:"#64748b"}}>
                               <span><span style={{color:"#c4b5fd"}}>●</span> 2 cifras</span>
-                              <span><span style={{color:"#60a5fa"}}>●</span> 3 cifras</span>
-                              <span><span style={{color:"#22c55e"}}>●</span> 4 cifras</span>
+                              {!esPoceadaPred && (
+                                <>
+                                  <span><span style={{color:"#60a5fa"}}>●</span> 3 cifras</span>
+                                  <span><span style={{color:"#22c55e"}}>●</span> 4 cifras</span>
+                                </>
+                              )}
                             </div>
                           </div>
                         )}

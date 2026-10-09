@@ -86,11 +86,18 @@ export async function GET(req: NextRequest) {
       
       if (!drawNums) continue
       
+      // Poceada: juego SOLO de 2 cifras (00-99), distinto de la Quiniela.
+      // No se derivan ni se comparan 3/4 cifras (el sorteo de Poceada es
+      // 0-99 y "000".."099" / "0000".."0099" no existen como cifras).
+      const esPoceada = turnoLower === "poceada"
       const nums2 = drawNums.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
-      const nums3 = drawNums.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
-      const nums4 = drawNums.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
+      const nums3 = esPoceada ? [] : drawNums.map((n: number) => String(Number(n) % 1000).padStart(3, "0"))
+      const nums4 = esPoceada ? [] : drawNums.map((n: number) => String(Number(n) % 10000).padStart(4, "0"))
 
-      const { n2: predNumeros2, n3: predNumeros3, n4: predNumeros4 } = parseNumeros(pred.numeros)
+      const parsed = parseNumeros(pred.numeros)
+      const predNumeros2 = parsed.n2
+      const predNumeros3 = esPoceada ? [] : parsed.n3
+      const predNumeros4 = esPoceada ? [] : parsed.n4
       
       const aciertos2 = predNumeros2
         .filter((n: string) => nums2.includes(n))

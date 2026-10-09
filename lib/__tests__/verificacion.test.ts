@@ -227,6 +227,40 @@ describe("buildHistoryInsert", () => {
     const sinGame = buildHistoryInsert(pred, { numbers: [11, 22] }, GAME_ID_POCEADA)
     expect(sinGame.game_id).toBe(GAME_ID_POCEADA)
   })
+
+  /**
+   * Regresión del bug 2026-10-09: Poceada = juego SOLO de 2 cifras (00-99),
+   * distinto de la Quiniela. El historial de Poceada NO debe contener
+   * numeros_3/numeros_4 ni aciertos 3/4 fabricados desde el sorteo 0-99.
+   */
+  it("Poceada: legacy con claves 3/4 no fabrica aciertos 3/4 en el historial", () => {
+    const raw = ['{"2":["07","12"],"3":["007"],"4":["0007"],"r":["07-12"]}']
+    const h = buildHistoryInsert(
+      { id: "p4", user_id: "u1", date: "2026-10-05", turno: "Poceada", numeros: raw },
+      { numbers: [7, 12, 45, 3, 88], game_id: GAME_ID_POCEADA },
+    )
+    // Solo 2 cifras en todo el historial.
+    expect(h.numeros_3).toEqual([])
+    expect(h.numeros_4).toEqual([])
+    expect(h.redoblonas).toEqual([])
+    expect(h.aciertos_3).toEqual([])
+    expect(h.aciertos_4).toEqual([])
+    expect(h.aciertos_redoblona).toEqual([])
+    // Los aciertos 2 sí se calculan (7 y 12 están en el sorteo).
+    expect(h.aciertos_2).toHaveLength(2)
+    expect(h.total_aciertos).toBe(2) // no inflado por 3/4/redoblona
+  })
+
+  it("deriveNums con esPoceada → nums3/nums4 vacíos (no '000'..'099')", () => {
+    const d = deriveNums([7, 45, 99], true)
+    expect(d.nums2).toEqual(["07", "45", "99"])
+    expect(d.nums3).toEqual([])
+    expect(d.nums4).toEqual([])
+    // Sin esPoceada (Quiniela) sigue derivando 3/4 cifras.
+    const q = deriveNums([4661, 8804], false)
+    expect(q.nums3).toHaveLength(2)
+    expect(q.nums4).toHaveLength(2)
+  })
 })
 
 describe("feriados / días sin sorteo", () => {

@@ -36,6 +36,14 @@ export interface ParamsApiAciertos {
   historial: HistorialAciertos | null
   /** `draws.numbers` del sorteo oficial, si existe */
   numerosSorteo: number[] | null
+  /**
+   * true si la predicción es Poceada (juego SOLO de 2 cifras, 00-99).
+   * Poceada y Quiniela son 2 sorteos distintos: en Poceada NO existen 3/4
+   * cifras ni redoblona. Con esPoceada se fuerza el matching a 2 cifras y
+   * resultado_3/resultado_4 quedan vacíos (antes se derivaban "000".."099"
+   * y "0000".."0099" sin sentido desde el sorteo de Poceada).
+   */
+  esPoceada?: boolean
 }
 
 export interface ResultadoApiAciertos {
@@ -89,16 +97,23 @@ export function parseNumerosApi(numeros: unknown): number[] | Record<string, str
 const soloDigitos = (arr: unknown[]): string[] =>
   arr.filter((n) => n != null && /^\d+$/.test(String(n).trim())).map((n) => String(n).trim())
 
-/** Deriva los 20/20/20 números oficiales en formato 2/3/4 cifras. */
-function derivarResultado(numbers: number[]): { r2: string[]; r3: string[]; r4: string[] } {
+/** Deriva los 20 números oficiales en formato 2/3/4 cifras.
+ *  En Poceada (esPoceada) solo hay 2 cifras → r3/r4 vacíos. */
+function derivarResultado(
+  numbers: number[],
+  esPoceada = false,
+): { r2: string[]; r3: string[]; r4: string[] } {
+  const r2 = numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
+  if (esPoceada) return { r2, r3: [], r4: [] }
   return {
-    r2: numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0")),
+    r2,
     r3: numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0")),
     r4: numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0")),
   }
 }
 
 export function calcularAciertosApi(p: ParamsApiAciertos): ResultadoApiAciertos {
+  const esPoceada = p.esPoceada === true
   const numerosData = parseNumerosApi(p.numeros)
   const esArray = Array.isArray(numerosData)
 
@@ -107,7 +122,8 @@ export function calcularAciertosApi(p: ParamsApiAciertos): ResultadoApiAciertos 
     : soloDigitos(((numerosData as Record<string, string[]>)?.["2"] || []) as unknown[]).map(norm2)
   let numeros_3: string[] = []
   let numeros_4: string[] = []
-  if (!esArray && p.premium) {
+  // Poceada: SOLO 2 cifras — se ignoran claves "3"/"4" aunque existan.
+  if (!esArray && p.premium && !esPoceada) {
     numeros_3 = soloDigitos(((numerosData as Record<string, string[]>)?.["3"] || []) as unknown[]).map(norm3)
     numeros_4 = soloDigitos(((numerosData as Record<string, string[]>)?.["4"] || []) as unknown[]).map(norm4)
   }
@@ -122,7 +138,8 @@ export function calcularAciertosApi(p: ParamsApiAciertos): ResultadoApiAciertos 
   if (p.historial) {
     // 1) Historial: criterio unificado (ya trae {numero, puesto}).
     aciertos_2 = (p.historial.aciertos_2 || []).map((a) => ({ ...a, tipo: 2 as const }))
-    if (p.premium) {
+    // Poceada: nunca 3/4 cifras (se descartan aciertos 3/4 heredados).
+    if (p.premium && !esPoceada) {
       aciertos_3 = (p.historial.aciertos_3 || []).map((a) => ({ ...a, tipo: 3 as const }))
       aciertos_4 = (p.historial.aciertos_4 || []).map((a) => ({ ...a, tipo: 4 as const }))
     }
@@ -130,10 +147,10 @@ export function calcularAciertosApi(p: ParamsApiAciertos): ResultadoApiAciertos 
     const oficiales = p.historial.resultado_oficial?.length
       ? p.historial.resultado_oficial
       : (p.numerosSorteo || [])
-    ;({ r2, r3, r4 } = derivarResultado(oficiales))
+    ;({ r2, r3, r4 } = derivarResultado(oficiales, esPoceada))
   } else if (p.numerosSorteo && Array.isArray(p.numerosSorteo)) {
     // 2) Sin historial: mismo matching cruzando picks × sorteo oficial.
-    ;({ r2, r3, r4 } = derivarResultado(p.numerosSorteo))
+    ;({ r2, r3, r4 } = derivarResultado(p.numerosSorteo, esPoceada))
 
     const pred2 = numeros_2.map((n) => String(n).padStart(2, "0"))
     aciertos_2 = pred2.filter((n) => r2.includes(n)).map((n) => ({ numero: n, puesto: r2.indexOf(n) + 1, tipo: 2 }))

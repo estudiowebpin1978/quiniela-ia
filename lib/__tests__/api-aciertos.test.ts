@@ -195,3 +195,78 @@ describe("parseNumerosApi", () => {
     expect(parseNumerosApi(undefined)).toEqual({})
   })
 })
+
+/**
+ * Regresión del bug reportado 2026-10-09: "la comparación con datos oficiales
+ * muestra 3 y 4 cifras en Poceada, pero Poceada solo tiene 2 cifras (00-99)".
+ * Quiniela y Poceada son 2 sorteos distintos → con esPoceada solo se compara
+ * en 2 cifras.
+ */
+describe("calcularAciertosApi — esPoceada (solo 2 cifras, 00-99)", () => {
+  // Sorteo de Poceada real: 20 números de 00 a 99.
+  const sorteoPoceada = [7, 12, 45, 3, 88, 61, 20, 99, 34, 56, 1, 78, 42, 90, 15, 67, 23, 54, 81, 9]
+
+  it("objeto legacy con claves 3/4 en Poceada → se ignoran (solo 2 cifras)", () => {
+    const r = calcularAciertosApi({
+      // Predicción mal guardada (legacy) como objeto con 3/4 cifras.
+      numeros: { "2": ["07", "12", "45"], "3": ["007", "012"], "4": ["0007"] },
+      premium: true,
+      historial: null,
+      numerosSorteo: sorteoPoceada,
+      esPoceada: true,
+    })
+    expect(r.numeros_3).toEqual([])
+    expect(r.numeros_4).toEqual([])
+    expect(r.aciertos_3).toEqual([])
+    expect(r.aciertos_4).toEqual([])
+    // Los aciertos 2 siguen calculándose normalmente.
+    expect(r.aciertos_2.length).toBeGreaterThan(0)
+    expect(r.todos).toEqual(r.aciertos_2)
+  })
+
+  it("resultado_3 y resultado_4 vacíos (no se derivan '000'..'099')", () => {
+    const r = calcularAciertosApi({
+      numeros: ["07", "12", "45", "03", "88", "61", "20", "99"],
+      premium: true,
+      historial: null,
+      numerosSorteo: sorteoPoceada,
+      esPoceada: true,
+    })
+    expect(r.resultado_3).toEqual([])
+    expect(r.resultado_4).toEqual([])
+    expect(r.resultado_2).toHaveLength(20)
+    expect(r.resultado_2.every((s) => /^\d{2}$/.test(s))).toBe(true)
+  })
+
+  it("historial con aciertos_3/4 heredados en Poceada → se descartan", () => {
+    const r = calcularAciertosApi({
+      numeros: ["07", "12", "45"],
+      premium: true,
+      historial: {
+        aciertos_2: [{ numero: "07", puesto: 1 }],
+        aciertos_3: [{ numero: "007", puesto: 1 }],
+        aciertos_4: [{ numero: "0007", puesto: 1 }],
+        resultado_oficial: sorteoPoceada,
+      },
+      numerosSorteo: sorteoPoceada,
+      esPoceada: true,
+    })
+    expect(r.aciertos_3).toEqual([])
+    expect(r.aciertos_4).toEqual([])
+    expect(r.aciertos_2).toHaveLength(1)
+    expect(r.todos).toHaveLength(1)
+  })
+
+  it("sin esPoceada (Quiniela) sí se derivan 3/4 cifras — no rompe el caso normal", () => {
+    const r = calcularAciertosApi({
+      numeros: { "2": ["84"], "3": ["084"], "4": ["1084"] },
+      premium: true,
+      historial: null,
+      numerosSorteo: sorteo,
+      esPoceada: false,
+    })
+    expect(r.resultado_3).toHaveLength(20)
+    expect(r.resultado_4).toHaveLength(20)
+    expect(r.aciertos_4).toHaveLength(1) // 1084 es el 1er número del sorteo
+  })
+})

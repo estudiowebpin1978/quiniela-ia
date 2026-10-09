@@ -140,6 +140,8 @@ export async function GET(req: NextRequest) {
         premium: tier.canAccessPremiumFeatures,
         historial: history,
         numerosSorteo: draw?.numbers && Array.isArray(draw.numbers) ? draw.numbers : null,
+        // Poceada = juego SOLO de 2 cifras (00-99), distinto de Quiniela.
+        esPoceada: turnoLower === "poceada",
       })
       const pred2 = calc.numeros_2
       const pred3 = calc.numeros_3
@@ -266,9 +268,18 @@ export async function POST(req: NextRequest) {
     }
     const numsArr = Array.isArray(numeros) ? numeros : null
     const numsObj = !numsArr && typeof numeros === "object" ? numeros : null
-    // Poceada: exactly 8 numbers, simple array (not object with 2/3/4)
-    if (turnoCanonical === "Poceada" && numsArr) {
-      if (numsArr.length !== 8 || !validateNums(numsArr, 8, 99)) {
+    // Poceada: SOLO 8 números de 2 cifras (00-99), guardados como array plano.
+    // Es un juego distinto de la Quiniela (no existe 3/4 cifras ni redoblona).
+    // ANTES la validación solo corría si llegaba un array → un objeto
+    // {2,3,4,r} la esquivía y se guardaba con claves "3"/"4", lo que hacía
+    // que la UI mostrara "3 CIFRAS"/"4 CIFRAS" para Poceada.
+    if (turnoCanonical === "Poceada") {
+      const arr = Array.isArray(numeros)
+        ? numeros
+        : (numeros && typeof numeros === "object"
+            ? ((numeros as Record<string, unknown>)["2"] || (numeros as Record<string, unknown>)["numeros_2"]) || []
+            : [])
+      if (!Array.isArray(arr) || arr.length !== 8 || !validateNums(arr, 8, 99)) {
         return NextResponse.json({ error: "Poceada requiere exactamente 8 números de 2 cifras (00-99)" }, { status: 400 })
       }
     }
@@ -292,7 +303,17 @@ export async function POST(req: NextRequest) {
     }
 
     let numerosToStore: string[]
-    if (tier.canAccessPremiumFeatures) {
+    if (turnoCanonical === "Poceada") {
+      // Poceada SIEMPRE se guarda como array plano de 8 cifras 2 (00-99),
+      // aunque el cliente mande un objeto {2,3,4,r} — en Poceada no existen
+      // 3/4 cifras ni redoblona.
+      const arr = Array.isArray(numeros)
+        ? numeros
+        : (numeros && typeof numeros === "object"
+            ? ((numeros as Record<string, unknown>)["2"] || (numeros as Record<string, unknown>)["numeros_2"]) || []
+            : [])
+      numerosToStore = (arr as unknown[]).map((n: unknown) => String(n).padStart(2, "0"))
+    } else if (tier.canAccessPremiumFeatures) {
       if (Array.isArray(numeros)) {
         numerosToStore = numeros.map((n: unknown) => String(n).padStart(2, '0'))
       } else if (numeros && typeof numeros === "object") {

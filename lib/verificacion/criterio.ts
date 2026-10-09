@@ -121,14 +121,21 @@ export function parseNumeros(numeros: unknown): ParsedNumeros {
   }
 }
 
-/** Deriva las tres cifras oficiales desde los 20 números del sorteo. */
-export function deriveNums(numbers: number[]): {
+/** Deriva las cifras oficiales desde los 20 números del sorteo.
+ *  En Poceada (esPoceada) el sorteo es SOLO de 2 cifras (00-99): nums3/nums4
+ *  quedan vacíos para no fabricar cifras inexistentes. */
+export function deriveNums(
+  numbers: number[],
+  esPoceada = false,
+): {
   nums2: string[]
   nums3: string[]
   nums4: string[]
 } {
+  const nums2 = numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
+  if (esPoceada) return { nums2, nums3: [], nums4: [] }
   return {
-    nums2: numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0")),
+    nums2,
     nums3: numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0")),
     nums4: numbers.map((n: number) => String(Number(n) % 10000).padStart(4, "0")),
   }
