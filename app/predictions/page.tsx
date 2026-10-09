@@ -1165,6 +1165,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             {(pr || userRole === "admin") && <span className="pp">{userRole === "admin" ? "👑 ADMIN" : "⭐ PREMIUM"}</span>}
             {!guestMode && <GamificationBadge compact />}
             {em && <span className="ne">{em.split("@")[0]}</span>}
+            {(pr || userRole === "admin") && (
+              <a href="/brinco" className="nav-admin" title="Brinco Premium (Lotería de Santa Fe)">🎱 Brinco</a>
+            )}
             {userRole === "admin" && <a href="/admin" className="nav-admin">⚙️ Admin</a>}
             <RealtimeBadge />
             <NotificationBell />

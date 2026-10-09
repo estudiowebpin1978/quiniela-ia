@@ -1,0 +1,251 @@
+/* Brinco Premium — estilos acordes al theme del proyecto (variables globales). */
+
+.brinco-wrap {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px 16px 60px;
+}
+
+.brinco-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.brinco-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--brand-1, #f5c542);
+  margin: 0;
+}
+
+.brinco-sub {
+  color: var(--text-dim, #9aa0a6);
+  font-size: 0.9rem;
+  margin: 0 0 16px;
+}
+
+.brinco-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.brinco-tab {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #2a2a2a);
+  background: var(--bg-1, #141414);
+  color: var(--text, #e6e6e6);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.brinco-tab.on {
+  background: linear-gradient(135deg, var(--brand-1, #f5c542), var(--brand-2, #e0a800));
+  color: #111;
+  border-color: transparent;
+}
+
+.brinco-tab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.brinco-card {
+  background: var(--bg-1, #141414);
+  border: 1px solid var(--border, #2a2a2a);
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.brinco-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  color: var(--text-dim, #9aa0a6);
+  font-size: 0.82rem;
+  margin-bottom: 14px;
+}
+
+.brinco-meta b {
+  color: var(--text, #e6e6e6);
+  font-weight: 700;
+}
+
+.brinco-nums {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.brinco-num {
+  width: 54px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #111;
+  background: linear-gradient(135deg, var(--brand-1, #f5c542), var(--brand-2, #e0a800));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.brinco-alt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  color: var(--text-dim, #9aa0a6);
+  font-size: 0.82rem;
+}
+
+.brinco-alt-set {
+  display: flex;
+  gap: 4px;
+}
+
+.brinco-chip {
+  min-width: 30px;
+  padding: 3px 6px;
+  text-align: center;
+  border-radius: 7px;
+  background: var(--bg-2, #1c1c1c);
+  border: 1px solid var(--border, #2a2a2a);
+  color: var(--text, #e6e6e6);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.brinco-scores {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.brinco-score-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-dim, #9aa0a6);
+}
+
+.brinco-score-n {
+  font-weight: 800;
+  color: var(--brand-1, #f5c542);
+  width: 24px;
+}
+
+.brinco-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-2, #1c1c1c);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.brinco-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand-1, #f5c542), var(--brand-2, #e0a800));
+}
+
+.brinco-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.brinco-btn {
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(135deg, var(--brand-1, #f5c542), var(--brand-2, #e0a800));
+  color: #111;
+}
+
+.brinco-btn.ghost {
+  background: transparent;
+  border: 1px solid var(--border, #2a2a2a);
+  color: var(--text, #e6e6e6);
+}
+
+.brinco-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.brinco-aviso {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(245, 197, 66, 0.08);
+  border: 1px solid rgba(245, 197, 66, 0.25);
+  color: var(--text-dim, #cfc8b0);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.brinco-sync {
+  font-size: 0.78rem;
+  color: var(--text-dim, #9aa0a6);
+  margin-top: 8px;
+}
+
+.brinco-sync .warn {
+  color: #e0a33a;
+}
+
+.brinco-sync .err {
+  color: #e05a4d;
+}
+
+.brinco-hist {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+
+.brinco-hist li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border, #2a2a2a);
+  font-size: 0.82rem;
+  color: var(--text, #e6e6e6);
+}
+
+.brinco-empty {
+  color: var(--text-dim, #9aa0a6);
+  font-size: 0.85rem;
+}
+
+.brinco-loading {
+  color: var(--text-dim, #9aa0a6);
+  padding: 30px 0;
+  text-align: center;
+}
+
+.brinco-gate {
+  text-align: center;
+  padding: 40px 16px;
+}
+
+.brinco-gate h2 {
+  color: var(--brand-1, #f5c542);
+}
