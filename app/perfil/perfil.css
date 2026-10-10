@@ -1,0 +1,159 @@
+/* Perfil Premium — estilos consistentes con el proyecto (Brinco / Quiniela) */
+
+.pf-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px 16px 80px;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  color: #e6e6e6;
+  background: linear-gradient(180deg, #010101 0%, #0d0d0d 100%);
+  min-height: 100vh;
+}
+
+.pf-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.pf-title {
+  font-size: 1.55rem;
+  font-weight: 900;
+  color: #f5c542;
+  letter-spacing: -0.8px;
+  margin: 0;
+}
+
+.pf-sub {
+  color: #94a3b8;
+  font-size: 0.82rem;
+  margin: 0 0 14px;
+  line-height: 1.35;
+}
+
+.pf-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin-bottom: 14px;
+  padding-bottom: 2px;
+}
+
+.pf-tab {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.03);
+  color: #cbd5e1;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: .12s;
+}
+
+.pf-tab.on {
+  background: linear-gradient(135deg, rgba(245,197,66,.18), rgba(245,197,66,.06));
+  border-color: rgba(245,197,66,.5);
+  color: #f5c542;
+  box-shadow: 0 4px 12px rgba(245,197,66,.12);
+}
+
+.pf-card {
+  background: rgba(255,255,255,.035);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.pf-card h2 {
+  font-size: 15px;
+  font-weight: 800;
+  margin: 0 0 8px;
+  color: #f5c542;
+}
+
+.pf-btn {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: .12s;
+  text-align: center;
+}
+
+.pf-btn-primary {
+  background: linear-gradient(135deg, #f5c542, #e0a800);
+  color: #111;
+  box-shadow: 0 6px 0 rgba(180,130,20,.3), 0 8px 20px rgba(245,197,66,.2);
+}
+
+.pf-btn-primary:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.pf-btn-ghost {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,.12);
+  color: #e6e6e6;
+}
+
+.pf-btn-ghost:hover {
+  border-color: rgba(245,197,66,.4);
+  color: #f5c542;
+}
+
+.pf-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.2px;
+}
+
+.pf-badge-premium {
+  background: linear-gradient(135deg, rgba(245,197,66,.15), rgba(245,197,66,.06));
+  color: #f5c542;
+  border: 1px solid rgba(245,197,66,.35);
+}
+
+.pf-badge-free {
+  background: rgba(255,255,255,.06);
+  color: #94a3b8;
+  border: 1px solid rgba(255,255,255,.12);
+}
+
+.pf-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(245,197,66,.2), rgba(245,197,66,.08));
+  color: #f5c542;
+  font-weight: 800;
+  font-size: 13px;
+  box-shadow: 0 3px 8px rgba(245,197,66,.15);
+}
+
+.pf-score-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255,255,255,.06);
+  overflow: hidden;
+}
+
+.pf-score-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #f5c542, #e0a800);
+  border-radius: 3px;
+}

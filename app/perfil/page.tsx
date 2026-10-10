@@ -1,64 +1,42 @@
 "use client"
 
-/**
- * /perfil — página consolidada de usuario (responsive, mobile-first).
- *
- * Contiene: predicciones guardadas, verificación oficial de aciertos,
- * datos históricos del usuario, estado Premium/upgrade, contenido de
- * Brinco / Poceada si corresponde.
- *
- * El botón de acceso está en el nav de /predictions (reemplaza la grilla inferior).
- * Diseño práctico: columna central (~540px en móvil, ~720px en PC),
- * tipografía legible, secciones con división clara, botón de upgrade
- * prominente para usuarios Free.
- */
-
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { getAuth } from "@/lib/auth"
 import { validateMisPrediccionesResponse, type MisPrediccion } from "@/lib/api/predictions"
+import { fechaLarga } from "@/lib/poceada/fechas"
+import "./perfil.css"
 
 export default function PerfilPage() {
   const router = useRouter()
   const [auth, setAuth] = useState<ReturnType<typeof getAuth> | null>(null)
-  const [t, setT] = useState("")
   const [preds, setPreds] = useState<MisPrediccion[]>([])
   const [premium, setPremium] = useState(false)
   const [expDays, setExpDays] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<"predicciones" | "verificacion" | "historial" | "premium">("predicciones")
+  const [tab, setTab] = useState<"pred" | "verif" | "hist" | "premium">("pred")
 
   const cargar = useCallback(async () => {
     const a = getAuth()
     setAuth(a)
     if (!a?.access_token) { setLoading(false); return }
-    setT(a.access_token)
-
-    // Estado premium / expiración (mismo endpoint que predictions usa)
     try {
       const r = await fetch("/api/auth/me", { headers: { Authorization: "Bearer " + a.access_token } })
       if (r.ok) {
         const d = await r.json()
-        const isPrem = d?.canAccessPremiumFeatures || d?.role === "premium" || d?.role === "admin"
-        setPremium(isPrem)
+        setPremium(!!(d?.canAccessPremiumFeatures || d?.role === "premium" || d?.role === "admin"))
         if (d?.premium_until) {
           const days = Math.ceil((new Date(d.premium_until).getTime() - Date.now()) / 86400000)
           setExpDays(days)
         }
       }
     } catch {}
-
     try {
       const r = await fetch("/api/mis-predicciones", { headers: { Authorization: "Bearer " + a.access_token } })
       if (r.ok) {
         const d = await r.json()
         const arr: unknown[] = Array.isArray(d?.predictions) ? d.predictions : []
-        try {
-          const val = validateMisPrediccionesResponse({ predictions: arr })
-          setPreds(val.predictions)
-        } catch {
-          setPreds(arr as MisPrediccion[])
-        }
+        try { setPreds(validateMisPrediccionesResponse({ predictions: arr }).predictions) } catch { setPreds(arr as MisPrediccion[]) }
       }
     } catch {}
     setLoading(false)
@@ -66,68 +44,54 @@ export default function PerfilPage() {
 
   useEffect(() => { cargar() }, [cargar])
 
+  const predLabels: Record<string, string> = { previs: "Previa", primera: "Primera", matutina: "Matutina", vespertina: "Vespertina", nocturna: "Nocturna", poceada: "Poceada", brinco: "Brinco" }
+
+  const won = preds.filter((p) => String(p.status) === "WON").length
+  const near = preds.filter((p) => String(p.status) === "NEAR_MISS").length
+  const lost = preds.filter((p) => String(p.status) === "LOST").length
+
   const tabs = [
-    { id: "predicciones" as const, label: "📋 Predicciones", desc: "Jugadas guardadas con números, fechas y resultados" },
-    { id: "verificacion" as const, label: "✅ Verificación", desc: "Aciertos contra sorteos oficiales (WON / NEAR / LOST)" },
-    { id: "historial" as const, label: "📊 Datos Históricos", desc: "Precisión, racha, evolución de aciertos, tendencias" },
-    { id: "premium" as const, label: "⭐ Premium", desc: "Estado de plan, días restantes, upgrade" },
+    { id: "pred" as const, label: "📋 Predicciones", desc: "Jugadas guardadas" },
+    { id: "verif" as const, label: "✅ Verificación", desc: "Aciertos vs sorteos oficiales" },
+    { id: "hist" as const, label: "📊 Histórico", desc: "Precisión y tendencias" },
+    { id: "premium" as const, label: "⭐ Premium", desc: "Plan, renovación, upgrade" },
   ]
 
-  const predLabels: Record<string, string> = {
-    previs: "Previa", primera: "Primera", matutina: "Matutina", vespertina: "Vespertina", nocturna: "Nocturna",
-    poceada: "Poceada", brinco: "Brinco",
-  }
-
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: "16px 14px 80px", fontFamily: "'Inter',system-ui,sans-serif", color: "#e6e6e6", background: "#010101", minHeight: "100vh" }}>
+    <div className="pf-wrap">
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-        <button onClick={() => router.push("/predictions")} className="brinco-btn ghost" style={{ padding: "6px 10px", fontSize: 11 }}>
+      <div className="pf-head">
+        <button className="pf-btn-ghost" style={{ padding: "6px 12px", fontSize: 11 }} onClick={() => router.push("/predictions")}>
           ← Volver
         </button>
-        <h1 style={{ fontSize: 22, fontWeight: 900, color: "#f5c542", margin: 0, letterSpacing: -0.5 }}>Perfil</h1>
-        <span style={{ marginLeft: "auto", fontSize: 11, color: "#94a3b8", fontWeight: 700, whiteSpace: "nowrap" }}>
-          {premium ? (expDays !== null ? `Premium · ${expDays} día${expDays === 1 ? "" : "s"}` : "Premium") : (auth?.access_token ? "Free" : "Invitado")}
+        <h1 className="pf-title">Perfil</h1>
+        <span className="pf-badge" style={{ marginLeft: "auto", background: premium ? "linear-gradient(135deg,rgba(245,197,66,.15),rgba(245,197,66,.06))" : "rgba(255,255,255,.06)", color: premium ? "#f5c542" : "#94a3b8", borderColor: premium ? "rgba(245,197,66,.35)" : "rgba(255,255,255,.12)" }}>
+          {premium ? (expDays !== null ? `Premium · ${expDays}d` : "Premium") : "Free"}
         </span>
       </div>
-      <p style={{ fontSize: 13, color: "#94a3b8", margin: "0 0 16px", lineHeight: 1.45 }}>
-        Tu espacio de usuario: predicciones guardadas, verificación contra sorteos oficiales, datos históricos y gestión de tu plan.
-      </p>
+      <p className="pf-sub">Tu espacio: predicciones, verificación oficial, datos históricos y gestión del plan.</p>
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 14, paddingBottom: 4 }}>
-        {tabs.map((tb) => (
-          <button key={tb.id} onClick={() => setTab(tb.id)} style={{
-            flex: "0 0 auto",
-            padding: "8px 12px",
-            borderRadius: 10,
-            border: "1.5px solid" + (tab === tb.id ? "rgba(245,197,66,.6)" : "rgba(255,255,255,.08)"),
-            background: tab === tb.id ? "linear-gradient(135deg,rgba(245,197,66,.18),rgba(245,197,66,.06))" : "rgba(255,255,255,.04)",
-            color: tab === tb.id ? "#f5c542" : "#cbd5e1",
-            fontWeight: 700,
-            fontSize: 12,
-            cursor: "pointer",
-            whiteSpace: "nowrap",
-          }}>
-            {tb.label}
+      <div className="pf-tabs">
+        {tabs.map((t) => (
+          <button key={t.id} onClick={() => setTab(t.id)} className={`pf-tab ${tab === t.id ? "on" : ""}`}>
+            {t.label}
           </button>
         ))}
       </div>
 
-      {/* Contenido por pestaña */}
+      {/* Contenido */}
       {loading ? (
         <div style={{ padding: 30, textAlign: "center", color: "#94a3b8", fontSize: 14 }}>Cargando tu perfil…</div>
       ) : (
         <>
-          {tab === "predicciones" && (
+          {tab === "pred" && (
             <div>
-              <h2 style={{ fontSize: 16, fontWeight: 800, margin: "14px 0 8px", color: "#f5c542" }}>Predicciones guardadas</h2>
+              <h2 className="pf-card" style={{ fontSize: 15, fontWeight: 800, margin: "0 0 8px", color: "#f5c542" }}>Predicciones guardadas</h2>
               {preds.length === 0 ? (
-                <div style={{ padding: 16, borderRadius: 12, background: "rgba(255,255,255,.03)", color: "#94a3b8", fontSize: 13, textAlign: "center" }}>
+                <div className="pf-card" style={{ color: "#94a3b8", fontSize: 13, textAlign: "center", padding: 16 }}>
                   Todavía no guardaste ninguna predicción.<br />
-                  <button onClick={() => router.push("/predictions")} style={{ marginTop: 10, padding: "8px 14px", borderRadius: 8, border: "none", background: "#f5c542", color: "#111", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-                    Ir a generar análisis →
-                  </button>
+                  <button className="pf-btn pf-btn-primary" style={{ marginTop: 10 }} onClick={() => router.push("/predictions")}>Ir a generar análisis →</button>
                 </div>
               ) : (
                 <div style={{ display: "grid", gap: 10 }}>
@@ -135,19 +99,15 @@ export default function PerfilPage() {
                     const nums = Array.isArray(p.numeros) ? (p.numeros as string[]) : (p.numeros?.["2"] ? (p.numeros["2"] as string[]) : [])
                     const turnoRaw = (p.turno || "").toLowerCase()
                     return (
-                      <div key={p.id || p.fecha || p.date || Math.random()} style={{ padding: 14, borderRadius: 12, background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.08)" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
+                      <div key={p.id || p.fecha || p.date || Math.random()} className="pf-card" style={{ padding: 14 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
                           <b style={{ fontSize: 13, color: "#e6e6e6" }}>{predLabels[turnoRaw] || turnoRaw} — {p.fecha || p.date || "—"}</b>
-                          <span style={{ fontSize: 11, color: p.status === "WON" ? "#34d399" : p.status === "NEAR_MISS" ? "#fbbf24" : "#94a3b8", fontWeight: 700 }}>{p.status || "pendiente"}</span>
+                          <span style={{ fontSize: 11, color: String(p.status) === "WON" ? "#34d399" : "#94a3b8", fontWeight: 700 }}>{String(p.status) === "WON" ? "GANADA" : String(p.status) === "NEAR_MISS" ? "CERCA" : String(p.status) === "LOST" ? "SIN ACERTAR" : "PENDIENTE"}</span>
                         </div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
-                          {nums.map((n) => (
-                            <span key={n} style={{ padding: "3px 7px", borderRadius: 8, background: "rgba(245,197,66,.12)", color: "#f5c542", fontWeight: 800, fontSize: 11 }}>{n}</span>
-                          ))}
+                          {nums.map((n) => <span key={n} className="pf-num">{n}</span>)}
                         </div>
-                        <div style={{ fontSize: 11, color: "#94a3b8" }}>
-                          {p.aciertos?.filter((a: any) => a?.numero).length ?? 0} aciertos registrados · guardada {(p.created_at || "").slice(0, 10)}
-                        </div>
+                        <div style={{ fontSize: 11, color: "#94a3b8" }}>{(p.aciertos?.length ?? 0)} aciertos registrados · {String(p.created_at || "").slice(0, 10)}</div>
                       </div>
                     )
                   })}
@@ -156,54 +116,47 @@ export default function PerfilPage() {
             </div>
           )}
 
-          {tab === "verificacion" && (
+          {tab === "verif" && (
             <div>
-              <h2 style={{ fontSize: 16, fontWeight: 800, margin: "14px 0 8px", color: "#f5c542" }}>Verificación oficial</h2>
-              <p style={{ fontSize: 12, color: "#94a3b8", marginBottom: 10 }}>
-                Comparación automatizada con los sorteos oficiales de LOTBA / CAS. El estado es <strong style={{ color: "#f5c542" }}>WON</strong> (aciertos ≥5 para Poceada, ≥4 para Quiniela), <strong>NEAR_MISS</strong> (cerca) o <strong>LOST</strong> (sin aciertos).
-              </p>
+              <h2 className="pf-card" style={{ fontSize: 15, fontWeight: 800, margin: "0 0 8px", color: "#f5c542" }}>Verificación oficial</h2>
+              <p style={{ fontSize: 12, color: "#94a3b8", marginBottom: 10 }}>Comparación automática con sorteos oficiales LOTBA / CAS.</p>
               <div style={{ display: "grid", gap: 10 }}>
-                {preds.filter((p) => p.status && String(p.status) !== "pending").length === 0 ? (
-                  <div style={{ padding: 16, borderRadius: 12, background: "rgba(255,255,255,.03)", color: "#94a3b8", fontSize: 13, textAlign: "center" }}>
-                    Todavía no hay resultados oficiales verificados. Las jugadas guardadas se comparan automáticamente tras cada sorteo.
-                  </div>
+                {preds.filter((p) => String(p.status) !== "pending").length === 0 ? (
+                  <div className="pf-card" style={{ color: "#94a3b8", textAlign: "center", padding: 16, fontSize: 13 }}>Todavía no hay resultados oficiales verificados.</div>
                 ) : (
-                  preds.filter((p) => p.status && String(p.status) !== "pending").map((p) => {
-                    const turnoRaw = (p.turno || "").toLowerCase()
-                    return (
-                      <div key={p.id || p.fecha || p.date} style={{ padding: 14, borderRadius: 12, background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.08)" }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: String(p.status) === "WON" ? "#34d399" : String(p.status) === "NEAR_MISS" ? "#fbbf24" : String(p.status) === "LOST" ? "#f87171" : "#94a3b8", marginBottom: 6 }}>
-                          {String(p.status) === "WON" ? "✅ GANADA" : String(p.status) === "NEAR_MISS" ? "⚠️ CERCA" : String(p.status) === "LOST" ? "❌ SIN ACERTAR" : "⏳ Pendiente"} — {predLabels[turnoRaw] || turnoRaw} ({p.fecha || p.date || "—"})
-                        </div>
-                        <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-                          Números guardados: <b style={{ color: "#f5c542" }}>{(Array.isArray(p.numeros) ? p.numeros as string[] : p.numeros?.["2"] || []).join(", ")}</b>
-                        </div>
+                  preds.filter((p) => String(p.status) !== "pending").map((p) => (
+                    <div key={p.id || p.fecha || p.date} className="pf-card" style={{ padding: 14 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: String(p.status) === "WON" ? "#34d399" : String(p.status) === "NEAR_MISS" ? "#fbbf24" : "#f87171", marginBottom: 6 }}>
+                        {String(p.status) === "WON" ? "✅ GANADA" : String(p.status) === "NEAR_MISS" ? "⚠️ CERCA" : "❌ SIN ACERTAR"} — {predLabels[(p.turno || "").toLowerCase()] || p.turno || "—"} ({p.fecha || p.date || "—"})
                       </div>
-                    )
-                  })
+                      <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+                        Números: <b style={{ color: "#f5c542" }}>{(Array.isArray(p.numeros) ? p.numeros as string[] : p.numeros?.["2"] || []).join(", ")}</b>
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
           )}
 
-          {tab === "historial" && (
+          {tab === "hist" && (
             <div>
-              <h2 style={{ fontSize: 16, fontWeight: 800, margin: "14px 0 8px", color: "#f5c542" }}>Datos históricos</h2>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
-                <div style={{ padding: 14, borderRadius: 12, background: "rgba(255,255,255,.05)", textAlign: "center" }}>
+              <h2 className="pf-card" style={{ fontSize: 15, fontWeight: 800, margin: "0 0 8px", color: "#f5c542" }}>Datos históricos</h2>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 10 }}>
+                <div className="pf-card" style={{ textAlign: "center" }}>
                   <div style={{ fontSize: 22, fontWeight: 900, color: "#f5c542" }}>{preds.length}</div>
                   <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Predicciones guardadas</div>
                 </div>
-                <div style={{ padding: 14, borderRadius: 12, background: "rgba(255,255,255,.05)", textAlign: "center" }}>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: "#34d399" }}>{preds.filter((p) => p.status === "WON").length}</div>
+                <div className="pf-card" style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#34d399" }}>{won}</div>
                   <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Aciertos verificados</div>
                 </div>
-                <div style={{ padding: 14, borderRadius: 12, background: "rgba(255,255,255,.05)", textAlign: "center" }}>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: "#fbbf24" }}>{preds.filter((p) => p.status === "NEAR_MISS").length}</div>
+                <div className="pf-card" style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#fbbf24" }}>{near}</div>
                   <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Cerca del acierto</div>
                 </div>
-                <div style={{ padding: 14, borderRadius: 12, background: "rgba(255,255,255,.05)", textAlign: "center" }}>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: "#f87171" }}>{preds.filter((p) => p.status === "LOST").length}</div>
+                <div className="pf-card" style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#f87171" }}>{lost}</div>
                   <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Sin coincidir</div>
                 </div>
               </div>
@@ -215,46 +168,27 @@ export default function PerfilPage() {
 
           {tab === "premium" && (
             <div>
-              <h2 style={{ fontSize: 16, fontWeight: 800, margin: "14px 0 8px", color: "#f5c542" }}>Estado Premium</h2>
-              <div style={{ padding: 16, borderRadius: 12, background: premium ? "rgba(34,197,94,.08)" : "rgba(239,68,68,.08)", border: `1.5px solid ${premium ? "rgba(34,197,94,.3)" : "rgba(239,68,68,.3)"}` }}>
-                <div style={{ fontWeight: 700, fontSize: 15, color: premium ? "#34d399" : "#ef4444", marginBottom: 6 }}>
-                  {premium ? "⭐ Activo — Premium" : "🆓 Free — sin acceso a 3 y 4 cifras"}
-                </div>
-                <div style={{ fontSize: 13, color: "#cbd5e1", marginBottom: 10 }}>
-                  {premium
-                    ? `Tu suscripción vence en ${expDays !== null ? expDays + " días" : "—"}. Acceso completo a Brinco, Poceada y análisis de 3/4 cifras con ML.`
-                    : "Para acceder a Brinco, Poceada y análisis avanzados con Machine Learning, actualizá tu plan."}
-                </div>
+              <h2 className="pf-card" style={{ fontSize: 15, fontWeight: 800, margin: "0 0 8px", color: "#f5c542" }}>Estado Premium</h2>
+              <div className="pf-card" style={{ background: premium ? "rgba(34,197,94,.08)" : "rgba(239,68,68,.08)", border: `1.5px solid ${premium ? "rgba(34,197,94,.3)" : "rgba(239,68,68,.3)"}` }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: premium ? "#34d399" : "#ef4444", marginBottom: 6 }}>{premium ? "⭐ Activo — Premium" : "🆓 Free — sin acceso a 3 y 4 cifras"}</div>
+                <div style={{ fontSize: 13, color: "#cbd5e1", marginBottom: 10 }}>{premium ? `Tu suscripción vence en ${expDays !== null ? expDays + " días" : "—"}. Acceso completo a Brinco, Poceada y análisis de 3/4 cifras con ML.` : "Para acceder a Brinco, Poceada y análisis avanzados con Machine Learning, actualizá tu plan."}</div>
                 {!premium && (
-                  <button
-                    onClick={() => router.push("/predictions")}
-                    style={{
-                      padding: "10px 18px", borderRadius: 10, border: "none",
-                      background: "linear-gradient(135deg,#f5c542,#e0a800)", color: "#111",
-                      fontWeight: 800, fontSize: 14, cursor: "pointer",
-                      boxShadow: "0 6px 0 rgba(180,130,20,.3),0 8px 20px rgba(245,197,66,.25)",
-                    }}
-                  >
-                    Ver planes y actualizar →
-                  </button>
+                  <button className="pf-btn pf-btn-primary" onClick={() => router.push("/predictions")}>Ver planes y actualizar →</button>
                 )}
                 {premium && expDays !== null && expDays <= 7 && (
-                  <div style={{ marginTop: 10, fontSize: 12, color: "#fbbf24", fontWeight: 700 }}>
-                    ⚠️ Recordá renovar antes del vencimiento para no perder acceso.
-                  </div>
+                  <div style={{ marginTop: 10, fontSize: 12, color: "#fbbf24", fontWeight: 700 }}>⚠️ Recordá renovar antes del vencimiento para no perder acceso.</div>
                 )}
               </div>
-              <div style={{ marginTop: 12, fontSize: 12, color: "#94a3b8", lineHeight: 1.5 }}>
-                <b>Reglas de acceso (honestas):</b> Brinco (6 de 40) y Poceada (8 de 00-99) requieren Premium. Quiniela (5 turnos, 2 cifras) es accesible con plan Free o trial. La redoblona (3 cifras + acompañante) y análisis de 4 cifras son exclusivas Premium.
+              <div className="pf-card" style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5 }}>
+                <b>Reglas de acceso:</b> Brinco (6 de 40) y Poceada (8 de 00-99) requieren Premium. Quiniela (5 turnos, 2 cifras) accesible con Free/trial. Redoblona (3 cifras + acompañante) y 4 cifras exclusivos Premium.
               </div>
             </div>
           )}
         </>
       )}
 
-      {/* Footer de página */}
       <div style={{ marginTop: 30, padding: "14px 0", borderTop: "1px solid rgba(255,255,255,.08)", fontSize: 11, color: "#64748b", textAlign: "center", lineHeight: 1.5 }}>
-        <b>Quiniela IA</b> · Perfil de usuario · Datos locales + verificación con sorteos oficiales · No se garantiza ningún resultado · Jugar con responsabilidad.
+        <b>Quiniela IA</b> · Perfil · Datos locales + verificación con sorteos oficiales · No se garantiza ningún resultado · Jugar con responsabilidad.
       </div>
     </div>
   )
