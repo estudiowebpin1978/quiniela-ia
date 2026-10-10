@@ -1305,46 +1305,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           </div>
           {(pr || true) && (
             <div style={{ display: "grid", gap: 10, margin: "16px 0 18px" }}>
-              <button
-                onClick={() => router.push("/brinco")}
-                style={{
-                  width: "100%",
-                  padding: "14px 20px",
-                  borderRadius: 13,
-                  border: "1.5px solid rgba(99,102,241,.5)",
-                  background: "linear-gradient(135deg,rgba(99,102,241,.18),rgba(99,102,241,.08))",
-                  color: "#818cf8",
-                  fontSize: 14,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  fontFamily: "'Inter',sans-serif",
-                  boxShadow: "0 6px 0 rgba(67,56,202,.25),0 8px 20px rgba(99,102,241,.2)",
-                  transition: ".12s",
-                }}
-                title="Premium — actualizá tu plan para acceder"
-              >
+              <a className="btn3d" href="/brinco" style={{ background: "linear-gradient(135deg,#6366f1,#4338ca)", color: "#fff", textShadow: "0 2px 4px rgba(0,0,0,.4)" }}>
                 🎱 Brinco Premium
-              </button>
-              <button
-                onClick={() => router.push("/poceada")}
-                style={{
-                  width: "100%",
-                  padding: "14px 20px",
-                  borderRadius: 13,
-                  border: "1.5px solid rgba(168,85,247,.5)",
-                  background: "linear-gradient(135deg,rgba(168,85,247,.18),rgba(168,85,247,.08))",
-                  color: "#c084fc",
-                  fontSize: 14,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  fontFamily: "'Inter',sans-serif",
-                  boxShadow: "0 6px 0 rgba(126,34,206,.25),0 8px 20px rgba(168,85,247,.2)",
-                  transition: ".12s",
-                }}
-                title="Premium — actualizá tu plan para acceder"
-              >
+              </a>
+              <a className="btn3d" href="/poceada" style={{ background: "linear-gradient(135deg,#818cf8,#6366f1)", color: "#fff", textShadow: "0 2px 4px rgba(0,0,0,.4)" }}>
                 🔮 Poceada Premium
-              </button>
+              </a>
               <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
             </div>
           )}

@@ -140,6 +140,7 @@ body {
 .sorteo-btns { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin-bottom: 14px; }
 .sb {
   padding: 24px 10px 20px; border-radius: 16px;
+  width: 100%;
   background: linear-gradient(180deg,#1e1e3a,#0f0f1f);
   color: #94a3b8; border: 2px solid rgba(255,255,255,.1);
   box-shadow: 0 10px 0 #050510, 0 12px 32px rgba(0,0,0,.6);
