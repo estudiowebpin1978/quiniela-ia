@@ -1305,10 +1305,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           </div>
           {(pr || true) && (
             <div style={{ display: "grid", gap: 10, margin: "16px 0 18px" }}>
-              <a className="btn3d" href="/brinco" style={{ background: "linear-gradient(135deg,#6366f1,#4338ca)", color: "#fff", textShadow: "0 2px 4px rgba(0,0,0,.4)" }}>
+              <a className="btn3d btn-gen" href="/brinco" style={{ background: "linear-gradient(180deg,#bf5af2 0%,#9333ea 50%,#7c3aed 100%)", color: "#fff", boxShadow: "0 10px 0 #6d28d9,0 14px 40px rgba(191,90,242,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}>
                 🎱 Brinco Premium
               </a>
-              <a className="btn3d" href="/poceada" style={{ background: "linear-gradient(135deg,#818cf8,#6366f1)", color: "#fff", textShadow: "0 2px 4px rgba(0,0,0,.4)" }}>
+              <a className="btn3d btn-gen" href="/poceada" style={{ background: "linear-gradient(180deg,#ffd60a 0%,#f59e0b 50%,#d97706 100%)", color: "#111", boxShadow: "0 10px 0 #b45309,0 14px 40px rgba(245,158,11,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}>
                 🔮 Poceada Premium
               </a>
               <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
