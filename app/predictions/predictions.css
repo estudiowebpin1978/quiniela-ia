@@ -152,8 +152,8 @@ body {
 .sb .sh { font-size: 13px; font-weight: 700; opacity: .9; color: #64748b; }
 .sb:active { transform: translateY(6px); box-shadow: none; }
 .sb.on {
-  background: linear-gradient(180deg,#a855f7,#8b5cf6);
-  color: #fff; border-color: rgba(167,139,250,.95);
+  background: linear-gradient(180deg,#a855f7,#7c3aed);
+  color: #fff; border-color: rgba(168,85,247,.95);
   box-shadow: 0 10px 0 #5b21b6, 0 14px 36px rgba(139,92,246,.5);
   font-size: 17px;
 }
@@ -164,27 +164,6 @@ body {
   background: linear-gradient(180deg,#2d2b4a,#1e1e3a);
   color: #a855f7; border-color: rgba(167,139,250,.4); transform: translateY(-2px);
 }
-
-/* ─── Colores 3D profundos por sorteo (1=Previa, 2=Primera, 3=Matutina, 4=Vespertina, 5=Nocturna) ─── */
-.sorteo-btns .sb:nth-child(1) { background: linear-gradient(180deg,#0f2a4a,#0a1a2e); border-color: rgba(56,189,248,.35); box-shadow: 0 10px 0 #06213a, 0 14px 36px rgba(56,189,248,.18); }
-.sorteo-btns .sb:nth-child(2) { background: linear-gradient(180deg,#2a0f4a,#1a0e2e); border-color: rgba(168,85,247,.35); box-shadow: 0 10px 0 #1a0a2e, 0 14px 36px rgba(168,85,247,.18); }
-.sorteo-btns .sb:nth-child(3) { background: linear-gradient(180deg,#2a1a4a,#1e102a); border-color: rgba(245,158,11,.35); box-shadow: 0 10px 0 #2a1a2e, 0 14px 36px rgba(245,158,11,.18); }
-.sorteo-btns .sb:nth-child(4) { background: linear-gradient(180deg,#1e3a2a,#152a1e); border-color: rgba(34,197,94,.35); box-shadow: 0 10px 0 #152a1e, 0 14px 36px rgba(34,197,94,.18); }
-.sorteo-btns .sb:nth-child(5) { background: linear-gradient(180deg,#3a1e2a,#2a1520); border-color: rgba(236,72,153,.35); box-shadow: 0 10px 0 #3a1520, 0 14px 36px rgba(236,72,153,.18); }
-
-.sorteo-btns .sb:nth-child(1) .sh { color: #38bdf8; }
-.sorteo-btns .sb:nth-child(2) .sh { color: #a855f7; }
-.sorteo-btns .sb:nth-child(3) .sh { color: #f59e0b; }
-.sorteo-btns .sb:nth-child(4) .sh { color: #22c55e; }
-.sorteo-btns .sb:nth-child(5) .sh { color: #ec4899; }
-
-.sorteo-btns .sb.on:nth-child(1) { background: linear-gradient(180deg,#0ea5e9,#0284c7); border-color: rgba(56,189,248,.95); box-shadow: 0 10px 0 #0369a1, 0 14px 36px rgba(56,189,248,.5); }
-.sorteo-btns .sb.on:nth-child(2) { background: linear-gradient(180deg,#a855f7,#7c3aed); border-color: rgba(168,85,247,.95); box-shadow: 0 10px 0 #5b21b6, 0 14px 36px rgba(168,85,247,.5); }
-.sorteo-btns .sb.on:nth-child(3) { background: linear-gradient(180deg,#f59e0b,#d97706); border-color: rgba(245,158,11,.95); box-shadow: 0 10px 0 #92400e, 0 14px 36px rgba(245,158,11,.5); }
-.sorteo-btns .sb.on:nth-child(4) { background: linear-gradient(180deg,#22c55e,#15803d); border-color: rgba(34,197,94,.95); box-shadow: 0 10px 0 #166534, 0 14px 36px rgba(34,197,94,.5); }
-.sorteo-btns .sb.on:nth-child(5) { background: linear-gradient(180deg,#ec4899,#be185d); border-color: rgba(236,72,153,.95); box-shadow: 0 10px 0 #9d174d, 0 14px 36px rgba(236,72,153,.5); }
-
-/* ─── 3D Buttons ────────────────────────────────── */
 .btn3d {
   position: relative; display: inline-flex; align-items: center;
   justify-content: center; gap: 10px; border: none; border-radius: 20px;
