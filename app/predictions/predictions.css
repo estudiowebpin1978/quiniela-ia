@@ -137,9 +137,11 @@ body {
   text-transform: uppercase; letter-spacing: 3px;
   margin-bottom: 10px; text-align: center;
 }
-.sorteo-btns { display: grid; grid-template-columns: repeat(5,1fr); gap: 6px; margin-bottom: 14px; }
+.sorteo-btns { display: flex; gap: 8px; margin-bottom: 14px; width: 100%; }
 .sb {
-  padding: 28px 12px 24px; border-radius: 18px;
+  flex: 1 1 0%;
+  min-width: 0;
+  padding: 28px 8px 24px; border-radius: 16px;
   width: 100%;
   background: linear-gradient(180deg,#1e1e3a,#0f0f1f);
   color: #94a3b8; border: 2px solid rgba(255,255,255,.1);
