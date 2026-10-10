@@ -1,13 +1,39 @@
 // Quiniela IA - Service Worker for Push Notifications
-const CACHE_NAME = "quiniela-v2"
+//
+// v3: la estrategia de caché cambió. Antes (v2) TODO era cache-first, así que
+// el HTML de /predictions quedaba congelado en la versión con la que se visitó
+// por primera vez y los deploys NUNCA se veían. Ahora:
+//   - /_next/static/* (assets con hash, nombre inmutable): cache-first.
+//   - Todo lo demás (HTML, RSC, estáticos sin hash): network-first, y la caché
+//     solo entra como fallback cuando no hay red (offline).
+//   - Al activarse se purgan las cachés de versiones anteriores.
+const CACHE_NAME = "quiniela-v3"
 const OFFLINE_URL = "/offline.html"
 
 self.addEventListener("install", (event) => {
   self.skipWaiting()
+  // Precachear la página offline (best-effort: si no hay red, no frenar la instalación)
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.add(OFFLINE_URL).catch(() => undefined))
+  )
 })
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(clients.claim())
+  event.waitUntil(
+    (async () => {
+      // Purgar cachés de versiones anteriores (v1/v2 guardaban HTML viejo)
+      const claves = await caches.keys()
+      const viejas = claves.filter((k) => k !== CACHE_NAME)
+      await Promise.all(viejas.map((k) => caches.delete(k)))
+      await clients.claim()
+      // Upgrade desde una versión con caché vieja: recargar las pestañas
+      // abiertas para que vean el deploy nuevo sin refresh manual.
+      if (viejas.length > 0) {
+        const ventanas = await clients.matchAll({ type: "window" })
+        await Promise.all(ventanas.map((c) => c.navigate(c.url).catch(() => null)))
+      }
+    })()
+  )
 })
 
 self.addEventListener("push", (event) => {
@@ -73,20 +99,42 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url)
   if (url.pathname.startsWith("/api/")) return
 
+  // Assets con hash (nombre inmutable): cache-first es seguro y rápido.
+  if (url.pathname.startsWith("/_next/static/")) {
+    event.respondWith(
+      caches.match(event.request).then(
+        (cached) =>
+          cached ||
+          fetch(event.request).then((response) => {
+            if (response.status === 200) {
+              const clone = response.clone()
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
+            }
+            return response
+          })
+      )
+    )
+    return
+  }
+
+  // Todo lo demás (HTML, RSC, imágenes): network-first para que cualquier
+  // deploy se vea siempre. La caché solo responde sin conexión.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request).then((response) => {
+    fetch(event.request)
+      .then((response) => {
         if (response.status === 200) {
           const clone = response.clone()
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
         }
         return response
-      }).catch(() => {
+      })
+      .catch(async () => {
+        const cached = await caches.match(event.request)
+        if (cached) return cached
         if (event.request.destination === "document") {
           return caches.match(OFFLINE_URL)
         }
         return new Response(null, { status: 503, statusText: "Service Unavailable" })
       })
-    })
   )
 })
