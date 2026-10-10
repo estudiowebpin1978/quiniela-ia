@@ -181,9 +181,14 @@ export default function BrincoPage() {
       <div className="brinco-wrap brinco-gate">
         <h2>Brinco Premium</h2>
         <p className="brinco-empty">Iniciá sesión para acceder.</p>
-        <button className="brinco-btn" onClick={() => router.push("/login")}>
-          Iniciar sesión
-        </button>
+        <div className="brinco-actions" style={{ justifyContent: "center" }}>
+          <button className="brinco-btn" onClick={() => router.push("/login")}>
+            Iniciar sesión
+          </button>
+          <button className="brinco-btn ghost" onClick={() => router.push("/predictions")}>
+            ← Volver a Quiniela
+          </button>
+        </div>
       </div>
     )
   }
@@ -210,6 +215,13 @@ export default function BrincoPage() {
     <div className="brinco-wrap">
       <div className="brinco-head">
         <h1 className="brinco-title">Brinco Premium</h1>
+        <button
+          className="brinco-btn ghost"
+          style={{ marginLeft: "auto", alignSelf: "center" }}
+          onClick={() => router.push("/predictions")}
+        >
+          ← Volver a Quiniela
+        </button>
       </div>
       <p className="brinco-sub">
         6 números distintos del <b>00 al 39</b>. El orden no importa. La misma jugada participa del

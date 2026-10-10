@@ -1329,6 +1329,25 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             >
               🎱 Brinco Premium
             </button>
+            <button
+              onClick={() => router.push("/poceada")}
+              style={{
+                width: "100%",
+                padding: "14px 20px",
+                borderRadius: 13,
+                border: "1.5px solid rgba(168,85,247,.5)",
+                background: "linear-gradient(135deg,rgba(168,85,247,.18),rgba(168,85,247,.08))",
+                color: "#c084fc",
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: "pointer",
+                fontFamily: "'Inter',sans-serif",
+                boxShadow: "0 6px 0 rgba(126,34,206,.25),0 8px 20px rgba(168,85,247,.2)",
+                transition: ".12s",
+              }}
+            >
+              🔮 Poceada
+            </button>
             <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
           </div>
           {showCalc && (
