@@ -137,7 +137,7 @@ body {
   text-transform: uppercase; letter-spacing: 3px;
   margin-bottom: 10px; text-align: center;
 }
-.sorteo-btns { display: grid; grid-template-columns: repeat(6,1fr); gap: 8px; margin-bottom: 14px; }
+.sorteo-btns { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; margin-bottom: 14px; }
 .sb {
   padding: 18px 8px 16px; border-radius: 20px;
   background: linear-gradient(180deg,#1e1e3a,#0f0f1f);
@@ -644,7 +644,7 @@ body {
 }
 
 @media (max-width: 400px) {
-  .sorteo-btns { grid-template-columns: repeat(6,1fr); gap: 4px; }
+  .sorteo-btns { grid-template-columns: repeat(5,1fr); gap: 4px; }
   .sb { padding: 12px 4px 10px; font-size: 11px; }
   .sb .sh { font-size: 9px; }
   .g5 { grid-template-columns: repeat(5,1fr); gap: 4px; }

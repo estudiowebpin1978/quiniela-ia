@@ -51,10 +51,8 @@ export default function PerfilPage() {
   const lost = preds.filter((p) => String(p.status) === "LOST").length
 
   const tabs = [
-    { id: "pred" as const, label: "📋 Predicciones", desc: "Jugadas guardadas" },
-    { id: "verif" as const, label: "✅ Verificación", desc: "Aciertos vs sorteos oficiales" },
-    { id: "hist" as const, label: "📊 Histórico", desc: "Precisión y tendencias" },
-    { id: "premium" as const, label: "⭐ Premium", desc: "Plan, renovación, upgrade" },
+    { id: "pred" as const, label: "📋 Mis Análisis" },
+    { id: "hist" as const, label: "📊 Datos Históricos" },
   ]
 
   return (
@@ -116,25 +114,29 @@ export default function PerfilPage() {
             </div>
           )}
 
-          {tab === "verif" && (
+          {tab === "pred" && (
             <div>
-              <h2 className="pf-card" style={{ fontSize: 15, fontWeight: 800, margin: "0 0 8px", color: "#f5c542" }}>Verificación oficial</h2>
-              <p style={{ fontSize: 12, color: "#94a3b8", marginBottom: 10 }}>Comparación automática con sorteos oficiales LOTBA / CAS.</p>
-              <div style={{ display: "grid", gap: 10 }}>
-                {preds.filter((p) => String(p.status) !== "pending").length === 0 ? (
-                  <div className="pf-card" style={{ color: "#94a3b8", textAlign: "center", padding: 16, fontSize: 13 }}>Todavía no hay resultados oficiales verificados.</div>
-                ) : (
-                  preds.filter((p) => String(p.status) !== "pending").map((p) => (
-                    <div key={p.id || p.fecha || p.date} className="pf-card" style={{ padding: 14 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: String(p.status) === "WON" ? "#34d399" : String(p.status) === "NEAR_MISS" ? "#fbbf24" : "#f87171", marginBottom: 6 }}>
-                        {String(p.status) === "WON" ? "✅ GANADA" : String(p.status) === "NEAR_MISS" ? "⚠️ CERCA" : "❌ SIN ACERTAR"} — {predLabels[(p.turno || "").toLowerCase()] || p.turno || "—"} ({p.fecha || p.date || "—"})
-                      </div>
-                      <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-                        Números: <b style={{ color: "#f5c542" }}>{(Array.isArray(p.numeros) ? p.numeros as string[] : p.numeros?.["2"] || []).join(", ")}</b>
-                      </div>
-                    </div>
-                  ))
-                )}
+              <h2 className="pf-card" style={{ fontSize: 15, fontWeight: 800, margin: "0 0 8px", color: "#f5c542" }}>Datos históricos</h2>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 10 }}>
+                <div className="pf-card" style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#f5c542" }}>{preds.length}</div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Predicciones guardadas</div>
+                </div>
+                <div className="pf-card" style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#34d399" }}>{won}</div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Aciertos verificados</div>
+                </div>
+                <div className="pf-card" style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#fbbf24" }}>{near}</div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Cerca del acierto</div>
+                </div>
+                <div className="pf-card" style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#f87171" }}>{lost}</div>
+                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>Sin coincidir</div>
+                </div>
+              </div>
+              <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: "rgba(245,197,66,.08)", border: "1px solid rgba(245,197,66,.15)", fontSize: 12, color: "#cfc8b0", lineHeight: 1.6 }}>
+                <b>Nota honesta:</b> estas métricas reflejan solo lo que guardaste. No representan la probabilidad matemática de ganar (la lotería es aleatoria e independiente). El motor optimiza consistencia del modelo, no aciertos garantizados. No hay EV determinista ni premio fijo para Poceada (es poceado / parimutuel).
               </div>
             </div>
           )}
@@ -162,25 +164,6 @@ export default function PerfilPage() {
               </div>
               <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: "rgba(245,197,66,.08)", border: "1px solid rgba(245,197,66,.15)", fontSize: 12, color: "#cfc8b0", lineHeight: 1.6 }}>
                 <b>Nota honesta:</b> estas métricas reflejan solo lo que guardaste. No representan la probabilidad matemática de ganar (la lotería es aleatoria e independiente). El motor optimiza consistencia del modelo, no aciertos garantizados. No hay EV determinista ni premio fijo para Poceada (es poceado / parimutuel).
-              </div>
-            </div>
-          )}
-
-          {tab === "premium" && (
-            <div>
-              <h2 className="pf-card" style={{ fontSize: 15, fontWeight: 800, margin: "0 0 8px", color: "#f5c542" }}>Estado Premium</h2>
-              <div className="pf-card" style={{ background: premium ? "rgba(34,197,94,.08)" : "rgba(239,68,68,.08)", border: `1.5px solid ${premium ? "rgba(34,197,94,.3)" : "rgba(239,68,68,.3)"}` }}>
-                <div style={{ fontWeight: 700, fontSize: 15, color: premium ? "#34d399" : "#ef4444", marginBottom: 6 }}>{premium ? "⭐ Activo — Premium" : "🆓 Free — sin acceso a 3 y 4 cifras"}</div>
-                <div style={{ fontSize: 13, color: "#cbd5e1", marginBottom: 10 }}>{premium ? `Tu suscripción vence en ${expDays !== null ? expDays + " días" : "—"}. Acceso completo a Brinco, Poceada y análisis de 3/4 cifras con ML.` : "Para acceder a Brinco, Poceada y análisis avanzados con Machine Learning, actualizá tu plan."}</div>
-                {!premium && (
-                  <button className="pf-btn pf-btn-primary" onClick={() => router.push("/predictions")}>Ver planes y actualizar →</button>
-                )}
-                {premium && expDays !== null && expDays <= 7 && (
-                  <div style={{ marginTop: 10, fontSize: 12, color: "#fbbf24", fontWeight: 700 }}>⚠️ Recordá renovar antes del vencimiento para no perder acceso.</div>
-                )}
-              </div>
-              <div className="pf-card" style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.5 }}>
-                <b>Reglas de acceso:</b> Brinco (6 de 40) y Poceada (8 de 00-99) requieren Premium. Quiniela (5 turnos, 2 cifras) accesible con Free/trial. Redoblona (3 cifras + acompañante) y 4 cifras exclusivos Premium.
               </div>
             </div>
           )}
