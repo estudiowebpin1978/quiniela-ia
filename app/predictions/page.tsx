@@ -1303,7 +1303,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               {ld ? "⏳ Analizando datos..." : "⚡ Generar Análisis Ahora"}
             </button>
           </div>
-          {(pr || userRole === "admin") && (
+          {(pr || true) && (
             <div style={{ display: "grid", gap: 10, margin: "16px 0 18px" }}>
               <button
                 onClick={() => router.push("/brinco")}
@@ -1321,6 +1321,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   boxShadow: "0 6px 0 rgba(67,56,202,.25),0 8px 20px rgba(99,102,241,.2)",
                   transition: ".12s",
                 }}
+                title="Premium — actualizá tu plan para acceder"
               >
                 🎱 Brinco Premium
               </button>
@@ -1340,6 +1341,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   boxShadow: "0 6px 0 rgba(126,34,206,.25),0 8px 20px rgba(168,85,247,.2)",
                   transition: ".12s",
                 }}
+                title="Premium — actualizá tu plan para acceder"
               >
                 🔮 Poceada Premium
               </button>
