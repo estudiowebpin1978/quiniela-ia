@@ -44,7 +44,6 @@ import { RealtimeResults, RealtimeBadge } from "@/components/RealtimeResults";
 import { RealtimeVerification } from "@/components/RealtimeVerification";
 import { getQuinielaEntry, getQuinielaIcon, getQuinielaName, getLast2CifrasEntry } from "@/lib/utils/quinielaDictionary";
 import NotificationBell from "@/components/NotificationBell";
-import StreakBar from "@/components/StreakBar";
 
 
 import type { SavedPrediction, NumeroItem, ResultadoControl, DrawData, BacktestItem } from "@/lib/types/client";
@@ -1165,9 +1164,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             {(pr || userRole === "admin") && <span className="pp">{userRole === "admin" ? "👑 ADMIN" : "⭐ PREMIUM"}</span>}
             {!guestMode && <GamificationBadge compact />}
             {em && <span className="ne">{em.split("@")[0]}</span>}
-            {(pr || userRole === "admin") && (
-              <a href="/brinco" className="nav-admin" title="Brinco Premium (Lotería de Santa Fe)">🎱 Brinco</a>
-            )}
             {userRole === "admin" && <a href="/admin" className="nav-admin">⚙️ Admin</a>}
             <RealtimeBadge />
             <NotificationBell />
@@ -1204,7 +1200,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             </button>
           </div>
         </nav>
-        <StreakBar />
         {pr && premExpiry.daysRemaining !== null && premExpiry.daysRemaining <= 7 && (
           <div style={{
             margin: "8px 12px 0", padding: "10px 14px", borderRadius: 12,
@@ -1314,6 +1309,25 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               }}
             >
               {showCalc ? "▲ Cerrar" : "📊 Datos Históricos"}
+            </button>
+            <button
+              onClick={() => router.push("/brinco")}
+              style={{
+                width: "100%",
+                padding: "14px 20px",
+                borderRadius: 13,
+                border: "1.5px solid rgba(99,102,241,.5)",
+                background: "linear-gradient(135deg,rgba(99,102,241,.18),rgba(99,102,241,.08))",
+                color: "#818cf8",
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: "pointer",
+                fontFamily: "'Inter',sans-serif",
+                boxShadow: "0 6px 0 rgba(67,56,202,.25),0 8px 20px rgba(99,102,241,.2)",
+                transition: ".12s",
+              }}
+            >
+              🎱 Brinco Premium
             </button>
             <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
           </div>
