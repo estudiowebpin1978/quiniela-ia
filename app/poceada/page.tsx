@@ -1,17 +1,20 @@
 "use client"
 
 /**
- * Poceada — página dedicada con la estética de Brinco (mismo CSS).
+ * Poceada Premium — página dedicada con la estética de Brinco (mismo CSS).
  *
- * NO duplica motor: consume el MISMO endpoint de predicciones de la app
- * (/api/predictions?sorteo=poceada) con la misma fecha objetivo que la
- * pantalla principal, valida con validatePredData y guarda con los endpoints
- * existentes (/api/mis-predicciones). La verificación de aciertos también es
- * la existente (comparar/api-aciertos).
+ * Acceso Premium controlado en el CLIENTE (mirando /api/auth/me) y en el
+ * SERVIDOR (/api/predictions rechaza a usuarios Free). Aquí se refleja el
+ * estado para mostrar la UI. NO duplica motor: consume el MISMO endpoint
+ * de predicciones de la app (/api/predictions?sorteo=poceada) con la misma
+ * fecha objetivo que la pantalla principal, valida con validatePredData y
+ * guarda con los endpoints existentes (/api/mis-predicciones). La
+ * verificación de aciertos también es la existente (comparar/api-aciertos).
  *
  * Poceada es un juego SOLO de 2 cifras: 8 números de 00 a 99; el sorteo
- * extrae 20 y se gana con 5, 6, 7 u 8 aciertos (POCEADA_MATCHES). Tier Free:
- * el gate real (2 cifras / trial) sigue en el servidor.
+ * extrae 20 y se gana con 5, 6, 7 u 8 aciertos (POCEADA_MATCHES). Es
+ * un juego POCEADO (parimutuel): el premio depende del pozo y de cuántos
+ * aciertan, no hay ganancia fija por juego.
  */
 
 import { useCallback, useEffect, useState } from "react"
@@ -45,8 +48,7 @@ const AVISO =
 export default function PoceadaPage() {
   const router = useRouter()
   const [cargando, setCargando] = useState(true)
-  const [acceso, setAcceso] = useState<"cargando" | "ok" | "no-auth" | "sin-acceso">("cargando")
-  const [motivo, setMotivo] = useState<string | null>(null)
+  const [acceso, setAcceso] = useState<"cargando" | "ok" | "no-auth" | "no-premium">("cargando")
   const [pred, setPred] = useState<PredData | null>(null)
   const [fecha, setFecha] = useState("")
   const [msg, setMsg] = useState<string | null>(null)
@@ -81,64 +83,74 @@ export default function PoceadaPage() {
       return
     }
     const tk = auth.access_token
-    const f = fechaObjetivoPoceada()
-    setFecha(f)
 
-    fetch("/api/predictions?sorteo=poceada&date=" + f + "&t=" + Date.now(), {
-      headers: { Authorization: "Bearer " + tk },
-    })
-      .then(async (r) => {
-        const d = await r.json().catch(() => ({}))
-        if (r.status === 401) {
-          setAcceso("no-auth")
+    // Verificar si el usuario tiene Premium (igual que Brinco)
+    fetch("/api/auth/me", { headers: { Authorization: "Bearer " + tk } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me) => {
+        const premium = me?.canAccessPremiumFeatures || me?.role === "premium" || me?.role === "admin"
+        if (!premium) {
+          setAcceso("no-premium")
+          setCargando(false)
           return
         }
-        if (r.status === 403) {
-          setAcceso("sin-acceso")
-          setMotivo(
-            d?.trialExpired
-              ? "Tu período gratuito expiró. Actualizá el plan para seguir analizando Poceada."
-              : d?.upgradeRequired
-              ? "Suscribite para acceder a las predicciones."
-              : d?.error || "No tenés acceso a las predicciones."
-          )
-          return
-        }
-        if (!r.ok) throw new Error(d?.error || "Error del servidor: " + r.status)
-        if (d?.error) throw new Error(d.error)
-
-        // Normaliza el payload igual que la pantalla principal
-        const predData = {
-          ...(d.pred || d),
-          heatmap: d.heatmap,
-          ranking: d.numeros,
-          numeros: d.numeros,
-          confidence: d.confidence,
-          aiInsight: d.aiInsight,
-        }
-
-        let v: PredData | null = null
-        try {
-          v = validatePredData(predData)
-        } catch {
-          if (Array.isArray((predData as { numeros_2?: unknown }).numeros_2)) {
-            v = predData as PredData
-          } else {
-            throw new Error("Datos recibidos del servidor no válidos")
-          }
-        }
-        if (!v?.numeros_2?.length && !v?.numeros?.length) {
-          throw new Error("Todavía no hay predicción de Poceada para esta fecha.")
-        }
-        setPred(v)
         setAcceso("ok")
-      })
-      .catch((e: unknown) =>
-        setMsg(e instanceof Error ? e.message : "No se pudo cargar la predicción.")
-      )
-      .finally(() => setCargando(false))
+        const f = fechaObjetivoPoceada()
+        setFecha(f)
 
-    cargarHistorial(tk)
+        // Cargar predicción (usa el motor existente)
+        fetch("/api/predictions?sorteo=poceada&date=" + f + "&t=" + Date.now(), {
+          headers: { Authorization: "Bearer " + tk },
+        })
+          .then(async (r) => {
+            const d = await r.json().catch(() => ({}))
+            if (r.status === 401) {
+              setAcceso("no-auth")
+              return
+            }
+            if (r.status === 403) {
+              setAcceso("no-premium")
+              return
+            }
+            if (!r.ok) throw new Error(d?.error || "Error del servidor: " + r.status)
+            if (d?.error) throw new Error(d.error)
+
+            // Normaliza el payload igual que la pantalla principal
+            const predData = {
+              ...(d.pred || d),
+              heatmap: d.heatmap,
+              ranking: d.numeros,
+              numeros: d.numeros,
+              confidence: d.confidence,
+              aiInsight: d.aiInsight,
+            }
+
+            let v: PredData | null = null
+            try {
+              v = validatePredData(predData)
+            } catch {
+              if (Array.isArray((predData as { numeros_2?: unknown }).numeros_2)) {
+                v = predData as PredData
+              } else {
+                throw new Error("Datos recibidos del servidor no válidos")
+              }
+            }
+            if (!v?.numeros_2?.length && !v?.numeros?.length) {
+              throw new Error("Todavía no hay predicción de Poceada para esta fecha.")
+            }
+            setPred(v)
+          })
+          .catch((e: unknown) =>
+            setMsg(e instanceof Error ? e.message : "No se pudo cargar la predicción.")
+          )
+          .finally(() => setCargando(false))
+
+        cargarHistorial(tk)
+      })
+      .catch(() => {
+        setAcceso("no-auth")
+        setCargando(false)
+      })
   }, [cargarHistorial])
 
   const numeros = (
@@ -187,8 +199,8 @@ export default function PoceadaPage() {
   if (acceso === "no-auth") {
     return (
       <div className="brinco-wrap brinco-gate">
-        <h2>Poceada</h2>
-        <p className="brinco-empty">Iniciá sesión para ver la jugada de Poceada.</p>
+        <h2>Poceada Premium</h2>
+        <p className="brinco-empty">Iniciá sesión para acceder.</p>
         <div className="brinco-actions" style={{ justifyContent: "center" }}>
           <button className="brinco-btn" onClick={() => router.push("/login")}>
             Iniciar sesión
@@ -201,18 +213,16 @@ export default function PoceadaPage() {
     )
   }
 
-  if (acceso === "sin-acceso") {
+  if (acceso === "no-premium") {
     return (
       <div className="brinco-wrap brinco-gate">
-        <h2>Poceada</h2>
+        <h2>Poceada Premium</h2>
         <p className="brinco-empty">
-          {motivo || "No tenés acceso a las predicciones en este momento."}
+          Esta función es parte de Premium. Actualizá tu plan para generar jugadas de Poceada.
         </p>
-        <div className="brinco-actions" style={{ justifyContent: "center" }}>
-          <button className="brinco-btn" onClick={() => router.push("/predictions")}>
-            ← Volver y ver planes
-          </button>
-        </div>
+        <button className="brinco-btn" onClick={() => router.push("/predictions")}>
+          Ver planes
+        </button>
       </div>
     )
   }
@@ -220,7 +230,7 @@ export default function PoceadaPage() {
   return (
     <div className="brinco-wrap">
       <div className="brinco-head">
-        <h1 className="brinco-title">Poceada</h1>
+        <h1 className="brinco-title">Poceada Premium</h1>
         <button
           className="brinco-btn ghost"
           style={{ marginLeft: "auto", alignSelf: "center" }}

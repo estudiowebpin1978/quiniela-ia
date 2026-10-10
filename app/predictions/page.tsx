@@ -1200,6 +1200,50 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             </button>
           </div>
         </nav>
+        {/* Perfil de usuario — solo si está logueado */}
+        {!guestMode && (
+          <div style={{ margin: "10px 12px 0", padding: "12px 14px", borderRadius: 12, background: "linear-gradient(135deg,rgba(139,92,246,.08),rgba(139,92,246,.02))", border: "1px solid rgba(139,92,246,.15)", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <button
+                onClick={() => { setTab("mis"); cargarMisPreds(tkRef.current); }}
+                style={{
+                  padding: "10px 16px", borderRadius: 10,
+                  border: "1.5px solid rgba(34,197,94,.5)",
+                  background: "linear-gradient(135deg,rgba(34,197,94,.18),rgba(34,197,94,.08))",
+                  color: "#15803d",
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  fontFamily: "'Inter',sans-serif",
+                  boxShadow: "0 4px 0 rgba(0,100,50,.2),0 6px 16px rgba(34,197,94,.15)",
+                  transition: ".12s",
+                }}
+              >
+                📋 Mis Análisis
+              </button>
+              <button
+                onClick={() => setShowCalc(!showCalc)}
+                style={{
+                  padding: "10px 16px", borderRadius: 10,
+                  border: "1.5px solid rgba(180,83,9,.5)",
+                  background: "linear-gradient(135deg,rgba(180,83,9,.16),rgba(180,83,9,.06))",
+                  color: "#92400e",
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  fontFamily: "'Inter',sans-serif",
+                  boxShadow: "0 4px 0 rgba(120,53,15,.2),0 6px 16px rgba(180,83,9,.15)",
+                  transition: ".12s",
+                }}
+              >
+                📊 Datos Históricos
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: "#94a3b8", whiteSpace: "nowrap" }}>
+              {pr ? "⭐ Premium" : userRole === "admin" ? "👑 Admin" : "🆓 Free"} · {em?.split("@")[0] || "Usuario"}
+            </div>
+          </div>
+        )}
         {pr && premExpiry.daysRemaining !== null && premExpiry.daysRemaining <= 7 && (
           <div style={{
             margin: "8px 12px 0", padding: "10px 14px", borderRadius: 12,
@@ -1248,108 +1292,60 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           <div className="sorteo-btns">
             {SORTEOS.map((s) => (
               <button key={s} className={"sb" + (so === s ? " on" : "")} onClick={() => { sound.pop(); triggerHaptic("light"); setSo(s); setDt(null); setDn(false); setEr(""); }}>
-                <span>{s === "Vespertina" ? "Vesp" : s === "Primera" ? "1era" : s === "Matutina" ? "Mat" : s === "Nocturna" ? "Noct" : s === "Poceada" ? "Poce" : s}</span>
+                <span>{s === "Vespertina" ? "Vesp" : s === "Primera" ? "1era" : s === "Matutina" ? "Mat" : s === "Nocturna" ? "Noct" : s}</span>
                 <span className="sh">{HORAS[s]}</span>
                 {confianzaTurnos[s] != null && <span className="sc">{confianzaTurnos[s]}%</span>}
               </button>
             ))}
-            {/* Poceada: botón horizontal en misma fila */}
-            <button
-              key="Poceada-full"
-              className={"sb" + (so === "Poceada" ? " on" : "")}
-              onClick={() => { sound.pop(); triggerHaptic("light"); setSo("Poceada"); setDt(null); setDn(false); setEr(""); }}
-            >
-              <span>Poce</span>
-              <span className="sh">{HORAS["Poceada"]}</span>
-            </button>
           </div>
           <div className="gen-row">
             <button className="btn3d btn-gen" onClick={() => { sound.whoosh(); gen(); }} disabled={ld} style={{ opacity: ld ? 0.6 : 1, flex: 1 }}>
               {ld ? "⏳ Analizando datos..." : "⚡ Generar Análisis Ahora"}
             </button>
           </div>
-          <div style={{ display: "grid", gap: 10, margin: "16px 0 18px" }}>
-            <button
-              onClick={() => {
-                setTab("mis");
-                cargarMisPreds(tkRef.current);
-              }}
-              style={{
-                width: "100%",
-                padding: "14px 20px",
-                borderRadius: 13,
-                border: "1.5px solid rgba(34,197,94,.5)",
-                background: "linear-gradient(135deg,rgba(34,197,94,.18),rgba(34,197,94,.08))",
-                color: "#15803d",
-                fontSize: 14,
-                fontWeight: 800,
-                cursor: "pointer",
-                fontFamily: "'Inter',sans-serif",
-                boxShadow: "0 6px 0 rgba(0,100,50,.25),0 8px 20px rgba(34,197,94,.2)",
-                transition: ".12s",
-              }}
-            >
-              📋 Mis Análisis
-            </button>
-            <button
-              onClick={() => setShowCalc(!showCalc)}
-              style={{
-                width: "100%",
-                padding: "14px 20px",
-                borderRadius: 13,
-                border: "1.5px solid rgba(180,83,9,.5)",
-                background: "linear-gradient(135deg,rgba(180,83,9,.16),rgba(180,83,9,.06))",
-                color: "#92400e",
-                fontSize: 14,
-                fontWeight: 800,
-                cursor: "pointer",
-                fontFamily: "'Inter',sans-serif",
-                boxShadow: "0 6px 0 rgba(120,53,15,.2),0 8px 20px rgba(180,83,9,.18)",
-                transition: ".12s",
-              }}
-            >
-              {showCalc ? "▲ Cerrar" : "📊 Datos Históricos"}
-            </button>
-            <button
-              onClick={() => router.push("/brinco")}
-              style={{
-                width: "100%",
-                padding: "14px 20px",
-                borderRadius: 13,
-                border: "1.5px solid rgba(99,102,241,.5)",
-                background: "linear-gradient(135deg,rgba(99,102,241,.18),rgba(99,102,241,.08))",
-                color: "#818cf8",
-                fontSize: 14,
-                fontWeight: 800,
-                cursor: "pointer",
-                fontFamily: "'Inter',sans-serif",
-                boxShadow: "0 6px 0 rgba(67,56,202,.25),0 8px 20px rgba(99,102,241,.2)",
-                transition: ".12s",
-              }}
-            >
-              🎱 Brinco Premium
-            </button>
-            <button
-              onClick={() => router.push("/poceada")}
-              style={{
-                width: "100%",
-                padding: "14px 20px",
-                borderRadius: 13,
-                border: "1.5px solid rgba(168,85,247,.5)",
-                background: "linear-gradient(135deg,rgba(168,85,247,.18),rgba(168,85,247,.08))",
-                color: "#c084fc",
-                fontSize: 14,
-                fontWeight: 800,
-                cursor: "pointer",
-                fontFamily: "'Inter',sans-serif",
-                boxShadow: "0 6px 0 rgba(126,34,206,.25),0 8px 20px rgba(168,85,247,.2)",
-                transition: ".12s",
-              }}
-            >
-              🔮 Poceada
-            </button>
-            <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
-          </div>
+          {(pr || userRole === "admin") && (
+            <div style={{ display: "grid", gap: 10, margin: "16px 0 18px" }}>
+              <button
+                onClick={() => router.push("/brinco")}
+                style={{
+                  width: "100%",
+                  padding: "14px 20px",
+                  borderRadius: 13,
+                  border: "1.5px solid rgba(99,102,241,.5)",
+                  background: "linear-gradient(135deg,rgba(99,102,241,.18),rgba(99,102,241,.08))",
+                  color: "#818cf8",
+                  fontSize: 14,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  fontFamily: "'Inter',sans-serif",
+                  boxShadow: "0 6px 0 rgba(67,56,202,.25),0 8px 20px rgba(99,102,241,.2)",
+                  transition: ".12s",
+                }}
+              >
+                🎱 Brinco Premium
+              </button>
+              <button
+                onClick={() => router.push("/poceada")}
+                style={{
+                  width: "100%",
+                  padding: "14px 20px",
+                  borderRadius: 13,
+                  border: "1.5px solid rgba(168,85,247,.5)",
+                  background: "linear-gradient(135deg,rgba(168,85,247,.18),rgba(168,85,247,.08))",
+                  color: "#c084fc",
+                  fontSize: 14,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  fontFamily: "'Inter',sans-serif",
+                  boxShadow: "0 6px 0 rgba(126,34,206,.25),0 8px 20px rgba(168,85,247,.2)",
+                  transition: ".12s",
+                }}
+              >
+                🔮 Poceada Premium
+              </button>
+              <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
+            </div>
+          )}
           {showCalc && (
             <div style={{ marginTop: 12, padding: 14, borderRadius: 12, background: "rgba(139,92,246,.06)", border: "1px solid rgba(139,92,246,.15)" }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: "#a78bfa", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>📊 Tu precisión personal</div>
