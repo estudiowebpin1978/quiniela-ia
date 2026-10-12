@@ -647,14 +647,40 @@ export async function GET(req: NextRequest) {
   // Sólo se leen cron_name/status/created_at; NO se expone error_message ni
   // metadata (podrían contener detalles internos).
   try {
-    // Ventana amplia: con cron-verify logueando ~288×/día, 500 filas no
-    // alcanzaban para ver crons que corren cada pocos días (aparecían como
-    // NEVER_RUN → falsos DEGRADED). 5000 filas ≈ 2 semanas al volumen actual.
+    // Última corrida por alias: consulta puntual eq(cron_name)+limit(1) por
+    // nombre. Una sola query ordenada NO sirve para esto: PostgREST limita a
+    // max-rows (1000) lo pedido, así que los crons de pocos días quedaban
+    // fuera de la ventana y aparecían como NEVER_RUN → falsos DEGRADED.
+    const aliasTodos = Array.from(new Set(CRON_ESPERADOS.flatMap((e) => e.aliases)))
+    const ultimoPorCron = new Map<string, { createdAt: string; status: string }>()
+    await Promise.all(
+      aliasTodos.map(async (alias) => {
+        const { data, error } = await supabase
+          .from("cron_logs")
+          .select("status, created_at")
+          .eq("cron_name", alias)
+          .order("created_at", { ascending: false })
+          .limit(1)
+        if (error) throw new Error(error.message)
+        const row = (
+          data as Array<{ status?: string | null; created_at?: string | null }> | null
+        )?.[0]
+        if (row?.created_at) {
+          ultimoPorCron.set(alias, {
+            createdAt: row.created_at,
+            status: row.status || "unknown",
+          })
+        }
+      }),
+    )
+
+    // Otros crons registrados (solo informativo): ventana reciente con el
+    // cap del servidor (max-rows). No alimentan los estados esperados.
     const { data: logRows, error: logErr } = await supabase
       .from("cron_logs")
       .select("cron_name, status, created_at")
       .order("created_at", { ascending: false })
-      .limit(5000)
+      .limit(1000)
     if (logErr) throw new Error(logErr.message)
 
     const rows = (logRows || []) as Array<{
@@ -663,9 +689,9 @@ export async function GET(req: NextRequest) {
       created_at?: string | null
     }>
 
-    const ultimoPorCron = new Map<string, { createdAt: string; status: string }>()
     for (const row of rows) {
       if (!row.cron_name || !row.created_at) continue
+      if (aliasTodos.includes(row.cron_name)) continue
       if (!ultimoPorCron.has(row.cron_name)) {
         ultimoPorCron.set(row.cron_name, {
           createdAt: row.created_at,
