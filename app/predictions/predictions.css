@@ -145,6 +145,7 @@ body {
   width: 100%;
 }
 .sb {
+  position: relative; overflow: hidden;
   flex: 1 1 0%;
   padding: 32px 6px 28px; border-radius: 20px;
   background: linear-gradient(180deg,#1e1e3a,#0f0f1f);
@@ -649,7 +650,7 @@ body {
 }
 
 @media (max-width: 400px) {
-  .sorteo-btns { grid-template-columns: repeat(5,1fr); gap: 4px; }
+  .sorteo-btns { gap: 4px; }
   .sb { padding: 12px 4px 10px; font-size: 11px; }
   .sb .sh { font-size: 9px; }
   .g5 { grid-template-columns: repeat(5,1fr); gap: 4px; }

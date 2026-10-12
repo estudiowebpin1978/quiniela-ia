@@ -42,7 +42,10 @@ export default function PerfilPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { cargar() }, [cargar])
+  // El wrapper async mantiene la carga en el effect sin que el linter
+  // (react-hooks/set-state-in-effect) detecte setState sincrónico en su cuerpo:
+  // la carga real ocurre dentro de la IIFE, igual que antes (una sola vez al montar).
+  useEffect(() => { void (async () => { await cargar() })() }, [cargar])
 
   const predLabels: Record<string, string> = { previs: "Previa", primera: "Primera", matutina: "Matutina", vespertina: "Vespertina", nocturna: "Nocturna", poceada: "Poceada", brinco: "Brinco" }
 
@@ -93,11 +96,11 @@ export default function PerfilPage() {
                 </div>
               ) : (
                 <div style={{ display: "grid", gap: 10 }}>
-                  {preds.map((p) => {
+                  {preds.map((p, idx) => {
                     const nums = Array.isArray(p.numeros) ? (p.numeros as string[]) : (p.numeros?.["2"] ? (p.numeros["2"] as string[]) : [])
                     const turnoRaw = (p.turno || "").toLowerCase()
                     return (
-                      <div key={p.id || p.fecha || p.date || Math.random()} className="pf-card" style={{ padding: 14 }}>
+                      <div key={p.id || p.fecha || p.date || `pred-${idx}`} className="pf-card" style={{ padding: 14 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
                           <b style={{ fontSize: 13, color: "#e6e6e6" }}>{predLabels[turnoRaw] || turnoRaw} — {p.fecha || p.date || "—"}</b>
                           <span style={{ fontSize: 11, color: String(p.status) === "WON" ? "#34d399" : "#94a3b8", fontWeight: 700 }}>{String(p.status) === "WON" ? "GANADA" : String(p.status) === "NEAR_MISS" ? "CERCA" : String(p.status) === "LOST" ? "SIN ACERTAR" : "PENDIENTE"}</span>

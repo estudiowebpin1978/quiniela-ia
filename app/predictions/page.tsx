@@ -972,17 +972,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .sc:hover{transform:translateY(-3px);box-shadow:0 10px 0 rgba(0,0,0,.4),0 12px 32px rgba(99,102,241,.3)}
         .sv{font-size:26px;font-weight:900;background:linear-gradient(180deg,#a855f7,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
         .sl{font-size:11px;color:#a5b4fc;margin-top:6px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
-        .sorteo-label{font-size:12px;font-weight:800;color:#94a3b8;text-transform:uppercase;letter-spacing:3px;margin-bottom:10px;text-align:center}
-        .sorteo-btns{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px}
-        .sb{padding:18px 8px 16px;border-radius:20px;background:linear-gradient(180deg,#1e1e3a,#0f0f1f);color:#94a3b8;border:2px solid rgba(255,255,255,.1);box-shadow:0 8px 0 #050510,0 10px 28px rgba(0,0,0,.6);cursor:pointer;font-family:'Inter',sans-serif;font-weight:900;font-size:14px;text-align:center;transition:all .2s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;align-items:center;gap:8px;user-select:none;letter-spacing:.5px;position:relative;overflow:hidden}
+        /* Los estilos de .sorteo-label / .sorteo-btns / .sb viven en predictions.css
+           (fuente única). Antes había un bloque duplicado acá con
+           grid-template-columns:repeat(6,1fr): 6 columnas para 5 botones = un hueco
+           vacío donde estaba Poceada, y además pisaba los tamaños de predictions.css. */
         .sb::before{content:'';position:absolute;top:0;left:0;right:0;height:50%;background:linear-gradient(180deg,rgba(255,255,255,.05),transparent);border-radius:20px 20px 0 0;pointer-events:none}
-        .sb .sh{font-size:12px;font-weight:700;opacity:.9;color:#64748b;transition:all .2s}
-        .sb:active{transform:translateY(6px);box-shadow:none;transition:all .08s}
-        .sb.on{background:linear-gradient(180deg,#a855f7 0%,#8b5cf6 50%,#7c3aed 100%);color:#fff;border-color:rgba(167,139,250,.95);box-shadow:0 8px 0 #5b21b6,0 12px 36px rgba(139,92,246,.5),inset 0 1px 0 rgba(255,255,255,.3);font-size:15px}
-        .sb.on .sh{opacity:1;color:#fff;font-weight:800;font-size:13px}
-        .sb .sc{font-size:11px;font-weight:800;color:#a78bfa;background:rgba(167,139,250,.12);padding:2px 8px;border-radius:10px;min-width:36px;margin-top:-2px;transition:all .2s}
-        .sb.on .sc{color:#fff;background:rgba(255,255,255,.18)}
-        .sb:hover:not(.on){background:linear-gradient(180deg,#2d2b4a,#1e1e3a);color:#a855f7;border-color:rgba(167,139,250,.4);transform:translateY(-3px);box-shadow:0 12px 0 #050510,0 16px 36px rgba(139,92,246,.25)}
         .btn3d{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:10px;border:none;border-radius:20px;font-family:'Inter',sans-serif;font-weight:900;cursor:pointer;transition:all .15s;user-select:none;-webkit-tap-highlight-color:transparent;width:100%;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
         .btn3d:active{transform:translateY(6px)!important;box-shadow:none!important;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
         .btn-gen{padding:24px 32px;font-size:20px;letter-spacing:1px;background:linear-gradient(180deg,#f472b6 0%,#ec4899 50%,#db2777 100%);color:#fff;box-shadow:0 10px 0 #be185d,0 14px 40px rgba(236,72,153,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15);position:relative;overflow:hidden}
