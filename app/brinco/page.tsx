@@ -357,11 +357,19 @@ export default function BrincoPage() {
                   {h.aciertos_tradicional !== null
                     ? `Tradicional: ${h.aciertos_tradicional} aciertos` +
                       (h.aciertos_junior !== null ? ` · Junior: ${h.aciertos_junior}` : "")
-                    : "pendiente"}
+                    : "Pendiente — esperando el resultado oficial"}
                 </span>
               </li>
             ))}
           </ul>
+        )}
+
+        {historial.length > 0 && historial.some((h) => h.aciertos_tradicional === null) && (
+          <div className="brinco-empty" style={{ marginTop: 10, fontSize: "0.82rem", lineHeight: 1.5 }}>
+            Las jugadas <b>pendientes</b> se verifican solas apenas la fuente oficial publique el
+            resultado del concurso. Si la fuente oficial aún no publicó el sorteo (o marcó
+            &quot;sin sorteo&quot;), siguen pendientes: no se inventan resultados.
+          </div>
         )}
       </div>
     </div>

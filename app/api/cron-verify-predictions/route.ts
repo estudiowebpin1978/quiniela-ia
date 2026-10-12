@@ -32,6 +32,10 @@ import {
   type PredictionRow,
 } from "@/lib/verificacion/criterio"
 import { buildHistoryInsert } from "@/lib/verificacion/historial"
+import {
+  ejecutarTareasAuxiliares,
+  type InformeTareasAuxiliares,
+} from "@/lib/cron/tareas-auxiliares"
 import logger from "@/lib/logger"
 
 export const maxDuration = 120
@@ -233,6 +237,39 @@ async function verificarTurno(
   const backfilled = backfillInserts.filter((h) => insertedIds.has(h.prediction_id)).length
   const verifiedTotal = historyInserts.length + backfilled
 
+  // 5e. Notificación in-app por VERIFICACIÓN FRESCA: exactamente una vez (solo
+  //     filas insertadas por esta corrida) y solo las que venían de PENDING
+  //     (el backfill histórico no debe generar avisos masivos). Tipo de
+  //     notificación según el estado final (NEAR_MISS no avisa).
+  const idsRecienVerificadas = new Set(historyInserts.map((h) => h.prediction_id))
+  const notifInserts: Array<Record<string, unknown>> = []
+  for (const r of ((insertedRows || []) as { prediction_id: string; user_id: string | null; total_aciertos: number }[])) {
+    if (!r.user_id || !idsRecienVerificadas.has(r.prediction_id)) continue
+    const h = hById.get(r.prediction_id)
+    if (!h) continue
+    const estado = estadoFinal(h, esPoceada(h))
+    if (estado !== "WON" && estado !== "LOST") continue
+    const aciertos = r.total_aciertos || 0
+    notifInserts.push({
+      user_id: r.user_id,
+      type: estado === "WON" ? "prediction_won" : "prediction_lost",
+      title: estado === "WON" ? "🏆 ¡Acierto verificado!" : "📊 Resultado verificado",
+      body: estado === "WON"
+        ? `${turno} del ${fecha}: acertaste ${aciertos} número${aciertos === 1 ? "" : "s"}.`
+        : `${turno} del ${fecha}: ${aciertos} acierto${aciertos === 1 ? "" : "s"}.`,
+      data: { prediction_id: r.prediction_id, fecha, turno, aciertos },
+      read: false,
+    })
+  }
+  if (notifInserts.length > 0) {
+    try {
+      const { error: notifErr } = await supabase.from("notifications").insert(notifInserts)
+      if (notifErr) logger.warn("[cron-verify] notificaciones in-app no insertadas", { turno, error: notifErr.message })
+    } catch (e) {
+      logger.warn("[cron-verify] notificaciones in-app exception", { turno, error: String(e) })
+    }
+  }
+
   if (predUpdateErrors > 0) {
     return { turno, status: "error", verified: verifiedTotal, reason: `${predUpdateErrors} user_predictions updates failed` }
   }
@@ -323,6 +360,17 @@ export async function GET(req: NextRequest) {
     errors: totalErrors,
   }, t0)
 
+  // ── Tareas auxiliares (best-effort): Brinco y vencimientos Premium ──────
+  // Se acoplan al tick vivo de este cron con gate de frecuencia propio
+  // (ver lib/cron/tareas-auxiliares). Nunca rompen ni bloquean la
+  // verificación de Quiniela: si fallan, quedan registradas en su log.
+  let auxiliares: InformeTareasAuxiliares | null = null
+  try {
+    auxiliares = await ejecutarTareasAuxiliares()
+  } catch (e) {
+    logger.warn("[cron-verify] tareas auxiliares fallaron (no bloquean)", { error: String(e) })
+  }
+
   return NextResponse.json({
     ok: totalErrors === 0,
     fecha,
@@ -331,6 +379,7 @@ export async function GET(req: NextRequest) {
     verifiedTurnos,
     totalErrors,
     porTurno,
+    auxiliares,
     elapsed_ms: Date.now() - t0,
   })
 }

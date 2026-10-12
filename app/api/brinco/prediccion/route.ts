@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { resolveUserTier } from "@/lib/auth/tier"
 import { actualizarIncrementalBrinco } from "@/lib/brinco/actualizar"
+import { verificarPendientesBrinco } from "@/lib/brinco/verificar"
 import { cargarSorteosBrinco, maxConcursoBrinco } from "@/lib/brinco/store"
 import { generarPrediccionBrinco, type ModalidadBrinco, type PrediccionBrinco } from "@/lib/brinco/motor"
 import { hashSeed } from "@/lib/math/seeded-rng"
@@ -64,6 +65,14 @@ export async function GET(req: NextRequest) {
 
     // 1. Actualización incremental (breve): detecta sorteos faltantes.
     const { estado } = await actualizarIncrementalBrinco({ domingos: 3, apply: true })
+
+    // 1b. Auto-verificación: predicciones cuyo concurso ya tiene resultado
+    //     oficial (best-effort: nunca bloquea la generación de la jugada).
+    try {
+      await verificarPendientesBrinco()
+    } catch (e) {
+      logger.warn("[brinco/prediccion] auto-verificación omitida", { error: String(e) })
+    }
 
     // 2. Cargar historia validada.
     const sorteos = await cargarSorteosBrinco()

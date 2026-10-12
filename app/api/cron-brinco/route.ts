@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { actualizarIncrementalBrinco } from "@/lib/brinco/actualizar"
-import {
-  buscarSorteoPorConcurso,
-  marcarVerificada,
-  prediccionesPendientesVerificacion,
-} from "@/lib/brinco/store"
-import { contarAciertos } from "@/lib/brinco/reglas"
+import { verificarPendientesBrinco } from "@/lib/brinco/verificar"
 import logger from "@/lib/logger"
 
 export const dynamic = "force-dynamic"
@@ -30,22 +25,10 @@ export async function GET(req: NextRequest) {
     // 1. Incorporar los últimos sorteos faltantes (idempotente).
     const { informe, estado } = await actualizarIncrementalBrinco({ domingos: 2, apply: true })
 
-    // 2. Verificar predicciones cuyo concurso ya tiene resultado.
-    const pendientes = await prediccionesPendientesVerificacion()
-    let verificadas = 0
-    for (const p of pendientes) {
-      const sorteo = await buscarSorteoPorConcurso(p.concurso_objetivo)
-      if (!sorteo) continue // el concurso objetivo aún no se sortea
-      const aTrad = contarAciertos(p.numeros, sorteo.tradicional)
-      const aJr = sorteo.junior ? contarAciertos(p.numeros, sorteo.junior) : null
-      await marcarVerificada(p.id as string, {
-        aciertos_tradicional: aTrad,
-        aciertos_junior: aJr,
-        resultado_oficial: { tradicional: sorteo.tradicional, junior: sorteo.junior },
-        estado: "verificada",
-      })
-      verificadas++
-    }
+    // 2. Verificar predicciones cuyo concurso ya tiene resultado
+    //    (lógica compartida en lib/brinco/verificar — también la usan la API
+    //    bajo demanda y las tareas auxiliares de cron-verify).
+    const verificacion = await verificarPendientesBrinco()
 
     const result = {
       ok: estado.errores === 0,
@@ -56,8 +39,9 @@ export async function GET(req: NextRequest) {
       sinResultado: informe.sin_resultado,
       sorteosTotales: estado.sorteosTotales,
       datosHasta: estado.datosHasta,
-      prediccionesVerificadas: verificadas,
-      pendientesRevisadas: pendientes.length,
+      prediccionesVerificadas: verificacion.verificadas,
+      pendientesRevisadas: verificacion.pendientes,
+      pendientesSinResultado: verificacion.sinResultado,
     }
     logCronExecution("cron-brinco", result, t0)
     return NextResponse.json(result)

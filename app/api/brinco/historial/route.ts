@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { resolveUserTier } from "@/lib/auth/tier"
 import { guardarPrediccionBrinco, listarPrediccionesBrinco } from "@/lib/brinco/store"
+import { verificarPendientesBrinco } from "@/lib/brinco/verificar"
 import { validarCombinacion } from "@/lib/brinco/reglas"
 import { BRINCO_ENGINE_VERSION } from "@/lib/brinco/motor"
 import logger from "@/lib/logger"
@@ -33,6 +34,16 @@ export async function GET(req: NextRequest) {
     }
     const { searchParams } = new URL(req.url)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "50", 10) || 50))
+
+    // Auto-verificación bajo demanda: si la fuente oficial ya publicó el
+    // resultado del concurso, marcar aciertos antes de listar. Así el usuario
+    // que abre /brinco ve el resultado apenas exista, sin esperar al cron.
+    try {
+      await verificarPendientesBrinco()
+    } catch (e) {
+      logger.warn("[brinco/historial] auto-verificación omitida", { error: String(e) })
+    }
+
     const rows = await listarPrediccionesBrinco(tier.userId, limit)
     return NextResponse.json({ ok: true, total: rows.length, historial: rows })
   } catch (e) {
