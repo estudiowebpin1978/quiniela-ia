@@ -300,12 +300,16 @@ export async function GET(req: NextRequest) {
 
     const lastScrape = lastDraw?.created_at ? new Date(lastDraw.created_at) : null
     const hoursSinceLastScrape = lastScrape ? (now.getTime() - lastScrape.getTime()) / (1000 * 60 * 60) : 999
+    // Antigüedad en MINUTOS HÁBILES: domingos/feriados sin sorteo no suman
+    // (evita el falso FAILED del lunes feriado / domingo por la mañana).
+    const ageMinScrape = lastScrape ? minutosHabilesEntre(lastScrape.getTime(), now.getTime()) : 999999
 
     report.components.scraper.details = {
       lastScrape: lastDraw?.created_at || "N/A",
       lastDrawDate: lastDraw?.date || "N/A",
       lastDrawTurno: lastDraw?.turno || "N/A",
       hoursSinceLastScrape: Math.round(hoursSinceLastScrape * 10) / 10,
+      ageMinutesHabiles: ageMinScrape,
     }
 
     // On Mon-Sat during business hours (10-22 ART), expect scrape within 1 hour
@@ -316,9 +320,9 @@ export async function GET(req: NextRequest) {
     if (isBusinessHours && hoursSinceLastScrape > 1.5) {
       report.components.scraper.status = "DEGRADED"
       alerts.push(`SCRAPER: last scrape was ${hoursSinceLastScrape}h ago (expected < 1h during business hours)`)
-    } else if (hoursSinceLastScrape > 24) {
+    } else if (ageMinScrape > 24 * 60) {
       report.components.scraper.status = "FAILED"
-      alerts.push(`SCRAPER: last scrape was ${hoursSinceLastScrape}h ago (> 24h)`)
+      alerts.push(`SCRAPER: last scrape has ${ageMinScrape} min hábiles (> 24h hábiles)`)
     } else {
       report.components.scraper.status = "HEALTHY"
     }
@@ -328,7 +332,15 @@ export async function GET(req: NextRequest) {
   }
 
   // ── 3. CACHE / PRECOMPUTE ──
-  try {
+  // En días sin sorteo (domingos/feriados) no se esperan predicciones del día:
+  // alertar ahí sería un falso positivo que hunde el estado global.
+  if (!esDiaConSorteo(today)) {
+    report.components.cache.details = { hoy: today, diaSinSorteo: true }
+    report.components.precompute.details = { hoy: today, diaSinSorteo: true }
+    report.components.cache.status = "HEALTHY"
+    report.components.precompute.status = "HEALTHY"
+  } else {
+    try {
     const { data: cacheRows, error: cacheErr } = await supabase
       .from("predictions_cache")
       .select("turno, date, engine_version, numeros_2, numeros_3, numeros_4, redoblona, confidence")
@@ -381,6 +393,7 @@ export async function GET(req: NextRequest) {
     report.components.cache.status = "FAILED"
     report.components.precompute.status = "FAILED"
     alerts.push(`CACHE: audit failed — ${e}`)
+  }
   }
 
   // ── 4. PREDICTIONS (check engine_version consistency) ──
@@ -634,11 +647,14 @@ export async function GET(req: NextRequest) {
   // Sólo se leen cron_name/status/created_at; NO se expone error_message ni
   // metadata (podrían contener detalles internos).
   try {
+    // Ventana amplia: con cron-verify logueando ~288×/día, 500 filas no
+    // alcanzaban para ver crons que corren cada pocos días (aparecían como
+    // NEVER_RUN → falsos DEGRADED). 5000 filas ≈ 2 semanas al volumen actual.
     const { data: logRows, error: logErr } = await supabase
       .from("cron_logs")
       .select("cron_name, status, created_at")
       .order("created_at", { ascending: false })
-      .limit(500)
+      .limit(5000)
     if (logErr) throw new Error(logErr.message)
 
     const rows = (logRows || []) as Array<{

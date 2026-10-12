@@ -661,9 +661,13 @@ export async function GET(req: NextRequest) {
   }
 
   // Refresh draw_stats manually (trigger removed; best-effort, non-blocking)
+  // OJO: supabase-js NO lanza excepción en errores de RPC — van en .error.
+  // Antes no se chequeaba y el refresh fallaba en silencio (la MV quedó
+  // semanalmente vencida por la RPC SECURITY INVOKER sin privilegios).
   try {
     const supabase = getSupabaseAdmin()
-    await supabase.schema("public").rpc("refresh_draw_stats_rpc" as never)
+    const { error: dsErr } = await supabase.schema("public").rpc("refresh_draw_stats_rpc" as never)
+    if (dsErr) throw new Error(dsErr.message)
     logger.info("[cron-scrape] draw_stats refreshed")
   } catch (e: unknown) {
     logger.warn("[cron-scrape] draw_stats refresh failed (non-blocking)", { error: String(e) })
