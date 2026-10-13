@@ -23,14 +23,17 @@ export const TURNOS_ORDER: TurnoQuiniela[] = [
  * What draw MUST exist in the database before we can predict `targetTurno`.
  *
  * - Previa depends on yesterday's Nocturna (last draw of previous day)
- * - All other Nacional turnos depend on today's previous turno
- * - Poceada is independent (separate game, no Nacional dependency)
+ * - All other Ciudad turnos depend on today's previous turno
+ * - Poceada es un juego separado que se resuelve con el ÚLTIMO Quiniela del
+ *   día (Nocturna 21:00); su extracto oficial se publica en
+ *   poceada.loteriadelaciudad.gob.ar → el pipeline no necesita esperar al
+ *   sorteo de Quiniela para procesarla.
  */
 export function getDependency(targetTurno: TurnoQuiniela): {
   turno: TurnoQuiniela
   dateOffset: number // 0 = today, -1 = yesterday
 } | null {
-  // Poceada is independent — no prerequisite draw needed
+  // Poceada: no prerequisite draw needed (official extract published on its own site)
   if (targetTurno === "Poceada") {
     return null
   }
@@ -82,7 +85,7 @@ export async function validatePrerequisite(
 > {
   const dep = getDependency(targetTurno)
 
-  // Poceada is independent — no prerequisite needed, just find its latest draw
+  // Poceada: no prerequisite — find its latest draw
   if (!dep) {
     const { data: latestDraw } = await supabase
       .from("draws")

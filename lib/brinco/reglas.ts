@@ -1,8 +1,9 @@
 /**
  * Reglas oficiales del Brinco — Lotería de Santa Fe (Caja de Acción Social).
  *
- * Fuentes verificadas (2026-10-09):
- *  - https://www.loteriasantafe.gov.ar/brinco-preguntas-frecuentes/  (reglas, premios, Junior)
+ * Fuentes verificadas (2026-10-09; RE-VERIFICADAS 2026-10-13 contra el FAQ
+ * vivo de loteriasantafe.gov.ar, confirma todo lo de abajo):
+ *  - https://www.loteriasantafe.gov.ar/brinco-preguntas-frecuentes/  (reglas, premios, Junior, valor)
  *  - https://www.loteriasantafe.gov.ar/resena-de-juegos/             (historia: 2000, Junior N°1000, Siempre Sale 2023-05-01)
  *  - https://cas.gob.ar/juegos/sorteos/resultados?juego=brinco       (resultados: concurso + Tradicional + Junior)
  *
@@ -10,7 +11,9 @@
  * importa. Premios por 6 / 5 / 4 / 3 aciertos (1°/2°/3°/4°). Es un juego
  * POCEADO (parimutuel): los premios 1°-3° se DIVIDEN entre ganadores y hay pozo
  * acumulable → NO existe una tabla de premios fija con la cual calcular un EV
- * determinista como en la Quiniela.
+ * determinista como en la Quiniela. El 4° premio (3 aciertos) = reintegro del
+ * valor de la apuesta ("las apuestas ganadoras percibirán como mínimo el valor
+ * de la apuesta" — FAQ oficial).
  *
  * Brinco Junior: segunda extracción de 6 números del MISMO universo, jugado con
  * la MISMA boleta y sin costo adicional. La misma jugada participa de ambos
@@ -18,8 +21,8 @@
  *   - Concurso < 1000: no existía el Junior.
  *   - Concurso >= 1000 (aprox. 2019) hasta 2023-04-30: el Junior solo se ganaba
  *     con 6 aciertos.
- *   - Desde 2023-05-01: "Junior Siempre Sale", premio fijo garantizado que se
- *     gana con 6, 5 y 4 aciertos.
+ *   - Desde 2023-05-01: "Junior Siempre Sale", premio ÚNICO garantizado
+ *     (FAQ 2026-10-13: $25.000.000) distribuido entre 6, 5 y 4 aciertos.
  *
  * ADVERTENCIA: el universo del Brinco es 00-39. NUNCA generar una jugada de
  * Brinco con el universo 00-99 de la Quiniela.
@@ -35,6 +38,21 @@ export const BRINCO_NUMEROS_POR_JUGADA = 6
 
 /** C(40,6) = 3.838.380 combinaciones posibles. */
 export const BRINCO_COMBINACIONES = 3_838_380
+
+/**
+ * Valor del boleto: participa Tradicional + Junior con la MISMA boleta y sin
+ * costo adicional (FAQ oficial 2026-10-13). Cuidado: es un valor que LOTBA
+ * puede actualizar — verificar la fecha de la fuente antes de usarlo en EV.
+ */
+export const BRINCO_VALOR_BOLETO = 1500
+
+/**
+ * Junior "Siempre Sale": premio ÚNICO del sorteo (FAQ oficial 2026-10-13:
+ * $25.000.000) distribuido entre las apuestas con 6, 5 y 4 aciertos. El monto
+ * total está fijado pero el REPARTO depende de la cantidad de ganadores →
+ * EV no determinista (no se inventa un premio unitario).
+ */
+export const JUNIOR_PREMIO_UNICO = 25_000_000
 
 /** Aciertos que premia el Tradicional (1° a 4° premio). */
 export const BRINCO_PREMIOS_TRADICIONAL: readonly number[] = [3, 4, 5, 6]

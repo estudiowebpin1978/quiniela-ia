@@ -2,8 +2,9 @@
  * Motor de probabilidades EXACTAS para EV — matemática pura, sin I/O.
  *
  * Pools oficiales (tabla `games`, fuente primaria LOTBA):
- *   - Quiniela Nacional: 20 números sorteados de 0..9999 (N=10000), 5 turnos.
- *   - Quiniela Poceada:  20 números sorteados de 0..99   (N=100).
+ *   - Quiniela de la Ciudad (ex Nacional): 20 números sorteados de 0..9999
+ *     (N=10000), 5 turnos.
+ *   - Quiniela Poceada de la Ciudad:  20 números sorteados de 0..99   (N=100).
  *   - Sorteo SIN reemplazo (números distintos por sorteo).
  *
  * Tres familias de eventos, todas exactas:
@@ -35,14 +36,14 @@ export interface JuegoConfig {
 }
 
 export const QUINIELA: JuegoConfig = {
-  nombre: "Quiniela Nacional",
+  nombre: "Quiniela de la Ciudad",
   poolSize: 10000,
   porSorteo: 20,
   clasesMod: 100, // 2 cifras (la app opera sobre mod 100)
 };
 
 export const POCEADA: JuegoConfig = {
-  nombre: "Quiniela Poceada",
+  nombre: "Quiniela Poceada de la Ciudad",
   poolSize: 100,
   porSorteo: 20,
   clasesMod: 100, // 0..99 (identidad)

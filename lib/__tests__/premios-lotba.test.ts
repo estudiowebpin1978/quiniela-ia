@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest"
 import {
   tablaEVQuiniela,
   resumenEVQuiniela,
+  estructuraPoceada,
+  POCEADA_DISTRIBUCION_POZO,
+  POCEADA_APUESTA_SIMPLE,
   APUESTA_MINIMA_LOTBA,
   FUENTE_PREMIOS,
 } from "@/lib/estrategia/premios-lotba"
@@ -103,5 +106,57 @@ describe("resumenEVQuiniela", () => {
     const r200 = tablaEVQuiniela(200).find((r) => r.codigo === "c2")!
     const r100 = tablaEVQuiniela(100).find((r) => r.codigo === "c2")!
     expect(r200.ev!).toBeCloseTo(2 * r100.ev!, 6)
+  })
+})
+
+describe("estructuraPoceada — datos OFICIALES (programación LOTBA oct-2026)", () => {
+  const poceada = estructuraPoceada()
+
+  it("apuesta simple 8 números 00-99 = $1700 (valor oficial)", () => {
+    expect(poceada.apuestaSimple).toBe(1700)
+    expect(POCEADA_APUESTA_SIMPLE).toBe(1700)
+    expect(poceada.numerosElegidos).toBe(8)
+    expect(poceada.universo).toContain("00-99")
+  })
+
+  it("resuelve por el último sorteo Quiniela del día (Nocturna 21:00), 20 distintos", () => {
+    expect(poceada.resolucion).toContain("21:00")
+    expect(poceada.resolucion).toContain("20 números distintos")
+  })
+
+  it("pozo = 45% de la recaudación y la distribución oficial suma 100%", () => {
+    expect(poceada.pozoPorcentajeRecaudacion).toBe(45)
+    const suma = POCEADA_DISTRIBUCION_POZO.reduce((a, d) => a + d.porcentaje, 0)
+    expect(suma).toBeCloseTo(100, 6)
+    // Desglose oficial: 60 / 12 / 7 / 5.5 / agente 0.5 / reserva 15
+    expect(POCEADA_DISTRIBUCION_POZO.map((d) => d.porcentaje)).toEqual([60, 12, 7, 5.5, 0.5, 15])
+  })
+
+  it("categorías oficiales 8/7/6/5 aciertos con sus % del pozo", () => {
+    expect(poceada.categorias.map((c) => c.aciertos)).toEqual([8, 7, 6, 5])
+    expect(poceada.categorias.map((c) => c.porcentajePozo)).toEqual([60, 12, 7, 5.5])
+    // 5 aciertos = reintegro del valor de la apuesta (EV neto 0)
+    expect(poceada.categorias[3].premio).toContain("reintegro")
+  })
+
+  it("probabilidades de azar EXACTAS (hipergeométrica N=100, D=20, K=8)", () => {
+    const [c8, c7, c6, c5] = poceada.categorias
+    expect(c5.pAzar).toBeCloseTo(0.0068451989, 8)
+    expect(c6.pAzar).toBeCloseTo(0.0006581922, 8)
+    expect(c7.pAzar).toBeCloseTo(0.0000333262, 8)
+    expect(c8.pAzar).toBeCloseTo(0.000000676938, 10)
+    expect(poceada.pAlMenos5).toBeCloseTo(0.0075373942, 8)
+    // Monótona decreciente y suma de colas consistente
+    expect(c8.pAzar).toBeLessThan(c7.pAzar)
+    expect(c7.pAzar).toBeLessThan(c6.pAzar)
+    expect(c6.pAzar).toBeLessThan(c5.pAzar)
+    expect(c5.pAzar + c6.pAzar + c7.pAzar + c8.pAzar).toBeCloseTo(poceada.pAlMenos5, 10)
+  })
+
+  it("EV = null con motivo honesto (parimutuel) — nunca un monto inventado", () => {
+    expect(poceada.ev).toBeNull()
+    expect(poceada.motivoNoCalculable).toContain("PARIMUTUEL")
+    expect(poceada.motivoNoCalculable).toContain("No se inventa")
+    expect(poceada.fuente).toBe(FUENTE_PREMIOS)
   })
 })

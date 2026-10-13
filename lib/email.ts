@@ -88,7 +88,7 @@ export async function sendWelcomeEmail(to: string, name: string): Promise<EmailR
     </div>
     <div class="card">
       <p style="color:#e2e8f0;font-size:14px;line-height:1.6;margin:0">
-        Quiniela IA usa <strong>20 factores estadísticos + Machine Learning</strong> para generarte predicciones personalizadas de la Quiniela Nacional.
+        Quiniela IA usa <strong>20 factores estadísticos + Machine Learning</strong> para generarte predicciones personalizadas de la Quiniela de la Ciudad (ex Nacional).
       </p>
     </div>
     <div style="text-align:center;margin:24px 0">

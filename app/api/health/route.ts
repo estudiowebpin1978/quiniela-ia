@@ -35,7 +35,7 @@ import { esDiaSinSorteo } from "@/lib/feriados"
 
 export const maxDuration = 60
 
-const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9" // Quiniela Nacional
+const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9" // Quiniela de la Ciudad (ex Nacional)
 const POCEADA_GAME_ID = "d0e1f2a3-b4c5-6789-0abc-def012345678" // Quiniela Poceada
 const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 const TURNOS_ALL = [...TURNOS, "Poceada"]

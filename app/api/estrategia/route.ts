@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { tablaEVQuiniela, resumenEVQuiniela, APUESTA_MINIMA_LOTBA, FUENTE_PREMIOS } from "@/lib/estrategia/premios-lotba"
+import { tablaEVQuiniela, resumenEVQuiniela, estructuraPoceada, APUESTA_MINIMA_LOTBA, FUENTE_PREMIOS } from "@/lib/estrategia/premios-lotba"
 import logger from "@/lib/logger"
 
 /**
@@ -45,10 +45,7 @@ export async function GET(req: NextRequest) {
         mejorEV: resumen.mejorEV,
         observacion: resumen.observacion,
       },
-      pendiente: {
-        poceada:
-          "Poceada no incluida: la programación mensual oficial la incluye (sección \"QUINIELA POCEADA DE LA CIUDAD\") pero aún no se transcribió aquí — sin datos inventados queda pendiente.",
-      },
+      poceada: estructuraPoceada(),
       aviso_legal:
         "Análisis estadístico con fines informativos. La lotería es un evento aleatorio e independiente. " +
         "El valor esperado de casi todas las apuestas es negativo (borde de la casa). No se garantiza ningún resultado. Jugar con responsabilidad.",

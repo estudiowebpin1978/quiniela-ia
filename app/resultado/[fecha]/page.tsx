@@ -32,8 +32,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const formattedDate = formatDate(fecha);
 
   return {
-    title: `Resultados Quiniela Nacional ${formattedDate}`,
-    description: `Resultados oficiales de todos los turnos de la Quiniela Nacional (Ciudad y Provincia) del ${formattedDate}. Extracto completo con cabezas y 20 números.`,
+    title: `Resultados Quiniela de la Ciudad ${formattedDate}`,
+    description: `Resultados oficiales de todos los turnos de la Quiniela de la Ciudad (Lotería de la Ciudad de Buenos Aires, ex Nacional) del ${formattedDate}. Extracto completo con cabezas y 20 números.`,
     openGraph: {
       title: `Quiniela IA | Resultados ${formattedDate}`,
       description: `Extracto oficial completo de la Quiniela del ${formattedDate}`,

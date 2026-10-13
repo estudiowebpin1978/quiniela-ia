@@ -47,9 +47,16 @@ export const AMOUNT_PLAN_MAP: Record<string, string> = {
   "10000": "30_days",
 };
 
-/** Poceada de la Ciudad (Santa Fe) — LOTBA */
+/**
+ * Quiniela Poceada de la Ciudad — LOTBA (Lotería de la Ciudad de Buenos
+ * Aires, CABA). NO es de Santa Fe (eso es el Brinco).
+ * Estructura oficial (programación oct-2026): apuesta simple 8 números 00-99
+ * ($1700); categorías premiadas con 5/6/7/8 aciertos (5 = reintegro del valor
+ * de la apuesta; 6-8 = % del pozo, parimutuel).
+ */
 export const POCEADA_GAME_ID = "d0e1f2a3-b4c5-6789-0abc-def012345678";
 export const POCEADA_NUMBERS_COUNT = 8;
+/** Categorías que pagan oficialmente (de la apuesta simple). */
 export const POCEADA_MATCHES = [5, 6, 7, 8];
 
 /** Ollama local AI configuration */

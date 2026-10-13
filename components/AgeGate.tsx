@@ -30,7 +30,7 @@ export default function AgeGate() {
         </h2>
         <p style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.6, marginBottom: 20 }}>
           Esta aplicación es para <strong style={{ color: "#fff" }}>mayores de 18 años</strong>.
-          <br />Contiene análisis estadístico de la Quiniela Nacional.
+          <br />Contiene análisis estadístico de la Quiniela de la Ciudad (ex Nacional).
         </p>
         <button
           onClick={verify}

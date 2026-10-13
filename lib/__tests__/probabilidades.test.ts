@@ -78,15 +78,16 @@ describe("hipergeométrica / logChoose", () => {
 describe("pPoceada — baseline azar ≥5 (exacto vs aproximación)", () => {
   it("K=8, ≥5 aciertos = hipergeométrica exacta ≈ 0.00754 (sin reemplazo)", () => {
     // El sorteo es SIN reemplazo (20 distintos de 100) → hipergeométrica.
-    // oos-eval/calibration usan 0.0104 que es una BINOMIAL(n=8,p=0.2) con
-    // reemplazo (aprox.). La exacta es menor porque los sorteos sin
-    // reemplazo tienen varianza menor. Ambas documentadas; aquí la exacta.
+    // oos-eval usaba 0.0104 (BINOMIAL n=8, p=0.2 con reemplazo — approx. que
+    // sobreestima la cola); desde 2026-10-13 usa hyperTail (exacta) y en
+    // calibration.ts quedó documentada la diferencia. Aquí la exacta.
     const p = pPoceada(POCEADA, 8, 5)
     expect(p).toBeGreaterThan(0.0074)
     expect(p).toBeLessThan(0.0077)
   })
   it("coincide con binomTail(5,8,0.2)=0.0104 si se aproxima con reemplazo", () => {
-    // Verificación cruzada de la aproximación binomial que usa oos-eval.
+    // Verificación cruzada de la aproximación binomial que oos-eval USABA
+    // (documentación de la corrida 2026-09-25; no es el valor exacto).
     let binom = 0
     const c = (n: number, k: number): number => {
       let r = 1

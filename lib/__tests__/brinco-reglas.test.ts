@@ -11,6 +11,8 @@ import {
   esperanzaAzar,
   combinatoria,
   BRINCO_COMBINACIONES,
+  BRINCO_VALOR_BOLETO,
+  JUNIOR_PREMIO_UNICO,
 } from "@/lib/brinco/reglas"
 
 describe("brinco/reglas — validación de combinación", () => {
@@ -116,5 +118,16 @@ describe("brinco/reglas — aciertos y probabilidades", () => {
   it("P(6 aciertos) del azar = 1/C(40,6)", () => {
     const dist = distribucionAzar()
     expect(dist[6]).toBeCloseTo(1 / BRINCO_COMBINACIONES, 12)
+  })
+})
+
+describe("brinco/reglas — datos oficiales (FAQ loteriasantafe, re-verif. 2026-10-13)", () => {
+  it("valor del boleto oficial = $1500 (Tradicional + Junior en la misma boleta)", () => {
+    expect(BRINCO_VALOR_BOLETO).toBe(1500)
+  })
+
+  it("Junior 'Siempre Sale': premio único oficial = $25.000.000 (se reparte entre 6/5/4 aciertos)", () => {
+    expect(JUNIOR_PREMIO_UNICO).toBe(25_000_000)
+    expect(aciertosPremiadosJunior("junior_siempresale")).toEqual([4, 5, 6])
   })
 })

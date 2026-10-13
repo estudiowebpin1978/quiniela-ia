@@ -237,7 +237,7 @@ async function evalTurno(turno: string): Promise<void> {
   for (const row of rows) {
     if (!row.agg) {
       const p1 = isPoceada ? "  --   " : (1 - noHitProb(topN, 20)).toFixed(3)
-      const p3 = isPoceada ? binomTail(5, topN, 0.2).toFixed(4) : hyperTail(3, topN, 20).toFixed(3)
+      const p3 = isPoceada ? hyperTail(5, topN, 20).toFixed(4) : hyperTail(3, topN, 20).toFixed(3)
       const cab = isPoceada ? "" : (topN / 100).toFixed(3) + "  "
       console.log(`${"random".padEnd(15)} ${randMean.toFixed(4).padStart(8)} ${1 .toFixed(3).padStart(6)} ${"0.0".padStart(5)} ${p1.padStart(7)} ${p3.padStart(8)}  ${cab}${mrrRandom.toFixed(3)}`)
       continue
@@ -273,16 +273,9 @@ function hyperTail(min: number, n: number, K: number): number {
   return s
 }
 
-function binomTail(min: number, n: number, p: number): number {
-  const c = (a: number, b: number): number => {
-    let r = 1
-    for (let i = 0; i < b; i++) r = (r * (a - i)) / (i + 1)
-    return r
-  }
-  let s = 0
-  for (let k = min; k <= n; k++) s += c(n, k) * Math.pow(p, k) * Math.pow(1 - p, n - k)
-  return s
-}
+// Nota (2026-10-13): se eliminó `binomTail` — la cola de Poceada se calcula
+// con `hyperTail` (hipergeométrica exacta, sorteo sin reemplazo). Ver
+// lib/probability/calibration.ts y lib/__tests__/probabilidades.test.ts.
 
 async function main() {
   console.log("═══ OOS Walk-Forward Evaluation ═══")

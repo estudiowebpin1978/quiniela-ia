@@ -2226,7 +2226,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             <div style={{marginTop:12}}>
               <div className="sec">📜 Historial de Sorteos - Transparencia Total</div>
               <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 12, lineHeight: 1.6 }}>
-                Todos los resultados mostrados son <strong style={{ color: "#fff" }}>datos oficiales</strong> de la Quiniela Nacional.
+                Todos los resultados mostrados son <strong style={{ color: "#fff" }}>datos oficiales</strong> de la Quiniela de la Ciudad (ex Nacional).
                 Podés verificar cada sorteo en las fuentes oficiales.
               </div>
               <HistorialAciertos predictions={misPreds} />
@@ -2448,7 +2448,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           <div style={{background:"var(--card)",borderRadius:16,padding:24,maxWidth:400,width:"100%"}} onClick={e => e.stopPropagation()}>
             <div style={{fontSize:18,fontWeight:800,marginBottom:16,color:"var(--text)"}}>🔬 Cómo funciona</div>
             <div style={{fontSize:13,lineHeight:1.7,color:"var(--dim)"}}>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>1. Datos reales</strong><br/>Scrapeamos resultados oficiales de la Quiniela Nacional cada 15 min. Histórico oficial +260 días (domingos y feriados sin sorteo).</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>1. Datos reales</strong><br/>Scrapeamos resultados oficiales de la Quiniela de la Ciudad cada 15 min. Histórico oficial +260 días (domingos y feriados sin sorteo).</p>
               <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>2. Motor estadístico determinista</strong><br/>Cada número recibe un score combinando frecuencia, ausencia, recencia, ciclos, co-ocurrencia y 3 modelos ML (Random Forest, Red Neuronal, Markov). Todo cálculado sobre datos reales. Zero aleatorio.</p>
               <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>3. Monte Carlo + Ensemble</strong><br/>5.000 simulaciones (bootstrap sobre histórico) estiman estabilidad del top-10. Pesos del ensemble se recalibran con rendimiento verificado.</p>
               <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>4. No hay magia ni promesa</strong><br/>No se garantiza acierto. La lotería es aleatoria. Este motor optimiza consistencia estadística, no probabilidad de ganancia fija (Poceada es poceado / parimutuel, sin premio fija).</p>

@@ -13,9 +13,15 @@
  * meta-ensemble V6+V7+ML):
  *   - Quiniela pWin: turnos .894/.864/.885/.862/.859 → media .873
  *   - Quiniela E[hits@10] media: 1.80 · sd(pWin entre turnos): .016
- *   - Poceada pWin(≥5): .014 (se≈.006; azar .0104) · E[hits@8]: 1.59
- * Baseline aleatoria: quiniela P(≥1)=0.905, E[hits@10]=1.83 · Poceada
- * P(≥5)=0.0104, E[hits@8]=1.60 (hipergeométrica).
+ *   - Poceada pWin(≥5): .014 (se≈.006; azar de la corrida .0104) · E[hits@8]: 1.59
+ * Baseline aleatoria: quiniela P(≥1)=0.9049 (hipergeométrica EXACTA),
+ * E[hits@10]=1.83 · Poceada E[hits@8]=1.60.
+ *   - Poceada P(≥5): esta corrida imprimió .0104 = binomTail(8, p=.2),
+ *     una BINOMIAL con reemplazo (aprox. que sobreestima la cola; el
+ *     comentario original la rotulaba mal como "hipergeométrica"). El sorteo
+ *     oficial es sin reemplazo (20 números distintos de 100) → la exacta
+ *     (hipergeométrica N=100, D=20, K=8) es .007537; oos-eval.ts quedó
+ *     corregido a hyperTail(5, topN, 20) desde 2026-10-13.
  *
  * Veredicto OOS: ningún modelo supera al azar de forma significativa
  * (|z| ≤ 1.8). Estas constantes documentan el desempeño REAL esperado del

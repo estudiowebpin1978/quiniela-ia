@@ -42,7 +42,7 @@ export async function generatePredictionSummary(
   timeoutMs = 2500,
 ): Promise<{ summary: string; provider: "ollama" | "groq" | "gemini" | "local" }> {
   const prompt =
-    `Sos un analista estadístico de la Quiniela Nacional (Buenos Aires). ` +
+    `Sos un analista estadístico de la Quiniela de la Ciudad de Buenos Aires (ex Quiniela Nacional). ` +
     `Interpretá SOLO estos resultados ya calculados (no inventes números):\n` +
     `- Turno: ${input.turno}\n` +
     `- Top 10 de 2 cifras: ${input.top2.join(", ")}\n` +

@@ -198,7 +198,7 @@ export default function HistorialAciertos({ predictions = [] }: Props) {
 
       <div style={{ marginTop: 12, padding: 10, background: "rgba(255,255,255,.02)", borderRadius: 8, border: "1px solid rgba(255,255,255,.05)" }}>
         <div style={{ fontSize: 10, color: "#475569", textAlign: "center", lineHeight: 1.6 }}>
-          Datos oficiales de los sorteos de la Quiniela Nacional de Buenos Aires.
+          Datos oficiales de los sorteos de la Quiniela de la Ciudad de Buenos Aires (ex Nacional).
           <br />
           Fuente: quinielanacional1.com.ar · Lotería de la Ciudad de Buenos Aires
         </div>
