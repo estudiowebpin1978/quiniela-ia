@@ -3,15 +3,17 @@ import { tablaEVQuiniela, resumenEVQuiniela, APUESTA_MINIMA_LOTBA, FUENTE_PREMIO
 import logger from "@/lib/logger"
 
 /**
- * GET /api/estrategia — Valor Esperado (EV) honesto de la Quiniela Provincial.
+ * GET /api/estrategia — Valor Esperado (EV) honesto de la Quiniela de la Ciudad.
  *
  * Cálculo PURO (sin DB ni datos de usuario): combina la tabla de premios
- * OFICIAL de LOTBA (Resolución 1992-2018 Art. 18, verificada 2026-10-08) con
- * probabilidades EXACTAS de azar. No promete ventaja sobre el azar: el EV es
- * casi siempre NEGATIVO (borde de la casa) y eso se muestra sin maquillaje.
+ * OFICIAL de LOTBA (Programación Mensual oficial oct-2026 + Reglamento Res.
+ * Dir. 32/2018 — verificada 2026-10-13) con probabilidades EXACTAS de azar.
+ * No promete ventaja sobre el azar: el EV es casi siempre NEGATIVO (borde de
+ * la casa) y eso se muestra sin maquillaje.
  *
  * Público a propósito: son datos regulatorios + matemática, sin información
- * personal. Poceada queda fuera (premios de pozo/parimutuel, pendientes).
+ * personal. Poceada queda fuera (pendiente de transcribir de la programación
+ * oficial, sin datos inventados).
  */
 
 export const dynamic = "force-dynamic"
@@ -21,10 +23,11 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const apuesta = parseInt(searchParams.get("apuesta") || String(APUESTA_MINIMA_LOTBA), 10)
 
-    // Validación: apuesta dentro de límites oficiales ($100 mín, $5000 máx)
+    // Validación: mínimo oficial $150 (programación LOTBA); 5000 es un límite
+    // operativo del endpoint (la programación no publica máximo para Quiniela)
     if (!Number.isFinite(apuesta) || apuesta < APUESTA_MINIMA_LOTBA || apuesta > 5000) {
       return NextResponse.json(
-        { error: `apuesta debe estar entre ${APUESTA_MINIMA_LOTBA} y 5000 (límites oficiales LOTBA)` },
+        { error: `apuesta debe estar entre ${APUESTA_MINIMA_LOTBA} (mínimo oficial LOTBA) y 5000 (límite operativo de este endpoint)` },
         { status: 400 },
       )
     }
@@ -33,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      juego: "Quiniela Provincial (LOTBA)",
+      juego: "Quiniela de la Ciudad (LOTBA)",
       fuente: FUENTE_PREMIOS,
       apuesta,
       modalidades: resumen.tabla,
@@ -44,7 +47,7 @@ export async function GET(req: NextRequest) {
       },
       pendiente: {
         poceada:
-          "Poceada no incluida: sus premios son POZO/parimutuel (varían por sorteo) y requieren programa de premios oficial aparte.",
+          "Poceada no incluida: la programación mensual oficial la incluye (sección \"QUINIELA POCEADA DE LA CIUDAD\") pero aún no se transcribió aquí — sin datos inventados queda pendiente.",
       },
       aviso_legal:
         "Análisis estadístico con fines informativos. La lotería es un evento aleatorio e independiente. " +
