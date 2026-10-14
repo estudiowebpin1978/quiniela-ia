@@ -478,6 +478,43 @@ export async function POST(req: NextRequest) {
     const turnoCanonical = turno.charAt(0).toUpperCase() + turno.slice(1).toLowerCase()
     const rpcTier = include3And4 ? "premium" : "free"
 
+    // ── Cache-first (2026-10-13): el autopilot debe persistir EXACTAMENTE lo
+    // que el usuario ve en GET. Antes el POST calculaba V6 puro (sin blend)
+    // y los tickets del autopilot guardaban números distintos a los servidos
+    // → la verificación juzgaba contra un ticket que nadie vio. Misma
+    // semántica de lectura que GET: cache más reciente ≤ date. Si no hay
+    // cache, fallback al V6 RPC como hasta ahora.
+    try {
+      const { data: cachedRows } = await supabase
+        .from("predictions_cache")
+        .select("numeros_2, numeros_3, numeros_4, redoblona, engine_version, confidence, date")
+        .eq("turno", turnoCanonical)
+        .lte("date", date)
+        .order("date", { ascending: false })
+        .limit(1)
+      const cached = Array.isArray(cachedRows) && cachedRows.length > 0 ? cachedRows[0] : null
+      if (cached && Array.isArray(cached.numeros_2) && cached.numeros_2.length > 0) {
+        const nums2 = (cached.numeros_2 as Array<Record<string, unknown>>)
+          .map((item) => String(item.n ?? item.numero ?? "").padStart(2, "0"))
+          .filter((s) => /^\d{2}$/.test(s))
+        if (nums2.length > 0) {
+          return NextResponse.json({
+            pred: {
+              numeros_2: nums2,
+              numeros_3: include3And4 && Array.isArray(cached.numeros_3) ? cached.numeros_3 : [],
+              numeros_4: include3And4 && Array.isArray(cached.numeros_4) ? cached.numeros_4 : [],
+              redoblona: include3And4 ? cached.redoblona ?? null : null,
+              topNumeros: nums2.map((n, i) => ({ numero: n, score: 0, rank: i + 1 })),
+            },
+            engine: cached.engine_version || "blend-cache",
+            confidence: typeof cached.confidence === "number" ? cached.confidence : null,
+          })
+        }
+      }
+    } catch (e) {
+      logger.warn("[predictions POST] cache read failed, fallback V6", { error: String(e) })
+    }
+
     const { data: rpcResult, error: rpcError } = await supabase
       .rpc("calculate_omega_v6" as never, {
         p_turno: turnoCanonical,

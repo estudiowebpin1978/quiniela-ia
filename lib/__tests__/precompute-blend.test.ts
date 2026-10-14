@@ -130,22 +130,24 @@ describe("numerosTop", () => {
 })
 
 describe("blendEngines", () => {
-  it("suma scores ponderados por motor (V6 existente + V7/ML encima)", () => {
+  it("suma scores ponderados por motor, cada motor normalizado por SU máximo", () => {
     const out = blendEngines({
       v6Rows: [{ numero: 5, puntaje_total: 10, factor_attribution: { freq: 0.8 } }],
       v7Predictions: [pred(5, 2), pred(7, 4)],
       mlPredictions: [pred(5, 4), pred(9, 8)],
       engineWeights: PESOS,
     })
-    // 5: V6 10*0.5=5 + V7 2*0.25=0.5 + ML 4*0.25=1 → 6.5
+    // normV6 = max 10 · normV7 = max 4 · normML = max 8 (normalización por motor)
+    // 5: (10/10)*0.5 + (2/4)*0.25 + (4/8)*0.25 = 0.5 + 0.125 + 0.125 = 0.75
     expect(out[0].n).toBe(5)
-    expect(out[0].score).toBe(6.5)
+    expect(out[0].score).toBe(0.75)
     expect(out[0].factor_attribution).toEqual({ freq: 0.8 })
-    // 7: solo V7 → 4*0.25=1 ; 9: solo ML → 8*0.25=2
-    expect(out[1].n).toBe(9)
-    expect(out[1].score).toBe(2)
-    expect(out[2].n).toBe(7)
-    expect(out[2].score).toBe(1)
+    // 7: solo V7 → (4/4)*0.25 = 0.25 ; 9: solo ML → (8/8)*0.25 = 0.25
+    // (empate → mantiene orden de inserción: 7 antes que 9)
+    expect(out[1].n).toBe(7)
+    expect(out[1].score).toBe(0.25)
+    expect(out[2].n).toBe(9)
+    expect(out[2].score).toBe(0.25)
     expect(out).toHaveLength(3)
   })
 
@@ -157,7 +159,26 @@ describe("blendEngines", () => {
       engineWeights: { V6: 0.40, V7: 0.35, ML: 0.25 },
     })
     expect(out).toHaveLength(1)
-    expect(out[0].score).toBeCloseTo(4 + 3.5 + 2.5, 10)
+    // Cada motor normalizado a su pico (1) → score = W6 + W7 + ML = 1
+    expect(out[0].score).toBeCloseTo(1, 10)
+  })
+
+  it("es escala-invariante por motor: escalar un motor no cambia el ranking", () => {
+    const base = {
+      v6Rows: [{ numero: 5, puntaje_total: 10 }, { numero: 6, puntaje_total: 6 }],
+      v7Predictions: [pred(5, 0.2), pred(7, 0.4)],
+      mlPredictions: [pred(5, 0.04), pred(9, 0.08)],
+      engineWeights: PESOS,
+    }
+    // Mismos datos con escalas internas arbitrariamente distintas (×1000 en V7,
+    // ÷7 en ML): antes de la normalización por motor esto cambiaba el ranking.
+    const escalado = {
+      v6Rows: base.v6Rows.map((r) => ({ ...r, puntaje_total: r.puntaje_total * 1000 })),
+      v7Predictions: base.v7Predictions.map((p) => ({ ...p, score: p.score * 1000 })),
+      mlPredictions: base.mlPredictions.map((p) => ({ ...p, score: p.score / 7 })),
+      engineWeights: PESOS,
+    }
+    expect(blendEngines(escalado)).toEqual(blendEngines(base))
   })
 
   it("sin motores → lista vacía (guard 'All engines produced empty predictions')", () => {
@@ -197,7 +218,8 @@ describe("blendEngines", () => {
       engineWeights: { V6: 1, V7: 0, ML: 0 },
     })
     expect(out).toHaveLength(1)
-    expect(out[0].score).toBe(5)
+    // max V6 = 5 (la última fila sobrescribe) → norm = 5/5 = 1
+    expect(out[0].score).toBe(1)
   })
 
   it("V6 sin puntaje_total ni factor_attribution usa 0 y {}", () => {
@@ -340,17 +362,18 @@ describe("mapearCandidatosV6", () => {
 })
 
 describe("blendCandidatos", () => {
-  it("score = v6*W6 + v7*W7 + ml*WML con ausentes en 0", () => {
+  it("score = norm(v6)*W6 + norm(v7)*W7 + norm(ml)*WML con ausentes en 0", () => {
     const out = blendCandidatos(
       [{ numero: 123, v6Score: 4 }, { numero: 456, v6Score: 8 }],
       new Map([[123, 4]]),
       new Map([[456, 8]]),
       PESOS,
     )
-    // 123: 4*0.5 + 4*0.25 + 0 = 3 ; 456: 8*0.5 + 0 + 8*0.25 = 6
+    // normV6 = max 8 · normV7 = max 4 · normML = max 8
+    // 123: (4/8)*0.5 + (4/4)*0.25 + 0 = 0.5 ; 456: (8/8)*0.5 + 0 + (8/8)*0.25 = 0.75
     expect(out).toEqual([
-      { numero: 456, score: 6 },
-      { numero: 123, score: 3 },
+      { numero: 456, score: 0.75 },
+      { numero: 123, score: 0.5 },
     ])
   })
 

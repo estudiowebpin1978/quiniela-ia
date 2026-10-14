@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-client"
 import logger from "@/lib/logger"
 import type { PredictionHistoryRow, DrawRow } from "@/lib/api/types"
 import { calcularAciertosApi } from "@/lib/verificacion/api-aciertos"
+import { normalizarRedoblonaR } from "@/lib/batch-upsert"
 
 // In-memory rate limiter for POST
 const rateLimitMap = new Map<string, { count: number; windowStart: number }>()
@@ -320,8 +321,9 @@ export async function POST(req: NextRequest) {
         const nums2 = (numeros?.["2"] || numeros?.numeros_2 || []).map((n: unknown) => String(n).padStart(2, '0'))
         const nums3 = (numeros?.["3"] || numeros?.numeros_3 || []).map((n: unknown) => String(n).padStart(3, '0'))
         const nums4 = (numeros?.["4"] || numeros?.numeros_4 || []).map((n: unknown) => String(n).padStart(4, '0'))
-        const rblRaw = numeros?.["r"]
-        const rbl = Array.isArray(rblRaw) ? (rblRaw[0] || null) : (rblRaw || null)
+        const rblRaw = numeros?.["r"] ?? numeros?.redoblona ?? null
+        // ARRAY (o null) siempre: un scalar rompe la RPC verify_predictions_for_draw
+        const rbl = normalizarRedoblonaR(rblRaw)
         numerosToStore = [JSON.stringify({ "2": nums2, "3": nums3, "4": nums4, "r": rbl })]
       } else {
         numerosToStore = []

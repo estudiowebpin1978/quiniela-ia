@@ -116,33 +116,58 @@ export interface BlendParams {
 }
 
 /**
+ * Máximo de una lista de scores (ignora no-numéricos y negativos).
+ * 0 si la lista está vacía o todos los scores son ≤ 0 → evita división por 0.
+ */
+function maxScoreDe(valores: number[]): number {
+  let max = 0
+  for (const v of valores) {
+    if (Number.isFinite(v) && v > max) max = v
+  }
+  return max
+}
+
+/**
  * Blend V6 + V7 + ML con pesos dinámicos → top-10 ordenado por score desc.
  * V6 aporta sus primeras 20 filas; V7 y ML suman (o agregan) sobre el mismo
  * mapa de números.
+ *
+ * Normalización por motor (2026-10-13): cada motor expresa su score en SU
+ * escala interna (V6 = puntaje absoluto de la RPC, V7 = combinación de
+ * factores 0-1, ML = normalizado por su máximo → pico exacto 1). Antes de
+ * ponderar, cada motor se divide por SU máximo dentro de la lista: así los
+ * pesos (`engineWeights`) definen la influencia REAL de cada motor y no la
+ * escala interna. Resultado escala-invariante: multiplicar los scores de un
+ * motor por k>0 no cambia el ranking (garantiza los tests).
  */
 export function blendEngines(params: BlendParams): BlendedPrediction[] {
   const { v6Rows, v7Predictions, mlPredictions, engineWeights } = params
   const allNums = new Map<number, BlendedPrediction>()
 
-  // V6 scores
-  if (v6Rows && Array.isArray(v6Rows)) {
-    for (const row of v6Rows.slice(0, 20)) {
-      const num = row.numero as number
-      const score = (row.puntaje_total as number) || 0
-      const fa = (row.factor_attribution as Record<string, number>) || {}
-      allNums.set(num, {
-        n: num,
-        numero: formatNumero(num),
-        score: score * engineWeights.V6,
-        factor_attribution: fa,
-      })
-    }
+  // V6 (solo primeras 20 filas, como hasta ahora)
+  const v6Filas = (v6Rows && Array.isArray(v6Rows) ? v6Rows : []).slice(0, 20)
+  const maxV6 = maxScoreDe(v6Filas.map((r) => Number(r.puntaje_total) || 0))
+  const maxV7 = maxScoreDe(v7Predictions.map((p) => p.score))
+  const maxML = maxScoreDe(mlPredictions.map((p) => p.score))
+
+  for (const row of v6Filas) {
+    const num = row.numero as number
+    const raw = Number(row.puntaje_total) || 0
+    const score = (maxV6 > 0 ? raw / maxV6 : 0) * engineWeights.V6
+    const fa = (row.factor_attribution as Record<string, number>) || {}
+    allNums.set(num, {
+      n: num,
+      numero: formatNumero(num),
+      score,
+      factor_attribution: fa,
+    })
   }
 
   // V7 blend
   for (const pred of v7Predictions) {
+    const norm = maxV7 > 0 ? pred.score / maxV7 : 0
+    const v7Score = norm * engineWeights.V7
     const existing = allNums.get(pred.n)
-    const v7Score = pred.score * engineWeights.V7
     if (existing) {
       existing.score += v7Score
     } else {
@@ -152,8 +177,9 @@ export function blendEngines(params: BlendParams): BlendedPrediction[] {
 
   // ML blend
   for (const pred of mlPredictions) {
+    const norm = maxML > 0 ? pred.score / maxML : 0
+    const mlScore = norm * engineWeights.ML
     const existing = allNums.get(pred.n)
-    const mlScore = pred.score * engineWeights.ML
     if (existing) {
       existing.score += mlScore
     } else {
@@ -232,7 +258,12 @@ export function mapearCandidatosV6(
 
 /**
  * Blend V6 + V7 + ML para candidatos de 3/4 cifras:
- * score = v6*W6 + v7*W7 + ml*WML (los ausentes cuentan 0), ordenado desc.
+ * score = norm(v6)*W6 + norm(v7)*W7 + norm(ml)*WML (los ausentes cuentan 0),
+ * ordenado desc.
+ *
+ * Misma normalización por motor que `blendEngines` (ver docblock): cada motor
+ * se divide por SU máximo antes de ponderar, porque las escalas internas de
+ * V6/V7/ML no son comparables entre sí. Escala-invariante.
  */
 export function blendCandidatos(
   candidatos: CandidatoCifra[],
@@ -240,12 +271,18 @@ export function blendCandidatos(
   mlScores: Map<number, number>,
   engineWeights: EngineWeights,
 ): ScoreCifra[] {
+  const maxV6 = maxScoreDe(candidatos.map((c) => c.v6Score))
+  const maxV7 = maxScoreDe(Array.from(v7Scores.values()))
+  const maxML = maxScoreDe(Array.from(mlScores.values()))
   return candidatos
     .map((c) => {
       const v7s = v7Scores.get(c.numero) || 0
       const mls = mlScores.get(c.numero) || 0
+      const nV6 = maxV6 > 0 ? c.v6Score / maxV6 : 0
+      const nV7 = maxV7 > 0 ? v7s / maxV7 : 0
+      const nML = maxML > 0 ? mls / maxML : 0
       const blendedScore =
-        c.v6Score * engineWeights.V6 + v7s * engineWeights.V7 + mls * engineWeights.ML
+        nV6 * engineWeights.V6 + nV7 * engineWeights.V7 + nML * engineWeights.ML
       return { numero: c.numero, score: blendedScore }
     })
     .sort((a, b) => b.score - a.score)
@@ -256,7 +293,21 @@ export function formatCifras(scores: ScoreCifra[], cifras: 3 | 4): string[] {
   return scores.slice(0, 10).map((r) => String(r.numero).padStart(cifras, "0"))
 }
 
-/** Redoblona: cabeza + acompañante del top-10 (o null si hay menos de 2). */
+/**
+ * Redoblona del producto: par (cabeza = top-1, acompañante = top-2) del top-10.
+ *
+ * ⚠ Criterio INTERNO de verificación (decisión 2026-10-13, no destructiva):
+ * la verificación considera acierto si AMBOS números del par aparecen en
+ * cualquier posición del sorteo (20 números), en cualquier orden — ver
+ * `lib/verificacion/criterio.ts` (`matchearAciertos`). Eso NO equivale a los
+ * juegos oficiales de LOTBA, que tienen pagos propios:
+ *   - Redoblona Exacta: 1° y 2° puesto EN ORDEN EXACTO → 3500× la apuesta;
+ *   - Redoblona por Extensión: 70× con 2 rangos de ubicaciones (la P depende
+ *     de los rangos elegidos, por eso su EV no es calculable con P fija).
+ * Los pagos oficiales y sus EV están en `lib/estrategia/premios-lotba.ts` y
+ * en `/api/estrategia` (modalidades `red-exacta` / `red-extension`).
+ * El criterio interno NO se retro-ajusta para no alterar tickets históricos.
+ */
 export function construirRedoblona(
   top10nums: number[],
 ): { cabeza: string; acompanante: string } | null {

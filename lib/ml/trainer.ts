@@ -1,7 +1,6 @@
 import { RandomForest, crearRandomForest, entrenarRandomForest, predecirRandomForest } from './random-forest';
 import { CadenaMarkov, crearCadenaMarkov, entrenarCadenaMarkov, predecirSiguienteMarkov } from './markov';
 import { RedNeuronal, crearRedNeuronal, entrenarRedNeuronal, predecirRedNeuronal } from './neural';
-import { hashSeed, seededShuffle } from '@/lib/math/seeded-rng';
 
 export interface ModeloEntrenado {
   nombre: string;
@@ -29,28 +28,36 @@ export interface ResultadoTraining {
   datosEntrenamiento: { entrenamiento: number; validacion: number; test: number };
 }
 
+/**
+ * Split TEMPORAL (corregido 2026-10-13): entrenamiento = pasado, test = futuro.
+ *
+ * Antes se hacía un shuffle aleatorio ("split temporal-ish"); eso filtraba
+ * futuro→pasado y, como `prepararFeatures` genera varias filas con el MISMO
+ * vector (una por número del sorteo), el shuffle repartía esas filas idénticas
+ * entre train y test → el test dejaba de ser out-of-sample (fuga temporal).
+ *
+ * `datos` llega ordenado cronológicamente (ver `prepararFeatures`, que ordena
+ * por fecha), así que un slice por índice respeta el tiempo. Los límites
+ * parten, como mucho, 2 sorteos entre particiones (grupos contiguos intactos).
+ */
 export function dividirDatos<T>(
   datos: T[],
   entrenamiento: number = 0.7,
   validacion: number = 0.15,
   test: number = 0.15,
-  seedHint: string | number = "split"
 ): { entrenamiento: T[]; validacion: T[]; test: T[] } {
   const total = entrenamiento + validacion + test;
   if (Math.abs(total - 1) > 0.001) {
     throw new Error('Las proporciones deben sumar 1');
   }
 
-  // Split temporal-ish + shuffle determinista (reproducible)
-  const shuffled = seededShuffle(datos, hashSeed(seedHint, datos.length));
-  
   const nEntrenamiento = Math.floor(datos.length * entrenamiento);
   const nValidacion = Math.floor(datos.length * validacion);
 
   return {
-    entrenamiento: shuffled.slice(0, nEntrenamiento),
-    validacion: shuffled.slice(nEntrenamiento, nEntrenamiento + nValidacion),
-    test: shuffled.slice(nEntrenamiento + nValidacion)
+    entrenamiento: datos.slice(0, nEntrenamiento),
+    validacion: datos.slice(nEntrenamiento, nEntrenamiento + nValidacion),
+    test: datos.slice(nEntrenamiento + nValidacion)
   };
 }
 

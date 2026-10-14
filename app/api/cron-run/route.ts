@@ -364,36 +364,21 @@ async function runPrecompute(
     }
   } catch { /* ML failed */ }
 
-  // 6. Blend
+  // 6. Blend — CANÓNICO (lib/pipeline/precompute/blend). Desde 2026-10-13 el
+  // blend normaliza cada motor por SU máximo antes de ponderar (escala-
+  // invariante); antes cron-run tenía una copia inline SIN normalizar → los
+  // dos writers podían servir rankings distintos con los mismos datos.
   const { loadEngineWeights } = await import("@/lib/ensemble/meta-ensemble")
+  const { blendEngines, diversifyMMR, construirRedoblona } = await import("@/lib/pipeline/precompute/blend")
   let engineWeights = { V6: 0.40, V7: 0.35, ML: 0.25 }
   try { engineWeights = await loadEngineWeights(turno) } catch { /* use defaults */ }
 
-  type BlendedPrediction = { n: number; numero: string; score: number; factor_attribution: Record<string, number> }
-  const allNums = new Map<number, BlendedPrediction>()
-
-  if (v6Rows && Array.isArray(v6Rows)) {
-    for (const row of v6Rows.slice(0, 20) as Array<Record<string, unknown>>) {
-      const num = row.numero as number
-      const score = (row.puntaje_total as number) || 0
-      const fa = (row.factor_attribution as Record<string, number>) || {}
-      allNums.set(num, { n: num, numero: num < 10 ? `0${num}` : `${num}`, score: score * engineWeights.V6, factor_attribution: fa })
-    }
-  }
-
-  for (const p of v7Predictions) {
-    const existing = allNums.get(p.n)
-    if (existing) existing.score += p.score * engineWeights.V7
-    else allNums.set(p.n, { ...p, score: p.score * engineWeights.V7 })
-  }
-
-  for (const p of mlPredictions) {
-    const existing = allNums.get(p.n)
-    if (existing) existing.score += p.score * engineWeights.ML
-    else allNums.set(p.n, { ...p, score: p.score * engineWeights.ML })
-  }
-
-  const blended = Array.from(allNums.values()).sort((a, b) => b.score - a.score).slice(0, 10)
+  const blended = blendEngines({
+    v6Rows: v6Rows as Array<Record<string, unknown>> | null,
+    v7Predictions,
+    mlPredictions,
+    engineWeights,
+  })
 
   if (blended.length === 0) return { ok: false, error: "No predictions generated" }
 
@@ -422,40 +407,19 @@ async function runPrecompute(
     logger.warn("[cron-run] engine log failed (non-fatal)", { turno, error: String(e) })
   }
 
-  // Meta-diversidad real (MMR determinista): MISMA regla que cron-precompute
-  // para que ambos writers sirvan el mismo orden ante empates de score
-  // (antes cada writer ordenaba distinto → el top-10 "parpadeaba").
-  const maxScore = blended[0]?.score || 1
-  const minScore = blended[blended.length - 1]?.score || 0
-  const diversityRatio = maxScore > 0 ? (maxScore - minScore) / maxScore : 0
-
-  const lambdaMMR = 0.7
-  const selected: typeof blended = []
-  const remaining = [...blended]
-  while (selected.length < 10 && remaining.length > 0) {
-    let bestMMR = -Infinity
-    let bestIdx = 0
-    for (let i = 0; i < remaining.length; i++) {
-      const scoreNorm = remaining[i].score / maxScore
-      const maxSim = selected.length > 0 ? Math.max(...selected.map((s) => {
-        const fa1 = remaining[i].factor_attribution as Record<string, number> || {}
-        const fa2 = s.factor_attribution as Record<string, number> || {}
-        const keys = Object.keys(fa1).filter(k => fa2.hasOwnProperty(k))
-        if (keys.length === 0) return 0
-        const avgDiff = keys.reduce((acc, k) => acc + Math.abs((fa1[k] || 0) - (fa2[k] || 0)), 0) / keys.length
-        return 1 - Math.min(avgDiff, 1)
-      })) : 0
-      const mmr = lambdaMMR * scoreNorm - (1 - lambdaMMR) * maxSim
-      if (mmr > bestMMR) {
-        bestMMR = mmr
-        bestIdx = i
-      }
-    }
-    selected.push(remaining[bestIdx])
-    remaining.splice(bestIdx, 1)
+  // Meta-diversidad real (MMR determinista): CANÓNICA = diversifyMMR de
+  // lib/pipeline/precompute/blend (era una copia inline con la misma regla;
+  // se unifica para que no pueda divergir entre writers).
+  const mmr = diversifyMMR(blended)
+  const top10 = mmr.seleccion.slice(0, 10)
+  if (mmr.diversityRatio < 0.05) {
+    logger.info("[cron-run] Meta-diversidad MMR aplicada", {
+      turno,
+      diversityRatio: mmr.diversityRatio,
+      lambdaMMR: 0.7,
+      selectedCount: mmr.seleccion.length,
+    })
   }
-  const top10 = selected.slice(0, 10)
-  if (diversityRatio < 0.05) logger.info("[cron-run] Meta-diversidad MMR aplicada", { turno, diversityRatio, lambdaMMR, selectedCount: selected.length })
 
   // Agreement + consistencia del modelo (mismas fórmulas que
   // cron-precompute; antes: p_confidence null + p_agreement_score 0.8
@@ -544,13 +508,10 @@ async function runPrecompute(
   }
 
   // Redoblona coherente con los numeros_2 que se van a guardar:
-  // cabeza = puesto 1 y acompañante = puesto 2 del top10 (misma regla que cron-precompute).
-  if (top10.length >= 2) {
-    redoblona = {
-      cabeza: String(top10[0].n).padStart(2, "0"),
-      acompanante: String(top10[1].n).padStart(2, "0"),
-    }
-  }
+  // cabeza = puesto 1 y acompañante = puesto 2 del top10 (regla canónica
+  // construirRedoblona de blend.ts, misma que cron-precompute).
+  const redoblonaCanonica = construirRedoblona(top10.map((p) => p.n))
+  if (redoblonaCanonica) redoblona = redoblonaCanonica
 
   // 8. Upsert predictions_cache
   const suenoDe = (n: number | string) => {

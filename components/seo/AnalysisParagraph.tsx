@@ -57,9 +57,9 @@ export function AnalysisParagraph({
   }
 
   const conclusions = [
-    `Combinando estos 20 factores y modelos ML, el índice de calibración alcanza un ${stats.confidenceScore.toFixed(1)}%, convirtiéndolo en un pronóstico sólido.`,
-    `El modelo predictivo le asigna una confianza de ${stats.confidenceScore.toFixed(1)}% para el extracto de hoy.`,
-    `En conclusión, el cruce de datos arroja un nivel de fiabilidad del ${stats.confidenceScore.toFixed(1)}%, ideal para coberturas de 2 cifras.`,
+    `Combinando estos factores y modelos ML, el índice de acuerdo entre motores alcanza un ${stats.confidenceScore.toFixed(1)}% (consistencia del modelo, no una probabilidad de acierto).`,
+    `El modelo le asigna una consistencia interna de ${stats.confidenceScore.toFixed(1)}% al top de 2 cifras de este turno; el sorteo sigue siendo azar puro.`,
+    `En conclusión, el cruce de datos arroja un índice de consistencia del ${stats.confidenceScore.toFixed(1)}% (los premios oficiales se pagan por acierto exacto, 1 en 100 por número).`,
   ];
 
   const intro = intros[seed % intros.length];

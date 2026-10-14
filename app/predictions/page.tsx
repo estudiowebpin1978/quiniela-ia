@@ -1656,7 +1656,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     <div className="rdbl" style={{ marginTop: 12 }}>
                       <div style={{ fontSize: 12, color: "#25F4EE", marginBottom: 4, fontWeight: 700 }}>🎯 Redoblona — Par óptimo</div>
                       <div className="rpair">{rdbl}</div>
-                      <div style={{ fontSize: 11, color: "#64748b" }}>Analizá la correlación entre ambos números en el mismo sorteo.</div>
+                      <div style={{ fontSize: 11, color: "#64748b" }}>Criterio interno: acierta si ambos números salen en el sorteo (cualquier orden). No es la Redoblona oficial de LOTBA (Exacta 3500× · Extensión 70×).</div>
                     </div>
                   )}
 
@@ -1694,7 +1694,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                           <div className="rdbl">
                             <div style={{ fontSize: 12, color: "#25F4EE", marginBottom: 4, fontWeight: 700 }}>🎯 Redoblona recomendada</div>
                             <div className="rpair">{rdbl}</div>
-                            <div style={{ fontSize: 11, color: "#64748b" }}>Analizá la correlación entre ambos números en el mismo sorteo.</div>
+                            <div style={{ fontSize: 11, color: "#64748b" }}>Criterio interno: acierta si ambos números salen en el sorteo (cualquier orden). No es la Redoblona oficial de LOTBA (Exacta 3500× · Extensión 70×).</div>
                           </div>
                         )}
                         {dt?.numeros?.slice(0, 5).map((r, i) => (

@@ -7,7 +7,9 @@
  * Métricas por turno:
  *   - meanHits     : intersección media top-N vs 2C distinct del sorteo
  *   - pAtLeast1/3  : P(≥1) / P(≥3) aciertos
- *   - pWin         : Poceada P(≥5) · Quiniela P(≥1) [WON del app]
+ *   - pWin         : Poceada P(≥5) · Quiniela P(≥1)
+ *                    [la regla histórica de WON; el WON ACTUAL de quiniela es
+ *                     cabeza ∈ top-10 → usar cabeza@10, azar = topN/100]
  *   - cabeza@10    : P(pos01 mod100 ∈ top-N)  (cabeza/redoblona)
  *   - mrr          : reciprocal rank del cabeza en el ranking completo
  *   - lift         : meanHits / esperanza aleatoria (hipergeométrica)

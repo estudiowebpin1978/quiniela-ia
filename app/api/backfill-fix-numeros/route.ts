@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
+import { normalizarRedoblonaR } from "@/lib/batch-upsert"
 
 export async function POST(req: NextRequest) {
   // Auth centralizada y fail-closed: la comparación anterior
@@ -56,7 +57,9 @@ export async function POST(req: NextRequest) {
     const fixed2 = nums2.map(norm2)
     const fixed3 = (numerosData["3"] || []).map(norm3)
     const fixed4 = (numerosData["4"] || []).map(norm4)
-    const rbl = numerosData["r"] || []
+    // Normaliza "r" a array: este endpoint es un "arreglo de filas" y no debe
+    // propagar el formato scalar/objeto que rompe la RPC de verificación.
+    const rbl = normalizarRedoblonaR(numerosData["r"])
 
     const newNumeros = [JSON.stringify({ "2": fixed2, "3": fixed3, "4": fixed4, "r": rbl })]
 
