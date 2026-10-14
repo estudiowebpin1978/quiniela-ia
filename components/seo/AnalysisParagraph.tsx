@@ -68,7 +68,9 @@ export function AnalysisParagraph({
       ? atrasosTexts[(seed + 1) % atrasosTexts.length]
       : "";
   const factorText = factorTexts.join(" ");
-  const conclusion = conclusions[(seed + 2) % conclusions.length];
+  // confidenceScore 0 = sin dato de consistencia (no se inventa un %).
+  const conclusion =
+    stats.confidenceScore > 0 ? conclusions[(seed + 2) % conclusions.length] : "";
 
   const fullText = [intro, atrasoText, factorText, conclusion].filter(Boolean).join(" ");
 
@@ -103,7 +105,11 @@ export function TurnoSummary({
   dateStr,
   className = "",
 }: TurnoSummaryProps) {
-  const top3 = predictions.slice(0, 3);
+  const top3 = predictions
+    .filter((p) => typeof p.number === "string" && p.number !== "")
+    .slice(0, 3);
+  // Sin números reales no se emite resumen (nada de "00" fabricado).
+  if (top3.length === 0) return null;
   const numbers = top3.map((p) => p.number.padStart(2, "0")).join(", ");
   const avgConfidence =
     top3.reduce((sum, p) => sum + p.confidence, 0) / top3.length;
@@ -117,6 +123,12 @@ export function TurnoSummary({
     `Para el turno ${turno} de la Quiniela ${lottery} hoy ${dateStr}, el análisis destaca ${numbers} como las jugadas más probables (${avgConfidence.toFixed(1)}% confianza media).`,
     `El modelo de 20 factores para ${lottery} ${turno} (${dateStr}) sitúa a ${numbers} en el top 3 con ${avgConfidence.toFixed(1)}% de fiabilidad.`,
   ];
+  // avgConfidence 0 = la API no envió consistencia (p.ej. path V6 en vivo):
+  // se usa una variante sin % en lugar de publicar un 0.0% inventado.
+  const introsSinConsistencia = [
+    `Pronóstico Quiniela ${lottery} ${turno} (${dateStr}): Los números con mayor score del modelo son ${numbers} (sin índice de consistencia calculado para este turno).`,
+  ];
+  const introsPool = avgConfidence > 0 ? intros : introsSinConsistencia;
 
   const factorDescriptions = top3
     .map((p) => {
@@ -135,10 +147,10 @@ export function TurnoSummary({
     .filter(Boolean)
     .join(". ");
 
-  const intro = intros[seed % intros.length];
+  const intro = introsPool[seed % introsPool.length];
   const conclusion = `El algoritmo evalúa frecuencia histórica, ausencia, recencia, tendencia, ciclos, patrones de transición y simulaciones Monte Carlo (bootstrap).`;
 
-  const fullText = `${intro} ${factorDescriptions}. ${conclusion}`;
+  const fullText = [intro, factorDescriptions, conclusion].filter(Boolean).join(" ");
 
   return (
     <p

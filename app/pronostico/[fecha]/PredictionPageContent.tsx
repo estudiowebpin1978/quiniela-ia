@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Button3D } from "@/components/ui/button-3d";
 import { NumberTile3D } from "@/components/ui/number-tile-3d";
 import { AnalysisParagraph, TurnoSummary } from "@/components/seo/AnalysisParagraph";
+import { mapApiPredictionCard, type PredictionCardData } from "@/lib/api/predictions";
 
 const TURNOS_ORDER = ["previa", "primera", "matutina", "vespertina", "nocturna"];
 const TURNOS_LABELS: Record<string, string> = {
@@ -22,18 +23,8 @@ interface DrawData {
   head_number: number | null;
 }
 
-interface PredictionData {
-  turno: string;
-  cifras2: string;
-  cifras3?: string;
-  cifras4?: string;
-  redoblona?: [string, string];
-  confidence: number;
-  factores?: Array<{ name: string; value: number }>;
-  atrasoActual?: number;
-  trendAcceleration?: number;
-  intervalDeviation?: number;
-}
+/** Shape de la tarjeta: la API responde en otro formato — ver mapApiPredictionCard */
+type PredictionData = PredictionCardData;
 
 interface Props {
   fecha: string;
@@ -85,7 +76,10 @@ export default function PredictionPageContent({ fecha, draws }: Props) {
       const res = await fetch(`/api/predictions?sorteo=${turno}&date=${fecha}`, { headers });
       if (res.ok) {
         const data = await res.json();
-        setPredictions((prev) => ({ ...prev, [turno]: data }));
+        // Mapeo API → PredictionData (fix 2026-10-14): sin esto la tarjeta
+        // mostraba cifras2 vacío y "Confianza: 0.6%", y TurnoSummary crasheaba.
+        const mapped = mapApiPredictionCard(data, turno);
+        setPredictions((prev) => ({ ...prev, [turno]: mapped }));
       }
     } catch (e) {
       console.error("Error fetching prediction:", e);
@@ -288,7 +282,13 @@ function PredictionCardContent({ prediction, turno, fecha }: { prediction: Predi
               </span>
             </p>
             <p className="text-slate-400 text-sm">
-              Confianza: <span className={`font-mono ${confidenceColor}`}>{confidence.toFixed(1)}% ({confidenceLabel})</span>
+              {confidence > 0 ? (
+                <>Confianza: <span className={`font-mono ${confidenceColor}`}>{confidence.toFixed(1)}% ({confidenceLabel})</span></>
+              ) : (
+                // confidence 0 = la API no envió consistencia (p.ej. path V6 en
+                // vivo): se muestra "s/d" en vez de fabricar un 0.0%.
+                <>Confianza: <span className="font-mono text-slate-500">s/d (sin consistencia calculada)</span></>
+              )}
             </p>
           </div>
         </div>
