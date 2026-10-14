@@ -9,6 +9,7 @@
  */
 
 import type { TurnoQuiniela } from "@/types/engine"
+import { esDiaSinSorteo, esTurnoSinSorteo } from "@/lib/feriados"
 
 export const TURNOS_ORDER: TurnoQuiniela[] = [
   "Previa",
@@ -59,16 +60,68 @@ export function todayART(): string {
  * Get date string with offset in ART timezone.
  * offset=0 → today, offset=-1 → yesterday
  */
-export function dateART(offset: number = 0): string {
+export function dateART(offset: number = 0, ref: Date = new Date()): string {
   // Get current date in Buenos Aires by formatting then parsing
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Argentina/Buenos_Aires",
   })
-  const todayArt = formatter.format(new Date())
+  const todayArt = formatter.format(ref)
   // Parse as UTC date components to avoid timezone drift
   const [y, m, d] = todayArt.split("-").map(Number)
   const dt = new Date(Date.UTC(y, m - 1, d + offset))
-  return formatter.format(dt)
+  // FIX 2026-10-14 (off-by-one real): dt YA es el día calendario pedido
+  // (medianoche UTC). Antes se formateaba CON tz ART (UTC−3), lo que corría
+  // la fecha un día atrás — dateART(-1) devolvía hace DOS días. Consecuencia
+  // en prod: la cadena de dependencias de cron-run esperaba el "Nocturna" de
+  // un domingo (10-11) y un feriado (10-12) que nunca existirán, y
+  // predictions_cache quedó bloqueada en el 10-10 para los 5 turnos nacionales.
+  return dt.toISOString().slice(0, 10)
+}
+
+/** Día de la semana (0=domingo) de una fecha "YYYY-MM-DD" como dato calendario. */
+function weekdayDeFecha(fecha: string): number {
+  const [y, m, d] = fecha.split("-").map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+}
+
+/** Suma días calendario a una fecha "YYYY-MM-DD" (aritmética UTC pura). */
+function agregarDias(fecha: string, dias: number): string {
+  const [y, m, d] = fecha.split("-").map(Number)
+  return new Date(Date.UTC(y, m - 1, d + dias)).toISOString().slice(0, 10)
+}
+
+/**
+ * Resuelve la expectativa REAL de una dependencia de la cadena de predicción.
+ *
+ * Sin esto la cadena se bloqueaba para siempre tras días sin sorteo: esperaba
+ * el sorteo de una fecha calendario que nunca existirá (domingo/feriado) y ni
+ * cron-run ni auto-predict volvían a calcular.
+ *
+ * - Días calendario sin sorteo (domingos y feriados, `esDiaSinSorteo`): camina
+ *   hacia atrás hasta el último día con sorteo (ej. desde 10-13: espera
+ *   Nocturna del 10-12 feriado → 10-11 domingo → 10-10 sábado ✓).
+ * - Turno suspendido ese día (feriados parciales 24/12 y 31/12, ver
+ *   `esTurnoSinSorteo`): el prerequisite baja al turno anterior más reciente
+ *   que sí se sortea ese día (Matutina y Vespertina suspendidas → Primera).
+ */
+export function resolverDependencia(
+  dep: { turno: TurnoQuiniela; dateOffset: number },
+  ref: Date = new Date(),
+): { turno: TurnoQuiniela; fecha: string } {
+  let fecha = dateART(dep.dateOffset, ref)
+  let turno = dep.turno
+
+  for (let i = 0; i < 30 && esDiaSinSorteo(fecha, weekdayDeFecha(fecha)); i++) {
+    fecha = agregarDias(fecha, -1)
+  }
+
+  for (let i = 0; i < TURNOS_ORDER.length && esTurnoSinSorteo(fecha, turno); i++) {
+    const idx = TURNOS_ORDER.indexOf(turno)
+    if (idx <= 0) break // Previa nunca está suspendida: piso del bucle
+    turno = TURNOS_ORDER[idx - 1]
+  }
+
+  return { turno, fecha }
 }
 
 /**
@@ -107,12 +160,14 @@ export async function validatePrerequisite(
     return { valid: true, lastDrawId: latestDraw.id }
   }
 
-  const expectedDate = dateART(dep.dateOffset)
+  // Expectativa real: salta días sin sorteo y turnos suspendidos
+  // (ver resolverDependencia — sin esto quedaba bloqueada tras domingos/feriados)
+  const { turno: depTurno, fecha: expectedDate } = resolverDependencia(dep)
 
   const { data: draw } = await supabase
     .from("draws")
     .select("id, turno, date, created_at")
-    .eq("turno", dep.turno)
+    .eq("turno", depTurno)
     .eq("date", expectedDate)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -121,8 +176,8 @@ export async function validatePrerequisite(
   if (!draw) {
     return {
       valid: false,
-      reason: `Missing draw: ${dep.turno} for ${expectedDate}`,
-      expected: { turno: dep.turno, date: expectedDate },
+      reason: `Missing draw: ${depTurno} for ${expectedDate}`,
+      expected: { turno: depTurno, date: expectedDate },
       found: null,
     }
   }
@@ -138,7 +193,7 @@ export async function validatePrerequisite(
     return {
       valid: false,
       reason: "No draws in database",
-      expected: { turno: dep.turno, date: expectedDate },
+      expected: { turno: depTurno, date: expectedDate },
       found: null,
     }
   }
@@ -151,7 +206,7 @@ export async function validatePrerequisite(
     return {
       valid: false,
       reason: `Latest draw (${latestDraw.turno} ${latestDraw.date}) is older than dependency (${draw.turno} ${draw.date})`,
-      expected: { turno: dep.turno, date: expectedDate },
+      expected: { turno: depTurno, date: expectedDate },
       found: { turno: latestDraw.turno as string, date: latestDraw.date as string, id: latestDraw.id as string },
     }
   }

@@ -27,7 +27,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { esDiaSinSorteo } from "@/lib/feriados"
-import { TURNOS_ORDER, getDependency, dateART } from "@/lib/quiniela-timeline"
+import { TURNOS_ORDER, getDependency, resolverDependencia } from "@/lib/quiniela-timeline"
 import logger from "@/lib/logger"
 import { LOTBA } from "@/lib/config/lotba"
 import { SUENOS } from "@/lib/suenos"
@@ -94,20 +94,25 @@ async function checkDependency(
   if (!dep) {
     return { ok: true, reason: `${targetTurno} has no dependency (independent)` }
   }
-  const expectedDate = dateART(dep.dateOffset)
+  // Expectativa REAL de la dependencia: salta días calendario sin sorteo
+  // (domingos/feriados) y turnos suspendidos (24/12, 31/12). Sin esto, la
+  // cadena esperaba para siempre un sorteo inexistente (p.ej. "Nocturna del
+  // domingo 10-11") y cron-run no precomputaba NINGÚN turno nacional
+  // (bug observado en prod 10-11/10-12 → predictions_cache congelada en 10-10).
+  const { turno: depTurno, fecha: expectedDate } = resolverDependencia(dep)
 
   const { data: draw } = await supabase
     .from("draws")
     .select("id")
-    .eq("turno", dep.turno)
+    .eq("turno", depTurno)
     .eq("date", expectedDate)
     .limit(1)
 
   if (!draw || draw.length === 0) {
-    return { ok: false, reason: `Falta ${dep.turno} del ${expectedDate}` }
+    return { ok: false, reason: `Falta ${depTurno} del ${expectedDate}` }
   }
 
-  return { ok: true, reason: `${dep.turno} del ${expectedDate} OK` }
+  return { ok: true, reason: `${depTurno} del ${expectedDate} OK` }
 }
 
 export async function GET(req: NextRequest) {

@@ -22,6 +22,27 @@ function safeCompare(a: string, b: string): boolean {
 }
 
 /**
+ * Colapsa prefijos "Bearer " anidados en tokens de cron.
+ *
+ * Contexto real (bug 2026-10-14): en prod el env `CRON_SECRET` está guardado
+ * CON el prefijo ("Bearer X") y algunos callers internos lo anteponen otra vez
+ * → header "Bearer Bearer X". La comparación anterior sacaba UN solo prefijo
+ * y quedaba "Bearer X" ≠ "X" → **401**. El fire-and-forget del webhook
+ * (`/api/cron-precompute` tras cada scrape) recibía 401 y predictions_cache no
+ * se refrescaba nunca durante el día (la caché servía predicciones viejas).
+ *
+ * Ahora se normalizan ambos lados: env, header y `?secret=` — cualquier
+ * combinación de prefijos colapsa al secreto real.
+ */
+export function normalizarCronToken(token: string): string {
+  let s = token
+  for (let i = 0; i < 3 && /^Bearer\s+/i.test(s); i++) {
+    s = s.replace(/^Bearer\s+/i, "")
+  }
+  return s
+}
+
+/**
  * Validate cron job authorization.
  * Checks for:
  * 1. CRON_SECRET query parameter or Authorization header
@@ -31,16 +52,17 @@ export async function validateCronAuth(req: NextRequest): Promise<CronAuthResult
   // Never trust x-vercel-cron as authentication: callers can send that header.
   // Vercel Cron jobs must be configured to send CRON_SECRET as a bearer token.
   // 1. CRON_SECRET (timing-safe comparison)
-  const secret = req.nextUrl.searchParams.get("secret") || ""
+  const secret = normalizarCronToken(req.nextUrl.searchParams.get("secret") || "")
   const authHeader = req.headers.get("authorization")?.replace("Bearer ", "") || ""
-  // Normalize: strip "Bearer " prefix if user accidentally included it in env var
-  const expected = (process.env.CRON_SECRET || "").replace(/^Bearer\s+/i, "")
+  // Normalize: strip "Bearer " prefix if user accidentally included it in env
+  // var (y callers que lo anteponen → "Bearer Bearer X"; ver normalizarCronToken)
+  const expected = normalizarCronToken(process.env.CRON_SECRET || "")
 
   if (expected) {
     if (secret && safeCompare(secret, expected)) {
       return { authorized: true, source: "cron-secret" }
     }
-    if (authHeader && safeCompare(authHeader, expected)) {
+    if (authHeader && safeCompare(normalizarCronToken(authHeader), expected)) {
       return { authorized: true, source: "cron-secret" }
     }
   }

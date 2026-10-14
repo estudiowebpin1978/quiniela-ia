@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { resolveUserTier } from "@/lib/auth/tier"
+import { normalizarCronToken } from "@/lib/cron/auth"
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limiter"
 import { parsePred2, extractPred3, extractPred4, extractRedoblona } from "@/lib/predictions"
 import logger from "@/lib/logger"
@@ -451,10 +452,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
     const { timingSafeEqual } = await import("crypto")
-    const provided = authHeader.slice(7)
-    const expectedBuf = Buffer.from(cronSecret.padEnd(64, "\0"))
+    // Normaliza ambos lados: en prod el env CRON_SECRET está guardado con el
+    // prefijo "Bearer " y los callers internos lo anteponen otra vez (header
+    // "Bearer Bearer X"). Antes solo pasaba el formato exacto del contrato;
+    // ahora las DOS formas del mismo secreto pasan y el resto sigue en 401.
+    // El guard de longitud de bytes evita que timingSafeEqual lance con
+    // entradas no-ASCII (rompía con 500 en vez de 401).
+    const provided = normalizarCronToken(authHeader.slice(7))
+    const expected = normalizarCronToken(cronSecret)
+    const expectedBuf = Buffer.from(expected.padEnd(64, "\0"))
     const providedBuf = Buffer.from(provided.padEnd(64, "\0"))
-    if (!timingSafeEqual(expectedBuf, providedBuf)) {
+    if (expectedBuf.length !== providedBuf.length || !timingSafeEqual(expectedBuf, providedBuf)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
