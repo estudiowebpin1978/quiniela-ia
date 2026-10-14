@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { resolveUserTier } from "@/lib/auth/tier"
 import { normalizarCronToken } from "@/lib/cron/auth"
+import { cacheFrescoParaDestino } from "@/lib/api/predictions"
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limiter"
 import { parsePred2, extractPred3, extractPred4, extractRedoblona } from "@/lib/predictions"
 import logger from "@/lib/logger"
@@ -20,6 +21,34 @@ const MEM_CACHE_MAX = 50
 
 function memCacheKey(date: string, turno: string, tier: string) {
   return `${date}:${turno}:${tier}`
+}
+
+/**
+ * Guard de frescura para cache-first: `false` si hubo sorteos de `turno`
+ * entre `fechaCache` y `fechaDestino` (la fila del cache no los tuvo en
+ * cuenta al calcularse → no servir; caer al cálculo en vivo). Si la fecha
+ * del cache es la misma que el destino, o falla la query de sorteos, se
+ * conserva el comportamiento previo (fresco). Ver cacheFrescoParaDestino.
+ */
+async function cacheFrescoPara(turno: string, fechaCache: string, fechaDestino: string): Promise<boolean> {
+  if (fechaCache >= fechaDestino) return true
+  try {
+    const { getSupabaseAdmin } = await import("@/lib/supabase-client")
+    const supabase = getSupabaseAdmin()
+    const { data } = await supabase
+      .from("draws")
+      .select("date")
+      .eq("turno", turno)
+      .gte("date", fechaCache)
+      .lt("date", fechaDestino)
+      .limit(1)
+    const fechas = Array.isArray(data)
+      ? data.map((d) => String((d as { date: string }).date).slice(0, 10))
+      : []
+    return cacheFrescoParaDestino(fechaCache, fechaDestino, fechas)
+  } catch {
+    return true
+  }
 }
 
 function getMemCache(key: string): unknown | null {
@@ -221,7 +250,17 @@ export async function GET(req: NextRequest) {
         .limit(1)
       const cached = Array.isArray(cachedRows) && cachedRows.length > 0 ? cachedRows[0] : null
 
-      if (cached?.numeros_2 && Array.isArray(cached.numeros_2) && cached.numeros_2.length > 0) {
+      // ── Guard de frescura: si hubo sorteos de este turno entre la fecha del
+      // cache y la fecha pedida, la fila no los tuvo en cuenta al calcularse →
+      // NO se sirve y se cae al cálculo en vivo de abajo (mismo camino que
+      // "cache miss"). Evita servir en silencio predicciones viejas si los
+      // triggers del precompute vuelven a fallar (bug 2026-10-14: se servían
+      // filas de 4 días de atraso porque sólo se chequeaba date <= targetDate).
+      const cacheFresco = cached?.date
+        ? await cacheFrescoPara(turnoCanonical, String(cached.date).slice(0, 10), targetDate)
+        : true
+
+      if (cacheFresco && cached?.numeros_2 && Array.isArray(cached.numeros_2) && cached.numeros_2.length > 0) {
           // Cache hit — build response from pre-computed data
           const numeros: TopNumero[] = cached.numeros_2.map((item: Record<string, unknown>, i: number) => ({
             n: item.n as number,
@@ -505,7 +544,13 @@ export async function POST(req: NextRequest) {
         const nums2 = (cached.numeros_2 as Array<Record<string, unknown>>)
           .map((item) => String(item.n ?? item.numero ?? "").padStart(2, "0"))
           .filter((s) => /^\d{2}$/.test(s))
-        if (nums2.length > 0) {
+        // Guard de frescura (mismo criterio que GET): si hubo sorteos de este
+        // turno entre la fila del cache y la fecha pedida, la fila está vieja →
+        // no se sirve y se cae al RPC V6 de abajo.
+        const cacheFresco = cached.date
+          ? await cacheFrescoPara(turnoCanonical, String(cached.date).slice(0, 10), date)
+          : true
+        if (cacheFresco && nums2.length > 0) {
           return NextResponse.json({
             pred: {
               numeros_2: nums2,

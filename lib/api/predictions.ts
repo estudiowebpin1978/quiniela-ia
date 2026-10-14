@@ -222,3 +222,30 @@ export const MisPrediccionesResponseSchema = z.object({
 export function validateMisPrediccionesResponse(data: unknown): { predictions: MisPrediccion[] } {
   return MisPrediccionesResponseSchema.parse(data);
 }
+
+/**
+ * Guard de frescura del cache-first (GET y POST /api/predictions).
+ *
+ * Una fila de `predictions_cache` fechada D se calculó con histórico
+ * estrictamente < D (por diseño nunca ve los resultados del propio día D).
+ * Para servirla como predicción de un destino T > D haría falta un modelo
+ * entrenado con histórico < T: los sorteos que la fila no tuvo en cuenta son
+ * exactamente los de [D, T).
+ *
+ * Devuelve `false` (fila vieja → calcular en vivo) si existe al menos un
+ * sorteo de ese turno en el rango. Contexto real (bug 2026-10-14): cuando los
+ * triggers del cache fallaron, el GET servía en silencio filas de 4 días de
+ * atraso porque sólo chequeaba `date <= targetDate`.
+ *
+ * - D == T → rango vacío → siempre fresco (la fila del día es la correcta,
+ *   aunque el sorteo del día ya se haya jugado: por diseño lo excluye).
+ * - Sorteos en T o posteriores no cuentan (no existían al calcular la fila).
+ */
+export function cacheFrescoParaDestino(
+  fechaCache: string,
+  fechaDestino: string,
+  fechasSorteosDelTurno: string[],
+): boolean {
+  if (fechaCache >= fechaDestino) return true;
+  return !fechasSorteosDelTurno.some((f) => f >= fechaCache && f < fechaDestino);
+}
