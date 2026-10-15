@@ -292,24 +292,31 @@ export async function descargarExtractoPdfIAFAS(
 }
 
 /**
- * En runtime serverless (Vercel) no existe `DOMMatrix` global y pdf-parse/pdfjs
- * lo necesita. Se polyfilla desde @napi-rs/canvas (nativo) si está disponible;
- * si no, el fallo queda registrado como fallido auditado (nunca validado).
+ * Prepara el runtime serverless para pdf-parse/pdfjs:
+ *  · `DOMMatrix` no existe en Vercel → se polyfilla desde @napi-rs/canvas.
+ *  · El worker de pdfjs debe viajar en el bundle: esta importación literal
+ *    permite el file-tracing de Vercel y deja el módulo en caché para el
+ *    "fake worker" (hilo principal) que usa pdf-parse en runtime.
+ * Si algo falta, el fallo queda registrado como fallido auditado (nunca validado).
  */
-async function polyfillDomMatrix(): Promise<void> {
+async function prepararEntornoPdf(): Promise<void> {
   const g = globalThis as { DOMMatrix?: unknown }
-  if (typeof g.DOMMatrix !== "undefined") return
-  try {
-    const canvas = (await import("@napi-rs/canvas")) as { DOMMatrix?: unknown }
-    if (canvas.DOMMatrix) g.DOMMatrix = canvas.DOMMatrix
-  } catch {
-    // sin canvas nativo: pdf-parse lanzará y quedará como fallido registrado
+  if (typeof g.DOMMatrix === "undefined") {
+    try {
+      const canvas = (await import("@napi-rs/canvas")) as { DOMMatrix?: unknown }
+      if (canvas.DOMMatrix) g.DOMMatrix = canvas.DOMMatrix
+    } catch {
+      // sin canvas nativo: pdf-parse lanzará y quedará como fallido registrado
+    }
   }
+  // @ts-ignore pdfjs no publica .d.ts del worker; el import literal es sólo
+  // para que Vercel lo incluya en el bundle y quede en caché (fake worker).
+  await import("pdfjs-dist/legacy/build/pdf.worker.mjs").catch(() => {})
 }
 
 export async function textoPdf(buf: Buffer): Promise<string> {
   try {
-    await polyfillDomMatrix()
+    await prepararEntornoPdf()
     const { PDFParse } = await import("pdf-parse")
     const parser = new PDFParse({ data: new Uint8Array(buf) })
     const r = await parser.getText()

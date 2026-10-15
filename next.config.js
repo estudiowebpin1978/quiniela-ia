@@ -5,7 +5,7 @@ const nextConfig = {
   // pdf-parse y su canvas nativo (@napi-rs/canvas) deben resolverse en runtime
   // desde node_modules: empaquetarlos rompe la extracción de texto de PDF en
   // serverless (ReferenceError: DOMMatrix is not defined, oct-2026).
-  serverExternalPackages: ["pdf-parse", "@napi-rs/canvas"],
+  serverExternalPackages: ["pdf-parse", "pdfjs-dist", "@napi-rs/canvas"],
   turbopack: {
     root: path.resolve(__dirname),
   },
