@@ -291,8 +291,25 @@ export async function descargarExtractoPdfIAFAS(
   return buf
 }
 
+/**
+ * En runtime serverless (Vercel) no existe `DOMMatrix` global y pdf-parse/pdfjs
+ * lo necesita. Se polyfilla desde @napi-rs/canvas (nativo) si está disponible;
+ * si no, el fallo queda registrado como fallido auditado (nunca validado).
+ */
+async function polyfillDomMatrix(): Promise<void> {
+  const g = globalThis as { DOMMatrix?: unknown }
+  if (typeof g.DOMMatrix !== "undefined") return
+  try {
+    const canvas = (await import("@napi-rs/canvas")) as { DOMMatrix?: unknown }
+    if (canvas.DOMMatrix) g.DOMMatrix = canvas.DOMMatrix
+  } catch {
+    // sin canvas nativo: pdf-parse lanzará y quedará como fallido registrado
+  }
+}
+
 export async function textoPdf(buf: Buffer): Promise<string> {
   try {
+    await polyfillDomMatrix()
     const { PDFParse } = await import("pdf-parse")
     const parser = new PDFParse({ data: new Uint8Array(buf) })
     const r = await parser.getText()
