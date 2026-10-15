@@ -1303,10 +1303,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 🎱 Brinco Premium
               </a>
               <a className="btn3d btn-gen" href="/poceada" style={{ background: "linear-gradient(180deg,#ffd60a 0%,#f59e0b 50%,#d97706 100%)", color: "#111", boxShadow: "0 10px 0 #b45309,0 14px 40px rgba(245,158,11,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}>
-                🔮 Poceada Premium
+                🔮 Poceada Premium (Ciudad)
               </a>
               <a className="btn3d btn-gen" href="/poceada-federal" style={{ background: "linear-gradient(180deg,#38bdf8 0%,#0ea5e9 50%,#0284c7 100%)", color: "#fff", boxShadow: "0 10px 0 #0369a1,0 14px 40px rgba(14,165,233,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}>
-                🎟️ Poceada Federal (Santa Fe)
+                🎟️ Poceada Federal Premium (Santa Fe)
               </a>
               <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
             </div>

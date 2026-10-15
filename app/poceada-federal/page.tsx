@@ -1,10 +1,15 @@
 "use client"
 
 /**
- * Poceada Federal (Lotería de Santa Fe) — modalidad informativa con las
+ * Poceada Federal (Lotería de Santa Fe) — modalidad PREMIUM con las
  * MISMAS instrucciones/estructura de la Poceada de la Ciudad (misma
  * estética: brinco.css, brinco-head / brinco-sub / brinco-card / aviso),
  * pero con las reglas oficiales de la Poceada Federal.
+ *
+ * Acceso Premium controlado en el CLIENTE (mirando /api/auth/me, mismo
+ * patrón que Brinco y Poceada). Esta página es informativa: no consume
+ * endpoints protegidos, así que no hay datos de esta modalidad que el
+ * servidor deba resguardar (el gate es de UI).
  *
  * IMPORTANTE — sin pronósticos a propósito: la app todavía no tiene
  * incorporada al pipeline la fuente oficial de datos de la Lotería de
@@ -19,7 +24,9 @@
  * lib/poceada-federal/reglas.ts.
  */
 
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { getAuth } from "@/lib/auth"
 import {
   periodoART,
   loteriaNocturnaRigente,
@@ -37,8 +44,74 @@ const tituloPaso: React.CSSProperties = { fontWeight: 700 }
 
 export default function PoceadaFederalPage() {
   const router = useRouter()
+  const [cargando, setCargando] = useState(true)
+  const [acceso, setAcceso] = useState<"cargando" | "ok" | "no-auth" | "no-premium">("cargando")
   const { mes, anio } = periodoART()
   const rigente = loteriaNocturnaRigente(mes)
+
+  // Acceso Premium en el CLIENTE (mismo patrón que Brinco/Poceada):
+  // getAuth() -> /api/auth/me -> canAccessPremiumFeatures | role premium/admin.
+  // El estado se resuelve SIEMPRE en callbacks (nunca setState síncrono en el
+  // cuerpo del effect — regla react-hooks/set-state-in-effect).
+  useEffect(() => {
+    const tk = getAuth()?.access_token
+    Promise.resolve()
+      .then(() => {
+        if (!tk) return null
+        return fetch("/api/auth/me", { headers: { Authorization: "Bearer " + tk } }).then((r) =>
+          r.ok ? r.json() : null
+        )
+      })
+      .then((me) => {
+        if (!tk) {
+          setAcceso("no-auth")
+          return
+        }
+        const premium = me?.canAccessPremiumFeatures || me?.role === "premium" || me?.role === "admin"
+        setAcceso(premium ? "ok" : "no-premium")
+      })
+      .catch(() => setAcceso("no-auth"))
+      .finally(() => setCargando(false))
+  }, [])
+
+  if (cargando || acceso === "cargando") {
+    return (
+      <div className="brinco-wrap">
+        <div className="brinco-loading">Cargando Poceada Federal…</div>
+      </div>
+    )
+  }
+
+  if (acceso === "no-auth") {
+    return (
+      <div className="brinco-wrap brinco-gate">
+        <h2>Poceada Federal</h2>
+        <p className="brinco-empty">Iniciá sesión para acceder.</p>
+        <div className="brinco-actions" style={{ justifyContent: "center" }}>
+          <button className="brinco-btn" onClick={() => router.push("/login")}>
+            Iniciar sesión
+          </button>
+          <button className="brinco-btn ghost" onClick={() => router.push("/predictions")}>
+            ← Volver a Quiniela
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (acceso === "no-premium") {
+    return (
+      <div className="brinco-wrap brinco-gate">
+        <h2>Poceada Federal</h2>
+        <p className="brinco-empty">
+          Esta modalidad es parte de Premium. Actualizá tu plan para ver la Poceada Federal.
+        </p>
+        <button className="brinco-btn" onClick={() => router.push("/predictions")}>
+          Ver planes
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="brinco-wrap">
