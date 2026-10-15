@@ -213,20 +213,6 @@ export default function PoceadaPage() {
     )
   }
 
-  if (acceso === "no-premium") {
-    return (
-      <div className="brinco-wrap brinco-gate">
-        <h2>Poceada Premium</h2>
-        <p className="brinco-empty">
-          Esta función es parte de Premium. Actualizá tu plan para generar jugadas de Poceada.
-        </p>
-        <button className="brinco-btn" onClick={() => router.push("/predictions")}>
-          Ver planes
-        </button>
-      </div>
-    )
-  }
-
   return (
     <div className="brinco-wrap">
       <div className="brinco-head">
@@ -298,6 +284,15 @@ export default function PoceadaPage() {
           )}
 
           <div className="brinco-aviso">{AVISO}</div>
+        </div>
+      ) : acceso === "no-premium" ? (
+        <div className="brinco-card brinco-empty">
+          Esta opción es de acceso premium. Actualizá tu plan para generar jugadas de Poceada.
+          <div style={{ marginTop: 10 }}>
+            <button className="brinco-btn" onClick={() => router.push("/predictions")}>
+              Ver planes
+            </button>
+          </div>
         </div>
       ) : (
         <div className="brinco-card brinco-empty">{msg || "Sin datos."}</div>

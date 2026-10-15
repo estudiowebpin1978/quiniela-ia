@@ -6,9 +6,11 @@
  * estética: brinco.css, brinco-head / brinco-sub / brinco-card / aviso),
  * pero con las reglas oficiales de la Poceada Federal.
  *
- * Acceso Premium controlado en el CLIENTE (mirando /api/auth/me, mismo
- * patrón que Brinco y Poceada) y REVALIDADO en el servidor para los
- * endpoints de análisis (resolveUserTier → canAccessPremiumFeatures).
+ * La página es visible para cualquier usuario logueado: las acciones
+ * premium NO se rotulan como tales; al seleccionarlas aparece una leyenda
+ * "Esta opción es de acceso premium". El servidor REVALIDA el tier
+ * (resolveUserTier → canAccessPremiumFeatures) en los endpoints de análisis,
+ * por lo que la leyenda no relaja la seguridad.
  *
  * Análisis experimental (secciones 5/6 del requerimiento): al pedir un
  * análisis nuevo, el servidor sincroniza resultados oficiales (IAFAS +
@@ -132,7 +134,9 @@ const filaMetrica = (a: string, b: string | number, c?: string | number) => (
 export default function PoceadaFederalPage() {
   const router = useRouter()
   const [cargando, setCargando] = useState(true)
-  const [acceso, setAcceso] = useState<"cargando" | "ok" | "no-auth" | "no-premium">("cargando")
+  const [acceso, setAcceso] = useState<"cargando" | "ok" | "no-auth">("cargando")
+  const [esPremium, setEsPremium] = useState(false)
+  const [leyendaPremium, setLeyendaPremium] = useState(false)
   const [analizando, setAnalizando] = useState(false)
   const [analisis, setAnalisis] = useState<Analisis | null>(null)
   const [errorAnalisis, setErrorAnalisis] = useState<string | null>(null)
@@ -159,7 +163,8 @@ export default function PoceadaFederalPage() {
           return
         }
         const premium = me?.canAccessPremiumFeatures || me?.role === "premium" || me?.role === "admin"
-        setAcceso(premium ? "ok" : "no-premium")
+        setEsPremium(Boolean(premium))
+        setAcceso("ok")
       })
       .catch(() => setAcceso("no-auth"))
       .finally(() => setCargando(false))
@@ -169,6 +174,10 @@ export default function PoceadaFederalPage() {
   // recalcula sobre TODO el historial validado, genera las 5 combinaciones,
   // corre el backtest y guarda la instantánea pre-sorteo (sección 6).
   const generarAnalisis = async () => {
+    if (!esPremium) {
+      setLeyendaPremium(true)
+      return
+    }
     setAnalizando(true)
     setErrorAnalisis(null)
     try {
@@ -183,7 +192,7 @@ export default function PoceadaFederalPage() {
         return
       }
       if (r.status === 403) {
-        setErrorAnalisis("Este análisis requiere plan Premium.")
+        setLeyendaPremium(true)
         return
       }
       if (r.status === 503) {
@@ -228,20 +237,6 @@ export default function PoceadaFederalPage() {
             ← Volver a Quiniela
           </button>
         </div>
-      </div>
-    )
-  }
-
-  if (acceso === "no-premium") {
-    return (
-      <div className="brinco-wrap brinco-gate">
-        <h2>Poceada Federal</h2>
-        <p className="brinco-empty">
-          Esta modalidad es parte de Premium. Actualizá tu plan para ver la Poceada Federal.
-        </p>
-        <button className="brinco-btn" onClick={() => router.push("/predictions")}>
-          Ver planes
-        </button>
       </div>
     )
   }
@@ -364,6 +359,16 @@ export default function PoceadaFederalPage() {
         </button>
         {errorAnalisis && (
           <p style={{ color: "#e05252", fontSize: "0.85rem", margin: "8px 0 0" }}>{errorAnalisis}</p>
+        )}
+        {leyendaPremium && (
+          <div className="brinco-card brinco-empty" style={{ marginTop: 10 }}>
+            Esta opción es de acceso premium. Actualizá tu plan para generar el análisis.
+            <div style={{ marginTop: 10 }}>
+              <button className="brinco-btn" onClick={() => router.push("/predictions")}>
+                Ver planes
+              </button>
+            </div>
+          </div>
         )}
 
         {analisis && (

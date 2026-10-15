@@ -193,20 +193,6 @@ export default function BrincoPage() {
     )
   }
 
-  if (acceso === "no-premium") {
-    return (
-      <div className="brinco-wrap brinco-gate">
-        <h2>Brinco Premium</h2>
-        <p className="brinco-empty">
-          Esta función es parte de Premium. Actualizá tu plan para generar jugadas de Brinco.
-        </p>
-        <button className="brinco-btn" onClick={() => router.push("/predictions")}>
-          Ver planes
-        </button>
-      </div>
-    )
-  }
-
   const pred: Prediccion | null | undefined =
     modalidad === "junior" ? data?.junior : data?.tradicional
   const sync = data?.sincronizacion
@@ -315,6 +301,15 @@ export default function BrincoPage() {
           </div>
 
           <div className="brinco-aviso">{pred.aviso}</div>
+        </div>
+      ) : acceso === "no-premium" ? (
+        <div className="brinco-card brinco-empty">
+          Esta opción es de acceso premium. Actualizá tu plan para generar jugadas de Brinco.
+          <div style={{ marginTop: 10 }}>
+            <button className="brinco-btn" onClick={() => router.push("/predictions")}>
+              Ver planes
+            </button>
+          </div>
         </div>
       ) : (
         data && <div className="brinco-card brinco-empty">{data.error || "Sin datos."}</div>

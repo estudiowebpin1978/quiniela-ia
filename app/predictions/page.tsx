@@ -191,6 +191,7 @@ function PageInner() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [premExpiry, setPremExpiry] = useState<{ premium_until: string | null; daysRemaining: number | null }>({ premium_until: null, daysRemaining: null });
   const [guestMode, setGuestMode] = useState(false);
+  const [leyendaModalidad, setLeyendaModalidad] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstall, setShowInstall] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
@@ -1299,15 +1300,61 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           </div>
           {(pr || true) && (
             <div style={{ display: "grid", gap: 10, margin: "16px 0 18px" }}>
-              <a className="btn3d btn-gen" href="/brinco" style={{ background: "linear-gradient(180deg,#bf5af2 0%,#9333ea 50%,#7c3aed 100%)", color: "#fff", boxShadow: "0 10px 0 #6d28d9,0 14px 40px rgba(191,90,242,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}>
-                🎱 Brinco Premium
+              <a
+                className="btn3d btn-gen"
+                href="/brinco"
+                onClick={(e) => {
+                  if (!(pr || userRole === "admin")) {
+                    e.preventDefault();
+                    setLeyendaModalidad(true);
+                  }
+                }}
+                style={{ background: "linear-gradient(180deg,#bf5af2 0%,#9333ea 50%,#7c3aed 100%)", color: "#fff", boxShadow: "0 10px 0 #6d28d9,0 14px 40px rgba(191,90,242,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}
+              >
+                🎱 Brinco
               </a>
-              <a className="btn3d btn-gen" href="/poceada" style={{ background: "linear-gradient(180deg,#ffd60a 0%,#f59e0b 50%,#d97706 100%)", color: "#111", boxShadow: "0 10px 0 #b45309,0 14px 40px rgba(245,158,11,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}>
-                🔮 Poceada Premium (Ciudad)
+              <a
+                className="btn3d btn-gen"
+                href="/poceada"
+                onClick={(e) => {
+                  if (!(pr || userRole === "admin")) {
+                    e.preventDefault();
+                    setLeyendaModalidad(true);
+                  }
+                }}
+                style={{ background: "linear-gradient(180deg,#ffd60a 0%,#f59e0b 50%,#d97706 100%)", color: "#111", boxShadow: "0 10px 0 #b45309,0 14px 40px rgba(245,158,11,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}
+              >
+                🔮 Poceada (Ciudad)
               </a>
-              <a className="btn3d btn-gen" href="/poceada-federal" style={{ background: "linear-gradient(180deg,#38bdf8 0%,#0ea5e9 50%,#0284c7 100%)", color: "#fff", boxShadow: "0 10px 0 #0369a1,0 14px 40px rgba(14,165,233,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}>
-                🎟️ Poceada Federal Premium (Santa Fe)
+              <a
+                className="btn3d btn-gen"
+                href="/poceada-federal"
+                onClick={(e) => {
+                  if (!(pr || userRole === "admin")) {
+                    e.preventDefault();
+                    setLeyendaModalidad(true);
+                  }
+                }}
+                style={{ background: "linear-gradient(180deg,#38bdf8 0%,#0ea5e9 50%,#0284c7 100%)", color: "#fff", boxShadow: "0 10px 0 #0369a1,0 14px 40px rgba(14,165,233,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}
+              >
+                🎟️ Poceada Federal (Santa Fe)
               </a>
+              {leyendaModalidad && !(pr || userRole === "admin") && (
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: "#fbbf24",
+                    textAlign: "center",
+                    padding: "8px 12px",
+                    border: "1px dashed rgba(251,191,36,.55)",
+                    borderRadius: 10,
+                    background: "rgba(251,191,36,.08)",
+                  }}
+                >
+                  🔒 Esta opción es con acceso premium.
+                </div>
+              )}
               <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
             </div>
           )}
