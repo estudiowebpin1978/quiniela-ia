@@ -56,6 +56,36 @@ OMEGA V6.
   nov/dic 2025 se obtiene subdividiendo la ventana por el tope de 500).
 - Lote típico del backfill:40 sorteos/corrida (cada PDF pesa ~500 KB).
 
+### Realidad descubierta en producción (2026-10-15, tras backfill real)
+
+La extracción de texto de los PDFs oficiales **no funciona para toda la
+historia**: los PDFs de épocas antiguas dibujan los números con una fuente CID
+sin ToUnicode, y `pdfjs` sólo extrae los textos con mapa (nombres). Medido en
+prod con lotes reales:
+
+| Ventana | Importados / procesados |
+| --- | --- |
+| 2024 completo | 0 / 40 |
+| 2026 ene–jul (reintentos) | 48 / ~200 |
+| 2026-08 | 52 / 100 |
+| 2026-08-31 → 2026-10-14 | ~51 (casi completa) |
+
+- **102 sorteos validados en prod** (2026-02-02 → 2026-10-14) con brechas
+  reales declaradas vía `/api/poceada-federal/estado`
+  (`brechasMayores4Dias`: feb→ago y ago→oct).
+- Los PDFs no extraíbles quedan como **fallidos con causa auditada**
+  (`PDF sin cabecera dd/mm/yyyy CONCURSO HH:MMhs`), nunca como validados; se
+  reintentan solos en cada corrida del cron (el lote se recalcula).
+- Desde Vercel, `apps.loteriasantafe.gov.ar:8443` **no es alcanzable**
+  (`fetch failed`): la sincronización usa IAFAS sola y lo reporta en su
+  informe (`fuenteUsada: "iafas"`, sin corroboración). La ruta HTML de Santa Fe
+  funciona en entornos donde el host sea accesible (verificado en local).
+- Runtime serverless: `pdf-parse`/`pdfjs` requieren `@napi-rs/canvas`
+  (DOMMatrix), `serverExternalPackages` y el import literal del worker —
+  correcciones aplicadas en `next.config.js` y `lib/poceada-federal/fuente.ts`.
+- Lotes grandes (≥60 PDFs) pueden agotar los 300 s de la función (HTTP 500):
+  usar `limite=40` (default) y reintentar; es reanudable.
+
 ## 3. Arquitectura del módulo
 
 ```
@@ -116,15 +146,17 @@ npm run lint && npm run typecheck && npm test && npm run build
 POCEADA_FEDERAL_LIVE=1 npx vitest run lib/__tests__/poceada-federal-integracion.live.test.ts
 ```
 
-## 5. Pasos de despliegue (pendientes de confirmación)
+## 5. Pasos de despliegue
 
-1. **Aplicar la migración** `supabase/migrations/20261015060000_poceada_federal_module.sql`
-   en Supabase prod (SQL Editor o `supabase db push`). Sólo crea tablas/índices/
-   RLS nuevas; ROLLBACK documentado dentro del archivo.
-2. Configurar la tarea en cron-job.org con el header de `CRON_SECRET`.
-3. Ejecutar el backfill por ventanas (o esperar que el cron lo haga) hasta
-   cubrir desde 2021-06-22.
-4. Verificar `GET /api/poceada-federal/estado` → `conteoPorEstado.validated > 0`.
+1. **Migración**: `supabase/migrations/20261015060000_poceada_federal_module.sql`
+   — **ya aplicada en prod** (verificado 2026-10-15: las rutas responden y la
+   tabla existe; ROLLBACK documentado dentro del archivo).
+2. Configurar la tarea en cron-job.org con el header de `CRON_SECRET`
+   (frecuencia cada 30–60 min; opcional backfill por ventanas con
+   `?historico=desde,hasta&limite=40`).
+3. Backfill: hecho un primer pase (102 validados); las corridas posteriores
+   reintentan los pendientes automáticamente (es reanudable).
+4. Verificar `GET /api/poceada-federal/estado` → `conteoPorEstado.validated`.
 
 ## 6. Notas de honestidad
 
