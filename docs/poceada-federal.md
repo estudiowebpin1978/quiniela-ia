@@ -106,7 +106,9 @@ lib/poceada-federal/
 app/api/cron-poceada-federal/route.ts              cron (auth CRON_SECRET)
 app/api/poceada-federal/draws/route.ts             lectura pública paginada
 app/api/poceada-federal/estado/route.ts            cobertura + conteos
-app/api/poceada-federal/combinaciones/route.ts     POST premium (snapshot) + GET
+app/api/poceada-federal/combinaciones/route.ts     POST premium (snapshot +
+                                                  objetivo confirmado) + GET
+                                                  (evalúa pendientes)
 app/poceada-federal/page.tsx                       UI premium con backtest
 docs/sql/poceada-federal-stats.sql                 consultas SQL de apoyo
 ```
@@ -115,6 +117,25 @@ Estados: `pending | validated | conflict | failed`; incidentes de auditoría en
 `poceada_federal_incidents`; predicciones append-only en
 `poceada_federal_predictions`; RLS habilitada en las 3 tablas con política
 sólo `service_role` (revocado `anon`/`authenticated`).
+
+### Guardar y verificar contra el sorteo oficial
+
+- **Guardado**: cada `POST /api/poceada-federal/combinaciones` registra una
+  instantánea append-only con las 5 jugadas ANTES del sorteo. Si la fuente
+  oficial (IAFAS) confirma el próximo concurso, se guarda
+  `sorteo_objetivo_concurso` + `sorteo_objetivo_confirmado = true`; si no,
+  queda `null/false` explícitamente (nunca se inventa el objetivo).
+- **Verificación**: el `GET` de la misma ruta evalúa en modo perezoso las
+  predicciones `pendiente` con `evaluarPrediccion()` — sólo contra sorteos ya
+  **validados** en `poceada_federal_draws` y siempre de forma posterior al
+  registro (mismo día permitido; día anterior jamás). Carga
+  `estado = 'evaluada'`, `evaluacion` (concurso, fecha, números oficiales,
+  aciertos 0–8 por jugada) y `evaluacion_draw_id`. Los motivos permanentes
+  pasan a `no_evaluable`; los provisorios ("todavía no publicado") siguen
+  `pendiente`. La UI lista estas jugadas y resalta los aciertos.
+- Tests: `poceada-federal-api.test.ts` (evaluación en GET + objetivo
+  confirmado en POST) y `poceada-federal-modelo.test.ts` (reglas de
+  evaluación post-hoc).
 
 ## 4. Operación
 

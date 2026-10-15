@@ -20,6 +20,7 @@ vi.mock("@/lib/poceada-federal/repositorio", () => {
     listarPredicciones: vi.fn(async () => []),
     marcarEvaluacion: vi.fn(async () => {}),
     marcarNoEvaluable: vi.fn(async () => {}),
+    idDrawPorConcurso: vi.fn(async () => "draw-1"),
   }
 })
 
@@ -58,8 +59,11 @@ import {
   conteoEstados,
   listarPredicciones,
   insertarSorteos,
+  guardarPrediccion,
+  marcarEvaluacion,
 } from "@/lib/poceada-federal/repositorio"
 import { sincronizar } from "@/lib/poceada-federal/actualizar"
+import { listarSorteosIAFAS } from "@/lib/poceada-federal/fuente"
 import { resolveUserTier } from "@/lib/auth/tier"
 
 const req = (url: string, headers: Record<string, string> = {}) =>
@@ -266,5 +270,85 @@ describe("/api/poceada-federal/combinaciones — premium", () => {
       req("/api/poceada-federal/combinaciones", { authorization: "Bearer usuario-free" })
     )
     expect(r.status).toBe(403)
+  })
+
+  it("GET evalúa una predicción pendiente con el sorteo oficial validado", async () => {
+    vi.mocked(resolveUserTier).mockResolvedValueOnce({ canAccessPremiumFeatures: true } as never)
+    const pred = {
+      id: "pred-p1",
+      sorteo_objetivo_concurso: null,
+      sorteo_objetivo_confirmado: false,
+      generado_en: "2026-10-14T12:00:00.000Z",
+      historial_corte_fecha: "2026-10-14",
+      historial_corte_concurso: 5732,
+      entrenamiento_count: 100,
+      historial_huella: "abcdef1234567890",
+      algoritmo_version: "pf-test",
+      combinaciones: [
+        { numeros: [1, 2, 3, 4, 5, 6, 7, 8] },
+        { numeros: [11, 12, 13, 14, 15, 16, 17, 18] },
+        { numeros: [21, 22, 23, 24, 25, 26, 27, 28] },
+        { numeros: [31, 32, 33, 34, 35, 36, 37, 38] },
+        { numeros: [41, 42, 43, 44, 45, 46, 47, 48] },
+      ],
+      estado: "pendiente",
+      evaluacion_draw_id: null,
+      evaluacion: null,
+      creado_en: "2026-10-14T12:00:01.000Z",
+    }
+    vi.mocked(listarPredicciones).mockResolvedValueOnce([pred] as never)
+    vi.mocked(historialValidado).mockResolvedValueOnce([
+      {
+        concurso: 5735,
+        fecha: "2026-10-15",
+        numeros: [1, 3, 5, 7, 9, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40],
+      },
+    ] as never)
+
+    const r = await combGET(
+      req("/api/poceada-federal/combinaciones", { authorization: "Bearer usuario-premium" })
+    )
+    expect(r.status).toBe(200)
+    const body = await r.json()
+    expect(body.ok).toBe(true)
+    expect(body.predicciones).toHaveLength(1)
+    expect(body.predicciones[0].estado).toBe("evaluada")
+    expect(body.predicciones[0].evaluacion.concursoEvaluado).toBe(5735)
+    expect(body.predicciones[0].evaluacion.numerosOficiales).toHaveLength(20)
+    expect(body.predicciones[0].evaluacion.aciertosPorJugada).toEqual([4, 4, 4, 4, 0])
+    expect(marcarEvaluacion).toHaveBeenCalledWith(
+      "pred-p1",
+      "draw-1",
+      expect.objectContaining({ concursoEvaluado: 5735 })
+    )
+  })
+
+  it("POST registra el sorteo objetivo cuando la fuente oficial lo confirma", async () => {
+    vi.mocked(resolveUserTier).mockResolvedValueOnce({ canAccessPremiumFeatures: true } as never)
+    const h = historial(100)
+    vi.mocked(historialValidado).mockResolvedValue(h)
+    const ultimo = h[h.length - 1]
+    const dia = new Date(`${ultimo.fecha}T12:00:00Z`)
+    dia.setUTCDate(dia.getUTCDate() + 1)
+    vi.mocked(listarSorteosIAFAS).mockResolvedValueOnce([
+      { NROSorteo: ultimo.concurso + 1, Fecha2: dia.toISOString().slice(0, 10), Estado: "CONFIRMADO" },
+    ] as never)
+
+    const r = await combPOST(
+      req("/api/poceada-federal/combinaciones", {
+        method: "POST",
+        authorization: "Bearer usuario-premium",
+      })
+    )
+    expect(r.status).toBe(200)
+    expect(guardarPrediccion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sorteo_objetivo_concurso: ultimo.concurso + 1,
+        sorteo_objetivo_confirmado: true,
+      })
+    )
+    const body = await r.json()
+    expect(body.objetivo.confirmado).toBe(true)
+    expect(body.objetivo.concurso).toBe(ultimo.concurso + 1)
   })
 })

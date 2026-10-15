@@ -16,6 +16,7 @@ import type { PrediccionGuardada } from "./repositorio"
 export interface EvaluacionPrediccion {
   concursoEvaluado: number
   fechaEvaluada: string
+  numerosOficiales: number[]
   aciertosPorJugada: number[]
   maximo: number
   promedio: number
@@ -89,6 +90,7 @@ export function evaluarPrediccion(
     evaluacion: {
       concursoEvaluado: objetivo.concurso,
       fechaEvaluada: objetivo.fecha,
+      numerosOficiales: [...objetivo.numeros],
       aciertosPorJugada,
       maximo: Math.max(...aciertosPorJugada, 0),
       promedio: Number((total / Math.max(1, aciertosPorJugada.length)).toFixed(3)),

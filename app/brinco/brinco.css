@@ -15,10 +15,13 @@
 }
 
 .brinco-title {
-  font-size: 1.5rem;
+  font-size: 1.7rem;
   font-weight: 800;
-  color: var(--brand-1, #f5c542);
   margin: 0;
+  background: linear-gradient(180deg, var(--ac-a), var(--ac-b));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .brinco-sub {
@@ -45,8 +48,8 @@
 }
 
 .brinco-tab.on {
-  background: linear-gradient(135deg, var(--brand-1, #f5c542), var(--brand-2, #e0a800));
-  color: #111;
+  background: linear-gradient(180deg, var(--ac-a), var(--ac-b));
+  color: var(--ac-ink);
   border-color: transparent;
 }
 
@@ -56,9 +59,10 @@
 }
 
 .brinco-card {
-  background: var(--bg-1, #141414);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
   border: 1px solid var(--border, #2a2a2a);
   border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
   padding: 18px;
   margin-bottom: 16px;
 }
@@ -93,9 +97,14 @@
   border-radius: 12px;
   font-size: 1.5rem;
   font-weight: 800;
-  color: #111;
-  background: linear-gradient(135deg, var(--brand-1, #f5c542), var(--brand-2, #e0a800));
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  color: var(--ac-ink);
+  background: linear-gradient(180deg, var(--ac-a), var(--ac-b));
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.4);
+  transition: transform 0.15s ease;
+}
+
+.brinco-num:hover {
+  transform: translateY(-4px);
 }
 
 .brinco-alt {
@@ -142,7 +151,7 @@
 
 .brinco-score-n {
   font-weight: 800;
-  color: var(--brand-1, #f5c542);
+  color: var(--ac-a);
   width: 24px;
 }
 
@@ -157,7 +166,7 @@
 .brinco-bar > span {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--brand-1, #f5c542), var(--brand-2, #e0a800));
+  background: linear-gradient(90deg, var(--ac-a), var(--ac-b));
 }
 
 .brinco-actions {
@@ -173,8 +182,9 @@
   border: none;
   font-weight: 700;
   cursor: pointer;
-  background: linear-gradient(135deg, var(--brand-1, #f5c542), var(--brand-2, #e0a800));
-  color: #111;
+  background: linear-gradient(180deg, var(--ac-a), var(--ac-b));
+  color: var(--ac-ink);
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.45);
 }
 
 .brinco-btn.ghost {
@@ -186,6 +196,11 @@
 .brinco-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.brinco-btn:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
 }
 
 .brinco-aviso {
@@ -247,5 +262,30 @@
 }
 
 .brinco-gate h2 {
-  color: var(--brand-1, #f5c542);
+  color: var(--ac-a);
+}
+
+/* ─── Tokens de acento por modalidad ─── */
+:root {
+  --ac-a: #f5c542;
+  --ac-b: #e0a800;
+  --ac-ink: #141414;
+}
+
+.brinco-wrap.accent-purple {
+  --ac-a: #c084fc;
+  --ac-b: #9333ea;
+  --ac-ink: #ffffff;
+}
+
+.brinco-wrap.accent-amber {
+  --ac-a: #fcd34d;
+  --ac-b: #d97706;
+  --ac-ink: #141414;
+}
+
+.brinco-wrap.accent-sky {
+  --ac-a: #7dd3fc;
+  --ac-b: #0284c7;
+  --ac-ink: #06283d;
 }

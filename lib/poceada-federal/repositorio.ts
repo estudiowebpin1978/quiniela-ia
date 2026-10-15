@@ -279,7 +279,7 @@ export async function listarPredicciones(limite = 10): Promise<PrediccionGuardad
 /** Rellena la evaluación (sólo la evaluación: nunca sobrescribe combinaciones). */
 export async function marcarEvaluacion(
   id: string,
-  drawId: string,
+  drawId: string | null,
   evaluacion: Record<string, unknown>
 ): Promise<void> {
   const sb = getSupabaseAdmin()
@@ -288,6 +288,18 @@ export async function marcarEvaluacion(
     .update({ estado: "evaluada", evaluacion_draw_id: drawId, evaluacion })
     .eq("id", id)
   if (error) manejar(error)
+}
+
+/** Id del sorteo oficial validado por concurso (para enlazar la evaluación). */
+export async function idDrawPorConcurso(concurso: number): Promise<string | null> {
+  const sb = getSupabaseAdmin()
+  const { data, error } = await sb
+    .from("poceada_federal_draws")
+    .select("id")
+    .eq("concurso", concurso)
+    .maybeSingle()
+  if (error) manejar(error)
+  return data ? (data as { id: string }).id : null
 }
 
 export async function marcarNoEvaluable(id: string, motivo: string): Promise<void> {

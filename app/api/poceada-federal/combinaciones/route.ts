@@ -3,6 +3,7 @@ import { resolveUserTier } from "@/lib/auth/tier"
 import { sincronizar } from "@/lib/poceada-federal/actualizar"
 import { backtestWalkForward } from "@/lib/poceada-federal/backtest"
 import { generarCombinaciones } from "@/lib/poceada-federal/combinaciones"
+import { evaluarPrediccion } from "@/lib/poceada-federal/evaluacion"
 import * as repo from "@/lib/poceada-federal/repositorio"
 import {
   ErrorMigracionPendiente,
@@ -52,7 +53,32 @@ export async function GET(req: NextRequest) {
   const denegado = await requerirPremium(req)
   if (denegado) return denegado
   try {
-    const predicciones = await repo.listarPredicciones(5)
+    const predicciones = await repo.listarPredicciones(10)
+
+    // Evaluación post-hoc perezosa: se verifica cada predicción pendiente
+    // SOLO contra resultados oficiales ya validados en la base. Si el sorteo
+    // objetivo todavía no está publicado → sigue pendiente (nunca se inventa).
+    const pendientes = predicciones.filter((p) => p.estado === "pendiente")
+    if (pendientes.length > 0) {
+      const sorteos = await repo.historialValidado()
+      for (const p of pendientes) {
+        const { evaluacion, motivo } = evaluarPrediccion(p, sorteos)
+        if (evaluacion) {
+          const drawId = await repo.idDrawPorConcurso(evaluacion.concursoEvaluado)
+          await repo.marcarEvaluacion(p.id, drawId, evaluacion as unknown as Record<string, unknown>)
+          p.estado = "evaluada"
+          p.evaluacion = evaluacion as unknown as Record<string, unknown>
+          p.evaluacion_draw_id = drawId
+        } else if (motivo && (motivo.includes("no es posterior") || motivo.includes("inválido"))) {
+          // Caso permanente: jamás será evaluable → estado con motivo explícito.
+          await repo.marcarNoEvaluable(p.id, motivo)
+          p.estado = "no_evaluable"
+          p.evaluacion = { motivo }
+        }
+        // "todavía no publicado" / "sin resultados posteriores" → pendiente.
+      }
+    }
+
     return NextResponse.json({ ok: true, predicciones: predicciones as PrediccionGuardada[] })
   } catch (e) {
     if (e instanceof ErrorMigracionPendiente) {
@@ -112,27 +138,10 @@ export async function POST(req: NextRequest) {
     const generacion = generarCombinaciones(historial)
     const backtest = backtestWalkForward(historial, { maxEvaluaciones: 40 })
 
-    // 5. Instantánea auditable (append-only) ANTES del sorteo objetivo.
-    const ultimo = historial[historial.length - 1]
-    let prediccionId: string | null = null
-    try {
-      prediccionId = await repo.guardarPrediccion({
-        sorteo_objetivo_concurso: null, // no confirmado oficialmente → no se inventa
-        sorteo_objetivo_confirmado: false,
-        generado_en: new Date().toISOString(),
-        historial_corte_fecha: ultimaFecha,
-        historial_corte_concurso: ultimo.concurso,
-        entrenamiento_count: historial.length,
-        historial_huella: generacion.historial.huella,
-        algoritmo_version: generacion.version,
-        combinaciones: generacion.jugadas as unknown[],
-      })
-    } catch (e) {
-      if (!(e instanceof ErrorMigracionPendiente)) throw e
+    // 5. Sorteo objetivo: sólo se afirma si está confirmado en la fuente oficial.
+    let objetivo: { confirmado: boolean; concurso?: number; fecha?: string; nota?: string } = {
+      confirmado: false,
     }
-
-    // Sorteo objetivo: sólo se afirma si está confirmado en la fuente oficial.
-    let objetivo: Record<string, unknown> = { confirmado: false }
     try {
       const filas = await listarSorteosIAFAS(ultimaFecha, new Date().toISOString().slice(0, 10))
       const posteriores = filas.filter(
@@ -145,6 +154,28 @@ export async function POST(req: NextRequest) {
       }
     } catch {
       objetivo = { confirmado: false, nota: "Fuente oficial no consultable ahora (fecha provisional)" }
+    }
+
+    // 6. Instantánea auditable (append-only) ANTES del sorteo objetivo.
+    //    Si la fuente oficial confirmó el próximo sorteo, se registra el
+    //    concurso objetivo para poder verificarla después con el resultado
+    //    oficial (sin confirmar → queda explícito, nunca se inventa).
+    const ultimo = historial[historial.length - 1]
+    let prediccionId: string | null = null
+    try {
+      prediccionId = await repo.guardarPrediccion({
+        sorteo_objetivo_concurso: objetivo.confirmado && objetivo.concurso != null ? objetivo.concurso : null,
+        sorteo_objetivo_confirmado: Boolean(objetivo.confirmado && objetivo.concurso != null),
+        generado_en: new Date().toISOString(),
+        historial_corte_fecha: ultimaFecha,
+        historial_corte_concurso: ultimo.concurso,
+        entrenamiento_count: historial.length,
+        historial_huella: generacion.historial.huella,
+        algoritmo_version: generacion.version,
+        combinaciones: generacion.jugadas as unknown[],
+      })
+    } catch (e) {
+      if (!(e instanceof ErrorMigracionPendiente)) throw e
     }
 
     logger.info("[poceada-federal] análisis", {

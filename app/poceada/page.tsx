@@ -40,11 +40,6 @@ function numsGuardados(p: MisPrediccion): string[] {
   return []
 }
 
-const AVISO =
-  "Análisis estadístico con fines informativos: la lotería es un evento aleatorio e independiente y no se garantiza ningún resultado. " +
-  "La consistencia del modelo NO es una probabilidad de acierto. La Poceada es un juego poceado (parimutuel): el premio depende del pozo y de " +
-  "cuántos jugadores aciertan, no hay ganancia fija por juego. Jugá con responsabilidad."
-
 export default function PoceadaPage() {
   const router = useRouter()
   const [cargando, setCargando] = useState(true)
@@ -190,7 +185,7 @@ export default function PoceadaPage() {
 
   if (cargando || acceso === "cargando") {
     return (
-      <div className="brinco-wrap">
+      <div className="brinco-wrap accent-amber">
         <div className="brinco-loading">Cargando Poceada…</div>
       </div>
     )
@@ -198,7 +193,7 @@ export default function PoceadaPage() {
 
   if (acceso === "no-auth") {
     return (
-      <div className="brinco-wrap brinco-gate">
+      <div className="brinco-wrap brinco-gate accent-amber">
         <h2>Poceada Premium</h2>
         <p className="brinco-empty">Iniciá sesión para acceder.</p>
         <div className="brinco-actions" style={{ justifyContent: "center" }}>
@@ -214,7 +209,7 @@ export default function PoceadaPage() {
   }
 
   return (
-    <div className="brinco-wrap">
+    <div className="brinco-wrap accent-amber">
       <div className="brinco-head">
         <h1 className="brinco-title">Poceada Premium</h1>
         <button
@@ -225,12 +220,6 @@ export default function PoceadaPage() {
           ← Volver a Quiniela
         </button>
       </div>
-      <p className="brinco-sub">
-        <b>8 números</b> distintos del <b>00 al 99</b>. El sorteo extrae <b>20 números</b> de lunes a
-        sábado a las <b>21:00</b> (domingos y feriados no hay sorteo) y ganás con{" "}
-        <b>5, 6, 7 u 8 aciertos</b>.
-      </p>
-
       {pred && numeros.length > 0 ? (
         <div className="brinco-card">
           <div className="brinco-meta">
@@ -241,7 +230,7 @@ export default function PoceadaPage() {
               Sorteos analizados: <b>{pred.totalSorteos ?? "—"}</b>
             </span>
             <span>
-              Consistencia del modelo*: <b>{pred.confidence != null ? Math.round(pred.confidence * 100) + "%" : "—"}</b>
+              Consistencia del modelo: <b>{pred.confidence != null ? Math.round(pred.confidence * 100) + "%" : "—"}</b>
             </span>
           </div>
 
@@ -267,7 +256,7 @@ export default function PoceadaPage() {
           {pred.numeros && pred.numeros.length > 0 && (
             <div style={{ marginTop: 18 }}>
               <div style={{ fontSize: "0.82rem", color: "var(--text-dim,#9aa0a6)", marginBottom: 6 }}>
-                Top números por score del motor (ranking 00–99):
+                🔝 Top números
               </div>
               <div className="brinco-scores">
                 {pred.numeros.slice(0, 12).map((f) => (
@@ -282,8 +271,6 @@ export default function PoceadaPage() {
               </div>
             </div>
           )}
-
-          <div className="brinco-aviso">{AVISO}</div>
         </div>
       ) : acceso === "no-premium" ? (
         <div className="brinco-card brinco-empty">

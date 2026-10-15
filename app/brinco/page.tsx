@@ -170,7 +170,7 @@ export default function BrincoPage() {
 
   if (cargando || acceso === "cargando") {
     return (
-      <div className="brinco-wrap">
+      <div className="brinco-wrap accent-purple">
         <div className="brinco-loading">Cargando Brinco…</div>
       </div>
     )
@@ -178,7 +178,7 @@ export default function BrincoPage() {
 
   if (acceso === "no-auth") {
     return (
-      <div className="brinco-wrap brinco-gate">
+      <div className="brinco-wrap brinco-gate accent-purple">
         <h2>Brinco Premium</h2>
         <p className="brinco-empty">Iniciá sesión para acceder.</p>
         <div className="brinco-actions" style={{ justifyContent: "center" }}>
@@ -195,10 +195,9 @@ export default function BrincoPage() {
 
   const pred: Prediccion | null | undefined =
     modalidad === "junior" ? data?.junior : data?.tradicional
-  const sync = data?.sincronizacion
 
   return (
-    <div className="brinco-wrap">
+    <div className="brinco-wrap accent-purple">
       <div className="brinco-head">
         <h1 className="brinco-title">Brinco Premium</h1>
         <button
@@ -209,11 +208,6 @@ export default function BrincoPage() {
           ← Volver a Quiniela
         </button>
       </div>
-      <p className="brinco-sub">
-        6 números distintos del <b>00 al 39</b>. El orden no importa. La misma jugada participa del
-        sorteo <b>Tradicional</b> y del <b>Junior Siempre Sale</b>.
-      </p>
-
       <div className="brinco-tabs">
         <button
           className={"brinco-tab" + (modalidad === "tradicional" ? " on" : "")}
@@ -285,7 +279,7 @@ export default function BrincoPage() {
 
           <div style={{ marginTop: 18 }}>
             <div style={{ fontSize: "0.82rem", color: "var(--text-dim,#9aa0a6)", marginBottom: 6 }}>
-              Top números por score compuesto (anti‑split + recencia + frecuencia + atraso):
+              🔝 Top números
             </div>
             <div className="brinco-scores">
               {pred.factores.slice(0, 12).map((f) => (
@@ -299,8 +293,6 @@ export default function BrincoPage() {
               ))}
             </div>
           </div>
-
-          <div className="brinco-aviso">{pred.aviso}</div>
         </div>
       ) : acceso === "no-premium" ? (
         <div className="brinco-card brinco-empty">
@@ -313,20 +305,6 @@ export default function BrincoPage() {
         </div>
       ) : (
         data && <div className="brinco-card brinco-empty">{data.error || "Sin datos."}</div>
-      )}
-
-      {sync && (
-        <div className="brinco-sync">
-          Sincronización: {sync.sorteosTotales} sorteos cargados · últimos datos{" "}
-          {sync.datosHasta || "—"}.
-          {sync.errores > 0 && (
-            <span className="warn">
-              {" "}
-              No se pudo verificar el último sorteo (fuente no disponible). Se muestran los últimos
-              datos confirmados.
-            </span>
-          )}
-        </div>
       )}
 
       <div className="brinco-card">
@@ -357,14 +335,6 @@ export default function BrincoPage() {
               </li>
             ))}
           </ul>
-        )}
-
-        {historial.length > 0 && historial.some((h) => h.aciertos_tradicional === null) && (
-          <div className="brinco-empty" style={{ marginTop: 10, fontSize: "0.82rem", lineHeight: 1.5 }}>
-            Las jugadas <b>pendientes</b> se verifican solas apenas la fuente oficial publique el
-            resultado del concurso. Si la fuente oficial aún no publicó el sorteo (o marcó
-            &quot;sin sorteo&quot;), siguen pendientes: no se inventan resultados.
-          </div>
         )}
       </div>
     </div>
