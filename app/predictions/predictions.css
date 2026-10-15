@@ -635,9 +635,11 @@ body {
     gap: 8px;
   }
   .gen-row .btn-gen {
+    /* Sin padding/font-size propios: el botón "Generar Análisis" debe tener
+       las MISMAS dimensiones que los botones de Brinco y Poceada (todos
+       .btn-gen base). Antes este override lo achicaba a 14px/13px sólo en
+       móvil y quedaba desfasado. */
     width: 100%;
-    padding: 14px 16px;
-    font-size: 13px;
   }
   .piloto-label {
     font-size: 11px !important;
