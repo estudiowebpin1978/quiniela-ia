@@ -188,3 +188,10 @@ POCEADA_FEDERAL_LIVE=1 npx vitest run lib/__tests__/poceada-federal-integracion.
   es independiente del modelo y se muestra aparte en la UI.
 - Un historial corto deja el estado en `experimental`; nunca se afirma que hay
   números "más probables".
+- **Generador determinista**: con el mismo historial validado devuelve
+  siempre las mismas 5 jugadas (reproducible y auditable). Las jugadas
+  CAMBIAN sólo cuando entran resultados oficiales nuevos — verificado
+  empíricamente (102 → 104 sorteos alteró las 5 combinaciones). Pedidos
+  repetidos sin un sorteo nuevo en el medio dan idénticos por diseño; la UI
+  lo explica con la huella del historial ("sin cambios desde la última
+  registrada").

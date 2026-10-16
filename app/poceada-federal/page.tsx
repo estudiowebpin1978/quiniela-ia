@@ -100,6 +100,8 @@ interface Analisis {
 interface PredGuardada {
   id: string
   generado_en: string
+  historial_huella: string
+  historial_corte_fecha: string
   sorteo_objetivo_concurso: number | null
   sorteo_objetivo_confirmado: boolean
   estado: "pendiente" | "evaluada" | "no_evaluable"
@@ -133,6 +135,10 @@ export default function PoceadaFederalPage() {
   const [errorAnalisis, setErrorAnalisis] = useState<string | null>(null)
   const [guardadas, setGuardadas] = useState<PredGuardada[]>([])
   const [guardadoRecien, setGuardadoRecien] = useState(false)
+  // ¿El historial cambió desde la última registrada? (explica jugadas iguales)
+  const [estadoHistorial, setEstadoHistorial] = useState<
+    "sin-previa" | "nuevo" | "sin-cambios" | null
+  >(null)
 
   // Lista las jugadas guardadas (premium): el servidor evalúa en el GET las
   // pendientes contra los resultados oficiales ya validados (verificación).
@@ -187,6 +193,7 @@ export default function PoceadaFederalPage() {
     setAnalizando(true)
     setErrorAnalisis(null)
     setGuardadoRecien(false)
+    setEstadoHistorial(null)
     try {
       const tk = getAuth()?.access_token || ""
       const r = await fetch("/api/poceada-federal/combinaciones", {
@@ -216,6 +223,13 @@ export default function PoceadaFederalPage() {
         return
       }
       setAnalisis(d as Analisis)
+      // Comparación con la ÚLTIMA registrada (antes de refrescar la lista):
+      // el generador es determinista — si la huella del historial no cambió,
+      // las jugadas coinciden y se explica explícitamente.
+      const huellaPrevia = guardadas[0]?.historial_huella
+      setEstadoHistorial(
+        !huellaPrevia ? "sin-previa" : huellaPrevia === d.historial?.huella ? "sin-cambios" : "nuevo"
+      )
       if (d.prediccionId) {
         setGuardadoRecien(true)
         void cargarGuardadas()
@@ -294,17 +308,41 @@ export default function PoceadaFederalPage() {
         {analisis && (
           <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
             <div className="brinco-meta" style={{ display: "block", borderRadius: 8 }}>
+              <b>📚 Historial:</b> {analisis.historial.cantidad} sorteos · {analisis.historial.desde} →{" "}
+              {analisis.historial.hasta}
+              {analisis.historial.antiguedadUltimoDias
+                ? ` · último hace ${analisis.historial.antiguedadUltimoDias} día(s)`
+                : ""}
+              {estadoHistorial === "nuevo" && (
+                <span style={{ color: "#22c55e" }}>
+                  {" "}
+                  · ✅ nuevo desde la última registrada
+                </span>
+              )}
+              {estadoHistorial === "sin-cambios" && (
+                <span style={{ color: "#7dd3fc" }}>
+                  {" "}
+                  · sin cambios desde la última registrada (por eso las jugadas coinciden)
+                </span>
+              )}
+              <br />
               <b>Sorteo objetivo:</b>{" "}
               {analisis.objetivo.confirmado
                 ? `concurso ${analisis.objetivo.concurso} del ${analisis.objetivo.fecha} (confirmado en la fuente oficial)`
                 : `NO confirmado — ${analisis.objetivo.nota ?? "sin fecha oficial"}`}
-              {analisis.sincronizacion && analisis.sincronizacion.ok === false && (
-                <>
-                  <br />
-                  <span style={{ color: "#ffc107" }}>
-                    ⚠ Sincronización fallida — se usó el historial validado.
-                  </span>
-                </>
+              <br />
+              {analisis.sincronizacion?.datosNuevos ? (
+                <span style={{ color: "#22c55e" }}>
+                  ✓ Historial actualizado con resultados oficiales nuevos.
+                </span>
+              ) : analisis.sincronizacion?.ok ? (
+                <span style={{ color: "var(--text-dim,#9aa0a6)" }}>
+                  ✓ Historial al día (sin resultados nuevos desde la última consulta).
+                </span>
+              ) : (
+                <span style={{ color: "#ffc107" }}>
+                  ⚠ Consulta parcial: una fuente oficial no respondió — se usó el histal validado.
+                </span>
               )}
             </div>
 
