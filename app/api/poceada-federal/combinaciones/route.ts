@@ -137,7 +137,10 @@ export async function POST(req: NextRequest) {
     const horasDesdeUltimo =
       (Date.now() - new Date(`${ultimaFecha}T12:00:00Z`).getTime()) / 36e5
     const generacion = generarCombinaciones(historial)
-    const backtest = backtestWalkForward(historial, { maxEvaluaciones: 40 })
+    // Muestra 120 (default del motor): estado "ok", holdout ~20 % y ~3 s de
+    // costo — con 40 evaluaciones el backtest quedaba "experimental" y sin
+    // período reservado, sin aprovechar la UI de v1.1.
+    const backtest = backtestWalkForward(historial, { maxEvaluaciones: 120 })
 
     // 5. Sorteo objetivo: sólo se afirma si está confirmado en la fuente oficial.
     let objetivo: { confirmado: boolean; concurso?: number; fecha?: string; nota?: string } = {
