@@ -56,35 +56,51 @@ OMEGA V6.
   nov/dic 2025 se obtiene subdividiendo la ventana por el tope de 500).
 - Lote típico del backfill:40 sorteos/corrida (cada PDF pesa ~500 KB).
 
-### Realidad descubierta en producción (2026-10-15, tras backfill real)
+### Realidad descubierta en producción (2026-10-15/16): el NroLoteria manda
 
-La extracción de texto de los PDFs oficiales **no funciona para toda la
-historia**: los PDFs de épocas antiguas dibujan los números con una fuente CID
-sin ToUnicode, y `pdfjs` sólo extrae los textos con mapa (nombres). Medido en
-prod con lotes reales:
+El hallazgo decisivo del backfill masivo (2026-10-16): Poceada Federal se
+organiza bajo **dos loterías miembro** — el listado oficial trae `Loteria`
+(" Entre Ríos" o " Santa Fe") — y el endpoint `pdfpoceada` sólo **llena** el
+extracto con el `NroLoteria` que organizó ese concurso:
 
-| Ventana | Importados / procesados |
-| --- | --- |
-| 2024 completo | 0 / 40 |
-| 2026 ene–jul (reintentos) | 48 / ~200 |
-| 2026-08 | 52 / 100 |
-| 2026-08-31 → 2026-10-14 | ~51 (casi completa) |
+| Lotería organizadora | NroLoteria del PDF | Sorteos listados 2021-2026 |
+| --- | --- | --- |
+| Entre Ríos | 1 | 1.160 |
+| Santa Fe | 5 | 1.177 |
 
-- **102 sorteos validados en prod** (2026-02-02 → 2026-10-14) con brechas
-  reales declaradas vía `/api/poceada-federal/estado`
-  (`brechasMayores4Dias`: feb→ago y ago→oct).
-- Los PDFs no extraíbles quedan como **fallidos con causa auditada**
-  (`PDF sin cabecera dd/mm/yyyy CONCURSO HH:MMhs`), nunca como validados; se
-  reintentan solos en cada corrida del cron (el lote se recalcula).
+Con el número equivocado el PDF se devuelve como **formulario en blanco**
+(misma cabecera, casillas vacías: verificado con los PDFs reales de 5358 y
+5658). Esto explicaba los "PDFs ilegibles" de la primera corrida: NO es un
+problema de antigüedad ni de fuentes sin ToUnicode (los PDFs de 2024
+parsean perfecto con NroLoteria 1). `extraerExtractoPdfIAFAS` ahora:
+
+1. prueba el `NroLoteria` preferido según `Loteria` del listado;
+2. si no parsea, barre 1..6 (demás loterías miembro conocidas);
+3. valida CADA intento contra concurso+fecha antes de aceptarlo (nunca se
+   toma el extracto de otro sorteo);
+4. si ninguna lotería lo tiene legible, queda como fallido con causa
+   (`Sin extracto legible tras probar NroLoteria 1/2/3/4/5/6`).
+
+Con esta vía el inventario oficial completo es **2.337 sorteos CONFIRMADOS**
+(2021-06-22, concurso 3399 → 2026-10-15, concurso 5735; cero errores en 22
+ventanas del listado) y el backfill local masivo reanudable los importa en
+~1 min por ventana de 90 días (`zz-scratch-backfill-masivo`, borrado tras
+su uso; la misma vía corre en el cron con `?historico=` y `limite=40`).
+
+Otros hallazgos operativos siguen vigentes:
+
 - Desde Vercel, `apps.loteriasantafe.gov.ar:8443` **no es alcanzable**
   (`fetch failed`): la sincronización usa IAFAS sola y lo reporta en su
   informe (`fuenteUsada: "iafas"`, sin corroboración). La ruta HTML de Santa Fe
-  funciona en entornos donde el host sea accesible (verificado en local).
+  funciona en entornos donde el host sea accesible (verificado en local) y su
+  selector sólo ofrece los últimos 3 meses.
 - Runtime serverless: `pdf-parse`/`pdfjs` requieren `@napi-rs/canvas`
   (DOMMatrix), `serverExternalPackages` y el import literal del worker —
   correcciones aplicadas en `next.config.js` y `lib/poceada-federal/fuente.ts`.
 - Lotes grandes (≥60 PDFs) pueden agotar los 300 s de la función (HTTP 500):
-  usar `limite=40` (default) y reintentar; es reanudable.
+  usar `limite=40` (default) y reintentar; es reanudable. El backfill masivo
+  completo (2.200+ sorteos) se corre en local/máquina con acceso a la red,
+  no en serverless.
 
 ## 3. Arquitectura del módulo
 
@@ -182,8 +198,20 @@ POCEADA_FEDERAL_LIVE=1 npx vitest run lib/__tests__/poceada-federal-integracion.
 ## 6. Notas de honestidad
 
 - Las combinaciones son **selecciones heurísticas basadas en el historial**;
-  sólo se declara "ventaja demostrada" si el walk-forward la distingue del
-  azar (|diff| > 1.96·EE) y aun así requiere confirmación con datos nuevos.
+  sólo se declara "ventaja demostrada" si el walk-forward (v1.1) la distingue
+  del azar con las TRES condiciones: |diff| > 1.96·EE sobre la diferencia
+  pareada por sorteo contra el **promedio de 5 conjuntos aleatorios de
+  referencia** (semillas fijas; se informa su dispersión), **permutación
+  pareada p < 0.05** (2000 sign-flips sembrados, contralor no paramétrico) y
+  que el **período final reservado (holdout, ~20 % de las evaluaciones) NO la
+  contradiga**. Aun así requiere confirmación con datos nuevos.
+- El backtest también informa la **estabilidad** de la diferencia modelo−azar
+  en 4 bloques cronológicos: una ventaja concentrada en un solo bloque se
+  lee como inestable, no como descubrimiento.
+- El backtest es **determinista** (semillas fijas): con el mismo historial
+  validado y la misma versión se reproducen exactamente sus métricas, por lo
+  que cada instantánea guardada puede auditar su backtest reconstruyéndolo
+  desde `historial_huella` + versión (sin duplicar datos en la tabla).
 - La probabilidad matemática de cada jugada (≥6/7/8 aciertos, hipergeométrica)
   es independiente del modelo y se muestra aparte en la UI.
 - Un historial corto deja el estado en `experimental`; nunca se afirma que hay
