@@ -55,11 +55,11 @@ interface ResumenCifras {
   cortes: number
   /** Tasa de sorteos con ≥1 acierto entre los 20 puestos (top-10 del modelo). */
   tasas: Record<string, number>
-  /** Azar DENTRO del universo V6 (K=5 muestreos sembrados). */
-  refUniverso: number
+  /** Azar uniforme EMPÍRICO sobre todo el espacio (K=5 muestreos sembrados). */
+  refAzarEspacio: number
   /** Azar uniforme sobre TODO el espacio (analítico): 1 − ∏(N−20−i)/(N−i). */
   refEspacio: number
-  metaVsRefUniverso: { promedio: number; intervalo95: [number, number]; p: number; n: number }
+  metaVsAzarEspacio: { promedio: number; intervalo95: [number, number]; p: number; n: number }
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -126,7 +126,6 @@ async function main(): Promise<void> {
       const resCifras = await evaluarCifrasPorTurno(supabase, sorteos, turno, warmup, step, cifrasPaso, r, {
         mapearCandidatosV6,
         aciertoEn20Puestos: evaluarMod.aciertoEn20Puestos,
-        puntuarCandidatoPuro: evaluarMod.puntuarCandidatoPuro,
         blendGenerico: evaluarMod.blendGenerico,
         mulberry32: pfBacktest.mulberry32,
         permutacionPareada: pfBacktest.permutacionPareada,
@@ -274,14 +273,27 @@ function imprimirResumenCifras(rc: ResumenCifras): void {
     .map(([k, v]) => `${k} ${f(v)}`)
     .join(" | ")
   console.log(
-    `  ${rc.cifras}C (${rc.cortes} cortes): ${tasas} | ref-universo ${f(rc.refUniverso)} | ref-espacio ${f(rc.refEspacio)}`
+    `  ${rc.cifras}C (${rc.cortes} cortes): ${tasas} | ref-azar ${f(rc.refAzarEspacio)} | ref-espacio(analítica) ${f(rc.refEspacio)}`
   )
   console.log(
-    `    meta vs azar-universo: ${f(rc.metaVsRefUniverso.promedio)} IC [${f(rc.metaVsRefUniverso.intervalo95[0])}, ${f(rc.metaVsRefUniverso.intervalo95[1])}] p=${f(rc.metaVsRefUniverso.p)}`
+    `    meta vs azar-uniforme: ${f(rc.metaVsAzarEspacio.promedio)} IC [${f(rc.metaVsAzarEspacio.intervalo95[0])}, ${f(rc.metaVsAzarEspacio.intervalo95[1])}] p=${f(rc.metaVsAzarEspacio.p)}`
   )
 }
 
-// ─── Evaluación 3/4 cifras (universo V6 con p_date) ──────────────────────────
+// ─── Evaluación 3/4 cifras ───────────────────────────────────────────────────
+//
+// Cada modelo produce SU propio top-10 en el espacio completo 0..10^c-1:
+//  - v6: top-10 de `score_numbers_v6` con p_date (la RPC devuelve exactamente
+//    el top-10 ordenado; anti-fuga nativa).
+//  - frecuencia: conteo MOD(n,10^c) de la ventana de 30 sorteos.
+//  - recencia: decaimiento exponencial (media vida 15).
+//  - bayes: conteo del historial COMPLETO con prior Beta (monótono en conteo;
+//    su ranking es el de frecuencia completa).
+//  - meta: blendGenerico sobre la unión de los top-10 (V6 puntúa 0 a los
+//    ausentes — misma semántica que blendCandidatos del pipeline).
+// Referencia: azar uniforme sobre TODO el espacio (K=5 sembrados + analítico).
+// NOTA: V7/ML sobre candidatos 3/4C quedan excluidos (stats/modelos sin corte
+// temporal → fuga); ver docs/meta-selector.md.
 
 async function evaluarCifrasPorTurno(
   supabase: import("@supabase/supabase-js").SupabaseClient,
@@ -294,7 +306,6 @@ async function evaluarCifrasPorTurno(
   helpers: {
     mapearCandidatosV6: (rows: Array<Record<string, unknown>> | null | undefined, limit?: number) => Array<{ numero: number; v6Score: number }>
     aciertoEn20Puestos: (picks: number[], sorteo: SorteoSelector, cifras: 3 | 4) => boolean
-    puntuarCandidatoPuro: (candidato: number, historial: SorteoSelector[], cifras: 2 | 3 | 4, modo: "frecuencia" | "recencia" | "bayes", halfLife?: number) => number
     blendGenerico: (candidatos: number[], porMotor: Record<string, (c: number) => number>, pesos: Record<string, number>) => number[]
     mulberry32: (n: number) => () => number
     permutacionPareada: (difs: number[], iteraciones: number, semilla: number) => number
@@ -320,47 +331,50 @@ async function evaluarCifrasPorTurno(
     const aciertos: Record<string, number[]> = {
       v6: [], frecuencia: [], recencia: [], bayes: [], meta: [],
     }
-    const refUniverso: number[] = []
+    const refSerie: number[] = []
     const difs: number[] = []
     let usados = 0
 
     for (const t of cortes) {
       const sorteo = sorteos[t]
       const hist = sorteos.slice(0, t)
+      // V6: una RPC por corte (top-10 del espacio, ordenado por score).
       const rows = await rpcScoreCifras(supabase, turno, sorteo.fecha, cifras)
-      const universo = helpers.mapearCandidatosV6(rows, 30)
-      if (universo.length < 10) continue
-      const candidatosU = universo.map((c) => c.numero)
-      const v6Map = new Map(universo.map((c) => [c.numero, c.v6Score]))
+      const topV6 = helpers.mapearCandidatosV6(rows, 10).map((c) => c.numero)
+      if (topV6.length < 10) continue
+      const v6Map = new Map(helpers.mapearCandidatosV6(rows, 10).map((c) => [c.numero, c.v6Score]))
+      // Baselines puros: conteos del espacio en una sola pasada por corte.
+      const { frec30, rec, completa } = conteosEspacio(hist, cifras)
+      const topFrec = top10DelMap(frec30)
+      const topRec = top10DelMap(rec)
+      const topBayes = top10DelMap(completa)
+      const universo = [...new Set([...topV6, ...topFrec, ...topRec, ...topBayes])]
       const porMotor: Record<string, (c: number) => number> = {
         v6: (c) => v6Map.get(c) ?? 0,
-        frecuencia: (c) => helpers.puntuarCandidatoPuro(c, hist, cifras, "frecuencia"),
-        recencia: (c) => helpers.puntuarCandidatoPuro(c, hist, cifras, "recencia"),
-        bayes: (c) => helpers.puntuarCandidatoPuro(c, hist, cifras, "bayes"),
+        frecuencia: (c) => frec30.get(c) ?? 0,
+        recencia: (c) => rec.get(c) ?? 0,
+        bayes: (c) => completa.get(c) ?? 0,
       }
       const picks: Record<string, number[]> = {
-        v6: [...candidatosU].sort((a, b) => (v6Map.get(b) ?? 0) - (v6Map.get(a) ?? 0)).slice(0, 10),
-        frecuencia: ordenarPor(candidatosU, porMotor.frecuencia).slice(0, 10),
-        recencia: ordenarPor(candidatosU, porMotor.recencia).slice(0, 10),
-        bayes: ordenarPor(candidatosU, porMotor.bayes).slice(0, 10),
-        meta: helpers.blendGenerico(candidatosU, porMotor, pesos).slice(0, 10),
+        v6: topV6,
+        frecuencia: topFrec,
+        recencia: topRec,
+        bayes: topBayes,
+        meta: helpers.blendGenerico(universo, porMotor, pesos).slice(0, 10),
       }
       for (const nm of Object.keys(picks)) {
         aciertos[nm].push(helpers.aciertoEn20Puestos(picks[nm], sorteo, cifras) ? 1 : 0)
       }
-      // Referencia aleatoria DENTRO del universo (K=5 sembrados).
+      // Referencia: azar uniforme sobre TODO el espacio (K=5 sembrados).
       let hitsRef = 0
       for (let k = 0; k < 5; k++) {
         const rnd = helpers.mulberry32((0xc1f5 + k * 7919 + t * 104729 + cifras) >>> 0)
-        const pool = [...candidatosU]
-        for (let i = pool.length - 1; i > 0; i--) {
-          const j = Math.floor(rnd() * (i + 1))
-          ;[pool[i], pool[j]] = [pool[j], pool[i]]
-        }
-        hitsRef += helpers.aciertoEn20Puestos(pool.slice(0, 10), sorteo, cifras) ? 1 : 0
+        const picksRef = new Set<number>()
+        while (picksRef.size < 10) picksRef.add(Math.floor(rnd() * N))
+        hitsRef += helpers.aciertoEn20Puestos([...picksRef], sorteo, cifras) ? 1 : 0
       }
       const refProm = hitsRef / 5
-      refUniverso.push(refProm)
+      refSerie.push(refProm)
       difs.push((aciertos.meta[aciertos.meta.length - 1] ?? 0) - refProm)
       usados++
     }
@@ -378,9 +392,9 @@ async function evaluarCifrasPorTurno(
       cifras,
       cortes: usados,
       tasas: Object.fromEntries(Object.entries(aciertos).map(([nm, arr]) => [nm, tasa(arr)])),
-      refUniverso: tasa(refUniverso),
+      refAzarEspacio: tasa(refSerie),
       refEspacio,
-      metaVsRefUniverso: {
+      metaVsAzarEspacio: {
         promedio: media,
         intervalo95: [media - 1.96 * ee, media + 1.96 * ee],
         p: helpers.permutacionPareada(difs, 1000, (0x51ed + cifras) >>> 0),
@@ -391,8 +405,35 @@ async function evaluarCifrasPorTurno(
   return salida
 }
 
-function ordenarPor(candidatos: number[], score: (c: number) => number): number[] {
-  return [...candidatos].sort((a, b) => score(b) - score(a) || a - b)
+/** Conteos del espacio 3C/4C del historial: ventana 30, recencia (vida 15) y completa. */
+function conteosEspacio(
+  hist: SorteoSelector[],
+  cifras: 3 | 4
+): { frec30: Map<number, number>; rec: Map<number, number>; completa: Map<number, number> } {
+  const N = cifras === 3 ? 1000 : 10000
+  const lambda = Math.LN2 / 15
+  const n = hist.length
+  const frec30 = new Map<number, number>()
+  const rec = new Map<number, number>()
+  const completa = new Map<number, number>()
+  const inicioVentana = Math.max(0, n - 30)
+  for (let i = 0; i < n; i++) {
+    const w = Math.exp(-lambda * (n - 1 - i))
+    for (const num of hist[i].numbers) {
+      const c = num % N
+      completa.set(c, (completa.get(c) ?? 0) + 1)
+      rec.set(c, (rec.get(c) ?? 0) + w)
+      if (i >= inicioVentana) frec30.set(c, (frec30.get(c) ?? 0) + 1)
+    }
+  }
+  return { frec30, rec, completa }
+}
+
+function top10DelMap(m: Map<number, number>): number[] {
+  return [...m.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+    .slice(0, 10)
+    .map((x) => x[0])
 }
 
 async function rpcScoreCifras(
