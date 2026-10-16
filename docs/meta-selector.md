@@ -62,12 +62,25 @@ corte → el filtrado `date < p_date` lo garantiza SQL).
   `getMLPredictionsForCandidates` depende de los modelos anteriores. Ambos
   fugan ⇒ excluidos del OOS.
 
-**3/4 cifras:** universo de candidatos = top-30 de `score_numbers_v6` con
-`p_date` (anti-fuga); se comparan v6 (su score), frecuencia/recencia/bayes
-puros sobre el espacio 3C/4C, y el blend del meta-selector (pesos 2C
-renormalizados sobre los 4 motores aplicables). Referencias: azar **dentro
-del universo** (K=5 sembrados) y azar **uniforme sobre todo el espacio**
-(analítico: `1 − ∏_{i=0..9}(N−20−i)/(N−i)`).
+**3/4 cifras:** cada modelo produce **su propio top-10** sobre el espacio
+completo `0..10^c−1`:
+
+- **v6**: top-10 de `score_numbers_v6` con `p_date` (la RPC devuelve
+  exactamente el top-10 ordenado por score — verificado empíricamente;
+  anti-fuga nativa).
+- **frecuencia** (conteo `MOD(n,10^c)` de la ventana de 30), **recencia**
+  (decaimiento, media vida 15) y **bayes** (conteo completo con prior Beta,
+  monótono en conteo) — generados con una pasada de conteos por corte, sin
+  explorar los 1000/10000 números uno por uno.
+- **meta**: `blendGenerico` sobre la unión de los top-10 (V6 puntúa 0 a los
+  ausentes — misma semántica que `blendCandidatos` del pipeline); pesos 2C
+  renormalizados sobre los 4 motores aplicables.
+
+Referencias: azar **uniforme sobre todo el espacio** (K=5 muestreos
+sembrados) y azar **analítico** (`1 − ∏_{i=0..9}(N−20−i)/(N−i)`).
+V7/ML quedan excluidos en 3/4C: `predictV7ForCandidates` usa stats
+precomputados sin corte temporal y `getMLPredictionsForCandidates` depende de
+modelos sin fecha reproducible (fuga).
 
 ## 4. Cómo reproducir la corrida
 
