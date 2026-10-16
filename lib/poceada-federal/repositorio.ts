@@ -154,23 +154,38 @@ export async function refrescarConsultas(
 /** Concursos existentes en un rango (reanudación del backfill). */
 export async function concursosExistentes(desde?: string, hasta?: string): Promise<Set<number>> {
   const sb = getSupabaseAdmin()
-  let q = sb.from("poceada_federal_draws").select("concurso, fecha")
-  if (desde) q = q.gte("fecha", desde)
-  if (hasta) q = q.lte("fecha", hasta)
-  const { data, error } = await q
-  if (error) manejar(error)
-  return new Set((data ?? []).map((r) => Number((r as { concurso: number }).concurso)))
+  const out = new Set<number>()
+  const TAM = 1000
+  for (let inicio = 0; ; inicio += TAM) {
+    let q = sb
+      .from("poceada_federal_draws")
+      .select("concurso, fecha")
+      .range(inicio, inicio + TAM - 1)
+    if (desde) q = q.gte("fecha", desde)
+    if (hasta) q = q.lte("fecha", hasta)
+    const { data, error } = await q
+    if (error) manejar(error)
+    const pagina = (data ?? []) as { concurso: number }[]
+    for (const r of pagina) out.add(Number(r.concurso))
+    if (pagina.length < TAM) break
+  }
+  return out
 }
 
 export async function mapaExistentes(): Promise<Map<number, SorteoPoceadaFederal>> {
   const sb = getSupabaseAdmin()
-  const { data, error } = await sb
-    .from("poceada_federal_draws")
-    .select("*")
-    .limit(5000)
-  if (error) manejar(error)
   const m = new Map<number, SorteoPoceadaFederal>()
-  for (const r of (data ?? []) as FilaDraw[]) m.set(r.concurso, aSorteo(r))
+  const TAM = 1000
+  for (let inicio = 0; ; inicio += TAM) {
+    const { data, error } = await sb
+      .from("poceada_federal_draws")
+      .select("*")
+      .range(inicio, inicio + TAM - 1)
+    if (error) manejar(error)
+    const pagina = (data ?? []) as FilaDraw[]
+    for (const r of pagina) m.set(r.concurso, aSorteo(r))
+    if (pagina.length < TAM) break
+  }
   return m
 }
 
@@ -198,30 +213,41 @@ export async function listarSorteos(f: FiltroListado = {}): Promise<SorteoPocead
   return ((data ?? []) as FilaDraw[]).map(aSorteo)
 }
 
-/** Historial validado completo en orden cronológico (para el motor). */
+/** Historial validado completo en orden cronológico (para el motor).
+ *  Se pagina de a ≤1000 filas: PostgREST/Supabase acota la respuesta por request
+ *  y con `.limit(5000)` sólo llegaban 1000 filas de más de 2000. */
 export async function historialValidado(limite = 5000): Promise<SorteoPoceadaFederal[]> {
   const sb = getSupabaseAdmin()
-  const { data, error } = await sb
-    .from("poceada_federal_draws")
-    .select("*")
-    .eq("estado", "validated")
-    .order("fecha", { ascending: true })
-    .order("concurso", { ascending: true })
-    .limit(limite)
-  if (error) manejar(error)
-  return ((data ?? []) as FilaDraw[]).map(aSorteo)
+  const TAM = 1000
+  const filas: FilaDraw[] = []
+  for (let desde = 0; desde < limite; desde += TAM) {
+    const { data, error } = await sb
+      .from("poceada_federal_draws")
+      .select("*")
+      .eq("estado", "validated")
+      .order("fecha", { ascending: true })
+      .order("concurso", { ascending: true })
+      .range(desde, Math.min(desde + TAM, limite) - 1)
+    if (error) manejar(error)
+    const pagina = (data ?? []) as FilaDraw[]
+    filas.push(...pagina)
+    if (pagina.length < TAM) break
+  }
+  return filas.map(aSorteo)
 }
 
+/** Conteo exacto por estado (head+count por estado: `.limit()` estaba acotado
+ *  a 1000 filas por el tope de PostgREST y subreportaba). */
 export async function conteoEstados(): Promise<Record<string, number>> {
   const sb = getSupabaseAdmin()
-  const { data, error } = await sb
-    .from("poceada_federal_draws")
-    .select("estado")
-    .limit(5000)
-  if (error) manejar(error)
   const out: Record<string, number> = { pending: 0, validated: 0, conflict: 0, failed: 0 }
-  for (const r of (data ?? []) as { estado: EstadoSorteo }[]) {
-    out[r.estado] = (out[r.estado] ?? 0) + 1
+  for (const estado of Object.keys(out)) {
+    const { count, error } = await sb
+      .from("poceada_federal_draws")
+      .select("*", { count: "exact", head: true })
+      .eq("estado", estado)
+    if (error) manejar(error)
+    out[estado] = count ?? 0
   }
   return out
 }

@@ -87,6 +87,15 @@ ventanas del listado) y el backfill local masivo reanudable los importa en
 ~1 min por ventana de 90 días (`zz-scratch-backfill-masivo`, borrado tras
 su uso; la misma vía corre en el cron con `?historico=` y `limite=40`).
 
+**Resultado final del backfill (2026-10-16): 2.337/2.337 importados y
+validados** — 2.333 en la corrida masiva + los concursos **4127**
+(2023-11-11), **4665** (2025-01-09), **5529** (2026-06-15) y **5544**
+(2026-06-25), que habían fallado por errores transitorios de red (no por
+ilegibilidad: re-verificados con el mismo flujo oficial y recuperados).
+Estado en producción al cierre: **cero brechas >4 días, cero sorteos en
+estado fallido/conflicto y cero filas fuera del listado oficial** (diff
+listado↔DB = ∅ en ambas direcciones).
+
 Otros hallazgos operativos siguen vigentes:
 
 - Desde Vercel, `apps.loteriasantafe.gov.ar:8443` **no es alcanzable**
@@ -216,6 +225,26 @@ POCEADA_FEDERAL_LIVE=1 npx vitest run lib/__tests__/poceada-federal-integracion.
   es independiente del modelo y se muestra aparte en la UI.
 - Un historial corto deja el estado en `experimental`; nunca se afirma que hay
   números "más probables".
+- **Corrida de referencia v1.1 con el historial completo (2026-10-16):**
+  walk-forward paso=1 con **2.273 evaluaciones** (2021-09-01 → 2026-10-15;
+  60 sorteos iniciales de entrenamiento) arrojó dif. modelo−azar
+  **+0,0328** aciertos/jugada (IC 95 % [0,0021, 0,0634]; EE 0,0156), memoria
+  de **permutación p = 0,0445**, holdout de **455 evaluaciones**
+  (2026-01-14 → 2026-10-15) con dif. **+0,0642** e IC [−0,0028, 0,1311]
+  (no contradice) y bloques `−0,020 / +0,052 / +0,024 / +0,076`. El motor
+  declara ventaja en las 3 condiciones, pero se lee con honestidad: es
+  **marginal y fronteriza** — p e IC quedan justo en el filo de 0,05, el
+  primer bloque (2021-2023) es negativo (ventaja inestable al inicio), el
+  IC del holdout incluye 0 (no aporta evidencia positiva independiente), el
+  tamaño práctico es ~2 % sobre el azar (+0,033 frente a 1,597 esperados)
+  y las evaluaciones walk-forward son dependientes entre sí, lo que hace
+  optimistas a los IC/p-valores. Veredicto: **evidencia débil y fronteriza
+  a favor; NO es una ventaja probada — requiere confirmación prospectiva**
+  con sorteos posteriores a la fecha del corte.
+- La primera corrida del backtest con el historial parcial (1.000 filas por el
+  tope de PostgREST) mostraba dif +0,003 (IC que incluía 0): el tope de 1000
+  filas también afectaba a `/estado` y `historialValidado`; quedó corregido
+  con paginación explícita y conteos `head+count`.
 - **Generador determinista**: con el mismo historial validado devuelve
   siempre las mismas 5 jugadas (reproducible y auditable). Las jugadas
   CAMBIAN sólo cuando entran resultados oficiales nuevos — verificado

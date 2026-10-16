@@ -86,8 +86,26 @@ interface Analisis {
       promedioPorJugada: number[]
       conteosMayoresIgual: { g6: number; g7: number; g8: number }
       proporciones: { g6: number; g7: number; g8: number }
+      desviacionEntreConjuntos: number
     }
-    diferencia: { promedioGeneral: number; intervalo95: [number, number]; errorEstandar: number; ventajaDemostrada: boolean }
+    diferencia: {
+      promedioGeneral: number
+      intervalo95: [number, number]
+      errorEstandar: number
+      ventajaDemostrada: boolean
+      pPermutacion: number
+      conjuntosReferencia: number
+      bloques: { indice: number; desde: string; hasta: string; evaluaciones: number; diferencia: number }[]
+      holdout: {
+        evaluaciones: number
+        desde: string
+        hasta: string
+        diferencia: number
+        intervalo95: [number, number]
+        contradice: boolean
+      } | null
+      condiciones: { ic95: boolean; permutacion: boolean; holdout: boolean }
+    }
     interpretacion: string
   }
   objetivo: { confirmado: boolean; concurso?: number; fecha?: string; nota?: string }
@@ -428,6 +446,15 @@ export default function PoceadaFederalPage() {
                     <div>≥6 aciertos: {pct(analisis.backtest.modelo.proporciones.g6)} vs azar {pct(analisis.backtest.azar.proporciones.g6)} · ≥7: {pct(analisis.backtest.modelo.proporciones.g7)} vs {pct(analisis.backtest.azar.proporciones.g7)} · ≥8: {pct(analisis.backtest.modelo.proporciones.g8)} vs {pct(analisis.backtest.azar.proporciones.g8)}</div>
                     <div>
                       Dif. modelo − azar: <b>{analisis.backtest.diferencia.promedioGeneral >= 0 ? "+" : ""}{analisis.backtest.diferencia.promedioGeneral.toFixed(4)}</b> · IC 95% [{analisis.backtest.diferencia.intervalo95[0].toFixed(4)}, {analisis.backtest.diferencia.intervalo95[1].toFixed(4)}] → {analisis.backtest.diferencia.ventajaDemostrada ? "sí, ventaja demostrada (requiere confirmación)" : "sin ventaja demostrada: no distinguible del azar"}
+                    </div>
+                    <div>
+                      Referencias: {analisis.backtest.diferencia.conjuntosReferencia} conjuntos aleatorios (dispersión {analisis.backtest.azar.desviacionEntreConjuntos.toFixed(4)}) · permutación p = {analisis.backtest.diferencia.pPermutacion.toFixed(4)} · condiciones: IC {analisis.backtest.diferencia.condiciones.ic95 ? "✓" : "✗"} · permutación {analisis.backtest.diferencia.condiciones.permutacion ? "✓" : "✗"} · holdout {analisis.backtest.diferencia.condiciones.holdout ? "✓" : "✗"}
+                    </div>
+                    <div>
+                      Estabilidad por bloques: {analisis.backtest.diferencia.bloques.map((b) => `b${b.indice} ${b.diferencia >= 0 ? "+" : ""}${b.diferencia.toFixed(3)}`).join(" · ") || "—"}
+                      {analisis.backtest.diferencia.holdout
+                        ? ` · Holdout (${analisis.backtest.diferencia.holdout.desde} → ${analisis.backtest.diferencia.holdout.hasta}, ${analisis.backtest.diferencia.holdout.evaluaciones} eval.): ${analisis.backtest.diferencia.holdout.diferencia >= 0 ? "+" : ""}${analisis.backtest.diferencia.holdout.diferencia.toFixed(4)} ${analisis.backtest.diferencia.holdout.contradice ? "(contradice la ventaja)" : "(no contradice)"}`
+                        : " · Holdout: sin muestra suficiente"}
                     </div>
                   </>
                 ) : (

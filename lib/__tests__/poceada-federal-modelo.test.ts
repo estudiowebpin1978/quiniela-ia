@@ -16,6 +16,8 @@ import {
   backtestWalkForward,
   mulberry32,
   jugadaAleatoria,
+  permutacionPareada,
+  decidirCondiciones,
 } from "@/lib/poceada-federal/backtest"
 import { evaluarPrediccion } from "@/lib/poceada-federal/evaluacion"
 import type { PrediccionGuardada } from "@/lib/poceada-federal/repositorio"
@@ -254,7 +256,7 @@ describe("backtesting walk-forward vs aleatorio", () => {
   it("declara la diferencia con incertidumbre e interpretación honesta", () => {
     expect(bt.diferencia.intervalo95[0]).toBeLessThanOrEqual(bt.diferencia.intervalo95[1])
     expect(typeof bt.diferencia.ventajaDemostrada).toBe("boolean")
-    expect(bt.interpretacion).toMatch(/NO se distingue del azar|estadísticamente distinguible/)
+    expect(bt.interpretacion).toMatch(/NO se distingue del azar|ventaja demostrada/)
     if (!bt.diferencia.ventajaDemostrada) {
       expect(bt.interpretacion).toMatch(/sin ventaja demostrada/)
     }
@@ -273,6 +275,106 @@ describe("backtesting walk-forward vs aleatorio", () => {
     expect(chico.estado).toBe("experimental")
     expect(chico.interpretacion).toMatch(/Sin historial suficiente/)
   })
+
+  it("v1.1 expone K referencias, permutación, bloques y holdout", () => {
+    expect(bt.version).toBe("pf-backtest-1.1.0")
+    expect(bt.diferencia.conjuntosReferencia).toBe(5)
+    expect(bt.azar.conjuntos).toHaveLength(5)
+    expect(bt.azar.desviacionEntreConjuntos).toBeGreaterThanOrEqual(0)
+    expect(bt.diferencia.pPermutacion).toBeGreaterThan(0)
+    expect(bt.diferencia.pPermutacion).toBeLessThanOrEqual(1)
+    expect(bt.diferencia.bloques.length).toBeGreaterThanOrEqual(2)
+    expect(bt.diferencia.bloques.length).toBeLessThanOrEqual(4)
+    for (const b of bt.diferencia.bloques) {
+      expect(b.desde <= b.hasta).toBe(true)
+      expect(b.evaluaciones).toBeGreaterThan(0)
+    }
+    expect(bt.diferencia.holdout).not.toBeNull()
+    expect(bt.diferencia.holdout!.evaluaciones).toBeGreaterThanOrEqual(10)
+    expect(bt.diferencia.holdout!.desde >= bt.muestra.desde).toBe(true)
+    expect(bt.diferencia.holdout!.intervalo95[0]).toBeLessThanOrEqual(
+      bt.diferencia.holdout!.intervalo95[1]
+    )
+    const c = bt.diferencia.condiciones
+    expect(c.ic95 && c.permutacion && c.holdout).toBe(bt.diferencia.ventajaDemostrada)
+  })
+
+  it("la permutación pareada es determinista y devuelve p en (0, 1]", () => {
+    const difs = [0.5, -0.25, 0.75, 0.1, -0.4, 0.3]
+    const p1 = permutacionPareada(difs, 500, 12345)
+    const p2 = permutacionPareada(difs, 500, 12345)
+    expect(p1).toBe(p2)
+    expect(p1).toBeGreaterThan(0)
+    expect(p1).toBeLessThanOrEqual(1)
+    // ruido sin señal: la permutación no rechaza la hipótesis de nada
+    const sinSenal = [-0.15, 0.12, -0.08, 0.2, -0.1, 0.05]
+    expect(permutacionPareada(sinSenal, 500, 7)).toBeGreaterThan(0.05)
+  })
+
+  it("holdout: el veto por señal negativa en el período reservado decide solo", () => {
+    // Unidad: aunque IC 95 % y permutación cumplan, un holdout con IC
+    // completamente por debajo de 0 (cambio de régimen) veta la ventaja.
+    const base = {
+      evaluaciones: 40,
+      desde: "2025-01-01",
+      hasta: "2025-06-01",
+      diferencia: -0.4,
+      intervalo95: [-0.7, -0.1] as [number, number],
+      contradice: true,
+    }
+    const vetado = decidirCondiciones(200, [0.3, 0.5], 0.01, base)
+    expect(vetado.ic95).toBe(true)
+    expect(vetado.permutacion).toBe(true)
+    expect(vetado.holdout).toBe(false)
+    expect(vetado.ventaja).toBe(false)
+    // holdout que no contradice → se cumplen las 3
+    const ok = decidirCondiciones(200, [0.3, 0.5], 0.01, { ...base, contradice: false })
+    expect(ok.ventaja).toBe(true)
+    // sin holdout posible no se declara ventaja
+    expect(decidirCondiciones(200, [0.3, 0.5], 0.01, null).ventaja).toBe(false)
+    // muestra chica → sin IC
+    expect(decidirCondiciones(20, [0.3, 0.5], 0.01, base).ic95).toBe(false)
+    expect(decidirCondiciones(200, [-0.4, -0.1], 0.01, base).ic95).toBe(false)
+  })
+
+  it("integración: tras un cambio de régimen el holdout expone la caída de la ventaja", () => {
+    // Régimen sintético: los primeros 272 sorteos extraen 8 números de 00-39 y
+    // los últimos 128 de 40-99. El modelo gana claramente en el primer régimen
+    // y el período reservado (que cae entero en el segundo) muestra la caída:
+    // diferencia holdout ≈ 0 frente a bloques iniciales con ventaja fuerte.
+    const rnd = mulberry32(20261016)
+    const h: SorteoValidado[] = []
+    for (let i = 0; i < 400; i++) {
+      const a = i < 272 ? 0 : 40
+      const b = i < 272 ? 39 : 99
+      const pool = Array.from({ length: b - a + 1 }, (_, k) => a + k)
+      for (let j = 0; j < 8; j++) {
+        const p = j + Math.floor(rnd() * (pool.length - j))
+        ;[pool[j], pool[p]] = [pool[p], pool[j]]
+      }
+      h.push({
+        concurso: 5000 + i,
+        fecha: new Date(Date.UTC(2024, 0, 1) + i * 86400000).toISOString().slice(0, 10),
+        numeros: pool.slice(0, 8).sort((x, y) => x - y),
+      })
+    }
+    const btv = backtestWalkForward(h, { maxEvaluaciones: 100000 })
+    expect(btv.muestra.evaluaciones).toBe(340)
+    expect(btv.diferencia.holdout).not.toBeNull()
+    expect(btv.diferencia.bloques).toHaveLength(4)
+    // el primer régimen muestra ventaja clara; el último bloque la pierde
+    expect(btv.diferencia.bloques[0].diferencia).toBeGreaterThan(0.5)
+    expect(btv.diferencia.bloques[3].diferencia).toBeLessThan(
+      btv.diferencia.bloques[0].diferencia - 0.5
+    )
+    // el período reservado informa la caída (cerca de 0, muy por debajo del train)
+    expect(Math.abs(btv.diferencia.holdout!.diferencia)).toBeLessThan(
+      btv.diferencia.bloques[0].diferencia / 2
+    )
+    // la coherencia de las 3 condiciones se respeta en el resultado integrado
+    const c = btv.diferencia.condiciones
+    expect(c.ic95 && c.permutacion && c.holdout).toBe(btv.diferencia.ventajaDemostrada)
+  }, 120000)
 })
 
 describe("baseline aleatorio", () => {
