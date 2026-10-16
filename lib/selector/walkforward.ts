@@ -195,7 +195,7 @@ function m2cAFila(m: MetricaPorCorte): {
 export async function walkForwardSelector(
   sorteos: SorteoSelector[],
   candidatos: CandidatoSelector[],
-  cfg: ConfigWalkForward = {}
+  cfg: ConfigWalkForward
 ): Promise<ResultadoSelector> {
   const turno = cfg.turno
   if (!TURNOS_QUINIELA_CIUDAD.includes(turno as (typeof TURNOS_QUINIELA_CIUDAD)[number])) {

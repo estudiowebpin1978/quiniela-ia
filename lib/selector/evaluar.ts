@@ -15,7 +15,7 @@
 
 import { deriveNums } from "@/lib/verificacion/criterio"
 import { dosCifras } from "./candidatos"
-import type { SorteoSelector } from "./tipos"
+import type { MetricasCandidato, SorteoSelector } from "./tipos"
 
 /** Top-K (k primeros) de un ranking 00-99. */
 export function topK(ranking: number[], k: number): number[] {
@@ -149,9 +149,10 @@ export function spearman(rankingA: number[], rankingB: number[]): number {
 /** Agrega métricas 2C por sorteo en un período. */
 export function agregarMetricas2C(
   filas: { cabezaEnTopK: boolean; hits2C: number; rankCabeza: number; mrr: number }[]
-): { n: number; cabezaEnTopK: number; mediaHits2C: number; rankCabezaMedio: number; mrr: number } {
+): MetricasCandidato {
   const n = filas.length
-  if (n === 0) return { n: 0, cabezaEnTopK: 0, mediaHits2C: 0, rankCabezaMedio: 0, mrr: 0 }
+  if (n === 0)
+    return { n: 0, cabezaEnTopK: 0, mediaHits2C: 0, rankCabezaMedio: 0, mrr: 0, acierto3C: null, acierto4C: null }
   const sum = (f: (x: (typeof filas)[0]) => number) => filas.reduce((a, x) => a + f(x), 0)
   return {
     n,
@@ -159,5 +160,7 @@ export function agregarMetricas2C(
     mediaHits2C: sum((f) => f.hits2C) / n,
     rankCabezaMedio: sum((f) => f.rankCabeza) / n,
     mrr: sum((f) => f.mrr) / n,
+    acierto3C: null,
+    acierto4C: null,
   }
 }
