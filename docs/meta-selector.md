@@ -97,7 +97,74 @@ Sólo lectura: consulta `draws` (columna Ciudad) y RPCs de scoring con
 
 ## 5. Resultados de la corrida real
 
-<!-- RESULTADOS:PENDIENTE se completa con la corrida del 2026-10-16 -->
+Corrida del **2026-10-16** (`scripts/selector-eval.ts`, sólo lectura):
+warmup 60, **step 1** (210-213 cortes/turno), top-K 10, K=5 referencias
+aleatorias sembradas, permutación pareada 2000 sign-flips, holdout ~20 %
+(42-43 cortes), validación interna 34 cortes (**pesos ajustados, no
+experimentales**). Datos: 270-273 sorteos por turno (2025-11-20 → 2026-10-16),
+columna Ciudad.
+
+### 5.1 Dos cifras (objetivo principal: cabeza ∈ top-10)
+
+| Turno | Pesos ajustados (top-3) | Meta vs azar (IC 95 %) | p | Holdout | Meta vs mejor candidato (holdout) |
+|---|---|---|---|---|---|
+| Previa | v6 0.41 · bayes 0.29 | **−0.152** [−0.319, +0.015] | 0.070 | +0.079 [−0.297, +0.455] | +0.116 vs v6 [−0.154, +0.387] |
+| Primera | bayes 0.47 · v6 0.17 · recencia 0.14 | **−0.086** [−0.256, +0.084] | 0.307 | +0.005 [−0.432, +0.442] | +0.024 vs bayes [−0.247, +0.295] |
+| Matutina | v6 0.48 · v7_ens 0.13 | **−0.064** [−0.244, +0.116] | 0.478 | −0.229 [−0.582, +0.125] | −0.119 vs v6 [−0.486, +0.248] |
+| Vespertina | bayes 0.52 · v6 0.14 | **+0.057** [−0.117, +0.231] | 0.529 | +0.205 [−0.201, +0.611] | +0.095 vs bayes [−0.210, +0.400] |
+| Nocturna | combo 0.37 · v6 0.18 · v7 0.18 | **+0.026** [−0.157, +0.208] | 0.787 | −0.191 [−0.537, +0.156] | +0.024 vs combo [−0.256, +0.303] |
+
+**Veredicto 2C: sin ventaja en 0/5 turnos.** Ninguna IC 95 % de meta-vs-azar
+excluye el 0 (todas las p ≥ 0,07); el holdout no contradice pero tampoco
+apoya; y el meta **no supera al mejor candidato individual** en ningún turno
+(todas las IC de esa comparación incluyen el 0). El IC negativo de Previa
+(−0,152, p=0,07) es una señal de que el blend ponderado puede estar **por
+debajo** del azar en ese turno, no por encima.
+
+Cabeza@10 en holdout (42-43 sorteos; azar teórico = 0,10): los mejores
+individuales rondan 0,14-0,21 (bayes 0,209 en Previa; v6 0,190 en Matutina;
+v7_ens 0,143 en Nocturna), pero con n=42 estas diferencias NO alcanzan
+significancia (mismo veredicto del benchmark histórico del repo: |z| ≤ 1,8).
+
+### 5.2 Tres y cuatro cifras (27 cortes/turno, submuestreo cada 8 sorteos)
+
+Tasa = sorteos con ≥1 acierto entre los 20 puestos (top-10 de cada modelo).
+Referencias: azar uniforme K=5 (empírico) y analítico (0,1837 en 3C;
+0,0198 en 4C).
+
+| Turno | 3C meta / v6 / ref-azar | meta−azar (IC, p) | 4C meta / ref-azar |
+|---|---|---|---|
+| Previa | 0.148 / 0.148 / 0.237 | −0.089 [−0.245, +0.067], p=0.31 | 0.037 / 0.037 |
+| Primera | 0.185 / 0.037 / 0.163 | +0.022 [−0.133, +0.178], p=0.77 | 0.037 / 0.030 |
+| Matutina | 0.148 / 0.148 / 0.230 | −0.082 [−0.240, +0.077], p=0.34 | 0.000 / 0.007 |
+| Vespertina | 0.111 / 0.111 / 0.200 | −0.089 [−0.223, +0.046], p=0.18 | 0.000 / 0.007 |
+| Nocturna | 0.259 / 0.259 / 0.148 | +0.111 [−0.072, +0.294], p=0.23 | 0.000 / 0.022 |
+
+**Veredicto 3C/4C: sin ventaja.** Ninguna meta-vs-azar-uniforme es
+significativa (todas las IC incluyen 0). Los valores puntuales (p. ej.
+frecuencia 0,148 en 4C-Matutina con 27 cortes) son ruido a este n; nada
+sobrevive a la comparación con la referencia.
+
+### 5.3 Duplicación de señales entre candidatos
+
+- **v7 ~ v7_ens**: solape top-10 0,86-0,87 y Spearman ≈ 0,99 en los 5 turnos
+  → son prácticamente **el mismo modelo**; darles pesos separados infla la
+  aparente diversidad sin aportar información nueva.
+- **frecuencia ~ recencia**: solape 0,65-0,71 (ρ ≈ 0,88) — esperado: ambas
+  señales son conteos con distinta ventana/decaimiento.
+- **bayes ~ combo**: solape 0,53-0,58 — combo contiene a bayes por
+  construcción (es uno de sus tres rankings).
+
+### 5.4 Conclusión
+
+Con ~210 evaluaciones por turno y el protocolo completo (IC + permutación +
+holdout + comparación contra el mejor individual), **el meta-selector NO
+demuestra ventaja predictiva en ningún turno, en 2, 3 ni 4 cifras**. Los
+pesos ajustados varían fuertemente entre turnos (v6 domina en Previa/
+Matutina; bayes en Primera/Vespertina; combo en Nocturna) — inestabilidad
+consistente con la ausencia de señal diferencial robusta. El selector queda
+**EXPERIMENTAL y fuera de producción**, tal como exige el pliego cuando la
+evidencia no alcanza.
 
 ## 6. Limitaciones (todas vigentes)
 
