@@ -133,6 +133,7 @@ function repoSinc(over: Record<string, unknown> = {}) {
     mapa: vi.fn(async () => new Map()),
     corroborar: vi.fn(async () => true),
     incidente: vi.fn(async () => {}),
+    refrescarConsultas: vi.fn(async (c: number[]) => c.length),
     ultimoValidado: vi.fn(async () => null),
     ...over,
   }
@@ -173,6 +174,7 @@ describe("sincronización — atribución y corroboración entre fuentes oficial
     )
     expect(fila.contenido_hash).toMatch(/^[a-f0-9]{64}$/)
     expect(repo.incidente).not.toHaveBeenCalled()
+    expect(repo.refrescarConsultas).not.toHaveBeenCalled() // fila nueva, no duplicada
   })
 
   it("es idempotente: el segundo pase omite el duplicado sin reinsertar", async () => {
@@ -200,6 +202,8 @@ describe("sincronización — atribución y corroboración entre fuentes oficial
     expect(informe.importados).toBe(0)
     expect(informe.omitidosDuplicados).toBe(1)
     expect(repo.insertar).not.toHaveBeenCalled()
+    // el duplicado se reconsultó en la fuente → /estado ve la consulta fresca
+    expect(repo.refrescarConsultas).toHaveBeenCalledWith([5733], "2026-10-15T12:00:00.000Z")
     expect(informe.ok).toBe(false) // Santa Fe falló → se dice explícitamente
     expect(informe.detalle).toMatch(/Santa Fe/)
     expect(informe.fuenteUsada).toBe("iafas")

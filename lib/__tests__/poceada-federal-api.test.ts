@@ -37,12 +37,16 @@ vi.mock("@/lib/poceada-federal/actualizar", () => ({
   })),
 }))
 
-vi.mock("@/lib/poceada-federal/fuente", () => ({
-  listarSorteosIAFAS: vi.fn(async () => []),
-  extraerExtractoPdfIAFAS: vi.fn(async () => {
-    throw new Error("sin red en tests")
-  }),
-}))
+vi.mock("@/lib/poceada-federal/fuente", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/poceada-federal/fuente")>()
+  return {
+    ...real, // conserva helpers puros (nroLoteriaPreferido, parser, etc.)
+    listarSorteosIAFAS: vi.fn(async () => []),
+    extraerExtractoPdfIAFAS: vi.fn(async () => {
+      throw new Error("sin red en tests")
+    }),
+  }
+})
 
 vi.mock("@/lib/auth/tier", () => ({
   resolveUserTier: vi.fn(async () => ({ canAccessPremiumFeatures: false })),

@@ -33,6 +33,7 @@ const repoSinc: RepoSincronizacion = {
   mapa: async () => (await repo.mapaExistentes()) as never,
   corroborar: (concurso, d) => repo.agregarCorroboracion(concurso, d),
   incidente: (c, t, d) => repo.registrarIncidente(c, t, d),
+  refrescarConsultas: (concursos, iso) => repo.refrescarConsultas(concursos, iso),
   ultimoValidado: async () => {
     const u = await repo.ultimoValidado()
     return u ? { concurso: u.concurso, fecha: u.fecha } : null

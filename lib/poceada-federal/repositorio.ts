@@ -130,6 +130,27 @@ export async function agregarCorroboracion(
   return (data?.length ?? 0) > 0
 }
 
+/**
+ * Refresca `consultado_en` de concursos que el sync volvió a consultar en la
+ * fuente oficial (duplicados reconfirmados). Así `GET /estado` reporta la
+ * última consulta REAL aunque ninguna fila sea nueva (los duplicados no se
+ * reinsertan). Best-effort desde la sincronización: no altera el informe.
+ */
+export async function refrescarConsultas(
+  concursos: number[],
+  consultadoEn: string
+): Promise<number> {
+  if (concursos.length === 0) return 0
+  const sb = getSupabaseAdmin()
+  const { data, error } = await sb
+    .from("poceada_federal_draws")
+    .update({ consultado_en: consultadoEn })
+    .in("concurso", concursos)
+    .select("concurso")
+  if (error) manejar(error)
+  return data?.length ?? 0
+}
+
 /** Concursos existentes en un rango (reanudación del backfill). */
 export async function concursosExistentes(desde?: string, hasta?: string): Promise<Set<number>> {
   const sb = getSupabaseAdmin()

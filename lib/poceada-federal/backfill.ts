@@ -14,6 +14,7 @@
  */
 
 import { ErrorParseo } from "./parser"
+import { nroLoteriaPreferido } from "./fuente"
 import { validarSorteo, FUENTES } from "./validador"
 import type { FilaSorteoIAFAS, InformeBackfill } from "./tipos"
 
@@ -25,7 +26,12 @@ export interface RepoBackfill {
 
 export interface DepsBackfill {
   listar: (desde: string, hasta: string) => Promise<FilaSorteoIAFAS[]>
-  pdf: (concurso: number, fechaISO: string) => Promise<{ concurso: number; fecha: string; hora: string; numeros: number[] }>
+  pdf: (
+    concurso: number,
+    fechaISO: string,
+    /** NroLoteria preferido según la lotería organizadora del listado. */
+    preferencia?: number
+  ) => Promise<{ concurso: number; fecha: string; hora: string; numeros: number[] }>
   repo?: RepoBackfill
   onProgreso?: (p: { procesados: number; total: number }) => void
 }
@@ -68,7 +74,7 @@ export async function importarHistorico(
     procesados++
     deps.onProgreso?.({ procesados, total: lote.length })
     try {
-      const ext = await deps.pdf(fila.NROSorteo, fila.Fecha2)
+      const ext = await deps.pdf(fila.NROSorteo, fila.Fecha2, nroLoteriaPreferido(fila.Loteria))
       const val = validarSorteo({
         concurso: ext.concurso,
         fecha: ext.fecha,
@@ -100,7 +106,11 @@ export async function importarHistorico(
             contenido_hash: val.contenidoHash,
             consultado_en: ahora().toISOString(),
             verificado_en: ahora().toISOString(),
-            metadatos: { idListado: fila.ID, fechaListado: fila.Fecha2 },
+            metadatos: {
+              idListado: fila.ID,
+              fechaListado: fila.Fecha2,
+              ...(fila.Loteria ? { loteria: fila.Loteria.trim() } : {}),
+            },
           },
         ])
         if (n > 0) importados++

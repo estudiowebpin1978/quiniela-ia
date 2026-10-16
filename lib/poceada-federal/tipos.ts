@@ -100,6 +100,8 @@ export interface FilaSorteoIAFAS {
   idJuego: number
   Hora?: string
   Estado: string
+  /** Lotería organizadora del sorteo (crudo del listado, p. ej. " Santa Fe"). */
+  Loteria?: string
 }
 
 /** Fila cruda de /ServicioExtracto/ultimoExtracto. */

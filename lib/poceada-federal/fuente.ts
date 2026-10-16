@@ -16,8 +16,17 @@
  *       filas por consulta → se pagina por ventanas de fechas.
  *       Historial verificado: desde 2021-06-22 (antes: sin datos).
  *     · POST /serviciopdf/Extractos/pdfpoceada
- *       {Modalidad:30,NroLoteria:1,Sorteo,FechaSorteo} → PDF oficial del
+ *       {Modalidad:30,NroLoteria,Sorteo,FechaSorteo} → PDF oficial del
  *       extracto (application/pdf verificado, %PDF-1.3, 20 números).
+ *       ATENCIÓN: Poceada Federal se organiza bajo distintas loterías
+ *       miembro (el listado trae `Loteria`: " Entre Ríos" o " Santa Fe") y
+ *       el PDF sólo se LLENA con el NroLoteria que organizó ese concurso;
+ *       con otro número devuelve el formulario en blanco de esa lotería
+ *       (verificado: 5358/5658 sólo parsean con NroLoteria 5). Por eso
+ *       `extraerExtractoPdfIAFAS` prueba el NroLoteria preferido según la
+ *       lotería del listado y, si hace falta, barre 1..6; CADA intento se
+ *       valida contra concurso+fecha antes de aceptarse (nunca se toma un
+ *       extracto de otro sorteo).
  *     · POST /ServicioExtracto/ultimoExtracto {} → extracto más reciente
  *       con NROSorteo, OrdenSalida 1..20 y Valor 0..99 por número.
  *     · Auth: Bearer JWT que el SPA oficial público sirve en su propio
@@ -277,11 +286,12 @@ export async function listarSorteosIAFAS(
 export async function descargarExtractoPdfIAFAS(
   concurso: number,
   fechaISO: string,
-  o: OpcionesRed = {}
+  o: OpcionesRed = {},
+  nroLoteria = 1
 ): Promise<Buffer> {
   const res = await postIafas(
     URL_IAFAS_PDF,
-    { Modalidad: MODALIDAD_POCEADA, NroLoteria: 1, Sorteo: concurso, FechaSorteo: fechaISO },
+    { Modalidad: MODALIDAD_POCEADA, NroLoteria: nroLoteria, Sorteo: concurso, FechaSorteo: fechaISO },
     o
   )
   const buf = Buffer.from(await res.arrayBuffer())
@@ -327,21 +337,69 @@ export async function textoPdf(buf: Buffer): Promise<string> {
   }
 }
 
+/**
+ * NroLoteria preferido para el PDF de un sorteo según la lotería organizadora
+ * que declara el listado oficial (`Loteria`, p. ej. " Santa Fe"). Mapeo
+ * verificado por muestreo contra los PDFs reales de todas las épocas
+ * (2021-2026); la seguridad final no depende de este mapeo porque CADA
+ * intento se valida contra concurso+fecha antes de aceptarse.
+ */
+export function nroLoteriaPreferido(loteria?: string): number | undefined {
+  if (!loteria) return undefined
+  if (/entre\s*r/i.test(loteria)) return 1
+  if (/santa\s*f/i.test(loteria)) return 5
+  return undefined
+}
+
+/** Loterías miembro conocidas del juego (las dos únicas del listado 2021-2026). */
+const NRO_LOTERIAS_CONOCIDOS = [1, 2, 3, 4, 5, 6]
+
+/**
+ * Extracto oficial del PDF probando el NroLoteria preferido y, si hace falta,
+ * el resto de loterías miembro: un PDF de la lotería equivocada devuelve el
+ * FORMULARIO EN BLANCO (sin números) y no pasa la validación de parseo.
+ * Sólo se devuelve un extracto cuyo concurso y fecha coincidan con lo pedido.
+ */
 export async function extraerExtractoPdfIAFAS(
   concurso: number,
   fechaISO: string,
-  o: OpcionesRed = {}
+  o: OpcionesRed = {},
+  preferencia?: number
 ): Promise<ExtractoPdfIAFAS> {
-  const buf = await descargarExtractoPdfIAFAS(concurso, fechaISO, o)
-  const texto = await textoPdf(buf)
-  const ext = parsearTextoPdfPoceada(texto)
-  if (ext.concurso !== concurso) {
-    throw new ErrorRed(`PDF del concurso ${concurso} devolvió el concurso ${ext.concurso}`)
+  const orden = [
+    ...new Set([preferencia ?? 1, ...NRO_LOTERIAS_CONOCIDOS].filter((n) => n >= 1 && n <= 6)),
+  ]
+  let ultimoError: unknown = new ErrorRed(`Sin candidatos de NroLoteria para el concurso ${concurso}`)
+  let parseosFallidos = 0
+  for (const nroLoteria of orden) {
+    try {
+      const buf = await descargarExtractoPdfIAFAS(concurso, fechaISO, o, nroLoteria)
+      const texto = await textoPdf(buf)
+      const ext = parsearTextoPdfPoceada(texto)
+      if (ext.concurso !== concurso) {
+        throw new ErrorRed(
+          `PDF del concurso ${concurso} (NroLoteria ${nroLoteria}) devolvió el concurso ${ext.concurso}`
+        )
+      }
+      if (ext.fecha !== fechaISO) {
+        throw new ErrorRed(
+          `PDF del concurso ${concurso} (NroLoteria ${nroLoteria}) declara fecha ${ext.fecha} (se esperaba ${fechaISO})`
+        )
+      }
+      return ext
+    } catch (e) {
+      ultimoError = e
+      if (e instanceof ErrorParseo) parseosFallidos++
+    }
   }
-  if (ext.fecha !== fechaISO) {
-    throw new ErrorRed(`PDF del concurso ${concurso} declara fecha ${ext.fecha} (se esperaba ${fechaISO})`)
+  if (parseosFallidos === orden.length && ultimoError instanceof ErrorParseo) {
+    // Ninguna lotería miembro tiene el extracto legible de este concurso:
+    // se informa como PDF ilegible (el backfill lo registra como fallido).
+    throw new ErrorParseo(
+      `Sin extracto legible tras probar NroLoteria ${orden.join("/")}: ${ultimoError.message}`
+    )
   }
-  return ext
+  throw ultimoError
 }
 
 /** Extracto más reciente IAFAS agrupado por concurso (20 números). */

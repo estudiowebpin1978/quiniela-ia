@@ -33,6 +33,8 @@ export interface RepoSincronizacion {
   corroborar: (concurso: number, d: { fuentes: string[]; verificado_en: string; url_extracto?: string; metadatos?: Record<string, unknown> }) => Promise<boolean>
   incidente: (concurso: number | null, tipo: string, detalle: Record<string, unknown>) => Promise<void>
   ultimoValidado: () => Promise<{ concurso: number; fecha: string } | null>
+  /** Refresca `consultado_en` de concursos consultados de nuevo (best-effort). */
+  refrescarConsultas: (concursos: number[], consultadoEn: string) => Promise<number>
 }
 
 export interface DepsSincronizacion {
@@ -159,6 +161,7 @@ export async function sincronizar(deps: DepsSincronizacion): Promise<InformeSinc
   let omitidos = 0
   let conflictos = 0
   let corroborados = 0
+  const reconsultados: number[] = []
   let insertados: { concurso: number; contenido_hash: string; estado: string }[] = []
 
   for (const c of [...candidatos.values()]) {
@@ -185,6 +188,7 @@ export async function sincronizar(deps: DepsSincronizacion): Promise<InformeSinc
     const previo = existentes.get(c.concurso)
     if (previo) {
       omitidos++
+      reconsultados.push(c.concurso)
       if (c.corroborado && !previo.corroborado) {
         const ok = await deps.repo.corroborar(c.concurso, {
           fuentes: c.fuentes,
@@ -220,6 +224,18 @@ export async function sincronizar(deps: DepsSincronizacion): Promise<InformeSinc
       if (c.corroborado) corroborados++
     } else {
       omitidos++
+    }
+  }
+
+  // Los duplicados se consultaron de nuevo en la fuente oficial (y pasaron
+  // por el validador): refresca `consultado_en` para que /estado reporte la
+  // última consulta REAL aunque no se haya importado ninguna fila nueva.
+  // Best-effort: una falla aquí no altera el resultado de la sincronización.
+  if (reconsultados.length > 0) {
+    try {
+      await deps.repo.refrescarConsultas(reconsultados, ahoraIso)
+    } catch {
+      // observabilidad opcional
     }
   }
 
