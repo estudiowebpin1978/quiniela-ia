@@ -93,6 +93,7 @@ export async function cargarSorteosBrinco(): Promise<SorteoBrinco[]> {
   const { data, error } = await sb
     .from("brinco_draws")
     .select("concurso,fecha,tradicional,junior")
+    .in("estado_verificacion", ["verified_official", "cross_checked"])
     .order("concurso", { ascending: true })
   if (error) {
     logger.warn("[brinco-store] cargarSorteos error", { error: error.message })
