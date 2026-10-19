@@ -143,7 +143,7 @@ export default function Home() {
 
       {/* Stats */}
       <div style={{ display: "flex", gap: 12, marginBottom: 28, flexWrap: "wrap", justifyContent: "center" }}>
-        <StatCard icon="📊" value="780+" label="Sorteos" color="var(--brand-pink)" />
+        <StatCard icon="📊" value="1.000+" label="Sorteos" color="var(--brand-pink)" />
         <StatCard icon="🧮" value="20" label="Factores + ML" color="var(--brand-purple)" />
         <StatCard icon="🎲" value="5K" label="Simulaciones" color="var(--brand-cyan)" />
         <StatCard icon="⚡" value="3" label="Motores + ensemble" color="var(--arg-gold)" />

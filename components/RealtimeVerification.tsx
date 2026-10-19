@@ -67,7 +67,15 @@ export function RealtimeVerification({ userId, onVerified }: RealtimeVerificatio
 
   if (!notification) {
     return (
-      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+      <div
+        className="flex items-center gap-1.5 rounded-full px-2 py-0.5 whitespace-nowrap"
+        style={{
+          fontSize: 10, fontWeight: 700, letterSpacing: ".3px",
+          border: `1px solid ${connected ? "rgba(52,211,153,.35)" : "rgba(255,255,255,.14)"}`,
+          background: connected ? "rgba(16,185,129,.12)" : "rgba(255,255,255,.05)",
+          color: connected ? "#34d399" : "#6b7280",
+        }}
+      >
         <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-green-400" : "bg-gray-500"}`} />
         <span>{connected ? "Verificación en vivo" : "Sin conexión"}</span>
       </div>

@@ -1287,7 +1287,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           <div className="sorteo-btns">
             {SORTEOS.map((s) => (
               <button key={s} className={"sb" + (so === s ? " on" : "")} onClick={() => { sound.pop(); triggerHaptic("light"); setSo(s); setDt(null); setDn(false); setEr(""); }}>
-                <span>{s === "Vespertina" ? "Vesp" : s === "Primera" ? "1era" : s === "Matutina" ? "Mat" : s === "Nocturna" ? "Noct" : s}</span>
+                <span>{s}</span>
                 <span className="sh">{HORAS[s]}</span>
                 {confianzaTurnos[s] != null && <span className="sc">{confianzaTurnos[s]}%</span>}
               </button>
@@ -1301,7 +1301,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           {(pr || true) && (
             <div style={{ display: "grid", gap: 10, margin: "16px 0 18px" }}>
               <a
-                className="btn3d btn-gen"
+                className="btn3d btn-gen btn-game"
                 href="/brinco"
                 onClick={(e) => {
                   if (!(pr || userRole === "admin")) {
@@ -1312,9 +1312,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 style={{ background: "linear-gradient(180deg,#bf5af2 0%,#9333ea 50%,#7c3aed 100%)", color: "#fff", boxShadow: "0 10px 0 #6d28d9,0 14px 40px rgba(191,90,242,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}
               >
                 🎱 Brinco
+                <span className="gsub">Tradicional + Junior · Lotería de Santa Fe</span>
               </a>
               <a
-                className="btn3d btn-gen"
+                className="btn3d btn-gen btn-game"
                 href="/poceada"
                 onClick={(e) => {
                   if (!(pr || userRole === "admin")) {
@@ -1325,9 +1326,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 style={{ background: "linear-gradient(180deg,#ffd60a 0%,#f59e0b 50%,#d97706 100%)", color: "#111", boxShadow: "0 10px 0 #b45309,0 14px 40px rgba(245,158,11,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}
               >
                 🔮 Poceada (Ciudad)
+                <span className="gsub">2 cifras · Ciudad de Buenos Aires</span>
               </a>
               <a
-                className="btn3d btn-gen"
+                className="btn3d btn-gen btn-game"
                 href="/poceada-federal"
                 onClick={(e) => {
                   if (!(pr || userRole === "admin")) {
@@ -1338,6 +1340,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 style={{ background: "linear-gradient(180deg,#38bdf8 0%,#0ea5e9 50%,#0284c7 100%)", color: "#fff", boxShadow: "0 10px 0 #0369a1,0 14px 40px rgba(14,165,233,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}
               >
                 🎟️ Poceada Federal (Santa Fe)
+                <span className="gsub">Combinaciones de 2 a 5 números · IAFAS</span>
               </a>
               {leyendaModalidad && !(pr || userRole === "admin") && (
                 <div
