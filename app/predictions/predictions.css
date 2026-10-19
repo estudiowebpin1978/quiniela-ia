@@ -198,7 +198,7 @@ body {
   transform: translateY(-4px); box-shadow: 0 15px 0 #9d174d, 0 20px 55px rgba(236,72,153,.65), 0 0 30px rgba(236,72,153,.3);
 }
 /* Botones de juego (Brinco / Poceada / Federal): dos líneas, label + subtítulo */
-.btn-game { padding: 20px 24px; font-size: 18px; letter-spacing: 1px; }
+.btn-game { padding: 20px 24px; font-size: 18px; letter-spacing: 1px; flex-direction: column; }
 .btn-game .gsub {
   display: block; font-size: 12.5px; font-weight: 700;
   letter-spacing: .4px; text-transform: none; text-shadow: none;
