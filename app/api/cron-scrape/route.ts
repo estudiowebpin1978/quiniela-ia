@@ -666,7 +666,7 @@ export async function GET(req: NextRequest) {
   // semanalmente vencida por la RPC SECURITY INVOKER sin privilegios).
   try {
     const supabase = getSupabaseAdmin()
-    const { error: dsErr } = await supabase.schema("public").rpc("refresh_draw_stats_rpc" as never)
+    const { error: dsErr } = await supabase.rpc("refresh_draw_stats_rpc" as never)
     if (dsErr) throw new Error(dsErr.message)
     logger.info("[cron-scrape] draw_stats refreshed")
   } catch (e: unknown) {

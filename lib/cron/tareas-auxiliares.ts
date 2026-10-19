@@ -159,5 +159,27 @@ export async function ejecutarTareasAuxiliares(): Promise<InformeTareasAuxiliare
     logger.warn("[tareas-auxiliares] cron-ml-training falló (no bloquea)", { error: String(e) })
   }
 
+  // ── Sweep de verificaciones atrasadas (respaldo ~48 h) ────────────────
+  // cron-verify-catchup (RPC sweep_expired_predictions) marca PENDING viejas
+  // como LOST cuando no existió sorteo y re-verifico casos donde el trigger
+  // SQL no disparó. Registrado en el dashboard de salud pero sin trigger
+  // efectivo: corre contra la BD, es barato y el gate ya lo limita.
+  try {
+    if (await debeEjecutar("cron-verify-catchup", 36 * 60 * 60 * 1000)) {
+      const t0 = Date.now()
+      const { data, error } = await getSupabaseAdmin().rpc("sweep_expired_predictions" as never)
+      logCronExecution("cron-verify-catchup", { origen: "tareas-auxiliares", swept: (data as number) || 0, error: error?.message }, t0)
+      if (error) {
+        logger.warn("[tareas-auxiliares] sweep_expired_predictions falló", { error: error.message })
+      }
+      informe.ejecutadas.push("cron-verify-catchup")
+    } else {
+      informe.omitidas.push("cron-verify-catchup")
+    }
+  } catch (e) {
+    informe.errores.push("cron-verify-catchup")
+    logger.warn("[tareas-auxiliares] cron-verify-catchup falló (no bloquea)", { error: String(e) })
+  }
+
   return informe
 }
