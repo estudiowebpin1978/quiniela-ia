@@ -64,6 +64,7 @@ interface RespuestaPrediccion {
 interface HistRow {
   id: string
   concurso_objetivo: number
+  fecha_objetivo: string | null
   modalidad: string
   numeros: number[]
   aciertos_tradicional: number | null
@@ -327,10 +328,18 @@ export default function BrincoPage() {
                 </span>
                 <span style={{ color: "var(--text-dim,#9aa0a6)" }}>{h.modalidad}</span>
                 <span style={{ marginLeft: "auto", color: "var(--text-dim,#9aa0a6)" }}>
-                  {h.aciertos_tradicional !== null
-                    ? `Tradicional: ${h.aciertos_tradicional} aciertos` +
-                      (h.aciertos_junior !== null ? ` · Junior: ${h.aciertos_junior}` : "")
-                    : "Pendiente — esperando el resultado oficial"}
+                  {h.aciertos_tradicional !== null ? (
+                    <>
+                      Tradicional: {h.aciertos_tradicional} aciertos
+                      {h.aciertos_junior !== null ? ` · Junior: ${h.aciertos_junior}` : ""}
+                    </>
+                  ) : (
+                    <span>
+                      Pendiente — CAS aún no publica el resultado
+                      {h.fecha_objetivo ? ` (fecha objetivo ${h.fecha_objetivo.slice(8, 10)}/${h.fecha_objetivo.slice(5, 7)})` : ""}.
+                      {" "}Puede figurar como «sin sorteo» para esa fecha; se verifica automáticamente cuando exista el resultado oficial.
+                    </span>
+                  )}
                 </span>
               </li>
             ))}
