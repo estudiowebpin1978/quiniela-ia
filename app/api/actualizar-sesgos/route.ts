@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
+import { JURIS_QUINIELA_CIUDAD } from "@/lib/procedencia"
 
 export async function GET(req:NextRequest){
   const authResult = await validateCronAuth(req)
@@ -12,6 +13,9 @@ export async function GET(req:NextRequest){
     const { data: rows } = await supabase
       .from("draws")
       .select("turno, numbers, date")
+      // Procedencia (frente C): sesgos solo del juego Quiniela Ciudad (los
+      // turnos de abajo son turnos de Quiniela; Poceada y provincia fuera).
+      .in("jurisdiccion", JURIS_QUINIELA_CIUDAD)
       .limit(5000)
     if(!rows?.length)return NextResponse.json({ok:true, message:"Sin datos", sesgos:{}, sesgos_mensuales:{}})
 

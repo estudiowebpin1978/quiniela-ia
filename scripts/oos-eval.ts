@@ -20,6 +20,7 @@
 
 import { createClient } from "@supabase/supabase-js"
 import { predictV7, predictEnsembleV7, type Draw } from "../lib/analisis/engine-v7"
+import { jurisParaTurno } from "../lib/procedencia"
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://wazkylxgqckjfkcmfotl.supabase.co"
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || ""
@@ -125,6 +126,8 @@ async function loadDraws(turno: string): Promise<Draw[]> {
     .from("draws")
     .select("date,turno,numbers")
     .eq("turno", turno)
+    // Procedencia (frente C): evaluar walk-forward con un solo juego.
+    .in("jurisdiccion", jurisParaTurno(turno))
     .order("date", { ascending: true })
     .limit(2000)
   if (error) throw new Error(`${turno}: ${error.message}`)

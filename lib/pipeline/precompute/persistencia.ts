@@ -15,6 +15,7 @@ import type { BlendedPrediction, EngineWeights } from "@/lib/pipeline/precompute
 import type { Draw } from "@/lib/analisis/engine-v7"
 import type { MonteCarloResultado } from "@/lib/analisis/monte-carlo"
 import logger from "@/lib/logger"
+import { jurisParaTurno } from "@/lib/procedencia"
 
 /** Filas genéricas devueltas por las RPCs de scores. */
 export type Filas = Array<Record<string, unknown>>
@@ -38,6 +39,10 @@ export async function cargarHistorico(
     .select("id, date, turno, numbers")
     .eq("turno", turno)
     .eq("game_id", gameId)
+    // Procedencia (frente C): el game_id no separa Quiniela de Provincia
+    // (compartido en datos históricos) — el filtro de jurisdicción es el que
+    // garantiza que el histórico sea de un solo juego.
+    .in("jurisdiccion", jurisParaTurno(turno))
     .lt("date", today)
     .order("date", { ascending: true })
 
@@ -92,6 +97,7 @@ export async function registrarPrediccionesMotor(
       .select("id")
       .eq("turno", turno)
       .eq("date", today)
+      .in("jurisdiccion", jurisParaTurno(turno))
       .eq("game_id", gameId)
       .order("created_at", { ascending: false })
       .limit(1)

@@ -297,6 +297,31 @@ export interface PrediccionGuardada {
   creado_en: string
 }
 
+/**
+ * Todas las predicciones aún pendientes de evaluación (sin límite de 50).
+ * La usa evaluarPendientes() — cron nocturno y GET de combinaciones.
+ */
+export async function listarPrediccionesPorEstado(
+  estado: PrediccionGuardada["estado"]
+): Promise<PrediccionGuardada[]> {
+  const sb = getSupabaseAdmin()
+  const filas: PrediccionGuardada[] = []
+  const TAM = 500
+  for (let desde = 0; desde < 5000; desde += TAM) {
+    const { data, error } = await sb
+      .from("poceada_federal_predictions")
+      .select("*")
+      .eq("estado", estado)
+      .order("generado_en", { ascending: false })
+      .range(desde, desde + TAM - 1)
+    if (error) manejar(error)
+    if (!data || data.length === 0) break
+    filas.push(...(data as PrediccionGuardada[]))
+    if (data.length < TAM) break
+  }
+  return filas
+}
+
 export async function guardarPrediccion(
   p: Omit<PrediccionGuardada, "id" | "creado_en" | "estado" | "evaluacion" | "evaluacion_draw_id"> & {
     estado?: PrediccionGuardada["estado"]

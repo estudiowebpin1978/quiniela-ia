@@ -81,6 +81,31 @@ export async function getMLPredictions(
       ? modelData.modelos
       : JSON.parse(modelData.modelos as string)
 
+    return puntuarConModelos(turno, modelos, recentDraws)
+  } catch (e) {
+    logger.warn("getMLPredictions error", { turno, error: (e as Error).message })
+    return empty
+  }
+}
+
+/**
+ * Puntúa 0..99 con los modelos dados (sin tocar la BD). Exposición pública para
+ * el replay walk-forward (frente D): allí se entrena por chunk con datos
+ * ANTERIORES al chunk y se puntúa con estos modelos (no con los de producción,
+ * entrenados con todo el histórico → fuga temporal).
+ */
+export function puntuarConModelos(
+  turno: string,
+  modelos: StoredModel[],
+  recentDraws: Array<{ fecha: string; turno: string; numbers: number[] }>,
+): MLPrediction {
+  const empty: MLPrediction = {
+    scores: new Map(),
+    modelContributions: { randomForest: 0, neuralNet: 0, markov: 0 },
+    available: false,
+  }
+  if (recentDraws.length < 10) return empty
+  try {
     // Prepare features for prediction
     const featureVector = prepararPrediccion(recentDraws)
     const sequences = recentDraws.map(d => d.numbers.map(n => n % 100))

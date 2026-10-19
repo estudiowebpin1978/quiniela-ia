@@ -12,6 +12,7 @@ import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import { predictV7, predictEnsembleV7 } from "@/lib/analisis/engine-v7"
 import type { Draw, FactorBreakdown } from "@/lib/analisis/engine-v7"
 import logger from "@/lib/logger"
+import { jurisParaTurno } from "@/lib/procedencia"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -53,6 +54,7 @@ export async function GET(req: NextRequest) {
       .from("draws")
       .select("date, turno, numbers")
       .eq("turno", turno)
+      .in("jurisdiccion", jurisParaTurno(turno))
       .gte("date", sinceStr)
       .order("date", { ascending: true })
       .limit(1000)
@@ -126,7 +128,8 @@ export async function GET(req: NextRequest) {
       // ── V7: Ensemble ────────────────────────────────────────────────
       let ensemblePreds: string[] = []
       try {
-        const ensResult = await predictEnsembleV7(historical, turno, 10)
+        // ANTI-FUGA (frente D): asOf evita las vistas materializadas (stats de HOY).
+        const ensResult = await predictEnsembleV7(historical, turno, 10, 0, undefined, { asOf: targetDraw.fecha })
         ensemblePreds = ensResult.predictions.map(p => p.numero)
       } catch {}
 
@@ -281,8 +284,8 @@ async function runBlendSearch(
         frequency: 1.0, // Pure frequency = V6-like
       })
 
-      // Get V7 ensemble predictions
-      const ensResult = await predictEnsembleV7(historical, turno, 20)
+      // Get V7 ensemble predictions (asOf anti-fuga: sin vistas de HOY)
+      const ensResult = await predictEnsembleV7(historical, turno, 20, 0, undefined, { asOf: targetDraw.fecha })
 
       // Blend: pick top-10 from weighted combination
       const blended = new Map<string, number>()

@@ -33,6 +33,7 @@ import { LOTBA } from "@/lib/config/lotba"
 import { SUENOS } from "@/lib/suenos"
 import { runMonteCarlo } from "@/lib/analisis/monte-carlo"
 import { hashSeed } from "@/lib/math/seeded-rng"
+import { jurisParaTurno } from "@/lib/procedencia"
 
 export const maxDuration = 300
 
@@ -106,6 +107,7 @@ async function checkDependency(
     .select("id")
     .eq("turno", depTurno)
     .eq("date", expectedDate)
+    .in("jurisdiccion", jurisParaTurno(depTurno))
     .limit(1)
 
   if (!draw || draw.length === 0) {
@@ -311,6 +313,9 @@ async function runPrecompute(
     .select("id, date, turno, numbers")
     .eq("turno", turno)
     .eq("game_id", turnGameId)
+    // Procedencia (frente C): sin esto, filas de Provincia (mismo game_id)
+    // contaminan el histórico estadístico del turno.
+    .in("jurisdiccion", jurisParaTurno(turno))
     .lt("date", today)
     .order("date", { ascending: true })
 
@@ -397,6 +402,7 @@ async function runPrecompute(
       .eq("turno", turno)
       .eq("date", today)
       .eq("game_id", turnGameId)
+      .in("jurisdiccion", jurisParaTurno(turno))
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()

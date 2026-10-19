@@ -5,6 +5,7 @@ import { importarHistorico } from "@/lib/poceada-federal/backfill"
 import { listarSorteosIAFAS, extraerExtractoPdfIAFAS } from "@/lib/poceada-federal/fuente"
 import * as repo from "@/lib/poceada-federal/repositorio"
 import { ErrorMigracionPendiente, type FilaInsertable } from "@/lib/poceada-federal/repositorio"
+import { evaluarPendientes, type InformeEvaluacion } from "@/lib/poceada-federal/evaluar-pendientes"
 import type { RepoSincronizacion } from "@/lib/poceada-federal/actualizar"
 import logger from "@/lib/logger"
 
@@ -70,7 +71,24 @@ export async function GET(req: NextRequest) {
       conflictos: informe.conflictos,
       duracionMs: Date.now() - t0,
     })
-    return NextResponse.json({ ok: informe.ok, informe, backfill, duracionMs: Date.now() - t0 })
+
+    // Frente F: autoevaluación post-sorteo. Tras sincronizar (nuevo resultado
+    // oficial validado) se cierran las predicciones pendientes contra el
+    // concurso ya publicado — sin inventar datos si sigue sin publicarse.
+    let evaluacion: InformeEvaluacion | null = null
+    try {
+      evaluacion = await evaluarPendientes()
+    } catch (ev) {
+      logger.error("[cron-poceada-federal] evaluación pendientes", { error: String(ev) })
+    }
+
+    return NextResponse.json({
+      ok: informe.ok,
+      informe,
+      evaluacion,
+      backfill,
+      duracionMs: Date.now() - t0,
+    })
   } catch (e) {
     if (e instanceof ErrorMigracionPendiente) {
       return NextResponse.json(

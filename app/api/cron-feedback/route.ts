@@ -15,6 +15,7 @@ import { updateEnginePerformance } from "@/lib/ensemble/meta-ensemble"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import logger from "@/lib/logger"
+import { jurisParaTurno } from "@/lib/procedencia"
 
 export const maxDuration = 120
 
@@ -48,6 +49,7 @@ async function hasDrawForTurno(fecha: string, turno: string): Promise<boolean> {
       .select("id")
       .eq("date", fecha)
       .ilike("turno", turno)
+      .in("jurisdiccion", jurisParaTurno(turno))
       .limit(1)
     return Array.isArray(data) && data.length > 0
   } catch {
@@ -104,6 +106,7 @@ export async function GET(req: NextRequest) {
       .select("numbers")
       .eq("turno", turno)
       .eq("date", fecha)
+      .in("jurisdiccion", jurisParaTurno(turno))
       .limit(1)
       .single()
 

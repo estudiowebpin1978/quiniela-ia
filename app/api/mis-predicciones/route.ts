@@ -6,6 +6,7 @@ import logger from "@/lib/logger"
 import type { PredictionHistoryRow, DrawRow } from "@/lib/api/types"
 import { calcularAciertosApi } from "@/lib/verificacion/api-aciertos"
 import { normalizarRedoblonaR } from "@/lib/batch-upsert"
+import { jurisParaTurno, JURIS_LOTBA } from "@/lib/procedencia"
 
 // In-memory rate limiter for POST
 const rateLimitMap = new Map<string, { count: number; windowStart: number }>()
@@ -55,6 +56,7 @@ export async function GET(req: NextRequest) {
             .select("id")
             .eq("date", vDate)
             .eq("turno", vTurno)
+            .in("jurisdiccion", jurisParaTurno(vTurno))
             .limit(1)
           if (drawCheck && drawCheck.length > 0) {
             try {
@@ -85,6 +87,9 @@ export async function GET(req: NextRequest) {
         .from("draws")
         .select("numbers,turno,date")
         .in("date", uniqueDates)
+        // Procedencia (frente C): lotes multi-turno → solo juegos de LOTBA
+        // (Quiniela 'CABA' + Poceada legado 'ciudad'); provincia fuera.
+        .in("jurisdiccion", JURIS_LOTBA)
         .limit(200)
 
       if (draws) {
@@ -400,6 +405,7 @@ export async function POST(req: NextRequest) {
         .select("id")
         .eq("date", date)
         .eq("turno", turno)
+        .in("jurisdiccion", jurisParaTurno(turno))
         .limit(1)
       if (draws && draws.length > 0) {
         const { autoVerifyPredictions } = await import("@/lib/verificacion/auto-verify")

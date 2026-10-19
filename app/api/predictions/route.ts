@@ -6,6 +6,7 @@ import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limiter"
 import { parsePred2, extractPred3, extractPred4, extractRedoblona } from "@/lib/predictions"
 import logger from "@/lib/logger"
 import { SUENOS } from "@/lib/suenos"
+import { jurisParaTurno } from "@/lib/procedencia"
 import type { PredictionResponse, TopNumero, HeatmapItem } from "./types"
 
 export const maxDuration = 30
@@ -39,6 +40,7 @@ async function cacheFrescoPara(turno: string, fechaCache: string, fechaDestino: 
       .from("draws")
       .select("date")
       .eq("turno", turno)
+      .in("jurisdiccion", jurisParaTurno(turno))
       .gte("date", fechaCache)
       .lt("date", fechaDestino)
       .limit(1)
@@ -215,6 +217,7 @@ export async function GET(req: NextRequest) {
         .from("draws")
         .select("numbers")
         .eq("turno", turnoCanonical)
+        .in("jurisdiccion", jurisParaTurno(turnoCanonical))
         .order("date", { ascending: false })
         .limit(400)
       const rows = Array.isArray(heatmapRows) ? heatmapRows : []

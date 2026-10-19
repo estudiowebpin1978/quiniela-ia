@@ -10,6 +10,7 @@
 
 import type { TurnoQuiniela } from "@/types/engine"
 import { esDiaSinSorteo, esTurnoSinSorteo } from "@/lib/feriados"
+import { jurisParaTurno } from "@/lib/procedencia"
 
 export const TURNOS_ORDER: TurnoQuiniela[] = [
   "Previa",
@@ -144,6 +145,7 @@ export async function validatePrerequisite(
       .from("draws")
       .select("id, turno, date")
       .eq("turno", targetTurno)
+      .in("jurisdiccion", jurisParaTurno(targetTurno))
       .order("date", { ascending: false })
       .limit(1)
       .single()
@@ -169,6 +171,7 @@ export async function validatePrerequisite(
     .select("id, turno, date, created_at")
     .eq("turno", depTurno)
     .eq("date", expectedDate)
+    .in("jurisdiccion", jurisParaTurno(depTurno))
     .order("created_at", { ascending: false })
     .limit(1)
     .single()

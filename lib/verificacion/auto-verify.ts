@@ -11,6 +11,7 @@ import {
 } from "./criterio"
 import { buildHistoryInsert } from "./historial"
 import logger from "@/lib/logger"
+import { jurisParaTurno } from "@/lib/procedencia"
 
 interface VerificationResult {
   id: string
@@ -174,6 +175,7 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
     .select("numbers, turno, game_id")
     .eq("date", fecha)
     .ilike("turno", normalizedTurno)
+    .in("jurisdiccion", jurisParaTurno(normalizedTurno))
 
   if (!draws?.length) {
     logger.warn("[auto-verify] No draw found — skipping verification", { fecha, turno: normalizedTurno })

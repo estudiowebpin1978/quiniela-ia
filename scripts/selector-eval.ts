@@ -26,6 +26,7 @@ cargarEnv()
 
 import type { CandidatoSelector, SorteoSelector } from "../lib/selector/tipos"
 import type { ResultadoSelector } from "../lib/selector/walkforward"
+import { JURIS_LOTBA } from "../lib/procedencia"
 
 // ─── CLI ─────────────────────────────────────────────────────────────────────
 
@@ -172,6 +173,9 @@ async function cargarSorteos(
     const { data, error } = await supabase
       .from("draws")
       .select("date,turno,numbers")
+      // Procedencia (frente C): solo juegos de LOTBA (Quiniela + Poceada);
+      // provincia es otro juego y contaminaría la validación del selector.
+      .in("jurisdiccion", JURIS_LOTBA)
       .order("date", { ascending: true })
       .range(desde, desde + 999)
     if (error) throw new Error(`draws: ${error.message}`)

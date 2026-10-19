@@ -19,6 +19,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import logger from "@/lib/logger"
+import { jurisParaTurno } from "@/lib/procedencia"
 
 /** Factores V6 del motor omega (orden de presentación en /rendimiento). */
 export const V6_FACTORS = [
@@ -89,6 +90,7 @@ export async function evaluateV6Factors(
       .select("numbers")
       .eq("date", fecha)
       .eq("turno", turno)
+      .in("jurisdiccion", jurisParaTurno(turno))
       .limit(1)
 
     const drawNums = Array.isArray(drawRows) && drawRows[0]?.numbers?.length

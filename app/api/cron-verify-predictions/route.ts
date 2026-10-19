@@ -37,6 +37,7 @@ import {
   type InformeTareasAuxiliares,
 } from "@/lib/cron/tareas-auxiliares"
 import logger from "@/lib/logger"
+import { jurisParaTurno } from "@/lib/procedencia"
 
 export const maxDuration = 120
 
@@ -70,6 +71,7 @@ async function verificarTurno(
     .select("numbers, turno, game_id, date")
     .in("date", dates)
     .ilike("turno", turno)
+    .in("jurisdiccion", jurisParaTurno(turno))
 
   const drawsByDate = new Map<string, DrawRow>()
   for (const d of (drawRows || []) as DrawRow[]) {

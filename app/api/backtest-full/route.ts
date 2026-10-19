@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import logger from "@/lib/logger"
+import { jurisParaTurno } from "@/lib/procedencia"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -92,6 +93,7 @@ export async function GET(req: NextRequest) {
       .from("draws")
       .select("date, turno, numbers")
       .eq("turno", turno)
+      .in("jurisdiccion", jurisParaTurno(turno))
       .gte("date", sinceStr)
       .order("date", { ascending: true })
       .limit(1000)

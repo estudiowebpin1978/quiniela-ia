@@ -18,6 +18,7 @@ vi.mock("@/lib/poceada-federal/repositorio", () => {
     conteoEstados: vi.fn(async () => ({ pending: 0, validated: 0, conflict: 0, failed: 0 })),
     guardarPrediccion: vi.fn(async () => "pred-1"),
     listarPredicciones: vi.fn(async () => []),
+    listarPrediccionesPorEstado: vi.fn(async () => []),
     marcarEvaluacion: vi.fn(async () => {}),
     marcarNoEvaluable: vi.fn(async () => {}),
     idDrawPorConcurso: vi.fn(async () => "draw-1"),
@@ -62,6 +63,7 @@ import {
   historialValidado,
   conteoEstados,
   listarPredicciones,
+  listarPrediccionesPorEstado,
   insertarSorteos,
   guardarPrediccion,
   marcarEvaluacion,
@@ -301,6 +303,7 @@ describe("/api/poceada-federal/combinaciones — premium", () => {
       creado_en: "2026-10-14T12:00:01.000Z",
     }
     vi.mocked(listarPredicciones).mockResolvedValueOnce([pred] as never)
+    vi.mocked(listarPrediccionesPorEstado).mockResolvedValueOnce([pred] as never)
     vi.mocked(historialValidado).mockResolvedValueOnce([
       {
         concurso: 5735,

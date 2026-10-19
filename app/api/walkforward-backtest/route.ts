@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import logger from "@/lib/logger"
 import { predictEnsembleV7 } from "@/lib/analisis/engine-v7"
-import { loadV7Weights, v7WeightsToFactorBreakdown } from "@/lib/analisis/v7-weights"
-import { getMLPredictions } from "@/lib/ml/integration"
-import { loadEngineWeightsDecayed } from "@/lib/ensemble/meta-ensemble"
+import { puntuarConModelos } from "@/lib/ml/integration"
+import { entrenarModelos } from "@/lib/ml/trainer"
+import { jurisParaTurno } from "@/lib/procedencia"
 
 export const maxDuration = 300
 
@@ -37,6 +37,8 @@ export async function GET(req: NextRequest) {
         .from("draws")
         .select("id, date, turno, numbers")
         .eq("turno", turno)
+        // Procedencia (frente C): el backtest debe recorrer un solo juego.
+        .in("jurisdiccion", jurisParaTurno(turno))
         .not("numbers", "is", null)
         .order("date", { ascending: true })
 
@@ -76,6 +78,29 @@ export async function GET(req: NextRequest) {
       let hitsTotal = 0
       let nearTotal = 0
 
+      // ANTI-FUGA (frente D): entrena ML SOLO con sorteos anteriores al inicio
+      // del chunk. Los modelos de producción (ml_models) se entrenan con todo el
+      // histórico de HOY: usarlos en el replay metería el futuro en cada fold.
+      let modelosChunk: Parameters<typeof puntuarConModelos>[1] = []
+      if (chunkDates.length > 0) {
+        const inicioChunk = chunkDates[0]
+        const previosAlChunk = (draws as Array<{ date: string; turno: string; numbers: number[] }>)
+          .filter((d) => new Date(d.date) < inicioChunk)
+          .map((d) => ({ fecha: d.date, turno: d.turno, numbers: d.numbers }))
+        if (previosAlChunk.length >= 50) {
+          try {
+            const resultadoML = await entrenarModelos(previosAlChunk, {
+              incluirRF: true,
+              incluirMarkov: true,
+              incluirNN: true,
+            })
+            modelosChunk = resultadoML.modelos
+          } catch (trE) {
+            logger.warn("[walkforward-backtest] ML chunk training failed", { turno, error: (trE as Error).message })
+          }
+        }
+      }
+
       for (const testDate of chunkDates) {
         const dateStr = testDate.toISOString().split("T")[0]
         datesProcessed.push(dateStr)
@@ -103,9 +128,11 @@ export async function GET(req: NextRequest) {
         }))
         let v7Top: string[] = []
         try {
-          const weights = await loadV7Weights(turno)
-          const v7Weights = v7WeightsToFactorBreakdown(weights)
-          const v7Result = await predictEnsembleV7(drawsForV7, turno, 10, 0, v7Weights)
+          // ANTI-FUGA (frente D): pesos NEUTRALES (constantes del motor) + asOf
+          // para el replay OOS. Sin asOf, el ensemble usaría las vistas
+          // materializadas (stats de HOY) — y los pesos aprendidos (v7_weights)
+          // meterían en el fold información aprendida después.
+          const v7Result = await predictEnsembleV7(drawsForV7, turno, 10, 0, undefined, { asOf: dateStr })
           v7Top = v7Result.predictions.map((p: { numero: string }) => p.numero)
         } catch (v7e) {
           logger.warn("[walkforward-backtest] V7 replay error", { turno, date: dateStr, error: (v7e as Error).message })
@@ -120,7 +147,9 @@ export async function GET(req: NextRequest) {
             turno: d.turno,
             numbers: d.numbers,
           }))
-          const mlPred = await getMLPredictions(turno, mlDrawsType)
+          // ANTI-FUGA: puntúa con los modelos del chunk (previos al chunk), no
+          // con los de producción.
+          const mlPred = puntuarConModelos(turno, modelosChunk, mlDrawsType)
           if (mlPred.available && mlPred.scores.size > 0) {
             mlTop = Array.from(mlPred.scores.entries())
               .sort((a, b) => b[1] - a[1])
@@ -137,6 +166,7 @@ export async function GET(req: NextRequest) {
           .from("draws")
           .select("numbers")
           .eq("turno", turno)
+          .in("jurisdiccion", jurisParaTurno(turno))
           .eq("date", dateStr)
           .single()
         const actualNums: number[] = (actualDraw?.numbers || []) as number[]
@@ -156,9 +186,11 @@ export async function GET(req: NextRequest) {
         const isHitML = mlHitsCount > 0
         const isNearML = !isHitML && mlTopNums.some((n: number) => actualNums.some((a: number) => Math.abs(a - n) <= 2))
 
-        // 8. Ensemble blend (use real dynamic weights from engine_performance + backtest)
-        let engineWeights = { V6: 0.40, V7: 0.35, ML: 0.25 }
-        try { engineWeights = await loadEngineWeightsDecayed(turno) } catch { /* use defaults */ }
+        // 8. Ensemble blend (ANTIFUGA frente D): pesos constantes neutrales.
+        // NO se usa loadEngineWeightsDecayed: esos pesos del engine_performance
+        // fueron aprendidos con datos que incluyen los mismos folds que este
+        // replay evalúa (fuga temporal). Los valores fijos son neutrales.
+        const engineWeights = { V6: 0.40, V7: 0.35, ML: 0.25 }
         let ensembleTop: number[] = []
         try {
           // Rebuild blend using the same logic as cron-precompute but with replay predictions

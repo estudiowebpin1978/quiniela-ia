@@ -13,6 +13,7 @@
 import { setModelos, getModelos, MLCachedModel } from "./cache"
 import logger from "@/lib/logger"
 import type { SorteoRow } from "@/lib/api/types"
+import { jurisRest } from "@/lib/procedencia"
 
 const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
 
@@ -129,7 +130,7 @@ async function fetchDraws(turno: string, limit = 5000): Promise<SorteoRow[]> {
 
   try {
     const res = await fetch(
-      `${SB}/rest/v1/draws?select=date,turno,numbers&turno=ilike.*${turno}*&order=date.desc&limit=${limit}`,
+      `${SB}/rest/v1/draws?select=date,turno,numbers&turno=ilike.*${turno}*&jurisdiccion=in.(${jurisRest(turno)})&order=date.desc&limit=${limit}`,
       { headers: { apikey: SK, Authorization: `Bearer ${SK}` } }
     )
     if (!res.ok) return []

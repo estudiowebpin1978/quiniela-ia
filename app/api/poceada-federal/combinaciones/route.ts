@@ -3,7 +3,7 @@ import { resolveUserTier } from "@/lib/auth/tier"
 import { sincronizar } from "@/lib/poceada-federal/actualizar"
 import { backtestWalkForward } from "@/lib/poceada-federal/backtest"
 import { generarCombinaciones } from "@/lib/poceada-federal/combinaciones"
-import { evaluarPrediccion } from "@/lib/poceada-federal/evaluacion"
+import { evaluarPendientes, type InformeEvaluacion } from "@/lib/poceada-federal/evaluar-pendientes"
 import * as repo from "@/lib/poceada-federal/repositorio"
 import {
   ErrorMigracionPendiente,
@@ -54,33 +54,17 @@ export async function GET(req: NextRequest) {
   const denegado = await requerirPremium(req)
   if (denegado) return denegado
   try {
+    // Frente F: cerrar pendientes contra resultados oficiales validados (antes
+    // de listar, para que la respuesta refleje el estado actualizado).
+    let evaluacion: InformeEvaluacion | null = null
+    try {
+      evaluacion = await evaluarPendientes()
+    } catch (ev) {
+      logger.warn("[pf-combinaciones] evaluación pendientes falló", { error: String(ev) })
+    }
     const predicciones = await repo.listarPredicciones(10)
 
-    // Evaluación post-hoc perezosa: se verifica cada predicción pendiente
-    // SOLO contra resultados oficiales ya validados en la base. Si el sorteo
-    // objetivo todavía no está publicado → sigue pendiente (nunca se inventa).
-    const pendientes = predicciones.filter((p) => p.estado === "pendiente")
-    if (pendientes.length > 0) {
-      const sorteos = await repo.historialValidado()
-      for (const p of pendientes) {
-        const { evaluacion, motivo } = evaluarPrediccion(p, sorteos)
-        if (evaluacion) {
-          const drawId = await repo.idDrawPorConcurso(evaluacion.concursoEvaluado)
-          await repo.marcarEvaluacion(p.id, drawId, evaluacion as unknown as Record<string, unknown>)
-          p.estado = "evaluada"
-          p.evaluacion = evaluacion as unknown as Record<string, unknown>
-          p.evaluacion_draw_id = drawId
-        } else if (motivo && (motivo.includes("no es posterior") || motivo.includes("inválido"))) {
-          // Caso permanente: jamás será evaluable → estado con motivo explícito.
-          await repo.marcarNoEvaluable(p.id, motivo)
-          p.estado = "no_evaluable"
-          p.evaluacion = { motivo }
-        }
-        // "todavía no publicado" / "sin resultados posteriores" → pendiente.
-      }
-    }
-
-    return NextResponse.json({ ok: true, predicciones: predicciones as PrediccionGuardada[] })
+    return NextResponse.json({ ok: true, predicciones: predicciones as PrediccionGuardada[], evaluacion })
   } catch (e) {
     if (e instanceof ErrorMigracionPendiente) {
       return NextResponse.json({ ok: false, error: "migracion_pendiente" }, { status: 503 })

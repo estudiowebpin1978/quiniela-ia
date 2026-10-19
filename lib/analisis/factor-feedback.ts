@@ -14,6 +14,7 @@
 
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import logger from "@/lib/logger"
+import { jurisParaTurno } from "@/lib/procedencia"
 
 const FACTORS = [
   "calor", "demora", "afinidad", "markov", "bayesian", "entropy",
@@ -106,6 +107,7 @@ export async function evaluateAndAdjustWeights(
     .select("numbers")
     .eq("date", fecha)
     .ilike("turno", turno)
+    .in("jurisdiccion", jurisParaTurno(turno))
     .limit(1)
     .maybeSingle()
 
