@@ -24,6 +24,7 @@ import { verificarPendientesBrinco } from "@/lib/brinco/verificar"
 import { procesarVencimientosPremium } from "@/lib/premium/vencimientos"
 import { ejecutarLotePrecompute } from "@/lib/pipeline/precompute/lote-diario"
 import { autoTrainAll } from "@/lib/ml/auto-train"
+import { ejecutarChunkWalkforward } from "@/lib/walkforward/lote-chunk"
 import logger from "@/lib/logger"
 
 const INTERVALOS_MS = {
@@ -117,6 +118,7 @@ export async function ejecutarTareasAuxiliares(): Promise<InformeTareasAuxiliare
   // el lote diario no depende de ese trigger: si no corrió en ~24 h, corre aquí.
   // Idempotente: reescribe la fila de cache del día con la misma semilla.
   let precomputeCorrio = false
+  let mlCorrio = false
   try {
     if (await debeEjecutar("cron-precompute", PRECOMPUTE_INTERVALO_MS)) {
       const r = await ejecutarLotePrecompute(null, "tareas-auxiliares")
@@ -151,6 +153,7 @@ export async function ejecutarTareasAuxiliares(): Promise<InformeTareasAuxiliare
         tiempoMs: Date.now() - t0,
       }, t0)
       informe.ejecutadas.push("cron-ml-training")
+      mlCorrio = true
     } else {
       informe.omitidas.push("cron-ml-training")
     }
@@ -179,6 +182,42 @@ export async function ejecutarTareasAuxiliares(): Promise<InformeTareasAuxiliare
   } catch (e) {
     informe.errores.push("cron-verify-catchup")
     logger.warn("[tareas-auxiliares] cron-verify-catchup falló (no bloquea)", { error: String(e) })
+  }
+
+  // ── Walk-forward OOS por chunks (respaldo ~12 h) ──────────────────────
+  // walkforward_results alimenta los pesos dinámicos (loadEngineWeightsDecayed
+  // con decaimiento temporal): en prod estaba 10 meses sin correr y el ajuste
+  // de pesos quedó neutralizado. Corre un turno por tick (el de cursor más
+  // atrasado) con chunk de 15 fechas para respetar el presupuesto del tick y
+  // NUNCA en el mismo tick que el precompute (que consume ~45 s).
+  try {
+    if (await debeEjecutar("cron-walkforward", 12 * 60 * 60 * 1000) && !precomputeCorrio && !mlCorrio) {
+      const sb = getSupabaseAdmin()
+      const { data: progs } = await sb
+        .from("walkforward_progress")
+        .select("turno, last_processed_date")
+        .order("last_processed_date", { ascending: true })
+        .limit(1)
+      const turnoElegido = progs?.[0]?.turno || "Previa"
+
+      const t0 = Date.now()
+      const chunk = await ejecutarChunkWalkforward(turnoElegido, 15, 0)
+      const r = chunk[0]
+      logCronExecution("cron-walkforward", {
+        origen: "tareas-auxiliares",
+        turno: turnoElegido,
+        procesadas: r?.processed ?? 0,
+        hits: r?.hits_total ?? 0,
+        ultimaFecha: r?.dates?.slice(-1)[0] ?? null,
+        tiempoMs: Date.now() - t0,
+      }, t0)
+      informe.ejecutadas.push("cron-walkforward")
+    } else {
+      informe.omitidas.push("cron-walkforward")
+    }
+  } catch (e) {
+    informe.errores.push("cron-walkforward")
+    logger.warn("[tareas-auxiliares] cron-walkforward falló (no bloquea)", { error: String(e) })
   }
 
   return informe

@@ -57,6 +57,8 @@ const CRON_ESPERADOS: Array<{ nombre: string; aliases: string[]; maxEdadMin: num
   { nombre: "cron-analytics", aliases: ["cron-analytics"], maxEdadMin: 60 * 48 },
   // Entrenamiento/ajuste de modelos → tolerancia 48 h
   { nombre: "cron-ml-training", aliases: ["cron-ml-training"], maxEdadMin: 60 * 48 },
+  // Walk-forward OOS por chunks (tareas auxiliares, gate 12 h) → tolerancia 36 h
+  { nombre: "cron-walkforward", aliases: ["cron-walkforward"], maxEdadMin: 60 * 36 },
 ]
 
 type Status = "HEALTHY" | "DEGRADED" | "FAILED" | "NOT_VERIFIED"
