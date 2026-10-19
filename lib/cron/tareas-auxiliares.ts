@@ -184,14 +184,15 @@ export async function ejecutarTareasAuxiliares(): Promise<InformeTareasAuxiliare
     logger.warn("[tareas-auxiliares] cron-verify-catchup falló (no bloquea)", { error: String(e) })
   }
 
-  // ── Walk-forward OOS por chunks (respaldo ~12 h) ──────────────────────
+  // ── Walk-forward OOS por chunks (respaldo ~2 h) ───────────────────────
   // walkforward_results alimenta los pesos dinámicos (loadEngineWeightsDecayed
   // con decaimiento temporal): en prod estaba 10 meses sin correr y el ajuste
   // de pesos quedó neutralizado. Corre un turno por tick (el de cursor más
-  // atrasado) con chunk de 15 fechas para respetar el presupuesto del tick y
-  // NUNCA en el mismo tick que el precompute (que consume ~45 s).
+  // atrasado) con chunk de 15 fechas; a gate 2 h el atraso de ~10 meses se
+  // recupera en ~2 días y luego mantiene el día en curso. NUNCA en el mismo
+  // tick que el precompute o el re-entrenamiento ML (presupuesto del tick).
   try {
-    if (await debeEjecutar("cron-walkforward", 12 * 60 * 60 * 1000) && !precomputeCorrio && !mlCorrio) {
+    if (await debeEjecutar("cron-walkforward", 2 * 60 * 60 * 1000) && !precomputeCorrio && !mlCorrio) {
       const sb = getSupabaseAdmin()
       const { data: progs } = await sb
         .from("walkforward_progress")
