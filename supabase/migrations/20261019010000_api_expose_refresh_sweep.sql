@@ -13,7 +13,11 @@ returns void
 language plpgsql
 security definer
 set search_path = public
-as #BEGIN PERFORM public.refresh_draw_stats_rpc(); END#;
+as $$
+BEGIN
+  PERFORM public.refresh_draw_stats_rpc();
+END
+$$;
 revoke all on function api.refresh_draw_stats_rpc() from public;
 grant execute on function api.refresh_draw_stats_rpc() to anon, authenticated, service_role;
 
@@ -22,6 +26,10 @@ returns integer
 language plpgsql
 security definer
 set search_path = public
-as #BEGIN RETURN public.sweep_expired_predictions(); END#;
+as $$
+BEGIN
+  RETURN public.sweep_expired_predictions();
+END
+$$;
 revoke all on function api.sweep_expired_predictions() from public;
 grant execute on function api.sweep_expired_predictions() to anon, authenticated, service_role;
