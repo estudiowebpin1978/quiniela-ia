@@ -15,11 +15,17 @@ export interface BlendedPrediction {
   factor_attribution: Record<string, number>
 }
 
-/** Pesos dinámicos por motor (V6 SQL + V7 TS + ML). */
+/** Pesos dinámicos por motor (V6 SQL + V7 TS + ML [+ CT cross-turno]). */
 export interface EngineWeights {
   V6: number
   V7: number
   ML: number
+  /**
+   * Motor cross-turno (cadena Previa→Primera→…). Opcional y en 0 por
+   * defecto: solo se activa si el backtest walk-forward lo valida
+   * (Regla Omega — sin mejora OOS demostrada no entra al blend).
+   */
+  CT?: number
 }
 
 /** Candidato de 3/4 cifras con su score crudo de V6. */
@@ -113,6 +119,8 @@ export interface BlendParams {
   v7Predictions: BlendedPrediction[]
   mlPredictions: BlendedPrediction[]
   engineWeights: EngineWeights
+  /** Scores del motor cross-turno (opcional; se ignora si CT <= 0). */
+  ctPredictions?: Map<number, number>
 }
 
 /**
@@ -141,7 +149,7 @@ function maxScoreDe(valores: number[]): number {
  * motor por k>0 no cambia el ranking (garantiza los tests).
  */
 export function blendEngines(params: BlendParams): BlendedPrediction[] {
-  const { v6Rows, v7Predictions, mlPredictions, engineWeights } = params
+  const { v6Rows, v7Predictions, mlPredictions, engineWeights, ctPredictions } = params
   const allNums = new Map<number, BlendedPrediction>()
 
   // V6 (solo primeras 20 filas, como hasta ahora)
@@ -149,6 +157,11 @@ export function blendEngines(params: BlendParams): BlendedPrediction[] {
   const maxV6 = maxScoreDe(v6Filas.map((r) => Number(r.puntaje_total) || 0))
   const maxV7 = maxScoreDe(v7Predictions.map((p) => p.score))
   const maxML = maxScoreDe(mlPredictions.map((p) => p.score))
+  const pesoCT = engineWeights.CT ?? 0
+  const maxCT =
+    pesoCT > 0 && ctPredictions
+      ? Math.max(...Array.from(ctPredictions.values()).filter((v) => Number.isFinite(v)), 0)
+      : 0
 
   for (const row of v6Filas) {
     const num = row.numero as number
@@ -184,6 +197,25 @@ export function blendEngines(params: BlendParams): BlendedPrediction[] {
       existing.score += mlScore
     } else {
       allNums.set(pred.n, { ...pred, score: mlScore })
+    }
+  }
+
+  // CT (cross-turno): igual normalización escala-invariante que los demás.
+  // No-op cuando el peso es 0 (comportamiento por defecto hasta validación).
+  if (pesoCT > 0 && ctPredictions && maxCT > 0) {
+    for (const [num, raw] of ctPredictions) {
+      const ctScore = (raw / maxCT) * pesoCT
+      const existing = allNums.get(num)
+      if (existing) {
+        existing.score += ctScore
+      } else {
+        allNums.set(num, {
+          n: num,
+          numero: formatNumero(num),
+          score: ctScore,
+          factor_attribution: { cross_turno: pesoCT },
+        })
+      }
     }
   }
 
