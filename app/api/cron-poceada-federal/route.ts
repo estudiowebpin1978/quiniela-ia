@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
+import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { sincronizar } from "@/lib/poceada-federal/actualizar"
 import { importarHistorico } from "@/lib/poceada-federal/backfill"
 import { listarSorteosIAFAS, extraerExtractoPdfIAFAS } from "@/lib/poceada-federal/fuente"
@@ -81,6 +81,17 @@ export async function GET(req: NextRequest) {
     } catch (ev) {
       logger.error("[cron-poceada-federal] evaluación pendientes", { error: String(ev) })
     }
+
+    // Observabilidad: registrar la corrida en cron_logs para /api/health
+    // (CRON_FRESHNESS) y el dashboard de monitoreo (antes esta ruta era
+    // invisible: solo logger.info, sin fila en cron_logs).
+    logCronExecution("cron-poceada-federal", {
+      ok: informe.ok,
+      importados: informe.importados,
+      conflictos: informe.conflictos,
+      evaluados: evaluacion ? (evaluacion.evaluadas ?? 0) : null,
+      duracionMs: Date.now() - t0,
+    }, t0)
 
     return NextResponse.json({
       ok: informe.ok,

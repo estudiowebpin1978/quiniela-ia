@@ -23,6 +23,7 @@ import { actualizarIncrementalBrinco } from "@/lib/brinco/actualizar"
 import { verificarPendientesBrinco } from "@/lib/brinco/verificar"
 import { procesarVencimientosPremium } from "@/lib/premium/vencimientos"
 import { ejecutarLotePrecompute } from "@/lib/pipeline/precompute/lote-diario"
+import { autoTrainAll } from "@/lib/ml/auto-train"
 import logger from "@/lib/logger"
 
 const INTERVALOS_MS = {
@@ -34,6 +35,9 @@ const INTERVALOS_MS = {
 
 /** Separación mínima entre corridas del lote precompute (respaldo diario). */
 const PRECOMPUTE_INTERVALO_MS = 23 * 60 * 60 * 1000
+
+/** Re-entrenamiento ML (Markov + RF + NN por turno): respaldo semanal. */
+const ML_INTERVALO_MS = 7 * 24 * 60 * 60 * 1000
 
 /** ¿Pasó el intervalo mínimo desde la última corrida registrada del tarea? */
 async function debeEjecutar(nombre: string, intervaloMs: number): Promise<boolean> {
@@ -112,10 +116,12 @@ export async function ejecutarTareasAuxiliares(): Promise<InformeTareasAuxiliare
   // con cron-premium-expiry y cron-brinco (auditoría 2026-10-12). Con este gate
   // el lote diario no depende de ese trigger: si no corrió en ~24 h, corre aquí.
   // Idempotente: reescribe la fila de cache del día con la misma semilla.
+  let precomputeCorrio = false
   try {
     if (await debeEjecutar("cron-precompute", PRECOMPUTE_INTERVALO_MS)) {
       const r = await ejecutarLotePrecompute(null, "tareas-auxiliares")
       informe.ejecutadas.push("cron-precompute")
+      precomputeCorrio = true
       if (!r.results.every((x) => x.ok)) {
         logger.warn("[tareas-auxiliares] precompute con turnos con error", { resultados: r.results })
       }
@@ -125,6 +131,32 @@ export async function ejecutarTareasAuxiliares(): Promise<InformeTareasAuxiliare
   } catch (e) {
     informe.errores.push("cron-precompute")
     logger.warn("[tareas-auxiliares] cron-precompute falló (no bloquea)", { error: String(e) })
+  }
+
+  // ── Re-entrenamiento ML (respaldo semanal) ────────────────────────────
+  // El POST /api/cron-ml-training depende de un trigger externo que puede
+  // no llegar (mismo modo de falla que cron-precompute). Con este gate los
+  // modelos ML se re-entrenan al menos semanalmente. Presupuesto dinámico:
+  // si el precompute corrió en este mismo tick, el time budget se reduce.
+  try {
+    if (await debeEjecutar("cron-ml-training", ML_INTERVALO_MS)) {
+      const t0 = Date.now()
+      const presupuestoMs = precomputeCorrio ? 40_000 : 85_000
+      const results = await autoTrainAll(false, t0 + presupuestoMs)
+      const total = results.reduce((s, r) => s + r.modelos.length, 0)
+      logCronExecution("cron-ml-training", {
+        origen: "tareas-auxiliares",
+        total,
+        turnos: results.map((r) => r.turno).join(","),
+        tiempoMs: Date.now() - t0,
+      }, t0)
+      informe.ejecutadas.push("cron-ml-training")
+    } else {
+      informe.omitidas.push("cron-ml-training")
+    }
+  } catch (e) {
+    informe.errores.push("cron-ml-training")
+    logger.warn("[tareas-auxiliares] cron-ml-training falló (no bloquea)", { error: String(e) })
   }
 
   return informe
