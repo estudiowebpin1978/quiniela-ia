@@ -22,6 +22,7 @@ import { logCronExecution } from "@/lib/cron/auth"
 import { actualizarIncrementalBrinco } from "@/lib/brinco/actualizar"
 import { verificarPendientesBrinco } from "@/lib/brinco/verificar"
 import { procesarVencimientosPremium } from "@/lib/premium/vencimientos"
+import { ejecutarLotePrecompute } from "@/lib/pipeline/precompute/lote-diario"
 import logger from "@/lib/logger"
 
 const INTERVALOS_MS = {
@@ -31,10 +32,11 @@ const INTERVALOS_MS = {
   "cron-premium-expiry": 20 * 60 * 60 * 1000,
 } as const
 
-type Tarea = keyof typeof INTERVALOS_MS
+/** Separación mínima entre corridas del lote precompute (respaldo diario). */
+const PRECOMPUTE_INTERVALO_MS = 23 * 60 * 60 * 1000
 
 /** ¿Pasó el intervalo mínimo desde la última corrida registrada del tarea? */
-async function debeEjecutar(nombre: Tarea): Promise<boolean> {
+async function debeEjecutar(nombre: string, intervaloMs: number): Promise<boolean> {
   try {
     const sb = getSupabaseAdmin()
     const { data, error } = await sb
@@ -46,7 +48,7 @@ async function debeEjecutar(nombre: Tarea): Promise<boolean> {
     if (error) return true // sin historial consultable → ejecutar
     const last = (data as Array<{ created_at: string }> | null)?.[0]?.created_at
     if (!last) return true
-    return Date.now() - new Date(last).getTime() >= INTERVALOS_MS[nombre]
+    return Date.now() - new Date(last).getTime() >= intervaloMs
   } catch {
     return true
   }
@@ -67,7 +69,7 @@ export async function ejecutarTareasAuxiliares(): Promise<InformeTareasAuxiliare
 
   // ── Brinco: sync incremental + verificación de predicciones ──────────
   try {
-    if (await debeEjecutar("cron-brinco")) {
+    if (await debeEjecutar("cron-brinco", INTERVALOS_MS["cron-brinco"])) {
       const t0 = Date.now()
       const { informe: informeImport, estado } = await actualizarIncrementalBrinco({ domingos: 3, apply: true })
       const v = await verificarPendientesBrinco()
@@ -92,7 +94,7 @@ export async function ejecutarTareasAuxiliares(): Promise<InformeTareasAuxiliare
 
   // ── Vencimientos Premium (downgrade + avisos) ────────────────────────
   try {
-    if (await debeEjecutar("cron-premium-expiry")) {
+    if (await debeEjecutar("cron-premium-expiry", INTERVALOS_MS["cron-premium-expiry"])) {
       const t0 = Date.now()
       const r = await procesarVencimientosPremium()
       logCronExecution("cron-premium-expiry", { origen: "tareas-auxiliares", ...r }, t0)
@@ -103,6 +105,26 @@ export async function ejecutarTareasAuxiliares(): Promise<InformeTareasAuxiliare
   } catch (e) {
     informe.errores.push("cron-premium-expiry")
     logger.warn("[tareas-auxiliares] cron-premium-expiry falló (no bloquea)", { error: String(e) })
+  }
+
+  // ── Precompute del ensemble (respaldo diario) ─────────────────────────
+  // El disparo externo (cron-job.org) puede pausarse sin aviso, como ya pasó
+  // con cron-premium-expiry y cron-brinco (auditoría 2026-10-12). Con este gate
+  // el lote diario no depende de ese trigger: si no corrió en ~24 h, corre aquí.
+  // Idempotente: reescribe la fila de cache del día con la misma semilla.
+  try {
+    if (await debeEjecutar("cron-precompute", PRECOMPUTE_INTERVALO_MS)) {
+      const r = await ejecutarLotePrecompute(null, "tareas-auxiliares")
+      informe.ejecutadas.push("cron-precompute")
+      if (!r.results.every((x) => x.ok)) {
+        logger.warn("[tareas-auxiliares] precompute con turnos con error", { resultados: r.results })
+      }
+    } else {
+      informe.omitidas.push("cron-precompute")
+    }
+  } catch (e) {
+    informe.errores.push("cron-precompute")
+    logger.warn("[tareas-auxiliares] cron-precompute falló (no bloquea)", { error: String(e) })
   }
 
   return informe
