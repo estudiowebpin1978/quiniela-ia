@@ -3,6 +3,13 @@
 import { useEffect, useState, useCallback } from "react"
 import { getSupabaseBrowser } from "@/lib/supabase-browser"
 
+// Extend Window for one-time keyframe injection flags
+declare global {
+  interface Window {
+    __rv_slide_down_injected?: boolean;
+  }
+}
+
 interface PredictionVerification {
   id: string
   date: string
@@ -65,6 +72,22 @@ export function RealtimeVerification({ userId, onVerified }: RealtimeVerificatio
     }
   }, [userId, handleVerification])
 
+  // Inject animation keyframes once (must be before any early return)
+  useEffect(() => {
+    if (typeof window !== "undefined" && !window.__rv_slide_down_injected) {
+      const style = document.createElement("style")
+      style.textContent = `
+        @keyframes rv-slide-down {
+          from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+          to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        .rv-toast { animation: rv-slide-down 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+      `
+      document.head.appendChild(style)
+      window.__rv_slide_down_injected = true
+    }
+  }, [])
+
   if (!notification) {
     return (
       <span
@@ -96,31 +119,43 @@ export function RealtimeVerification({ userId, onVerified }: RealtimeVerificatio
   }
 
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-slide-down">
-      <div
-        className={`text-white px-6 py-4 rounded-xl shadow-2xl border flex items-center gap-4 max-w-sm ${
-          isWin
-            ? "bg-gradient-to-r from-yellow-500 to-amber-600 border-yellow-400/30"
-            : "bg-gradient-to-r from-gray-600 to-gray-700 border-gray-500/30"
-        }`}
-      >
-        <span className="text-3xl">{isWin ? "🎉" : "😢"}</span>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-sm">
+    <div className="rv-toast" style={{
+      position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 50,
+      maxWidth: "360px", pointerEvents: "auto"
+    }}>
+      <div style={{
+        background: isWin
+          ? "linear-gradient(135deg, #fbbf24, #f59e0b)"
+          : "linear-gradient(135deg, #4b5563, #374151)",
+        border: `1px solid ${isWin ? "rgba(251,191,36,0.3)" : "rgba(107,114,128,0.3)"}`,
+        borderRadius: "16px",
+        padding: "16px 24px",
+        boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.05)",
+        display: "flex", alignItems: "center", gap: 16, maxWidth: "360px",
+      }}>
+        <span style={{ fontSize: "48px", lineHeight: 1 }}>{isWin ? "🎉" : "😢"}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontWeight: 700, fontSize: "14px", margin: "0 0 4px", color: "#fff" }}>
             {isWin ? "¡Acierto verificado!" : "No acertaste esta vez"}
           </p>
-          <p className="text-white/80 text-xs">
+          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.8)", margin: 0 }}>
             {notification.turno} · {notification.date}
           </p>
           {isWin && aciertosStr && (
-            <p className="text-yellow-200 text-xs mt-1">
+            <p style={{ fontSize: "11px", color: "#fde68a", margin: "4px 0 0" }}>
               Aciertos: {aciertosStr}
             </p>
           )}
         </div>
         <button
           onClick={() => setNotification(null)}
-          className="text-white/60 hover:text-white text-lg font-bold"
+          style={{
+            background: "none", border: "none", color: "rgba(255,255,255,0.6)",
+            fontSize: "24px", lineHeight: 1, cursor: "pointer", padding: 0,
+            fontWeight: 700, transition: "color 0.1s"
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = "#fff"}
+          onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.6)"}
         >
           ×
         </button>

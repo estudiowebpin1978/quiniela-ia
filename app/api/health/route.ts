@@ -306,20 +306,28 @@ export async function GET(req: NextRequest) {
     // (evita el falso FAILED del lunes feriado / domingo por la mañana).
     const ageMinScrape = lastScrape ? minutosHabilesEntre(lastScrape.getTime(), now.getTime()) : 999999
 
+    // ¿El último sorteo scrapeado fue la Nocturna (último del día)?
+    const lastTurno = lastDraw?.turno || "N/A"
+    const esUltimoTurnoDelDia = lastTurno === "Nocturna"
+
     report.components.scraper.details = {
       lastScrape: lastDraw?.created_at || "N/A",
       lastDrawDate: lastDraw?.date || "N/A",
-      lastDrawTurno: lastDraw?.turno || "N/A",
+      lastDrawTurno: lastTurno,
       hoursSinceLastScrape: Math.round(hoursSinceLastScrape * 10) / 10,
       ageMinutesHabiles: ageMinScrape,
+      lastTurnoIsFinal: esUltimoTurnoDelDia,
     }
 
     // On Mon-Sat during business hours (10-22 ART), expect scrape within 1 hour
+    // PERO solo si ya se scrapeó el último turno del día (Nocturna).
+    // Si el último scrape fue Vespertina/Matutina y aún no ocurrió la Nocturna,
+    // es NORMAL que pase >1.5h → no es DEGRADED.
     const weekday = now.getDay()
     const hourART = (now.getUTCHours() - 3 + 24) % 24
     const isBusinessHours = weekday >= 1 && weekday <= 6 && hourART >= 10 && hourART <= 22
 
-    if (isBusinessHours && hoursSinceLastScrape > 1.5) {
+    if (isBusinessHours && hoursSinceLastScrape > 1.5 && esUltimoTurnoDelDia) {
       report.components.scraper.status = "DEGRADED"
       alerts.push(`SCRAPER: last scrape was ${hoursSinceLastScrape}h ago (expected < 1h during business hours)`)
     } else if (ageMinScrape > 24 * 60) {
