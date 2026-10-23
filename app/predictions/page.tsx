@@ -1214,24 +1214,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   transition: ".12s",
                 }}
               >
-                📋 Mis Análisis
-              </button>
-              <button
-                onClick={() => setShowCalc(!showCalc)}
-                style={{
-                  padding: "10px 16px", borderRadius: 10,
-                  border: "1.5px solid rgba(180,83,9,.5)",
-                  background: "linear-gradient(135deg,rgba(180,83,9,.16),rgba(180,83,9,.06))",
-                  color: "#92400e",
-                  fontSize: 13,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  fontFamily: "'Inter',sans-serif",
-                  boxShadow: "0 4px 0 rgba(120,53,15,.2),0 6px 16px rgba(180,83,9,.15)",
-                  transition: ".12s",
-                }}
-              >
-                📊 Datos Históricos
+                Análisis Guardados
               </button>
             </div>
             <div style={{ fontSize: 11, color: "#94a3b8", whiteSpace: "nowrap" }}>
@@ -1325,7 +1308,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 }}
                 style={{ background: "linear-gradient(180deg,#ffd60a 0%,#f59e0b 50%,#d97706 100%)", color: "#111", boxShadow: "0 10px 0 #b45309,0 14px 40px rgba(245,158,11,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}
               >
-                🔮 Poceada (Ciudad)
+                🔮 Poceada Ciudad
                 <span className="gsub">2 cifras · Ciudad de Buenos Aires</span>
               </a>
               <a
@@ -1339,7 +1322,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                 }}
                 style={{ background: "linear-gradient(180deg,#38bdf8 0%,#0ea5e9 50%,#0284c7 100%)", color: "#fff", boxShadow: "0 10px 0 #0369a1,0 14px 40px rgba(14,165,233,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}
               >
-                🎟️ Poceada Federal (Santa Fe)
+                🎟️ Poceada Federal
                 <span className="gsub">Combinaciones de 2 a 5 números · IAFAS</span>
               </a>
               {leyendaModalidad && !(pr || userRole === "admin") && (
