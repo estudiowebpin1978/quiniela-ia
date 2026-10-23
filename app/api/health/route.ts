@@ -55,8 +55,8 @@ const CRON_ESPERADOS: Array<{ nombre: string; aliases: string[]; maxEdadMin: num
   { nombre: "cron-premium-expiry", aliases: ["cron-premium-expiry"], maxEdadMin: 60 * 36 },
   // Se dispara tras cada scrape con sorteos nuevos → tolerancia 48 h
   { nombre: "cron-analytics", aliases: ["cron-analytics"], maxEdadMin: 60 * 48 },
-  // Entrenamiento/ajuste de modelos → tolerancia 48 h
-  { nombre: "cron-ml-training", aliases: ["cron-ml-training"], maxEdadMin: 60 * 48 },
+  // Entrenamiento/ajuste de modelos (gate 7 días) → tolerancia 7 días
+  { nombre: "cron-ml-training", aliases: ["cron-ml-training"], maxEdadMin: 60 * 24 * 7 },
   // Walk-forward OOS por chunks (tareas auxiliares, gate 2 h) → tolerancia 36 h
   { nombre: "cron-walkforward", aliases: ["cron-walkforward"], maxEdadMin: 60 * 36 },
 ]
