@@ -11,6 +11,10 @@
     {
       "path": "/api/cron-poceada-federal",
       "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron-precompute",
+      "schedule": "0 13,14,15,16,17,18,19,20,21,22,23,0 * * *"
     }
   ],
   "headers": [

@@ -74,6 +74,26 @@ export async function ejecutarLotePrecompute(
   const results: Array<{ turno: string; ok: boolean; confidence?: number; error?: string }> = []
 
   for (const turno of turnos) {
+    // Gate de frescura: no re-computar si ya hay predicción reciente (< 2h)
+    // para este turno en la fecha objetivo. Esto permite correr el cron cada
+    // hora sin desperdiciar recursos ni alterar predicciones ya disponibles.
+    try {
+      const { data: existing } = await supabase
+        .from("predictions_cache")
+        .select("computed_at")
+        .eq("turno", turno)
+        .eq("date", today)
+        .limit(1)
+        .single()
+      if (existing?.computed_at) {
+        const ageMin = (Date.now() - new Date(existing.computed_at).getTime()) / 60000
+        if (ageMin < 120) {
+          results.push({ turno, ok: true, confidence: 0, error: `Fresco (${Math.round(ageMin)}m < 2h); skip` })
+          continue
+        }
+      }
+    } catch { /* ignora errores de lectura de cache */ }
+
     const GAME_ID = turno === "Poceada" ? "d0e1f2a3-b4c5-6789-0abc-def012345678" : "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
     try {
       // 1. Semilla determinista por día+turno (antes: hash del último id UUID,
