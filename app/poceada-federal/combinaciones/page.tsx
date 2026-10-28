@@ -37,8 +37,7 @@ const NOMBRES_ESTRATEGIA: Record<string, string> = {
   "5-ensemble-oos": "5 · Ensemble por desempeño fuera de muestra",
 };
 
-const fmtNums = (nums: number[]) =>
-  [...nums].sort((a, b) => a - b).map((n) => String(n).padStart(2, "0"));
+const fmtPct = (v: number) => `${Math.round(v * 10000) / 100}%`;
 
 const pageStyle = {
   minHeight: "100vh",
@@ -80,6 +79,13 @@ const cardStyle = {
   transition: "transform .2s, box-shadow .2s",
 } as const;
 
+const cardBestStyle = {
+  ...cardStyle,
+  border: "1px solid rgba(245,197,66,.45)",
+  boxShadow:
+    "0 14px 36px rgba(245,197,66,.14), inset 0 1px 0 rgba(255,255,255,.12)",
+} as const;
+
 const metaStyle = {
   display: "flex",
   flexWrap: "wrap",
@@ -89,64 +95,74 @@ const metaStyle = {
   marginBottom: "14px",
 } as const;
 
-const numsStyle = { display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "6px" } as const;
+const numsStyle = { display: "flex", flexWrap: "wrap", gap: "10px" } as const;
 
-const numStyle = (accentA: string, accentB: string, accentInk: string) => ({
-  width: "54px",
-  height: "54px",
-  display: "flex",
+/** Tile 3D estilo /predictions: relieve interior + base sólida + sombra. */
+const numStyle = (best: boolean) =>
+  ({
+    width: "54px",
+    height: "54px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "12px",
+    fontSize: "1.5rem",
+    fontWeight: 800,
+    color: best ? "#141414" : "#f8fafc",
+    background: best
+      ? "linear-gradient(180deg,#f5c542,#e0a800)"
+      : "linear-gradient(180deg,#1a1a3a,#0f0f22)",
+    border: best ? "2px solid rgba(245,197,66,.9)" : "2px solid rgba(255,255,255,.12)",
+    boxShadow: best
+      ? "inset 0 2px 4px rgba(255,255,255,.35), 0 6px 0 rgba(120,85,0,.55), 0 12px 26px rgba(245,197,66,.25)"
+      : "inset 0 2px 4px rgba(255,255,255,.15), 0 6px 0 rgba(0,0,0,.4), 0 12px 24px rgba(0,0,0,.3)",
+    transition: "transform .15s ease",
+  }) as const;
+
+const badgeStyle = {
+  display: "inline-flex",
   alignItems: "center",
-  justifyContent: "center",
-  borderRadius: "12px",
-  fontSize: "1.5rem",
-  fontWeight: 800,
-  color: accentInk,
-  background: `linear-gradient(180deg, ${accentA}, ${accentB})`,
-  boxShadow: "0 6px 0 rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,.1)",
-  transition: "transform .15s ease",
-} as const);
-
-const numStyleHover = {
-  transform: "translateY(-4px)",
-  borderColor: "rgba(245,197,66,.6)",
-  boxShadow: "inset 0 2px 4px rgba(255,255,255,.2), 0 10px 0 rgba(0,0,0,.4), 0 16px 30px rgba(245,197,66,.15)",
+  padding: "3px 10px",
+  borderRadius: "999px",
+  fontWeight: 700,
+  fontSize: "11px",
+  letterSpacing: "0.2px",
+  border: "1px solid transparent",
 } as const;
 
-const altStyle = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: "8px",
-  alignItems: "center",
-  marginTop: "10px",
-  color: "#9aa0a6",
-  fontSize: "0.82rem",
+const badgePremium = {
+  ...badgeStyle,
+  background: "linear-gradient(135deg, rgba(245,197,66,.15), rgba(245,197,66,.06))",
+  color: "#f5c542",
+  borderColor: "rgba(245,197,66,.35)",
 } as const;
 
-const chipStyle = {
-  minWidth: "30px",
-  padding: "3px 6px",
-  textAlign: "center",
-  borderRadius: "7px",
-  background: "#1c1c1c",
-  border: "1px solid #2a2a2a",
-  color: "#e6e6e6",
-  fontWeight: 600,
-  fontSize: "0.82rem",
+const badgeTop = {
+  ...badgeStyle,
+  background: "linear-gradient(135deg, rgba(34,197,94,.18), rgba(34,197,94,.06))",
+  color: "#22c55e",
+  borderColor: "rgba(34,197,94,.4)",
 } as const;
 
 const actionsStyle = { display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "16px" } as const;
 
-const btnStyle = (ghost: boolean, accentA: string, accentB: string, accentInk: string) => ({
-  padding: "10px 18px",
-  borderRadius: "10px",
-  border: ghost ? "1px solid #2a2a2a" : "none",
-  fontWeight: 700,
-  cursor: "pointer",
-  transition: "all .15s",
-  background: ghost ? "transparent" : `linear-gradient(180deg, ${accentA}, ${accentB})`,
-  color: ghost ? "#e6e6e6" : accentInk,
-  boxShadow: ghost ? "none" : "0 5px 0 rgba(0,0,0,0.45), 0 8px 20px rgba(0,0,0,.3)",
-} as const);
+const btnStyle = (ghost: boolean) =>
+  ({
+    padding: "14px 22px",
+    borderRadius: "12px",
+    border: ghost ? "1px solid #2a2a2a" : "none",
+    fontWeight: 800,
+    fontSize: "15px",
+    cursor: "pointer",
+    transition: "all .15s",
+    background: ghost
+      ? "transparent"
+      : "linear-gradient(180deg,#f5c542,#e0a800)",
+    color: ghost ? "#e6e6e6" : "#141414",
+    boxShadow: ghost
+      ? "none"
+      : "0 6px 0 rgba(120,85,0,.55), 0 10px 24px rgba(245,197,66,.25)",
+  }) as const;
 
 const avisoStyle = {
   marginTop: "16px",
@@ -181,7 +197,7 @@ export default function PoceadaFederalCombinaciones() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `HTTP ${res.status}`);
       }
-      const data = await res.json();
+      const data: Analisis = await res.json();
       setAnalisis(data);
       setLastRefresh(new Date().toLocaleTimeString("es-AR"));
     } catch (e) {
@@ -208,7 +224,7 @@ export default function PoceadaFederalCombinaciones() {
             <h1 style={titleStyle}>Poceada Federal</h1>
             <p style={subStyle}>Combinaciones premium — IAFAS oficial</p>
           </div>
-          <div style={cardStyle} className="brinco-loading">Cargando combinaciones…</div>
+          <div style={cardStyle}>Cargando combinaciones…</div>
         </div>
       </div>
     );
@@ -222,11 +238,11 @@ export default function PoceadaFederalCombinaciones() {
             <h1 style={titleStyle}>Poceada Federal</h1>
             <p style={subStyle}>Combinaciones premium — IAFAS oficial</p>
           </div>
-          <div style={cardStyle} className="brinco-gate">
+          <div style={cardStyle}>
             <h2 style={{ color: "#f5c542" }}>No se pudo cargar</h2>
             <p style={{ marginTop: "8px" }}>{error}</p>
             <button
-              style={{ ...btnStyle(false, "#f5c542", "#e0a800", "#141414"), marginTop: "16px" }}
+              style={{ ...btnStyle(false), marginTop: "16px" }}
               onClick={fetchCombinaciones}
             >
               Reintentar
@@ -238,63 +254,148 @@ export default function PoceadaFederalCombinaciones() {
   }
 
   const a = analisis!;
-  const badgeStyle = { display: "inline-flex", alignItems: "center", padding: "3px 8px", borderRadius: "999px", fontWeight: 700, fontSize: "11px", letterSpacing: "0.2px" } as const;
-  const badgePremium = { ...badgeStyle, background: "linear-gradient(135deg, rgba(245,197,66,.15), rgba(245,197,66,.06))", color: "#f5c542", border: "1px solid rgba(245,197,66,.35)" } as const;
+
+  // Mejor estrategia = mayor pct en backtesting OOS (con al menos 1 evaluación).
+  const mejorEstrategia =
+    a.backtesting && a.backtesting.length > 0
+      ? a.backtesting.reduce((m, b) => (b.pct > m.pct ? b : m)).estrategia
+      : null;
 
   return (
     <div style={pageStyle}>
       <div style={wrapStyle}>
         <div style={headStyle}>
           <h1 style={titleStyle}>Poceada Federal</h1>
-          <p style={subStyle}>Combinaciones premium — IAFAS oficial</p>
+          <span style={badgePremium}>Premium · Datos oficiales</span>
         </div>
+        <p style={subStyle}>
+          2 sorteos/día (Matutina 15:00 · Nocturna 21:00) — Fuente: IAFAS + Lotería Santa Fe
+        </p>
 
-        <div style={tabsStyle}>
-          <button style={tabStyle(true)} disabled>Combinaciones</button>
-          <button style={tabStyle(false)} disabled>Backtesting</button>
-        </div>
-
-        <div className="card">
+        <div style={cardStyle}>
           <div style={metaStyle}>
-            <span><b>Sincronización:</b> {a.sincronizacion.ok ? "✓ OK" : "✗ Falló"}</span>
-            <span><b>Fuente:</b> IAFAS</span>
-            <span><b>Historial:</b> {a.historial.cantidad} sorteos ({a.historial.desde} → {a.historial.hasta})</span>
-            {a.historial.antiguedadUltimoDias !== undefined && <span><b>Antigüedad último:</b> {a.historial.antiguedadUltimoDias} días</span>}
+            <span>
+              <b>Sincronización:</b> {a.sincronizacion.ok ? "✓ OK" : "✗ Falló"}
+            </span>
+            <span>
+              <b>Historial:</b> {a.historial.cantidad} sorteos ({a.historial.desde} →{" "}
+              {a.historial.hasta})
+            </span>
+            {a.historial.antiguedadUltimoDias !== undefined && (
+              <span>
+                <b>Antigüedad último:</b> {a.historial.antiguedadUltimoDias} días
+              </span>
+            )}
           </div>
           <div style={{ fontSize: "0.78rem", color: "#9aa0a6" }}>
             {a.sincronizacion.detalle || "Última actualización: " + (lastRefresh || "—")}
           </div>
         </div>
 
-        {a.combinaciones?.length ? (
-          a.combinaciones.map((j) => (
-            <div key={j.orden} style={cardStyle}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "spaceBetween", marginBottom: "8px" }}>
-                <span style={{ fontSize: "1.1rem", fontWeight: 800, color: "#f5c542" }}>Jugada {j.orden}</span>
-                <span style={badgePremium}>Premium</span>
+        {a.combinaciones && a.combinaciones.length > 0 ? (
+          a.combinaciones.map((j) => {
+            const esMejor = j.estrategia === mejorEstrategia;
+            return (
+              <div key={j.orden} style={esMejor ? cardBestStyle : cardStyle}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "8px",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "1.05rem",
+                      fontWeight: 800,
+                      color: esMejor ? "#22c55e" : "#f5c542",
+                    }}
+                  >
+                    Jugada {j.orden}
+                  </span>
+                  <span style={{ display: "flex", gap: "6px" }}>
+                    {esMejor && <span style={badgeTop}>★ Mejor en OOS</span>}
+                    <span style={badgePremium}>Premium</span>
+                  </span>
+                </div>
+                <p style={{ color: "#9aa0a6", fontSize: "0.82rem", marginBottom: "12px" }}>
+                  {NOMBRES_ESTRATEGIA[j.estrategia] || j.estrategia}
+                </p>
+                <div style={numsStyle}>
+                  {j.numeros.map((n) => (
+                    <span key={n} style={numStyle(esMejor)}>
+                      {String(n).padStart(2, "0")}
+                    </span>
+                  ))}
+                </div>
               </div>
-              <p style={{ color: "#9aa0a6", fontSize: "0.82rem", marginBottom: "12px" }}>{NOMBRES_ESTRATEGIA[j.estrategia] || j.estrategia}</p>
-              <div style={numsStyle}>
-                {j.numeros.map((n) => (
-                  <span key={n} style={numStyle("#f5c542", "#e0a800", "#141414")}>{String(n).padStart(2, "0")}</span>
-                ))}
-              </div>
-            </div>
-          ))
+            );
+          })
         ) : (
-          <div style={cardStyle} className="brinco-empty">No hay combinaciones disponibles.</div>
+          <div style={cardStyle}>No hay combinaciones disponibles.</div>
         )}
 
-        {a.backtesting?.length && (
+        {a.backtesting && a.backtesting.length > 0 && (
           <div style={cardStyle}>
-            <h2 style={{ fontSize: "15px", fontWeight: 800, margin: "0 0 8px", color: "#f5c542" }}>Backtesting walk-forward (OOS)</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "10px" }}>
+            <h2 style={{ fontSize: "15px", fontWeight: 800, margin: "0 0 10px", color: "#f5c542" }}>
+              Backtesting walk-forward (OOS)
+            </h2>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: "10px",
+              }}
+            >
               {a.backtesting.map((b) => (
-                <div key={b.estrategia} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid #2a2a2a", borderRadius: "10px", padding: "12px" }}>
-                  <div style={{ fontSize: "0.75rem", color: "#9aa0a6", marginBottom: "4px" }}>{NOMBRES_ESTRATEGIA[b.estrategia] || b.estrategia}</div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "spaceBetween" }}>
-                    <span style={{ fontSize: "1.5rem", fontWeight: 800, color: "#f5c542" }}>{b.aciertos} / {b.total}</span>
-                    <span style={{ fontSize: "1.2rem", fontWeight: 800, color: "#f5c542" }}>{pct(b.pct)}</span>
+                <div
+                  key={b.estrategia}
+                  style={{
+                    background: "rgba(255,255,255,0.02)",
+                    border:
+                      b.estrategia === mejorEstrategia
+                        ? "1px solid rgba(34,197,94,.4)"
+                        : "1px solid #2a2a2a",
+                    borderRadius: "10px",
+                    padding: "12px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "0.75rem",
+                      color: "#9aa0a6",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {NOMBRES_ESTRATEGIA[b.estrategia] || b.estrategia}
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "1.3rem",
+                        fontWeight: 800,
+                        color: b.estrategia === mejorEstrategia ? "#22c55e" : "#f8fafc",
+                      }}
+                    >
+                      {b.aciertos} / {b.total}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "1.1rem",
+                        fontWeight: 800,
+                        color: b.estrategia === mejorEstrategia ? "#22c55e" : "#9aa0a6",
+                      }}
+                    >
+                      {fmtPct(b.pct)}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -303,24 +404,28 @@ export default function PoceadaFederalCombinaciones() {
         )}
 
         <div style={actionsStyle}>
-          <button style={btnStyle(false, "#f5c542", "#e0a800", "#141414")} onClick={fetchCombinaciones} disabled={loading}>
+          <button
+            style={btnStyle(false)}
+            onClick={fetchCombinaciones}
+            disabled={loading}
+          >
             {loading ? "Actualizando…" : "Generar nuevo análisis"}
           </button>
-          <button style={btnStyle(true, "", "", "")} onClick={() => router.push("/poceada-federal")}>
+          <button style={btnStyle(true)} onClick={() => router.push("/poceada-federal")}>
             Volver
           </button>
         </div>
 
         <div style={avisoStyle}>
-          <strong>Honestidad:</strong> las combinaciones son selecciones heurísticas basadas en el historial validado,
-          sin ventaja demostrada salvo que el backtest walk-forward lo avale con evidencia estadística.
-          La probabilidad matemática (8 números de 20/100) NO depende del modelo.
+          <strong>Honestidad:</strong> las combinaciones son selecciones heurísticas basadas en el
+          historial validado, sin ventaja demostrada salvo que el backtest walk-forward lo avale con
+          evidencia estadística. La probabilidad matemática NO depende del modelo.
         </div>
 
         <div style={syncStyle}>
           <span>Huella historial: {a.historial.huella}</span>
-          {a.sincronizacion.datosNuevos && <span className="warn"> · Datos nuevos incorporados</span>}
-          {error && <span className="err"> · {error}</span>}
+          {a.sincronizacion.datosNuevos && <span> · Datos nuevos incorporados</span>}
+          {error && <span> · {error}</span>}
         </div>
       </div>
     </div>
