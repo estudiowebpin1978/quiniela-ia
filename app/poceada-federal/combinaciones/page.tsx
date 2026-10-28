@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth } from "@/lib/auth";
-import "@/app/brinco/brinco.css";
 
 interface Jugada {
   orden: number;
@@ -41,8 +40,6 @@ const NOMBRES_ESTRATEGIA: Record<string, string> = {
 const fmtNums = (nums: number[]) =>
   [...nums].sort((a, b) => a - b).map((n) => String(n).padStart(2, "0"));
 
-const pct = (p: number) => `${(p * 100).toFixed(2)}%`;
-
 const pageStyle = {
   minHeight: "100vh",
   background: "linear-gradient(180deg, #010101 0%, #0d0d0d 100%)",
@@ -53,72 +50,116 @@ const pageStyle = {
 
 const wrapStyle = { maxWidth: "900px", margin: "0 auto", padding: "20px 16px" } as const;
 
-const headStyle = { display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: "10px", marginBottom: "4px" } as const;
+const headStyle = {
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "baseline",
+  gap: "10px",
+  marginBottom: "4px",
+} as const;
 
-const titleStyle = { fontSize: "1.7rem", fontWeight: 800, margin: 0, background: "linear-gradient(180deg, #f5c542, #e0a800)", WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" } as const;
+const titleStyle = {
+  fontSize: "1.7rem",
+  fontWeight: 800,
+  margin: 0,
+  background: "linear-gradient(180deg, #f5c542, #e0a800)",
+  WebkitBackgroundClip: "text",
+  backgroundClip: "text",
+  color: "transparent",
+} as const;
 
 const subStyle = { color: "#9aa0a6", fontSize: "0.9rem", margin: "0 0 16px" } as const;
 
-const tabsStyle = { display: "flex", gap: "8px", marginBottom: "18px", overflowX: "auto", paddingBottom: "2px" } as const;
-
-const tabStyle = (on: boolean) => ({
-  padding: "8px 16px", borderRadius: "10px", cursor: "pointer", fontWeight: 600, fontSize: "0.9rem", whiteSpace: "nowrap",
-  border: "1px solid #2a2a2a", background: on ? "linear-gradient(180deg, #f5c542, #e0a800)" : "#141414",
-  color: on ? "#141414" : "#e6e6e6", borderColor: on ? "transparent" : "#2a2a2a",
-  transition: "all 0.15s",
-} as const);
-
 const cardStyle = {
   background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015))",
-  border: "1px solid #2a2a2a", borderRadius: "14px", boxShadow: "0 12px 30px rgba(0,0,0,0.28)",
-  padding: "18px", marginBottom: "16px",
+  border: "1px solid rgba(255,255,255,.1)",
+  borderRadius: "14px",
+  boxShadow: "0 12px 30px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,.08)",
+  padding: "18px",
+  marginBottom: "16px",
+  transition: "transform .2s, box-shadow .2s",
 } as const;
 
-const metaStyle = { display: "flex", flexWrap: "wrap", gap: "8px 18px", color: "#9aa0a6", fontSize: "0.82rem", marginBottom: "14px" } as const;
+const metaStyle = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px 18px",
+  color: "#9aa0a6",
+  fontSize: "0.82rem",
+  marginBottom: "14px",
+} as const;
 
 const numsStyle = { display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "6px" } as const;
 
 const numStyle = (accentA: string, accentB: string, accentInk: string) => ({
-  width: "54px", height: "54px", display: "flex", alignItems: "center", justifyContent: "center",
-  borderRadius: "12px", fontSize: "1.5rem", fontWeight: 800, color: accentInk,
+  width: "54px",
+  height: "54px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: "12px",
+  fontSize: "1.5rem",
+  fontWeight: 800,
+  color: accentInk,
   background: `linear-gradient(180deg, ${accentA}, ${accentB})`,
-  boxShadow: "0 6px 0 rgba(0,0,0,0.4)", transition: "transform 0.15s ease",
+  boxShadow: "0 6px 0 rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,.1)",
+  transition: "transform .15s ease",
 } as const);
 
-const altStyle = { display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginTop: "10px", color: "#9aa0a6", fontSize: "0.82rem" } as const;
-
-const chipStyle = {
-  minWidth: "30px", padding: "3px 6px", textAlign: "center", borderRadius: "7px",
-  background: "#1c1c1c", border: "1px solid #2a2a2a", color: "#e6e6e6",
-  fontWeight: 600, fontSize: "0.82rem",
+const numStyleHover = {
+  transform: "translateY(-4px)",
+  borderColor: "rgba(245,197,66,.6)",
+  boxShadow: "inset 0 2px 4px rgba(255,255,255,.2), 0 10px 0 rgba(0,0,0,.4), 0 16px 30px rgba(245,197,66,.15)",
 } as const;
 
-const scoresStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "8px", marginTop: "6px" } as const;
+const altStyle = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+  alignItems: "center",
+  marginTop: "10px",
+  color: "#9aa0a6",
+  fontSize: "0.82rem",
+} as const;
 
-const scoreRowStyle = { display: "flex", alignItems: "center", gap: "8px", fontSize: "0.78rem", color: "#9aa0a6" } as const;
-
-const scoreNumStyle = { fontWeight: 800, color: "#f5c542", width: "24px" } as const;
-
-const barStyle = { flex: 1, height: "6px", background: "#1c1c1c", borderRadius: "4px", overflow: "hidden" } as const;
-
-const barFillStyle = (accentA: string, accentB: string) => ({ display: "block", height: "100%", background: `linear-gradient(90deg, ${accentA}, ${accentB})`, borderRadius: "4px" } as const);
+const chipStyle = {
+  minWidth: "30px",
+  padding: "3px 6px",
+  textAlign: "center",
+  borderRadius: "7px",
+  background: "#1c1c1c",
+  border: "1px solid #2a2a2a",
+  color: "#e6e6e6",
+  fontWeight: 600,
+  fontSize: "0.82rem",
+} as const;
 
 const actionsStyle = { display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "16px" } as const;
 
 const btnStyle = (ghost: boolean, accentA: string, accentB: string, accentInk: string) => ({
-  padding: "10px 18px", borderRadius: "10px", border: ghost ? "1px solid #2a2a2a" : "none",
-  fontWeight: 700, cursor: "pointer",
+  padding: "10px 18px",
+  borderRadius: "10px",
+  border: ghost ? "1px solid #2a2a2a" : "none",
+  fontWeight: 700,
+  cursor: "pointer",
+  transition: "all .15s",
   background: ghost ? "transparent" : `linear-gradient(180deg, ${accentA}, ${accentB})`,
   color: ghost ? "#e6e6e6" : accentInk,
-  boxShadow: ghost ? "none" : "0 5px 0 rgba(0,0,0,0.45)",
-  transition: "all 0.15s",
+  boxShadow: ghost ? "none" : "0 5px 0 rgba(0,0,0,0.45), 0 8px 20px rgba(0,0,0,.3)",
 } as const);
 
-const avisoStyle = { marginTop: "16px", padding: "12px 14px", borderRadius: "10px", background: "rgba(245,197,66,0.08)", border: "1px solid rgba(245,197,66,0.25)", color: "#cfc8b0", fontSize: "0.8rem", lineHeight: 1.5 } as const;
+const avisoStyle = {
+  marginTop: "16px",
+  padding: "12px 14px",
+  borderRadius: "10px",
+  background: "rgba(245,197,66,0.08)",
+  border: "1px solid rgba(245,197,66,0.25)",
+  color: "#cfc8b0",
+  fontSize: "0.8rem",
+  lineHeight: 1.5,
+} as const;
 
 const syncStyle = { fontSize: "0.78rem", color: "#9aa0a6", marginTop: "8px" } as const;
-
-const gateStyle = { textAlign: "center" as const, padding: "40px 16px" } as const;
 
 export default function PoceadaFederalCombinaciones() {
   const router = useRouter();
@@ -185,10 +226,7 @@ export default function PoceadaFederalCombinaciones() {
             <h2 style={{ color: "#f5c542" }}>No se pudo cargar</h2>
             <p style={{ marginTop: "8px" }}>{error}</p>
             <button
-              style={{
-                ...btnStyle(false, "#f5c542", "#e0a800", "#141414"),
-                marginTop: "16px",
-              }}
+              style={{ ...btnStyle(false, "#f5c542", "#e0a800", "#141414"), marginTop: "16px" }}
               onClick={fetchCombinaciones}
             >
               Reintentar
@@ -201,8 +239,7 @@ export default function PoceadaFederalCombinaciones() {
 
   const a = analisis!;
   const badgeStyle = { display: "inline-flex", alignItems: "center", padding: "3px 8px", borderRadius: "999px", fontWeight: 700, fontSize: "11px", letterSpacing: "0.2px" } as const;
-  const badgePremium = { ...badgeStyle, background: "linear-gradient(135deg, rgba(245,197,66,0.15), rgba(245,197,66,0.06))", color: "#f5c542", border: "1px solid rgba(245,197,66,0.35)" } as const;
-  const badgeFree = { ...badgeStyle, background: "rgba(255,255,255,0.06)", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.12)" } as const;
+  const badgePremium = { ...badgeStyle, background: "linear-gradient(135deg, rgba(245,197,66,.15), rgba(245,197,66,.06))", color: "#f5c542", border: "1px solid rgba(245,197,66,.35)" } as const;
 
   return (
     <div style={pageStyle}>
@@ -217,8 +254,7 @@ export default function PoceadaFederalCombinaciones() {
           <button style={tabStyle(false)} disabled>Backtesting</button>
         </div>
 
-        {/* Sync status card */}
-        <div style={cardStyle}>
+        <div className="card">
           <div style={metaStyle}>
             <span><b>Sincronización:</b> {a.sincronizacion.ok ? "✓ OK" : "✗ Falló"}</span>
             <span><b>Fuente:</b> IAFAS</span>
@@ -230,7 +266,6 @@ export default function PoceadaFederalCombinaciones() {
           </div>
         </div>
 
-        {/* Combinaciones */}
         {a.combinaciones?.length ? (
           a.combinaciones.map((j) => (
             <div key={j.orden} style={cardStyle}>
@@ -250,7 +285,6 @@ export default function PoceadaFederalCombinaciones() {
           <div style={cardStyle} className="brinco-empty">No hay combinaciones disponibles.</div>
         )}
 
-        {/* Backtesting */}
         {a.backtesting?.length && (
           <div style={cardStyle}>
             <h2 style={{ fontSize: "15px", fontWeight: 800, margin: "0 0 8px", color: "#f5c542" }}>Backtesting walk-forward (OOS)</h2>
@@ -268,7 +302,6 @@ export default function PoceadaFederalCombinaciones() {
           </div>
         )}
 
-        {/* Acciones */}
         <div style={actionsStyle}>
           <button style={btnStyle(false, "#f5c542", "#e0a800", "#141414")} onClick={fetchCombinaciones} disabled={loading}>
             {loading ? "Actualizando…" : "Generar nuevo análisis"}
