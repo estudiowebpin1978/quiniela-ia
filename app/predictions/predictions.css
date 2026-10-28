@@ -189,7 +189,7 @@ body {
 }
 .btn3d:active::before { opacity: .5; }
 .btn-gen {
-  padding: 26px 32px; font-size: 20px; letter-spacing: 1.5px;
+  padding: 20px 24px; font-size: 18px; letter-spacing: 1px;
   background: linear-gradient(180deg,#f472b6,#ec4899 40%,#db2777); color: #fff;
   box-shadow: 0 10px 0 #9d174d, 0 14px 40px rgba(236,72,153,.5), inset 0 2px 0 rgba(255,255,255,.35), inset 0 -2px 0 rgba(0,0,0,.2);
 }
