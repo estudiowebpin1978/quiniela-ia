@@ -1585,6 +1585,32 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   </div>
                   <div className={dg > 2 && !pr ? "lk" : ""}>
                     <div style={{ position: "relative" }}>
+                      {/* Poceada Ciudad — 2 juegos de predicciones */}
+                      {isPoceada && (
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: "#f5c542", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 8 }}>
+                            Poceada Ciudad — 2 combinaciones (2 cifras · 00-99)
+                          </div>
+                          <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr" }}>
+                            <div style={{ background: "rgba(245,197,66,0.08)", border: "1px solid rgba(245,197,66,0.3)", borderRadius: 14, padding: 12 }}>
+                              <div style={{ fontSize: 12, fontWeight: 800, color: "#f5c542", marginBottom: 6 }}>🎯 Juego 1 — Frecuencia histórica</div>
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                {(cur.slice(0, 4)).map((p, i) => (
+                                  <span key={"j1-"+i} style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "#141414", background: "linear-gradient(180deg,#f5c542,#e0a800)", boxShadow: "0 4px 0 rgba(120,85,0,.55), inset 0 2px 4px rgba(255,255,255,.35)" }}>{String(p.numero).padStart(2,"0")}</span>
+                                ))}
+                              </div>
+                            </div>
+                            <div style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 14, padding: 12 }}>
+                              <div style={{ fontSize: 12, fontWeight: 800, color: "#22c55e", marginBottom: 6 }}>🎯 Juego 2 — Tendencias validadas</div>
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                {(cur.slice(4, 8)).map((p, i) => (
+                                  <span key={"j2-"+i} style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "#f8fafc", background: "linear-gradient(180deg,#22c55e,#15803d)", boxShadow: "0 4px 0 rgba(0,0,0,.4), inset 0 2px 4px rgba(255,255,255,.15)" }}>{String(p.numero).padStart(2,"0")}</span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       <div
                         className={isPoceada ? "g8" : "g5"}
                         style={(guestMode || (userRole === "free" && dg > 2)) ? { filter: "blur(8px)", userSelect: "none", pointerEvents: "none" } : {}}
