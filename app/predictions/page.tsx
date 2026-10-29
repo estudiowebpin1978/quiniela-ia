@@ -980,7 +980,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .sb::before{content:'';position:absolute;top:0;left:0;right:0;height:50%;background:linear-gradient(180deg,rgba(255,255,255,.05),transparent);border-radius:20px 20px 0 0;pointer-events:none}
         .btn3d{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:10px;border:none;border-radius:20px;font-family:'Inter',sans-serif;font-weight:900;cursor:pointer;transition:all .15s;user-select:none;-webkit-tap-highlight-color:transparent;width:100%;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
         .btn3d:active{transform:translateY(6px)!important;box-shadow:none!important;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-        .btn-gen{padding:24px 32px;font-size:20px;letter-spacing:1px;background:linear-gradient(180deg,#f472b6 0%,#ec4899 50%,#db2777 100%);color:#fff;box-shadow:0 10px 0 #be185d,0 14px 40px rgba(236,72,153,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15);position:relative;overflow:hidden}
+        .btn-gen{padding:20px 24px;font-size:18px;letter-spacing:1px;background:linear-gradient(180deg,#f472b6 0%,#ec4899 50%,#db2777 100%);color:#fff;box-shadow:0 10px 0 #be185d,0 14px 40px rgba(236,72,153,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15);position:relative;overflow:hidden}
         .btn-gen::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:linear-gradient(45deg,transparent,rgba(255,255,255,.15),transparent);transform:rotate(45deg) translateX(-100%);transition:transform .6s}
         .btn-gen:hover::after{transform:rotate(45deg) translateX(100%)}
         .btn-gen:hover{background:linear-gradient(180deg,#fb7185 0%,#f43f5e 50%,#e11d48 100%);transform:translateY(-3px);box-shadow:0 14px 0 #be185d,0 18px 50px rgba(236,72,153,.6)}
@@ -1277,7 +1277,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
             ))}
           </div>
           <div className="gen-row">
-            <button className="btn3d btn-gen" onClick={() => { sound.whoosh(); gen(); }} disabled={ld} style={{ opacity: ld ? 0.6 : 1, flex: 1 }}>
+            <button className="btn3d btn-gen btn-game" onClick={() => { sound.whoosh(); gen(); }} disabled={ld} style={{ opacity: ld ? 0.6 : 1, flex: 1 }}>
               {ld ? "⏳ Analizando datos..." : "⚡ Generar Análisis Ahora"}
             </button>
           </div>

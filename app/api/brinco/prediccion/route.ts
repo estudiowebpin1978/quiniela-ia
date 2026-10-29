@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
     const predTradicional: PrediccionBrinco = generarPrediccionBrinco(
       "tradicional",
       historialTradicional,
-      { semilla: hashSeed("brinco", concursoObjetivo, "trad"), alternativas: 2 },
+      { semilla: hashSeed("brinco", concursoObjetivo, "trad"), alternativas: 3 },
       datosHasta,
     )
     const predJunior: PrediccionBrinco | null =
@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
         ? generarPrediccionBrinco(
             "junior",
             historialJunior,
-            { semilla: hashSeed("brinco", concursoObjetivo, "junior"), alternativas: 2 },
+            { semilla: hashSeed("brinco", concursoObjetivo, "junior"), alternativas: 3 },
             datosHasta,
           )
         : null
