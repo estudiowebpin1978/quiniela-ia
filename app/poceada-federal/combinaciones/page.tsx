@@ -209,7 +209,8 @@ export default function PoceadaFederalCombinaciones() {
 
   useEffect(() => {
     const auth = getAuth();
-    if (!auth?.user) {
+    // Admin: no redirigir a login si tiene token válido incluso sin datos de usuario en auth
+    if (!auth?.user && !auth?.access_token) {
       router.push("/login");
       return;
     }
