@@ -224,7 +224,11 @@ export default function PoceadaFederalCombinaciones() {
             <h1 style={titleStyle}>Poceada Federal</h1>
             <p style={subStyle}>Combinaciones premium — IAFAS oficial</p>
           </div>
-          <div style={cardStyle}>Cargando combinaciones…</div>
+          <div style={{...cardStyle, textAlign:"center", padding:"30px 20px"}}>
+            <div style={{fontSize:24, marginBottom:8}}>⏳</div>
+            <h3 style={{color:"#f5c542", margin:"0 0 8px"}}>Cargando combinaciones</h3>
+            <p style={{color:"#9aa0a6", fontSize:13, margin:0}}>Verificando sincronización con IAFAS / Lotería Santa Fe...</p>
+          </div>
         </div>
       </div>
     );
@@ -238,15 +242,11 @@ export default function PoceadaFederalCombinaciones() {
             <h1 style={titleStyle}>Poceada Federal</h1>
             <p style={subStyle}>Combinaciones premium — IAFAS oficial</p>
           </div>
-          <div style={cardStyle}>
-            <h2 style={{ color: "#f5c542" }}>No se pudo cargar</h2>
-            <p style={{ marginTop: "8px" }}>{error}</p>
-            <button
-              style={{ ...btnStyle(false), marginTop: "16px" }}
-              onClick={fetchCombinaciones}
-            >
-              Reintentar
-            </button>
+          <div style={{...cardStyle, borderColor:"rgba(245,158,11,.35)"}}>
+            <h2 style={{color:"#f5c542", margin:"0 0 8px"}}>No se pudo cargar las combinaciones</h2>
+            <p style={{margin:"0 0 12px", color:"#9aa0a6", fontSize:13}}>{error}</p>
+            <p style={{fontSize:11, color:"#64748b", margin:0}}>Esto suele pasar si: (1) no estás iniciado sesión, (2) el plan no incluye Premium, o (3) el cron de sincronización aún no completó. Intentá recargar.</p>
+            <button style={{...btnStyle(false), marginTop:12}} onClick={fetchCombinaciones}>Reintentar</button>
           </div>
         </div>
       </div>
