@@ -15,14 +15,6 @@
     {
       "path": "/api/cron-precompute",
       "schedule": "30 2 * * *"
-    },
-    {
-      "path": "/api/cron-scrape",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/cron-verify-predictions",
-      "schedule": "*/5 * * * *"
     }
   ],
   "headers": [
