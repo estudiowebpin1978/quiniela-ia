@@ -24,6 +24,7 @@ import GamificationBadge from "@/components/GamificationBadge";
 import HistorialAciertos from "@/components/HistorialAciertos";
 import ExpiryBanner from "@/components/ExpiryBanner";
 import AgeGate from "@/components/AgeGate";
+import CalibrationBanner from "@/components/CalibrationBanner";
 import { ToastProvider, useToast } from "@/components/Toast";
 import { getAccessToken, clearAuth, getAuth, isGuest, clearGuest, getValidToken } from "@/lib/auth";
 import { STORAGE_KEYS } from "@/lib/storage";

@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
       ok: true,
       fecha,
       sorteoUsado: predDraw.date,
-      turnoSorteo: predDraw.turno,
+      turnoSorteo: (predDraw as any)?.turno || "N/A",
       prediccionesVerificadas: updated,
       insertadas: (inserted || []).length,
     })
