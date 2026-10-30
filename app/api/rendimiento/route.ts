@@ -25,6 +25,12 @@ interface FactorPerformance {
   trend: "up" | "down" | "stable"
 }
 
+interface CalibrationMetric {
+  brier_score: number | null
+  calibration_pct: number
+  sample_size: number
+}
+
 interface RendimientoResponse {
   ok: boolean
   summary: {
@@ -37,6 +43,7 @@ interface RendimientoResponse {
     currentStreak: number
     topTurno: string
     algorithmConfidence: number
+    calibration: CalibrationMetric
   }
   dailyAccuracy: DailyAccuracy[]
   factorPerformance: FactorPerformance[]
@@ -220,12 +227,29 @@ export async function GET() {
       if (recentHits.length >= 10) break
     }
 
-    // 6. Algorithm confidence (average hit rate * calibration factor)
+    // 6. Algorithm confidence + Brier score (calibración del modelo)
     const totalPreds = rows.length
     const totalHits = totalHits2 + totalHits3 + totalHits4
     const algorithmConfidence = totalPreds > 0
       ? Math.min(95, Math.round(50 + (totalHits / totalPreds) * 45))
       : 50
+
+    // Brier Score: mean squared error between predicted probability and actual outcome (0/1)
+    // Lower is better calibrated. Brier = avg((p - outcome)^2) where p in [0,1], outcome in {0,1}
+    // We use confidence (0-1) as predicted probability and (total_aciertos > 0) as outcome
+    let brierSum = 0
+    let brierCount = 0
+    for (const row of rows) {
+      const p = Number((row as Record<string, unknown>).confidence) || 0 // predicted probability 0-1
+      const outcome = (row.total_aciertos || 0) > 0 ? 1 : 0
+      if (Number.isFinite(p) && p >= 0 && p <= 1) {
+        brierSum += (p - outcome) ** 2
+        brierCount++
+      }
+    }
+    const brierScore: number | null = brierCount > 0 ? brierSum / brierCount : null
+    // Calibration %: Brier of 0 = perfect calibration, higher = worse
+    const calibrationPct = brierCount > 0 ? Math.max(0, Math.round(100 - ((brierScore ?? 0) * 400))) : 0
 
     const response: RendimientoResponse = {
       ok: true,
@@ -239,6 +263,11 @@ export async function GET() {
         currentStreak,
         topTurno,
         algorithmConfidence,
+        calibration: {
+          brier_score: brierScore ?? null,
+          calibration_pct: calibrationPct,
+          sample_size: brierCount,
+        },
       },
       dailyAccuracy,
       factorPerformance,

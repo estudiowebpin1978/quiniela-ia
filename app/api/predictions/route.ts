@@ -357,6 +357,28 @@ export async function GET(req: NextRequest) {
             await redisSet(memKey, responsePayload, 300)
           } catch { /* best-effort Redis write */ }
 
+          // ── AUTO-SAVE: guardar predicción del usuario para verificación posterior ──
+          try {
+            const numerosGuardar = numeros.map((n) => n.numero)
+            const predGuardar = {
+              user_id: (userTier as any).userId,
+              date: targetDate,
+              turno: turnoCanonical,
+              numeros: numerosGuardar,
+              status: "PENDING",
+              motor_version: cached.engine_version || "omega_v6",
+              confianza: cached.confidence || 0,
+            }
+            const { error: insertErr } = await supabaseAdmin
+              .from("user_predictions")
+              .insert([predGuardar])
+            if (insertErr) {
+              logger.warn("[predictions] auto-save user_prediction failed", { error: insertErr.message, turno: turnoCanonical })
+            }
+          } catch (e) {
+            logger.warn("[predictions] auto-save exception", { error: String(e), turno: turnoCanonical })
+          }
+
           return NextResponse.json(responsePayload, {
             headers: {
               "Cache-Control": "private, no-cache, no-store, must-revalidate",
@@ -446,6 +468,28 @@ export async function GET(req: NextRequest) {
             engine_version: "omega_v6_live",
             cached: false,
             computed_at: new Date().toISOString(),
+          }
+
+          // ── AUTO-SAVE: guardar predicción del usuario (LIVE-V6 camino) ──
+          try {
+            const numerosGuardar = numeros.map((n) => n.numero)
+            const predGuardar = {
+              user_id: (userTier as any).userId,
+              date: targetDate,
+              turno: turnoCanonical,
+              numeros: numerosGuardar,
+              status: "PENDING",
+              motor_version: "omega_v6_live",
+              confianza: 0,
+            }
+            const { error: insertErr } = await supabaseAdmin
+              .from("user_predictions")
+              .insert([predGuardar])
+            if (insertErr) {
+              logger.warn("[predictions LIVE-V6] auto-save user_prediction failed", { error: insertErr.message, turno: turnoCanonical })
+            }
+          } catch (e) {
+            logger.warn("[predictions LIVE-V6] auto-save exception", { error: String(e), turno: turnoCanonical })
           }
 
           return NextResponse.json(responsePayload, {

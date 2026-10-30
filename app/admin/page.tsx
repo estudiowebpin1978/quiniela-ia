@@ -36,12 +36,21 @@ interface WebhookLog {
   payload?: string
 }
 
+interface CronStatus {
+  nombre: string
+  lastRun: string | null
+  lastStatus: string | null
+  ageMinutes: number | null
+  maxAgeMinutes: number
+  state: string
+}
+
 const PLANS = [
   { label: "15 días", days: 15, amount: 7000 },
   { label: "30 días", days: 30, amount: 10000 },
 ]
 
-type Tab = "dashboard" | "usuarios" | "pagos" | "transferencias"
+type Tab = "dashboard" | "usuarios" | "pagos" | "transferencias" | "crons"
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("dashboard")
@@ -59,6 +68,9 @@ export default function AdminPage() {
   const [transfersLoading, setTransfersLoading] = useState(false)
   const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
+  const [crons, setCrons] = useState<CronStatus[]>([])
+  const [cronsLoading, setCronsLoading] = useState(false)
+  const [cronsOverall, setCronsOverall] = useState<{ status: string; fueraDeFrecuencia: string[] }>({ status: "unknown", fueraDeFrecuencia: [] })
 
   useEffect(() => {
     const raw = localStorage.getItem("quiniela-ia-auth")
@@ -69,6 +81,7 @@ export default function AdminPage() {
       setToken(s.access_token)
       void loadUsers(s.access_token)
       loadPendingPayments()
+      void loadCrons()
     } catch { window.location.href = "/login" }
   }, [])
 
@@ -115,6 +128,37 @@ export default function AdminPage() {
       const d = await r.json()
       setWebhookLogs(d.webhook_logs || [])
     } catch {} finally { setLogsLoading(false) }
+  }
+
+  async function loadCrons() {
+    if (!token) return
+    setCronsLoading(true)
+    try {
+      const r = await fetch("/api/health", { headers: { Authorization: "Bearer " + token } })
+      const d = await r.json()
+      const cf = d.components?.cron_freshness || {}
+      const cronsList: CronStatus[] = []
+      let fueraDeFrecuencia: string[] = []
+      if (cf.crons) {
+        for (const [nombre, c] of Object.entries(cf.crons as Record<string, unknown>)) {
+          const cc = c as Record<string, unknown>
+          cronsList.push({
+            nombre,
+            lastRun: cc.lastRun as string | null,
+            lastStatus: cc.lastStatus as string | null,
+            ageMinutes: cc.ageMinutes as number | null,
+            maxAgeMinutes: cc.maxAgeMinutes as number,
+            state: cc.state as string,
+          })
+          if (cc.state === "OVERDUE" || cc.state === "NEVER_RUN") fueraDeFrecuencia.push(nombre)
+        }
+      }
+      cronsList.sort((a, b) => (b.state === "NEVER_RUN" ? 1 : 0) - (a.state === "NEVER_RUN" ? 1 : 0) || (b.ageMinutes ?? 999999) - (a.ageMinutes ?? 0))
+      setCrons(cronsList)
+      setCronsOverall({ status: d.status || "unknown", fueraDeFrecuencia })
+    } catch (e: unknown) {
+      setErr("Error cargando crons: " + (e instanceof Error ? e.message : String(e)))
+    } finally { setCronsLoading(false) }
   }
 
   async function activatePremium(userId: string, email: string, days: number) {
@@ -355,6 +399,7 @@ export default function AdminPage() {
           <button className={`tab${tab === "usuarios" ? " active" : ""}`} onClick={() => setTab("usuarios")}>Usuarios</button>
           <button className={`tab${tab === "pagos" ? " active" : ""}`} onClick={() => { setTab("pagos"); loadWebhookLogs() }}>Pagos</button>
           <button className={`tab${tab === "transferencias" ? " active" : ""}`} onClick={() => { setTab("transferencias"); loadTransfers() }}>Transferencias</button>
+          <button className={`tab${tab === "crons" ? " active" : ""}`} onClick={() => { setTab("crons"); loadCrons() }}>Crons</button>
         </div>
 
         {tab === "dashboard" && (
@@ -601,6 +646,54 @@ export default function AdminPage() {
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        )}
+
+        {tab === "crons" && (
+          <div className="section">
+            <div className="section-header">
+              <div className="section-title">Monitoreo de Crons</div>
+              <span className={`section-count ${cronsOverall.status === "ok" ? "badge-ok" : cronsOverall.status === "degraded" ? "badge-warn" : "badge-err"}`}>
+                {cronsOverall.status === "ok" ? "SALUDABLE" : cronsOverall.status === "degraded" ? "DEGRADADO" : "FALLANDO"}
+              </span>
+              {cronsOverall.fueraDeFrecuencia.length > 0 && (
+                <span className="section-count" style={{ background: "rgba(239,68,68,.15)", color: "#ef4444" }}>
+                  {cronsOverall.fueraDeFrecuencia.length} fuera de frecuencia
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+              Última ejecución y frescura de cada cron (datos hábiles, excluye domingos/feriados).
+            </div>
+            <button className="btn btn-outline" onClick={loadCrons} style={{ marginBottom: 16 }} disabled={cronsLoading}>
+              {cronsLoading ? <span className="spinner" /> : "↻ Actualizar"}
+            </button>
+            {cronsLoading ? (
+              <div style={{ textAlign: "center", padding: 40 }}><span className="spinner" /></div>
+            ) : crons.length === 0 ? (
+              <div className="empty">No hay datos de crons disponibles</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {crons.map((c) => {
+                  const estadoColor = c.state === "HEALTHY" ? "#22c55e" : c.state === "OVERDUE" ? "#f59e0b" : "#ef4444"
+                  const estadoBg = c.state === "HEALTHY" ? "rgba(34,197,94,.15)" : c.state === "OVERDUE" ? "rgba(245,158,11,.15)" : "rgba(239,68,68,.15)"
+                  const ageText = c.ageMinutes === null ? "Nunca ejecutado" : c.ageMinutes < 60 ? `${c.ageMinutes}m` : `${Math.round(c.ageMinutes / 60)}h`
+                  return (
+                    <div className="log-row" key={c.nombre}>
+                      <div className="log-info" style={{ flex: 1 }}>
+                        <div className="log-id">{c.nombre}</div>
+                        <div className="log-meta">
+                          Última: {c.lastRun ? new Date(c.lastRun).toLocaleString("es-AR") : "—"} · Estado: {c.lastStatus || "—"} · Edad: {ageText} / máx ${c.maxAgeMinutes}m
+                        </div>
+                      </div>
+                      <span className={`badge`} style={{ background: estadoBg, color: estadoColor, borderColor: estadoColor }}>
+                        {c.state === "HEALTHY" ? "OK" : c.state === "OVERDUE" ? "VENCIDO" : "NUNCA"}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
         )}
