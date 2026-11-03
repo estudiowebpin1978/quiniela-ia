@@ -50,7 +50,7 @@ const PLANS = [
   { label: "30 días", days: 30, amount: 10000 },
 ]
 
-type Tab = "dashboard" | "usuarios" | "pagos" | "transferencias" | "crons" | "poceada-verify"
+type Tab = "dashboard" | "usuarios" | "pagos" | "transferencias" | "crons" | "poceada-verify" | "poceada-ciudad-verify"
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("dashboard")
@@ -401,6 +401,8 @@ export default function AdminPage() {
           <button className={`tab${tab === "transferencias" ? " active" : ""}`} onClick={() => { setTab("transferencias"); loadTransfers() }}>Transferencias</button>
           <button className={`tab${tab === "crons" ? " active" : ""}`} onClick={() => { setTab("crons"); loadCrons() }}>Crons</button>
           <button className={`tab${tab === "poceada-verify" ? " active" : ""}`} onClick={() => { setTab("poceada-verify"); }}>Poceada Verif.</button>
+          <button className={`tab${tab === "poceada-ciudad-verify" ? " active" : ""}`} onClick={() => { setTab("poceada-ciudad-verify"); }}>Poceada Ciudad</button>
+          <button className={`tab${tab === "poceada-ciudad-verify" ? " active" : ""}`} onClick={() => { setTab("poceada-ciudad-verify") }}>Poceada Ciudad</button>
         </div>
 
         {tab === "dashboard" && (
@@ -725,6 +727,36 @@ export default function AdminPage() {
               } catch (e: any) { alert(String(e)) }
             }}>
               Scrape LOTBA
+            </button>
+          </div>
+        )}
+
+        {tab === "poceada-ciudad-verify" && (
+          <div className="section">
+            <div className="section-header">
+              <div className="section-title">Verificación Manual Poceada Ciudad</div>
+              <span className="badge" style={{ background: "rgba(34,197,94,.15)", color: "#22c55e" }}>Sin sorteo obligatorio</span>
+            </div>
+            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>
+              Busca sorteo oficial por game_id (independiente del turno). Usa /api/poceada-ciudad/verify-manual.
+            </div>
+            <button className="btn" onClick={async () => {
+              try {
+                const r = await fetch("/api/poceada-ciudad/verify-manual?date=" + new Date().toISOString().split("T")[0], { headers: { Authorization: "Bearer " + (token || "") } })
+                const d = await r.json()
+                alert(d.ok ? "Verificado: " + d.prediccionesVerificadas + " predicciones (sorteo " + d.sorteoUsado + ")" : "Error: " + d.error)
+              } catch (e: any) { alert("Fallo: " + String(e)) }
+            }}>
+              Verificar hoy (manual)
+            </button>
+            <button className="btn btn-outline" style={{ marginLeft: 8 }} onClick={async () => {
+              try {
+                const r = await fetch("/api/cron-scrape-poceada-ciudad", { headers: { Authorization: "Bearer " + (token || "") } })
+                const d = await r.json()
+                alert(d.ok ? "Sorteo ingestado: " + d.numeros?.slice(0, 3).join(",") : d.reason || "No disponible")
+              } catch (e: any) { alert(String(e)) }
+            }}>
+              Scrape Poceada Ciudad
             </button>
           </div>
         )}
