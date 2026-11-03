@@ -1279,13 +1279,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               </button>
             ))}
           </div>
-          <div className="gen-row">
-            <button className="btn3d btn-gen btn-game" onClick={() => { sound.whoosh(); gen(); }} disabled={ld} style={{ opacity: ld ? 0.6 : 1, flex: 1 }}>
-              {ld ? "⏳ Analizando datos..." : "⚡ Generar Análisis Ahora"}
-            </button>
-          </div>
           {(pr || true) && (
             <div style={{ display: "grid", gap: 10, margin: "16px 0 18px" }}>
+              <button className="btn3d btn-gen btn-game" onClick={() => { sound.whoosh(); gen(); }} disabled={ld} style={{ opacity: ld ? 0.6 : 1, flex: 1, background: "linear-gradient(180deg,#f472b6 0%,#ec4899 50%,#db2777 100%)", color: "#fff", boxShadow: "0 10px 0 #be185d,0 14px 40px rgba(236,72,153,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}>
+                ⚡ Generar Análisis Ahora
+              </button>
               <a
                 className="btn3d btn-gen btn-game"
                 href="/brinco"

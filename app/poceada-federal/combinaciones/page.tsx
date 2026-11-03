@@ -1,5 +1,6 @@
 "use client";
 
+import PulseKeyframes from "@/components/PulseKeyframes"
 import { useCallback, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth } from "@/lib/auth";
@@ -176,8 +177,6 @@ const avisoStyle = {
 } as const;
 
 const syncStyle = { fontSize: "0.78rem", color: "#9aa0a6", marginTop: "8px" } as const;
-
-import PulseKeyframes from "@/components/PulseKeyframes"
 
 export default function PoceadaFederalCombinaciones() {
   const router = useRouter();
