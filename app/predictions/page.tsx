@@ -979,19 +979,19 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
            grid-template-columns:repeat(6,1fr): 6 columnas para 5 botones = un hueco
            vacío donde estaba Poceada, y además pisaba los tamaños de predictions.css. */
         .sb::before{content:'';position:absolute;top:0;left:0;right:0;height:50%;background:linear-gradient(180deg,rgba(255,255,255,.05),transparent);border-radius:20px 20px 0 0;pointer-events:none}
-        .btn3d{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:10px;border:none;border-radius:20px;font-family:'Inter',sans-serif;font-weight:900;cursor:pointer;transition:all .15s;user-select:none;-webkit-tap-highlight-color:transparent;width:100%;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
+        .btn3d { padding: 22px 28px; font-size: 1.05rem; border-radius: 16px; letter-spacing: 0.5px; width: 100%; margin-bottom: 10px; box-shadow: 0 10px 0 rgba(0,0,0,.4), 0 14px 40px rgba(236,72,153,.5) }
         .btn3d:active{transform:translateY(6px)!important;box-shadow:none!important;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-        .btn-gen{padding:20px 24px;font-size:18px;letter-spacing:1px;background:linear-gradient(180deg,#f472b6 0%,#ec4899 50%,#db2777 100%);color:#fff;box-shadow:0 10px 0 #be185d,0 14px 40px rgba(236,72,153,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15);position:relative;overflow:hidden}
+        .btn-gen{padding:22px 28px;font-size:1.05rem;letter-spacing:.5px;background:linear-gradient(180deg,#f472b6 0%,#ec4899 50%,#db2777 100%);color:#fff;box-shadow:0 10px 0 #be185d,0 14px 40px rgba(236,72,153,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15);position:relative;overflow:hidden}
         .btn-gen::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:linear-gradient(45deg,transparent,rgba(255,255,255,.15),transparent);transform:rotate(45deg) translateX(-100%);transition:transform .6s}
         .btn-gen:hover::after{transform:rotate(45deg) translateX(100%)}
         .btn-gen:hover{background:linear-gradient(180deg,#fb7185 0%,#f43f5e 50%,#e11d48 100%);transform:translateY(-3px);box-shadow:0 14px 0 #be185d,0 18px 50px rgba(236,72,153,.6)}
-        .btn-prem{padding:18px 28px;font-size:15px;background:linear-gradient(180deg,#a855f7,#8b5cf6);color:#fff;box-shadow:0 8px 0 #6d28d9,0 12px 36px rgba(139,92,246,.5),inset 0 1px 0 rgba(255,255,255,.3)}
+        .btn-prem{padding:22px 28px;font-size:1.05rem;background:linear-gradient(180deg,#a855f7,#8b5cf6);color:#fff;box-shadow:0 8px 0 #6d28d9,0 12px 36px rgba(139,92,246,.5),inset 0 1px 0 rgba(255,255,255,.3)}
         @keyframes pulse-green { 0%,100%{box-shadow:0 0 0 3px rgba(34,197,94,.3)} 50%{box-shadow:0 0 0 6px rgba(34,197,94,.5)} }
         @keyframes pulse-amber { 0%,100%{box-shadow:0 0 0 3px rgba(245,158,11,.3)} 50%{box-shadow:0 0 0 6px rgba(245,158,11,.5)} }
-        .btn-copy{padding:16px 28px;font-size:14px;background:linear-gradient(180deg,#4f46e5,#3730a3);color:#fff;border:2px solid rgba(129,140,248,.4);box-shadow:0 8px 0 #1e1b4b,0 12px 32px rgba(79,70,229,.4),inset 0 1px 0 rgba(255,255,255,.15);position:relative;overflow:hidden}
+        .btn-copy{padding:22px 28px;font-size:1.05rem;background:linear-gradient(180deg,#4f46e5,#3730a3);color:#fff;border:2px solid rgba(129,140,248,.4);box-shadow:0 8px 0 #1e1b4b,0 12px 32px rgba(79,70,229,.4),inset 0 1px 0 rgba(255,255,255,.15);position:relative;overflow:hidden}
         .btn-copy::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:linear-gradient(45deg,transparent,rgba(255,255,255,.1),transparent);transform:rotate(45deg);transition:all .5s}
         .btn-copy:hover::after{left:100%}
-        .btn-save{padding:16px 28px;font-size:14px;background:linear-gradient(180deg,#10b981 0%,#059669 50%,#047857 100%);color:#fff;border:2px solid rgba(52,211,153,.4);box-shadow:0 8px 0 #047857,0 12px 36px rgba(16,185,129,.4),inset 0 1px 0 rgba(255,255,255,.25);position:relative;overflow:hidden}
+        .btn-save{padding:22px 28px;font-size:1.05rem;background:linear-gradient(180deg,#10b981 0%,#059669 50%,#047857 100%);color:#fff;border:2px solid rgba(52,211,153,.4);box-shadow:0 8px 0 #047857,0 12px 36px rgba(16,185,129,.4),inset 0 1px 0 rgba(255,255,255,.25);position:relative;overflow:hidden}
         .btn-save::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:linear-gradient(45deg,transparent,rgba(255,255,255,.12),transparent);transform:rotate(45deg) translateX(-100%);transition:transform .5s}
         .btn-save:hover::after{transform:rotate(45deg) translateX(100%)}
         .dtabs{display:flex;gap:10px;margin-bottom:12px}
