@@ -70,13 +70,13 @@ const titleStyle = {
 const subStyle = { color: "#9aa0a6", fontSize: "0.9rem", margin: "0 0 16px" } as const;
 
 const cardStyle = {
-  background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015))",
-  border: "1px solid rgba(255,255,255,.1)",
-  borderRadius: "14px",
-  boxShadow: "0 12px 30px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,.08)",
-  padding: "18px",
-  marginBottom: "16px",
-  transition: "transform .2s, box-shadow .2s",
+  background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+  border: "1px solid rgba(255,255,255,.12)",
+  borderRadius: "16px",
+  boxShadow: "0 16px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,.1)",
+  padding: "22px",
+  marginBottom: "18px",
+  transition: "transform .25s ease, box-shadow .25s ease",
 } as const;
 
 const cardBestStyle = {
@@ -100,23 +100,23 @@ const numsStyle = { display: "flex", flexWrap: "wrap", gap: "10px" } as const;
 /** Tile 3D estilo /predictions: relieve interior + base sólida + sombra. */
 const numStyle = (best: boolean) =>
   ({
-    width: "54px",
-    height: "54px",
+    width: "56px",
+    height: "56px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: "12px",
-    fontSize: "1.5rem",
+    borderRadius: "14px",
+    fontSize: "1.6rem",
     fontWeight: 800,
     color: best ? "#141414" : "#f8fafc",
     background: best
-      ? "linear-gradient(180deg,#f5c542,#e0a800)"
-      : "linear-gradient(180deg,#1a1a3a,#0f0f22)",
-    border: best ? "2px solid rgba(245,197,66,.9)" : "2px solid rgba(255,255,255,.12)",
+      ? "linear-gradient(180deg, #f5c542, #e0a800)"
+      : "linear-gradient(180deg, #222240, #181830)",
+    border: best ? "2.5px solid rgba(245,197,66,.95)" : "2px solid rgba(255,255,255,.15)",
     boxShadow: best
-      ? "inset 0 2px 4px rgba(255,255,255,.35), 0 6px 0 rgba(120,85,0,.55), 0 12px 26px rgba(245,197,66,.25)"
-      : "inset 0 2px 4px rgba(255,255,255,.15), 0 6px 0 rgba(0,0,0,.4), 0 12px 24px rgba(0,0,0,.3)",
-    transition: "transform .15s ease",
+      ? "inset 0 3px 6px rgba(255,255,255,.4), 0 8px 0 rgba(120,85,0,.6), 0 14px 30px rgba(245,197,66,.3)"
+      : "inset 0 2px 5px rgba(255,255,255,.12), 0 8px 0 rgba(0,0,0,.45), 0 14px 28px rgba(0,0,0,.35)",
+    transition: "all .2s ease, transform .15s ease",
   }) as const;
 
 const badgeStyle = {
@@ -176,6 +176,8 @@ const avisoStyle = {
 } as const;
 
 const syncStyle = { fontSize: "0.78rem", color: "#9aa0a6", marginTop: "8px" } as const;
+
+import PulseKeyframes from "@/components/PulseKeyframes"
 
 export default function PoceadaFederalCombinaciones() {
   const router = useRouter();
@@ -285,6 +287,7 @@ export default function PoceadaFederalCombinaciones() {
 
   return (
     <div style={pageStyle}>
+      <PulseKeyframes />
       <div style={wrapStyle}>
         <div style={headStyle}>
           <h1 style={titleStyle}>Poceada Federal</h1>
@@ -294,10 +297,11 @@ export default function PoceadaFederalCombinaciones() {
           2 sorteos/día (Matutina 15:00 · Nocturna 21:00) — Fuente: IAFAS + Lotería Santa Fe
         </p>
 
-        <div style={cardStyle}>
+        <div style={{...cardStyle, borderColor: a.sincronizacion.ok ? "rgba(34,197,94,.35)" : "rgba(245,158,11,.35)", boxShadow: a.sincronizacion.ok ? "0 16px 40px rgba(34,197,94,.12), inset 0 1px 0 rgba(255,255,255,.1)" : "0 16px 40px rgba(245,158,11,.12), inset 0 1px 0 rgba(255,255,255,.1)"}}>
           <div style={metaStyle}>
-            <span>
-              <b>Sincronización:</b> {a.sincronizacion.ok ? "✓ OK" : "✗ Falló"}
+            <span style={{display:"inline-flex", alignItems:"center", gap:6}}>
+              <span style={{width:10, height:10, borderRadius:"50%", background: a.sincronizacion.ok ? "#22c55e" : "#f59e0b", boxShadow: a.sincronizacion.ok ? "0 0 0 3px rgba(34,197,94,.3)" : "0 0 0 3px rgba(245,158,11,.3)", animation: a.sincronizacion.ok ? "pulse-green 2s infinite" : "pulse-amber 2s infinite"}}></span>
+              <b>Sincronización:</b> {a.sincronizacion.ok ? "✓ OK (sincronizado con IAFAS / Lotería Santa Fe)" : "✗ Falló"}
             </span>
             <span>
               <b>Historial:</b> {a.historial.cantidad} sorteos ({a.historial.desde} →{" "}
@@ -309,8 +313,9 @@ export default function PoceadaFederalCombinaciones() {
               </span>
             )}
           </div>
-          <div style={{ fontSize: "0.78rem", color: "#9aa0a6" }}>
+          <div style={{ fontSize: "0.78rem", color: a.sincronizacion.ok ? "#22c55e" : "#f59e0b", fontWeight: 600 }}>
             {a.sincronizacion.detalle || "Última actualización: " + (lastRefresh || "—")}
+            {a.sincronizacion.ok && <span style={{marginLeft:8, fontSize:11, color:"#9aa0a6", fontWeight:400}}>(datos frescos, sin invento)</span>}
           </div>
         </div>
 

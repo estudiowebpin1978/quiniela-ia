@@ -986,6 +986,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .btn-gen:hover::after{transform:rotate(45deg) translateX(100%)}
         .btn-gen:hover{background:linear-gradient(180deg,#fb7185 0%,#f43f5e 50%,#e11d48 100%);transform:translateY(-3px);box-shadow:0 14px 0 #be185d,0 18px 50px rgba(236,72,153,.6)}
         .btn-prem{padding:18px 28px;font-size:15px;background:linear-gradient(180deg,#a855f7,#8b5cf6);color:#fff;box-shadow:0 8px 0 #6d28d9,0 12px 36px rgba(139,92,246,.5),inset 0 1px 0 rgba(255,255,255,.3)}
+        @keyframes pulse-green { 0%,100%{box-shadow:0 0 0 3px rgba(34,197,94,.3)} 50%{box-shadow:0 0 0 6px rgba(34,197,94,.5)} }
+        @keyframes pulse-amber { 0%,100%{box-shadow:0 0 0 3px rgba(245,158,11,.3)} 50%{box-shadow:0 0 0 6px rgba(245,158,11,.5)} }
         .btn-copy{padding:16px 28px;font-size:14px;background:linear-gradient(180deg,#4f46e5,#3730a3);color:#fff;border:2px solid rgba(129,140,248,.4);box-shadow:0 8px 0 #1e1b4b,0 12px 32px rgba(79,70,229,.4),inset 0 1px 0 rgba(255,255,255,.15);position:relative;overflow:hidden}
         .btn-copy::after{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:linear-gradient(45deg,transparent,rgba(255,255,255,.1),transparent);transform:rotate(45deg);transition:all .5s}
         .btn-copy:hover::after{left:100%}
