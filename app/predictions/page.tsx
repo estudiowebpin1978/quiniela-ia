@@ -1201,25 +1201,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         {/* Perfil de usuario — solo si está logueado */}
         {!guestMode && (
           <div style={{ margin: "10px 12px 0", padding: "12px 14px", borderRadius: 12, background: "linear-gradient(135deg,rgba(139,92,246,.08),rgba(139,92,246,.02))", border: "1px solid rgba(139,92,246,.15)", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              <button
-                onClick={() => { setTab("mis"); cargarMisPreds(tkRef.current); }}
-                style={{
-                  padding: "10px 16px", borderRadius: 10,
-                  border: "1.5px solid rgba(34,197,94,.5)",
-                  background: "linear-gradient(135deg,rgba(34,197,94,.18),rgba(34,197,94,.08))",
-                  color: "#15803d",
-                  fontSize: 13,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  fontFamily: "'Inter',sans-serif",
-                  boxShadow: "0 4px 0 rgba(0,100,50,.2),0 6px 16px rgba(34,197,94,.15)",
-                  transition: ".12s",
-                }}
-              >
-                Análisis Guardados
-              </button>
-            </div>
             <div style={{ fontSize: 11, color: "#94a3b8", whiteSpace: "nowrap" }}>
               {pr ? "⭐ Premium" : userRole === "admin" ? "👑 Admin" : "🆓 Free"} · {em?.split("@")[0] || "Usuario"}
             </div>
@@ -1345,6 +1326,11 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
             </div>
           )}
+          <div style={{ margin: "10px 12px 0", padding: "10px 14px", borderRadius: 10, background: "linear-gradient(135deg,rgba(34,197,94,.12),rgba(34,197,94,.06))", border: "1.5px solid rgba(34,197,94,.35)", textAlign: "center" }}>
+            <button onClick={() => { setTab("mis"); cargarMisPreds(tkRef.current); }} style={{ padding: "10px 16px", borderRadius: 10, border: "1.5px solid rgba(34,197,94,.5)", background: "linear-gradient(135deg,rgba(34,197,94,.18),rgba(34,197,94,.08))", color: "#15803d", fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "'Inter',sans-serif", boxShadow: "0 4px 0 rgba(0,100,50,.2),0 6px 16px rgba(34,197,94,.15)", transition: ".12s", width: "100%" }}>
+              🗂️ Análisis Guardados
+            </button>
+          </div>
           {showCalc && (
             <div style={{ marginTop: 12, padding: 14, borderRadius: 12, background: "rgba(139,92,246,.06)", border: "1px solid rgba(139,92,246,.15)" }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: "#a78bfa", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>📊 Tu precisión personal</div>
