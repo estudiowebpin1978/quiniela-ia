@@ -302,6 +302,17 @@ function PageInner() {
 
   const tkRef = useRef("");
   const soRef = useRef(so);
+  // Al abrir "Mis análisis", ir directamente al último (primer elemento de la lista) sin scroll manual
+  useEffect(() => {
+    if (tab === "mis") {
+      const timer = setTimeout(() => {
+        const first = document.querySelector(".sec") as HTMLElement | null;
+        if (first) first.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [tab]);
+
   useEffect(() => { soRef.current = so; }, [so]);
   const pollPremiumRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isAdminRef = useRef(false);
