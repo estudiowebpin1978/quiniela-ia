@@ -148,12 +148,17 @@ export default function PoceadaPage() {
       })
   }, [cargarHistorial])
 
-  const numeros = (
+  const numerosA = (
     pred?.numeros_2?.length ? pred.numeros_2 : pred?.numeros?.map((n) => n.numero) || []
   ).slice(0, TOP)
 
+  const numerosB = (
+    pred?.numeros?.slice(8, 16).map((n: { numero?: string | number }) => (typeof n === "object" && n.numero ? String(n.numero).padStart(2, "0") : String(n).padStart(2, "0"))) ||
+    (pred?.numeros_2?.slice(8, 16) || [])
+  ).slice(0, TOP)
+
   const guardar = async () => {
-    if (!numeros.length) return
+    if (!numerosA.length) return
     setGuardando(true)
     setMsg(null)
     setGuardadoOk(null)
@@ -162,7 +167,7 @@ export default function PoceadaPage() {
       const r = await fetch("/api/mis-predicciones", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + tk },
-        body: JSON.stringify({ date: fecha, turno: "Poceada", numeros }),
+        body: JSON.stringify({ date: fecha, turno: "Poceada", numeros: numerosA }),
       })
       const d = await r.json().catch(() => ({}))
       if (r.status === 409) {
@@ -220,7 +225,7 @@ export default function PoceadaPage() {
           ← Volver a Quiniela
         </button>
       </div>
-      {pred && numeros.length > 0 ? (
+      {pred && numerosA.length > 0 ? (
         <div className="brinco-card">
           <div className="brinco-meta">
             <span>
@@ -235,11 +240,20 @@ export default function PoceadaPage() {
           </div>
 
           <div className="brinco-nums">
-            {numeros.map((n) => (
-              <div key={n} className="brinco-num">
-                {n}
-              </div>
-            ))}
+            <div className="brinco-nums-row">
+              {numerosA.map((n) => (
+                <div key={n} className="brinco-num">
+                  {n}
+                </div>
+              ))}
+            </div>
+            <div className="brinco-nums-row">
+              {numerosB.map((n) => (
+                <div key={n} className="brinco-num">
+                  {n}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="brinco-actions">
