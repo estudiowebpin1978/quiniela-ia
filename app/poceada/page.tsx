@@ -153,8 +153,8 @@ export default function PoceadaPage() {
   ).slice(0, TOP)
 
   const numerosB = (
-    pred?.numeros?.slice(8, 16).map((n: { numero?: string | number }) => (typeof n === "object" && n.numero ? String(n.numero).padStart(2, "0") : String(n).padStart(2, "0"))) ||
-    (pred?.numeros_2?.slice(8, 16) || [])
+    pred?.numeros?.map((n: { numero?: string | number }) => (typeof n === "object" && n.numero ? String(n.numero).padStart(2, "0") : String(n).padStart(2, "0"))) ||
+    (pred?.numeros_2?.slice(0, 8) || [])
   ).slice(0, TOP)
 
   const guardar = async () => {
