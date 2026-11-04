@@ -108,6 +108,10 @@
 .brinco-nums-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .brinco-num { width: 38px; height: 38px; flex: none; font-size: 1.15rem; font-weight: 900; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 1.5px solid rgba(245,197,66,.35); background: linear-gradient(135deg, rgba(245,197,66,.15), rgba(245,197,66,.04)); color: #f5c542; box-shadow: inset 0 2px 4px rgba(245,197,66,.2), 0 4px 0 rgba(120,85,0,.4); transition: all .15s; }
 .brinco-num:hover { transform: translateY(-2px); box-shadow: 0 8px 0 rgba(120,85,0,.5), inset 0 2px 4px rgba(245,197,66,.3), 0 6px 16px rgba(245,197,66,.3); }
+.brinco-combo-label { font-size: 0.85rem; font-weight: 800; color: var(--ac-a); margin-bottom: 6px; letter-spacing: 0.5px; text-transform: uppercase; }
+.brinco-divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(245,197,66,.3), transparent); margin: 10px 0; border: none; }
+.brinco-combo { padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.03); border: 1px solid rgba(245,197,66,.15); }
+.brinco-combos { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
 .brinco-num.sub-row { border-color: rgba(129,140,248,.35); background: linear-gradient(135deg, rgba(99,102,241,.15), rgba(99,102,241,.04)); color: #c7d2fe; box-shadow: inset 0 2px 4px rgba(99,102,241,.2), 0 4px 0 rgba(30,41,59,.5); }
 
 .brinco-alt {

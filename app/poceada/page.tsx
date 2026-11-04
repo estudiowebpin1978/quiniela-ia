@@ -239,20 +239,27 @@ export default function PoceadaPage() {
             </span>
           </div>
 
-          <div className="brinco-nums">
-            <div className="brinco-nums-row">
-              {numerosA.map((n) => (
-                <div key={n} className="brinco-num">
-                  {n}
-                </div>
-              ))}
+          <div className="brinco-combos">
+            <div className="brinco-combo">
+              <div className="brinco-combo-label">📌 Combinación 1</div>
+              <div className="brinco-nums-row">
+                {numerosA.map((n) => (
+                  <div key={n} className="brinco-num">
+                    {n}
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="brinco-nums-row">
-              {numerosB.map((n) => (
-                <div key={n} className="brinco-num">
-                  {n}
-                </div>
-              ))}
+            <div className="brinco-divider" />
+            <div className="brinco-combo">
+              <div className="brinco-combo-label">📌 Combinación 2</div>
+              <div className="brinco-nums-row">
+                {numerosB.map((n) => (
+                  <div key={n} className="brinco-num">
+                    {n}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
