@@ -321,11 +321,14 @@ export default function PoceadaPage() {
                 <li key={h.id || (h.fecha || h.date || String(i))}>
                   <b>{(h.fecha || h.date || "").split("-").reverse().join("/")}</b>
                   <span className="brinco-alt-set">
-                    {nums.map((n) => (
-                      <span className="brinco-chip" key={n}>
-                        {n}
-                      </span>
-                    ))}
+                    {nums.map((n) => {
+                      const esAcierto = Array.isArray(h.aciertos_2) && h.aciertos_2.some((a: unknown) => String(a).padStart(2,"0") === String(n).padStart(2,"0"))
+                      return (
+                        <span className={`brinco-chip ${esAcierto ? "brinco-chip-win" : ""}`} key={n}>
+                          {n}
+                        </span>
+                      )
+                    })}
                   </span>
                   <span style={{ marginLeft: "auto", color: (aciertos !== null && aciertos > 0) || h.status === "WON" ? "#22c55e" : "var(--text-dim,#9aa0a6)", fontWeight: (aciertos !== null && aciertos > 0) || h.status === "WON" ? 800 : 400 }}>
                     {aciertos !== null
