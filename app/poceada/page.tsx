@@ -327,7 +327,7 @@ export default function PoceadaPage() {
                       </span>
                     ))}
                   </span>
-                  <span style={{ marginLeft: "auto", color: "var(--text-dim,#9aa0a6)" }}>
+                  <span style={{ marginLeft: "auto", color: (aciertos !== null && aciertos > 0) || h.status === "WON" ? "#22c55e" : "var(--text-dim,#9aa0a6)", fontWeight: (aciertos !== null && aciertos > 0) || h.status === "WON" ? 800 : 400 }}>
                     {aciertos !== null
                       ? `${aciertos} aciertos${h.status === "WON" ? " · ¡GANADA!" : ""}`
                       : "pendiente"}
