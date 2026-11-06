@@ -215,11 +215,8 @@ export default function PoceadaPage() {
       {pred?.numeros?.length === 20 ? (
               <div className="brinco-card">
                 <div className="brinco-meta">
-
-        <div className="brinco-card">
-          <div className="brinco-meta">
-            <span>
-              Próximo sorteo: <b>{fecha ? fechaLarga(fecha) : "—"}</b>
+                  <span>
+                    Próximo sorteo: <b>{fecha ? fechaLarga(fecha) : "—"}</b>
             </span>
             <span>
               Sorteos analizados: <b>{(pred as any)?.historial?.cantidad ?? ((pred as any)?.totalSorteos ?? 120)}</b>
