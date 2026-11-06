@@ -1276,6 +1276,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               <button className="btn3d btn-gen btn-game" onClick={() => { sound.whoosh(); gen(); }} disabled={ld} style={{ opacity: ld ? 0.6 : 1, background: "linear-gradient(180deg,#f472b6 0%,#ec4899 50%,#db2777 100%)", color: "#fff", boxShadow: "0 8px 0 #be185d,0 12px 36px rgba(236,72,153,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}>
                 ⚡ Generar Análisis Ahora
               </button>
+              <button className="btn3d btn-gen btn-game" onClick={() => { setTab("mis"); cargarMisPreds(tkRef.current); }} style={{ opacity: ld ? 0.6 : 1, background: "linear-gradient(135deg,rgba(34,197,94,.18),rgba(34,197,94,.08))", color: "#15803d", boxShadow: "0 8px 0 #15803d,0 12px 36px rgba(34,197,94,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}>
+                🗂️ Análisis Guardados
+              </button>
               <a
                 className="btn3d btn-gen btn-game"
                 href="/brinco"
@@ -1337,7 +1340,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
             </div>
           )}
-          {showCalc && (
+                      </div>
+          )}
+
+{showCalc && (
             <div style={{ marginTop: 12, padding: 14, borderRadius: 12, background: "rgba(139,92,246,.06)", border: "1px solid rgba(139,92,246,.15)" }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: "#a78bfa", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>📊 Tu precisión personal</div>
               {misSummary.totalSaved > 0 ? (

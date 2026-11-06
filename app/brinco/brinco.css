@@ -108,7 +108,7 @@
 .brinco-nums-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .brinco-num { width: 38px; height: 38px; flex: none; font-size: 1.15rem; font-weight: 900; display: flex; align-items: center; justify-content: center; border-radius: 12px; border: 1.5px solid rgba(245,197,66,.35); background: linear-gradient(135deg, rgba(245,197,66,.15), rgba(245,197,66,.04)); color: #f5c542; box-shadow: inset 0 2px 4px rgba(245,197,66,.2), 0 4px 0 rgba(120,85,0,.4); transition: all .15s; }
 .brinco-num:hover { transform: translateY(-2px); box-shadow: 0 8px 0 rgba(120,85,0,.5), inset 0 2px 4px rgba(245,197,66,.3), 0 6px 16px rgba(245,197,66,.3); }
-.brinco-chip-win { background: linear-gradient(135deg, rgba(34,197,94,.2), rgba(34,197,94,.08)); border-color: rgba(34,197,94,.5); color: #22c55e; box-shadow: inset 0 2px 4px rgba(34,197,94,.2), 0 4px 0 rgba(0,100,50,.4); }
+.brinco-chip-win { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important; border-color: #86efac !important; color: #fff !important; box-shadow: 0 0 0 3px rgba(34,197,94,.35), inset 0 1px 0 rgba(255,255,255,.4), 0 6px 0 rgba(0,100,50,.6) !important; font-weight: 900; }
 .brinco-combo-label { font-size: 0.85rem; font-weight: 800; color: var(--ac-a); margin-bottom: 6px; letter-spacing: 0.5px; text-transform: uppercase; }
 .brinco-divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(245,197,66,.3), transparent); margin: 10px 0; border: none; }
 .brinco-combo { padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.03); border: 1px solid rgba(245,197,66,.15); }
