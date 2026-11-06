@@ -244,8 +244,8 @@ export async function ejecutarLotePrecompute(
 
       results.push({ turno, ok: true, confidence: redondear(modelConsistency, 2) })
     } catch (e: unknown) {
-      const errMsg = e instanceof Error ? e.message : typeof e === 'object' && e !== null ? JSON.stringify(e) : String(e)
-      logger.error("[cron-precompute] Failed", { turno, error: errMsg })
+      } catch (e: unknown) {
+      const errMsg = e instanceof Error ? e.message : String(e)
       results.push({ turno, ok: false, error: errMsg })
     }
   }
