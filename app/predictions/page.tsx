@@ -1340,9 +1340,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
             </div>
           )}
-                      </div>
-          )}
-
 {showCalc && (
             <div style={{ marginTop: 12, padding: 14, borderRadius: 12, background: "rgba(139,92,246,.06)", border: "1px solid rgba(139,92,246,.15)" }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: "#a78bfa", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>📊 Tu precisión personal</div>

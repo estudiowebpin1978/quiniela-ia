@@ -121,6 +121,8 @@ export interface BlendParams {
   engineWeights: EngineWeights
   /** Scores del motor cross-turno (opcional; se ignora si CT <= 0). */
   ctPredictions?: Map<number, number>
+  /** Poceada necesita 20 números (2 combinaciones de 8). Default 10 (Quiniela). */
+  topN?: number
 }
 
 /**
@@ -219,10 +221,10 @@ export function blendEngines(params: BlendParams): BlendedPrediction[] {
     }
   }
 
-  // Sort and take top 10
+  const topN = params.topN ?? 10
   return Array.from(allNums.values())
     .sort((a, b) => b.score - a.score)
-    .slice(0, 10)
+    .slice(0, topN)
 }
 
 /**

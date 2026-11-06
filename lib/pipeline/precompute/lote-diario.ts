@@ -103,7 +103,9 @@ export async function ejecutarLotePrecompute(
       // 2. Histórico COMPLETO del turno con fecha estrictamente anterior a hoy.
       const draws = await cargarHistorico(supabase, turno, GAME_ID, today)
 
-      const minDraws = turno === "Poceada" ? 3 : 10
+      const esPoceada = turno === "Poceada"
+      const topN = esPoceada ? 20 : 10
+      const minDraws = esPoceada ? 3 : 10
       if (!draws || draws.length < minDraws) {
         results.push({ turno, ok: false, error: `Insufficient draws (${draws?.length || 0}/${minDraws})` })
         continue
@@ -118,7 +120,7 @@ export async function ejecutarLotePrecompute(
       try {
         const v7Weights = await loadV7Weights(turno)
         weights = v7WeightsToFactorBreakdown(v7Weights)
-        const v7Result = await predictEnsembleV7(draws, turno, 10, ctxSeed, weights)
+        const v7Result = await predictEnsembleV7(draws, turno, topN, ctxSeed, weights)
         v7Predictions = v7ToBlended(v7Result.predictions)
       } catch (e) {
         logger.warn("[cron-precompute] V7 failed", { turno, error: String(e) })
@@ -139,7 +141,7 @@ export async function ejecutarLotePrecompute(
       // Motor híbrido: V6 SQL + V7 TS + ML + análisis rápido (get_analisis_rapido RPC)
       let engineWeights = { V6: 0.40, V7: 0.35, ML: 0.25 }
       try { engineWeights = await loadEngineWeights(turno) } catch { /* use defaults */ }
-      const blended = blendEngines({ v6Rows, v7Predictions, mlPredictions, engineWeights })
+      const blended = blendEngines({ v6Rows, v7Predictions, mlPredictions, engineWeights, topN })
 
       // Log raw predictions for each engine (before blend) contra el sorteo de
       // HOY de este turno (si ya existe el resultado): alimenta
@@ -156,12 +158,17 @@ export async function ejecutarLotePrecompute(
 
       // Meta-diversidad real (MMR determinista): diversifica determinísticamente usando scores y factor_attribution
       const diversidad = diversifyMMR(blended)
-      const blendedDiversified = diversidad.seleccion.slice(0, 10)
+      const blendedDiversified = diversidad.seleccion.slice(0, topN)
       if (diversidad.diversityRatio < 0.05) logger.info("[cron-precompute] Meta-diversidad MMR aplicada", { turno, diversityRatio: diversidad.diversityRatio, lambdaMMR: LAMBDA_MMR, selectedCount: diversidad.seleccion.length })
 
-      // Generate 3/4 cifras: V6 top-30 candidates → V7/ML re-score → blend
       const top10nums = blendedDiversified.map((p) => p.n)
 
+      // Poceada es SOLO 2 cifras (8 números vs 20 extraídos). No hay 3/4 ni redoblona.
+      let numeros_3: string[] = []
+      let numeros_4: string[] = []
+      let redoblona: { cabeza: string; acompanante: string } | null = null
+
+      if (!esPoceada) {
       const { tres: v6_3rows, cuatro: v6_4rows } = await scoreCifrasV6(supabase, turno, today)
 
       // Take top-30 V6 candidates for V7/ML re-scoring

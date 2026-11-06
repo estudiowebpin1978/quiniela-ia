@@ -79,16 +79,11 @@ export default function PoceadaPage() {
     }
     const tk = auth.access_token
 
-    // Verificar si el usuario tiene Premium (igual que Brinco)
+    // Poceada Ciudad es para todos los usuarios autenticados (el endpoint no
+    // rechaza al Free; la restricción antigua era solo en el cliente)
     fetch("/api/auth/me", { headers: { Authorization: "Bearer " + tk } })
       .then((r) => (r.ok ? r.json() : null))
       .then((me) => {
-        const premium = me?.canAccessPremiumFeatures || me?.role === "premium" || me?.role === "admin"
-        if (!premium) {
-          setAcceso("no-premium")
-          setCargando(false)
-          return
-        }
         setAcceso("ok")
         const f = fechaObjetivoPoceada()
         setFecha(f)
@@ -217,7 +212,10 @@ export default function PoceadaPage() {
           ← Volver a Quiniela
         </button>
       </div>
-      {pred && jugadasMotor.length > 0 ? (
+      {pred?.numeros?.length === 20 ? (
+              <div className="brinco-card">
+                <div className="brinco-meta">
+
         <div className="brinco-card">
           <div className="brinco-meta">
             <span>
