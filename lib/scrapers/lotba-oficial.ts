@@ -19,6 +19,7 @@
 
 import logger from "@/lib/logger"
 import type { TurnoType } from "./types"
+import { extraerNumerosConGemini } from "./ocr-fallback"
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 const FETCH_TIMEOUT = 12000
@@ -127,8 +128,8 @@ export async function fetchQuinielaDrawNumbers(sorteo: number): Promise<number[]
 
   const data = extractResultadosData(html)
   if (!data || data.length === 0) {
-    logger.warn("[lotba-oficial] resultados-data sin payload", { sorteo })
-    return null
+    logger.warn("[lotba-oficial] resultados-data sin payload - OCR fallback", { sorteo })
+    return await extraerNumerosConGemini(html, { kind: "quiniela", sorteo })
   }
 
   const entry = data[0] as {
@@ -140,19 +141,22 @@ export async function fetchQuinielaDrawNumbers(sorteo: number): Promise<number[]
   // jurisdicción 51 = Ciudad de Buenos Aires
   const numeros = entry?.jurisdicciones?.["51"]?.numeros
   if (!numeros || numeros.length < 20) {
-    logger.warn("[lotba-oficial] sin jurisdiccion 51 o insuficiente", {
+    logger.warn("[lotba-oficial] sin jurisdiccion 51 o insuficiente - OCR fallback", {
       sorteo,
       jurisdicciones: entry?.jurisdicciones ? Object.keys(entry.jurisdicciones) : [],
       count: numeros?.length ?? 0,
     })
-    return null
+    return await extraerNumerosConGemini(html, { kind: "quiniela", sorteo })
   }
 
   const numbers = numeros
     .map((n) => parseInt(n.val ?? "", 10))
     .filter((n) => Number.isInteger(n) && n >= 0 && n <= 9999)
 
-  if (numbers.length < 20) return null
+  if (numbers.length < 20) {
+    logger.warn("[lotba-oficial] números 4-digit detectados insuficientes - OCR fallback", { sorteo, count: numbers.length })
+    return await extraerNumerosConGemini(html, { kind: "quiniela", sorteo })
+  }
   return numbers.slice(0, 20)
 }
 
@@ -221,8 +225,8 @@ export async function fetchPoceadaDrawNumbers(sorteo: number): Promise<number[] 
 
   const data = extractResultadosData(html)
   if (!data || data.length === 0) {
-    logger.warn("[lotba-oficial] poceada data sin payload", { sorteo })
-    return null
+    logger.warn("[lotba-oficial] poceada data sin payload - OCR fallback", { sorteo })
+    return await extraerNumerosConGemini(html, { kind: "poceada", sorteo })
   }
 
   const entry = data[0] as {
@@ -233,15 +237,18 @@ export async function fetchPoceadaDrawNumbers(sorteo: number): Promise<number[] 
 
   const raw = entry?.numeros_juegos?.Tradicional
   if (!raw || raw.length < 20) {
-    logger.warn("[lotba-oficial] poceada sin numeros_juegos.Tradicional", { sorteo, count: raw?.length ?? 0 })
-    return null
+    logger.warn("[lotba-oficial] poceada sin numeros_juegos.Tradicional - OCR fallback", { sorteo, count: raw?.length ?? 0 })
+    return await extraerNumerosConGemini(html, { kind: "poceada", sorteo })
   }
 
   const numbers = raw
     .map((s) => parseInt(String(s).trim(), 10))
     .filter((n) => Number.isInteger(n) && n >= 0 && n <= 99)
 
-  if (numbers.length < 20) return null
+  if (numbers.length < 20) {
+    logger.warn("[lotba-oficial] numeros 2-digit insuficientes - OCR fallback", { sorteo, count: numbers.length })
+    return await extraerNumerosConGemini(html, { kind: "poceada", sorteo })
+  }
   return numbers.slice(0, 20)
 }
 
