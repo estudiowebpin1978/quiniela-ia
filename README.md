@@ -35,9 +35,29 @@ Estas variables deben configurarse en Vercel y también localmente para el desar
 ### Admin
 - `ADMIN_EMAILS` — emails admin separados por coma (ej: `estudiowebpin@gmail.com,otro@dominio.com`).
 
-### AI Providers (fallback opcional)
-- `GROQ_API_KEY` — API key Groq.
-- `GEMINI_API_KEY` — API key Google Gemini.
+### AI Providers (fallback opcional — todo feature responde sin ninguna clave)
+- `GROQ_API_KEY` - API key Groq (openai/gpt-oss-120b). Sin ella o sin cuota el Asistente IA en /rendimiento responde con el análisis deterministico local (200, mismo data, "fallback": true).
+- `GROQ_MODEL` - override del modelo Groq (default `openai/gpt-oss-120b`).
+- `GEMINI_API_KEY` - API key Google Gemini. Sólo si OCR de HTML/image fue insuficiente; el sistema ya resuelve con texto limpio + Tesseract.js OSS.
+- `HF_API_KEY` — API key Hugging Face (fallback de embeddings, cuota baja).
+- `HF_MODEL` - modelo HF (default `sentence-transformers/all-MiniLM-L6-v2`).
+- `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` - Cloudflare Workers AI (gratuito, ~10k inferencia/dia). Método preferido para /api/sorteos-similares.
+- `CF_EMBED_MODEL` - embedding model CF (default `@cf/baai/bge-m3`, multilingüe).
+
+### Sin configurar ninguna clave (zero-cost fallback chain)
+| Feature | Cadena | Resultado |
+|---|---|---|
+| Asistente IA (`/api/asistente-ia`) | Groq → deterministico local | 200 con análisis del historial |
+| Sorteos Parecidos (`/api/sorteos-similares`) | CF Workers AI → Hugging Face → Dice local | 200 con ~5 resultados |
+| OCR fallback (lots/pags LOTBA) | texto limpio local → Tesseract.js → Gemini | sin costo, sin cuotas por defecto |
+| Cron verify/scrape | cron-job.org (libre) | sin cambios |
+
+### Cloudflare Workers AI — como obtener las credenciales (gratis)
+1. En https://dash.cloudflare.com Create account (free).
+2. My Profile → API Tokens → Create Token → plantilla "Edit Cloudflare Workers AI".
+3. Account Home → copia Account ID.
+4. Vercel → proyecto `quiniela-ia` → Settings → Environment Variables (scope Production) → agregar `CLOUDFLARE_ACCOUNT_ID` y `CLOUDFLARE_API_TOKEN`.
+5. Redeploy (`npx vercel --prod`) y probar `/api/sorteos-similares` → `method=cloudflare`.
 
 ### Turnos (opcional, default hardcoded)
 - `TURNOS` — JSON array de turnos (ej: `["Previa","Primera","Matutina","Vespertina","Nocturna"]`).
