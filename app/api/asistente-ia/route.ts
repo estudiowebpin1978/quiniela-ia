@@ -1,16 +1,15 @@
 /**
- * Asistente de Análisis (Groq) — endpoint para la card "Asistente IA" en
- * /rendimiento.
+ * Asistente de Análisis — endpoint para la card "Asistente IA" en /rendimiento.
  *
- * Funciona con contexto frío cargado server-side desde `draws` — no se exponen
- * keys ni datos de otros usuarios. Rate-limited por IP. Es fail-soft:
- *   - Sin `GROQ_API_KEY`      → 503 { ok:false, error }
- *   - Groq caído/cuota agotada → 502 { ok:false, error }
- *   - Historial sin datos      → 200 { ok:true, respuesta } (dijo la palabra)
+ * Contexto: tejido frío cargado server-side desde `draws` (solo columnas
+ * necesarias). Tres capas de degradación graceful, sin romper la vista:
+ *   1. `GROQ_API_KEY` válida → responde Groq (reasoning bajo).
+ *   2. Groq falla / sin clave → responde `respuestaDeterministica` (misma data,
+ *      resumen pre-calculado) con 200 {source:"deterministico"}.
+ *   3. La base está vacía → responde texto fijo ("sin historial disponible")
+ *      con 200 {estado:"sin_datos"}.
  *
- * El contexto se arma como bullet list para telas de información del día de
- * hoy (ART) + frecuencias reales por turno. Nunca inventa: si la pregunta exige
- * datos que no están en el contexto, el system prompt ordena decirlo así.
+ * Rate-limited por IP. Ninguna excepción viaja al cliente.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limiter"
@@ -32,30 +31,27 @@ type Turno = (typeof TURNOS)[number]
 function hoyArt(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format()
 }
-
-function term2(n: number): number {
-  const v = Math.trunc(Math.abs(n)) % 100
-  return v
-}
-
-function topFreq<T>(bucket: Map<T, number>, k: number): Array<[T, number]> {
+function term2(n: number): number { return Math.trunc(Math.abs(n)) % 100 }
+function topFreq(bucket: Map<number, number>, k: number): Array<[number, number]> {
   return [...bucket.entries()].sort((a, b) => b[1] - a[1]).slice(0, k)
 }
 
-async function cargarContexto(supabase: ReturnType<typeof getSupabaseAdmin>): Promise<string> {
+interface DatosHistorial {
+  texto: string           // bullet list para el LLM
+  deterministico: string  // respuesta exacta con la misma data
+  tieneDatos: boolean
+}
+
+async function cargarDatos(supabase: ReturnType<typeof getSupabaseAdmin>): Promise<DatosHistorial> {
   const { data, error } = await supabase
     .from("draws")
     .select("date, turno, numbers, jurisdiccion")
     .order("date", { ascending: false })
     .limit(400)
 
-  if (error) {
-    logger.warn("[asistente] draws query failed", { error: error.message })
-  }
+  if (error) logger.warn("[asistente] draws query failed", { error: error.message })
 
   const rows = Array.isArray(data) ? data : []
-
-  // Agrupar por turno respetando jurisdicción CABA/Ciudad
   const byTurno = new Map<Turno, Array<{ date: string; numbers: number[] }>>()
   for (const r of rows) {
     const turno = (r as { turno?: string }).turno as Turno
@@ -69,22 +65,20 @@ async function cargarContexto(supabase: ReturnType<typeof getSupabaseAdmin>): Pr
     byTurno.set(turno, bucket)
   }
 
-  const terminologyLine =
-    "Referencia de terminos por turno (muestra sobre los ultimos sorteos validos del historial, solo terminales de 2 cifras salvo que se diga lo contrario):\n"
-  const lines: string[] = []
-  lines.push(`HOY (ART): ${hoyArt()}`)
-  lines.push("HORARIOS OFICIALES (ART): Previa 10:30 | Primera 12:30 | Matutina 15:00 | Vespertina 18:30 | Nocturna 21:30 | Poceada 21:15")
-  lines.push(terminologyLine.trim())
-
+  const HOY = hoyArt()
+  const bodyLines: string[] = []
+  const resumenLines: string[] = []
+  let tieneDatos = false
   for (const turno of TURNOS) {
     const bucket = byTurno.get(turno)?.slice(0, MAX_TURNO_DRAWS) ?? []
     if (bucket.length === 0) {
-      lines.push(`- ${turno}: sin datos historicos en la muestra.`)
+      resumenLines.push(`• ${turno}: sin datos en la muestra.`)
+      bodyLines.push(`- ${turno}: sin datos historicos en la muestra.`)
       continue
     }
+    tieneDatos = true
     const termCount = new Map<number, number>()
     const exactCount = new Map<number, number>()
-    const perDraw = bucket.length
     for (const d of bucket) {
       const seenT = new Set<number>()
       for (const n of d.numbers) {
@@ -92,31 +86,43 @@ async function cargarContexto(supabase: ReturnType<typeof getSupabaseAdmin>): Pr
         if (Number.isFinite(t)) {
           if (!seenT.has(t)) {
             termCount.set(t, (termCount.get(t) ?? 0) + 1)
-            seenT.add(t) // evita doble conteo de la misma terminal dentro de un sorteo
+            seenT.add(t)
           }
         }
         const e = Number(n)
         if (Number.isFinite(e) && e >= 0) exactCount.set(e, (exactCount.get(e) ?? 0) + 1)
       }
     }
-    const hotTerm = topFreq(termCount, 8)
-      .map(([t, c]) => `${String(t).padStart(2, "0")}(${c})`)
-      .join(", ")
+    const hotTerm = topFreq(termCount, 8).map(([t, c]) => `${String(t).padStart(2, "0")}(${c})`).join(", ")
     const coldTerm = [...Array(100).keys()]
       .map((t) => ({ t, c: termCount.get(t) ?? 0 }))
       .sort((a, b) => a.c - b.c || a.t - b.t)
       .slice(0, 8)
       .map(({ t, c }) => `${String(t).padStart(2, "0")}(${c})`)
       .join(", ")
-    const hotExact = topFreq(exactCount, 5)
-      .map(([e, c]) => `${e}(${c})`)
-      .join(", ")
-    lines.push(`- ${turno} (ultimos ${perDraw} sorteos): terminales mas frecuentes: ${hotTerm}`)
-    lines.push(`   terminales menos frecuentes: ${coldTerm}`)
-    lines.push(`   numeros exactos mas repetidos: ${hotExact}`)
+    const hotExact = topFreq(exactCount, 5).map(([e, c]) => `${e}(${c})`).join(", ")
+    bodyLines.push(`- ${turno} (ultimos ${bucket.length} sorteos): terminales mas frecuentes: ${hotTerm}`)
+    bodyLines.push(`   terminales menos frecuentes: ${coldTerm}`)
+    bodyLines.push(`   numeros exactos mas repetidos: ${hotExact}`)
+    resumenLines.push(`• ${turno}: terminales calientes: ${hotTerm} | fríos: ${coldTerm}`)
   }
 
-  return lines.join("\n")
+  const texto = [
+    `HOY (ART): ${HOY}`,
+    "HORARIOS OFICIALES (ART): Previa 10:30 | Primera 12:30 | Matutina 15:00 | Vespertina 18:30 | Nocturna 21:30 | Poceada 21:15",
+    "Referencia de terminos (muestra sobre los ultimos sorteos validos, solo terminales de 2 cifras salvo que se diga lo contrario):",
+    ...bodyLines,
+  ].join("\n")
+
+  const deterministico = [
+    `Análisis del historial validado (HOY ${HOY}):`,
+    "",
+    ...resumenLines,
+    "",
+    "(Estadísticas históricas. Ofrece patrón de tendencia, no garantiza resultado.)",
+  ].join("\n")
+
+  return { texto, deterministico, tieneDatos }
 }
 
 const SYSTEM_PROMPT =
@@ -131,11 +137,6 @@ export async function POST(req: NextRequest) {
   const rl = await checkRateLimit(`ai-assistant:${ip}`, RATE_LIMIT_PRESETS.GENERAL_API)
   if (!rl.allowed) {
     return NextResponse.json({ ok: false, error: "Demasiadas consultas. Espera un minuto." }, { status: 429 })
-  }
-
-  const key = process.env.GROQ_API_KEY
-  if (!key) {
-    return NextResponse.json({ ok: false, error: "Asistente IA no configurado (falta GROQ_API_KEY)." }, { status: 503 })
   }
 
   let payload: unknown
@@ -154,14 +155,30 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = getSupabaseAdmin()
-  const contexto = await cargarContexto(supabase).catch((e) => {
-    logger.warn("[asistente] contexto build failed", { error: String(e) })
-    return "Sin contexto historico disponible en este momento."
+  const datos = await cargarDatos(supabase).catch((e) => {
+    logger.warn("[asistente] datos build failed", { error: String(e) })
+    return null
   })
+  const base = datos?.deterministico ?? "Sin historial disponible en este momento."
+  const tieneDatos = datos?.tieneDatos ?? false
 
-  let res: Response
+  const key = process.env.GROQ_API_KEY
+  if (!key || !tieneDatos) {
+    // Sin proveedor o sin datos: respuesta determinista (siempre 200 si hay datos)
+    return NextResponse.json({
+      ok: true,
+      respuesta: tieneDatos ? base : "No tengo datos suficientes en el historial para responder.",
+      modelo: "deterministico",
+      frescura: hoyArt(),
+      fallback: true,
+    })
+  }
+
+  // Intenta Groq; ante cualquier fallo devuelve determinístico directo
+  let respuesta = ""
+  let modelo = MODEL
   try {
-    res = await fetch(GROQ_URL, {
+    const res = await fetch(GROQ_URL, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
       body: JSON.stringify({
@@ -171,40 +188,33 @@ export async function POST(req: NextRequest) {
         reasoning_effort: "low",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
-          { role: "system", content: `CONTEXTO (historial validado):\n${contexto}` },
+          { role: "system", content: `CONTEXTO (historial validado):\n${datos?.texto}` },
           { role: "user", content: pregunta },
         ],
       }),
       signal: AbortSignal.timeout(FETCH_TIMEOUT),
     })
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "")
+      logger.warn("[asistente] Groq HTTP error", { status: res.status, short: txt.slice(0, 200) })
+      throw new Error(`groq_http_${res.status}`)
+    }
+    const data = await res.json()
+    const raw =
+      (data as { choices?: Array<{ message?: { content?: string } }> })?.choices?.[0]?.message?.content?.trim() ?? ""
+    if (!raw) throw new Error("respuesta_vacia")
+    respuesta = raw
   } catch (e) {
-    logger.warn("[asistente] Groq request failed", { error: String(e) })
-    return NextResponse.json({ ok: false, error: "El asistente no responde en este momento." }, { status: 502 })
+    logger.warn("[asistente] groq fallback deterministic", { error: String(e) })
+    return NextResponse.json({
+      ok: true,
+      respuesta: base,
+      modelo: "deterministico",
+      frescura: hoyArt(),
+      fallback: true,
+    })
   }
 
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "")
-    // Diagnostic short logline — only surface the status code to clients
-    logger.warn("[asistente] Groq HTTP error", { status: res.status, short: txt.slice(0, 250) })
-    return NextResponse.json(
-      { ok: false, error: `El asistente no está disponible (proveedor error ${res.status}).` },
-      { status: 502 }
-    )
-  }
-
-  let data: unknown
-  try {
-    data = await res.json()
-  } catch {
-    return NextResponse.json({ ok: false, error: "Respuesta malformada del asistente." }, { status: 502 })
-  }
-
-  const respuesta =
-    (data as { choices?: Array<{ message?: { content?: string } }> })?.choices?.[0]?.message?.content?.trim() ?? ""
-
-  if (!respuesta) {
-    return NextResponse.json({ ok: false, error: "El asistente no devolvio contenido." }, { status: 502 })
-  }
-
-  return NextResponse.json({ ok: true, respuesta, modelo: MODEL, frescura: hoyArt() })
+  return NextResponse.json({ ok: true, respuesta, modelo, frescura: hoyArt(), fallback: false })
 }
