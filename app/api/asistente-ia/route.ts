@@ -167,7 +167,8 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: MODEL,
         temperature: 0.3,
-        max_tokens: 320,
+        max_tokens: 650,
+        reasoning_effort: "low",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "system", content: `CONTEXTO (historial validado):\n${contexto}` },

@@ -4,7 +4,7 @@ import { normalizarCronToken } from "@/lib/cron/auth"
 import { cacheFrescoParaDestino } from "@/lib/api/predictions"
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limiter"
 import { parsePred2, extractPred3, extractPred4, extractRedoblona } from "@/lib/predictions"
-import { refrescarTurnoOnDemand } from "@/lib/scrapers/refrescar-on-demand"
+import { refrescarTurnoOnDemand, rellenarHistoricoDeTurno } from "@/lib/scrapers/refrescar-on-demand"
 import logger from "@/lib/logger"
 import { SUENOS } from "@/lib/suenos"
 import { jurisParaTurno } from "@/lib/procedencia"
@@ -185,6 +185,10 @@ export async function GET(req: NextRequest) {
     } catch (e) {
       logger.warn("[predictions] refresh on-demand omitido", { error: String(e), turno: turnoCanonical })
     }
+    // Backfill retroactivo de los últimos 30 días (fire-and-forget) — garantiza
+    // que la base quede completa para la verificación automática de aciertos
+    // aunque el sorteo haya sido omitido por el cron externo (idempotente).
+    void rellenarHistoricoDeTurno(turnoCanonical).catch(() => {})
 
     // ── Cache invalidation (admin-only) ──
     if (searchParams.get("invalidate") === "1") {

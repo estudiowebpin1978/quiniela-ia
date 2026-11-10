@@ -1,22 +1,20 @@
 /**
- * Actualización on-demand del historial desde las fuentes oficiales.
+ * Actualización del historial desde las fuentes oficiales (LOTBA).
  *
- * Se usa cuando se pide una predicción y ese sorteo aún no está en la base
- * de sorteos (p. ej. la web de lotería lo publica antes que el próximo tick
- * de cron-job.org, o se omite un sorteo). Es el equivalente determinista de
- * una corrida de `/api/cron-scrape?turno=Turno&date=YYYY-MM-DD`, acotado a UN
- * turno y UNA fecha para el camino de lectura, y SIEMPRE fail-soft: si el
- * scrape falla o está fuera de horario, retorna "skipped" y el flujo sigue
- * con el comportamiento previo (cache o cálculo en vivo).
+ * Genérico sobre la fecha: reescrapea cualquier fecha pasada que aún no tenga
+ * sorteo en `draws` (garantiza acertios automáticos vía verify_predictions_for_draw).
+ * Fail-soft siempre: cualquier paso roto aborta salvate without raising.
  *
- * Optimizado para la ruta frecuente:
- *  - No hace nada si `fechaISO` no es HOY (el historial pasado no se
- *    re-escrapea desde un request de sólo lectura).
- *  - No hace nada si el turno ya tiene sorteo guardado para esa fecha (1 SELECT).
- *  - No hace nada antes del horario oficial del sorteo + 2 min de margen.
- *  - Idempotente: el upsert corre siempre por clave (fecha, turno).
+ * Superficie:
+ *   refrescarTurnoOnDemand(turno, fechaISO)  - UN turno+fecha (idempotente)
+ *   rellenarHistoricoDeTurno(turno, días)    - barre los últimos N días y completa vacíos
+ *   rellenarTodoHistorico(días)              - barrido por turno (auditoría/CLI)
+ *
+ * Límites:
+ *   - Ventana 30 días por defecto (over qué, añadir admin/backfill)
+ *   - Respeta horario oficial + 2 min buffer, feriados y domingos sin sorteo
+ *   - No sirve de nada para fechas futuras (antes del sorteo): retorna skipped
  */
-
 import { esDiaSinSorteo, esTurnoSinSorteo } from "@/lib/feriados"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { fetchQuinielaDraw, fetchPoceadaDrawOficial, SOURCE_LOTBA } from "@/lib/scrapers/lotba-oficial"
@@ -31,8 +29,16 @@ export interface ResultadoRefreshTurno {
   status: "skipped" | "fresh" | "saved" | "error"
   detail?: string
 }
+export interface ReporteHistorico {
+  turno: string
+  totalDias: number
+  fresh: number
+  saved: number
+  skipped: number
+  errores: number
+  detalle: ResultadoRefreshTurno[]
+}
 
-/** Horario oficial del sorteo en ART (America/Argentina/Buenos_Aires, UTC-3). */
 const OFFICIAL_TIME_ART: Record<string, string> = {
   Previa: "10:30",
   Primera: "12:30",
@@ -41,53 +47,51 @@ const OFFICIAL_TIME_ART: Record<string, string> = {
   Nocturna: "21:30",
   Poceada: "21:15",
 }
-
-const BUFFER_MS = 2 * 60 * 1000 // margen tras el inicio oficial antes de intentar scrape
+const BUFFER_MS = 2 * 60 * 1000
+const VENTANA_HIST_DIAS = 30
 
 function hoyArt(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format()
 }
-
+function isoMenos(dateISO: string, dias: number): string {
+  const d = new Date(`${dateISO}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - dias)
+  return d.toISOString().slice(0, 10)
+}
+function calendarioMenos(hoy: string, dias: number): string[] {
+  const out: string[] = []
+  for (let i = 0; i < dias; i++) out.push(isoMenos(hoy, i))
+  return out
+}
 function diaSemanaArt(fechaISO: string): number {
-  // fechaISO es "YYYY-MM-DD"; mediodía para evitar vuelta de día por TZ
   return new Date(`${fechaISO}T12:00:00Z`).getUTCDay()
 }
-
 function urlDateFromISO(fechaISO: string): string {
-  const [yyyy, mm, dd] = fechaISO.split("-")
-  return `${dd}-${mm}-${yyyy.slice(-2)}`
+  const [yyyy, mm, dd] = fechaISO.split("-"); return `${dd}-${mm}-${yyyy.slice(-2)}`
+}
+function cutoffArt(fechaISO: string, turno: string): number {
+  const hm = OFFICIAL_TIME_ART[turno] ?? "00:00"
+  const [h, m] = hm.split(":").map(Number)
+  return new Date(`${fechaISO}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00-03:00`).getTime() + BUFFER_MS
 }
 
 async function tieneDraw(turno: string, fechaISO: string): Promise<boolean> {
   const supabase = getSupabaseAdmin()
   const { data } = await supabase
-    .from("draws")
-    .select("id")
-    .eq("turno", turno)
-    .eq("date", fechaISO)
-    .limit(1)
+    .from("draws").select("id").eq("turno", turno).eq("date", fechaISO).limit(1)
   return Array.isArray(data) && data.length > 0
 }
-
 async function guardarDrawIdempotente(turno: string, fechaISO: string, nums: number[], source: string): Promise<{ ok: boolean; error?: string }> {
   const supabase = getSupabaseAdmin()
-  const gameId = turno === "Poceada" ? POCEADA_GAME_ID : GAME_ID
-  const jurisdiccion = LOTBA.jurisdiction
   const { error } = await supabase.rpc("upsert_draw" as never, {
-    p_date: fechaISO,
-    p_turno: turno,
-    p_numbers: nums,
-    p_source: source,
-    p_game_id: gameId,
-    p_jurisdiccion: jurisdiccion,
+    p_date: fechaISO, p_turno: turno, p_numbers: nums, p_source: source,
+    p_game_id: turno === "Poceada" ? POCEADA_GAME_ID : GAME_ID,
+    p_jurisdiccion: LOTBA.jurisdiction,
   } as never)
   if (error) return { ok: false, error: error.message }
-
-  // Verificación atómica de predicciones pendientes (best-effort, como el cron)
   try {
+    // Verifica automáticamente las predicciones pendientes para este sorteo
     await supabase.schema("api").rpc("verify_predictions_for_draw" as never, {
-      p_date: fechaISO,
-      p_turno: turno,
+      p_date: fechaISO, p_turno: turno,
     } as never)
   } catch (e) {
     logger.warn("[refresh-on-demand] verify exception", { error: String(e), turno })
@@ -95,19 +99,11 @@ async function guardarDrawIdempotente(turno: string, fechaISO: string, nums: num
   return { ok: true }
 }
 
-/**
- * Reescrapea el sorteo de `turno` para `fechaISO`. Pensada para el camino de
- * lectura de predicciones: retorna rápido si no corresponde, y si el sorteo
- * sigue sin publicarse se da por agotada la ventana de espera.
- */
+/** Un solo (turno, fecha) genérico. No sirve de nada si ya existe. */
 export async function refrescarTurnoOnDemand(turno: string, fechaISO: string): Promise<ResultadoRefreshTurno> {
   try {
     if (!OFFICIAL_TIME_ART[turno]) return { status: "skipped", detail: "turno_desconocido" }
     if (!TURNOS.includes(turno as TurnoType)) return { status: "skipped", detail: "turno_no_valido" }
-
-    // Sólo hoy: el historial anterior no se re-scrapea desde un GET de usuario
-    const hoy = hoyArt()
-    if (fechaISO !== hoy) return { status: "skipped", detail: "solo_hoy" }
 
     const diaSemana = diaSemanaArt(fechaISO)
     if (esDiaSinSorteo(fechaISO, diaSemana)) return { status: "skipped", detail: "sin_sorteos" }
@@ -115,13 +111,9 @@ export async function refrescarTurnoOnDemand(turno: string, fechaISO: string): P
 
     if (await tieneDraw(turno, fechaISO)) return { status: "fresh" }
 
-    // Time guard: sólo después del inicio oficial + margen
-    const [h, m] = (OFFICIAL_TIME_ART[turno] || "00:00").split(":").map(Number)
-    const cutoff = new Date(`${fechaISO}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00-03:00`).getTime() + BUFFER_MS
-    if (Date.now() < cutoff) return { status: "skipped", detail: "antes_del_sorteo" }
+    // Guardar sólo después del inicio oficial + margen (protege solapamiento hoy)
+    if (Date.now() < cutoffArt(fechaISO, turno)) return { status: "skipped", detail: "antes_del_sorteo" }
 
-    // Fuentes: - quiniela turns => dual consensus (with official fallback)
-    //          - Poceada         => home+list oficial LOTBA (mismos módulos que cron)
     const fechaUrl = urlDateFromISO(fechaISO)
     const stats: SourceStats = {}
     let nums: number[] | null = null
@@ -129,42 +121,24 @@ export async function refrescarTurnoOnDemand(turno: string, fechaISO: string): P
 
     if (turno === "Poceada") {
       const numsOficial = await fetchPoceadaDrawOficial(fechaISO).catch(() => null)
-      if (numsOficial && numsOficial.length === 20) {
-        nums = numsOficial
-        source = SOURCE_LOTBA
-      }
+      if (numsOficial?.length === 20) { nums = numsOficial; source = SOURCE_LOTBA }
     }
     if (!nums) {
-      let consensus: Awaited<ReturnType<typeof fetchWithConsensus>> | null = null
-      try {
-        consensus = await fetchWithConsensus(fechaISO, fechaUrl, turno as TurnoType, stats)
-      } catch (e) {
-        logger.warn("[refresh-on-demand] consensus exception", { error: String(e), turno })
-      }
-      if (consensus && Array.isArray(consensus.numbers) && consensus.numbers.length === 20 && consensus.ok) {
-        nums = consensus.numbers
-        source = consensus.source || "consensus"
-      } else if (turno === "Poceada") {
-        // fallback central ya probado
-      } else {
+      const consensus = await fetchWithConsensus(fechaISO, fechaUrl, turno as TurnoType, stats).catch(() => null)
+      if (consensus?.numbers && consensus.numbers.length === 20 && consensus.ok) {
+        nums = consensus.numbers; source = consensus.source || "consensus"
+      } else if (turno !== "Poceada") {
         const oficial = await fetchQuinielaDraw(fechaISO, turno as TurnoType).catch(() => null)
-        if (oficial && oficial.length >= 20) {
-          nums = oficial
-          source = SOURCE_LOTBA
-        }
+        if (oficial && oficial.length >= 20) { nums = oficial; source = SOURCE_LOTBA }
       }
     }
-
-    if (!nums || nums.length < 20) {
-      return { status: "error", detail: "sin_datos_suficientes" }
-    }
+    if (!nums || nums.length < 20) return { status: "error", detail: "sin_datos_suficientes" }
 
     const save = await guardarDrawIdempotente(turno, fechaISO, nums, source)
     if (!save.ok) return { status: "error", detail: save.error }
-
     await invalidateAllPredictionCaches().catch(() => {})
 
-    // Event-driven: disparar precompute del propio turno best-effort (fire-and-forget)
+    // Event-driven: dispara precompute del turno (fire-and-forget)
     try {
       const baseUrl = process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
@@ -181,4 +155,30 @@ export async function refrescarTurnoOnDemand(turno: string, fechaISO: string): P
     logger.error("[refresh-on-demand] exception", { error: String(e), turno, fechaISO })
     return { status: "error", detail: String(e) }
   }
+}
+
+/**
+ * Barrel-scan de los últimos `windowDays` días para el turno y completa
+ * cualquier sorteo faltante. Idempotente. Devuelve resumen para auditoría.
+ * NO bloquea la respuesta del caller: usar vaciado (`void`) en lectores.
+ */
+export async function rellenarHistoricoDeTurno(turno: string, windowDays = VENTANA_HIST_DIAS): Promise<ReporteHistorico> {
+  const resumen: ReporteHistorico = { turno, totalDias: 0, fresh: 0, saved: 0, skipped: 0, errores: 0, detalle: [] }
+  if (!TURNOS.includes(turno as TurnoType)) { resumen.skipped++; return resumen }
+  const hoy = hoyArt()
+  for (const fechaISO of calendarioMenos(hoy, windowDays)) {
+    resumen.totalDias++
+    const r = await refrescarTurnoOnDemand(turno, fechaISO)
+    resumen.detalle.push(r)
+    resumen[r.status === "fresh" ? "fresh" : r.status === "saved" ? "saved" : r.status === "error" ? "errores" : "skipped"]++
+  }
+  return resumen
+}
+
+/** Barrido completo para auditoría: todos los turnos. Retorna por turno. */
+export async function rellenarTodoHistorico(windowDays = VENTANA_HIST_DIAS): Promise<ReporteHistorico[]> {
+  const todos = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"] as const
+  const out: ReporteHistorico[] = []
+  for (const turno of todos) out.push(await rellenarHistoricoDeTurno(turno, windowDays))
+  return out
 }
