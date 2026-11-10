@@ -184,8 +184,12 @@ export async function POST(req: NextRequest) {
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "")
-    logger.warn("[asistente] Groq HTTP error", { status: res.status, short: txt.slice(0, 200) })
-    return NextResponse.json({ ok: false, error: "El asistente no está disponible (cuota o error del proveedor)." }, { status: 502 })
+    // Diagnostic short logline — only surface the status code to clients
+    logger.warn("[asistente] Groq HTTP error", { status: res.status, short: txt.slice(0, 250) })
+    return NextResponse.json(
+      { ok: false, error: `El asistente no está disponible (proveedor error ${res.status}).` },
+      { status: 502 }
+    )
   }
 
   let data: unknown
