@@ -1,12 +1,8 @@
 /**
- * Buscar sorteos históricos parecidos usando embeddings de Hugging Face
- * cuando está disponible; si HF no responde, cae a una similitud local
- * (Dice sobre intersección de terminales de 2 cifras) para que el endpoint
- * nunca quede vacío.
- *
+ * Buscar sorteos historicos parecidos usando embeddings multilingues.
+ * Prioridad: Cloudflare Workers AI (bge-m3, gratis) > Hugging Face (HF_API_KEY) > Dice local.
+ * Fail-soft: cualquier falla cae a Dice sobre terminales (2 cifras); el endpoint nunca queda vacio.
  * Endpoint: GET /api/sorteos-similares?numeros=12,34,...&turno=Nocturna&limit=5
- * Fail-soft en todo el flujo: cualquier error parcial o global devuelve
- * { ok:false } o results locales válidos, nunca rompe la vista.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limiter"
