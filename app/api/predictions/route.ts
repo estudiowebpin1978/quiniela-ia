@@ -4,6 +4,7 @@ import { normalizarCronToken } from "@/lib/cron/auth"
 import { cacheFrescoParaDestino } from "@/lib/api/predictions"
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limiter"
 import { parsePred2, extractPred3, extractPred4, extractRedoblona } from "@/lib/predictions"
+import { refrescarTurnoOnDemand } from "@/lib/scrapers/refrescar-on-demand"
 import logger from "@/lib/logger"
 import { SUENOS } from "@/lib/suenos"
 import { jurisParaTurno } from "@/lib/procedencia"
@@ -174,6 +175,16 @@ export async function GET(req: NextRequest) {
     const todayBsAs = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format()
     const requestedDate = searchParams.get("date")
     const targetDate = (requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) ? requestedDate : todayBsAs
+
+    // Actualización on-demand: si el sorteo de hoy para este turno todavía no
+    // está en la base, reescrapea sólo este turno (idempotente, fail-soft,
+    // respeta horario oficial y feriados) para que la predicción corra con
+    // el historial vigente en vez de depender únicamente del cron externo.
+    try {
+      await refrescarTurnoOnDemand(turnoCanonical, targetDate)
+    } catch (e) {
+      logger.warn("[predictions] refresh on-demand omitido", { error: String(e), turno: turnoCanonical })
+    }
 
     // ── Cache invalidation (admin-only) ──
     if (searchParams.get("invalidate") === "1") {
@@ -358,25 +369,30 @@ export async function GET(req: NextRequest) {
           } catch { /* best-effort Redis write */ }
 
           // ── AUTO-SAVE: guardar predicción del usuario para verificación posterior ──
-          try {
-            const numerosGuardar = numeros.map((n) => n.numero)
-            const predGuardar = {
-              user_id: (userTier as any).userId,
-              date: targetDate,
-              turno: turnoCanonical,
-              numeros: numerosGuardar,
-              status: "PENDING",
-              motor_version: cached.engine_version || "omega_v6",
-              confianza: cached.confidence || 0,
+          // Poceada Ciudad: EXCEPCIÓN — el guardado es PREMIUM-only vía POST
+          // /api/mis-predicciones (botón "Guardar jugada"); auto-guardarlo en
+          // silencio para todos rompía el gate free->premium.
+          if (turnoCanonical !== "Poceada") {
+            try {
+              const numerosGuardar = numeros.map((n) => n.numero)
+              const predGuardar = {
+                user_id: (userTier as any).userId,
+                date: targetDate,
+                turno: turnoCanonical,
+                numeros: numerosGuardar,
+                status: "PENDING",
+                motor_version: cached.engine_version || "omega_v6",
+                confianza: cached.confidence || 0,
+              }
+              const { error: insertErr } = await supabaseAdmin
+                .from("user_predictions")
+                .insert([predGuardar])
+              if (insertErr) {
+                logger.warn("[predictions] auto-save user_prediction failed", { error: insertErr.message, turno: turnoCanonical })
+              }
+            } catch (e) {
+              logger.warn("[predictions] auto-save exception", { error: String(e), turno: turnoCanonical })
             }
-            const { error: insertErr } = await supabaseAdmin
-              .from("user_predictions")
-              .insert([predGuardar])
-            if (insertErr) {
-              logger.warn("[predictions] auto-save user_prediction failed", { error: insertErr.message, turno: turnoCanonical })
-            }
-          } catch (e) {
-            logger.warn("[predictions] auto-save exception", { error: String(e), turno: turnoCanonical })
           }
 
           return NextResponse.json(responsePayload, {
@@ -471,25 +487,29 @@ export async function GET(req: NextRequest) {
           }
 
           // ── AUTO-SAVE: guardar predicción del usuario (LIVE-V6 camino) ──
-          try {
-            const numerosGuardar = numeros.map((n) => n.numero)
-            const predGuardar = {
-              user_id: (userTier as any).userId,
-              date: targetDate,
-              turno: turnoCanonical,
-              numeros: numerosGuardar,
-              status: "PENDING",
-              motor_version: "omega_v6_live",
-              confianza: 0,
+          // Poceada Ciudad: EXCEPCIÓN — guardado PREMIUM-only vía POST
+          // /api/mis-predicciones; auto-guardar en silencio sería un bypass.
+          if (turnoCanonical !== "Poceada") {
+            try {
+              const numerosGuardar = numeros.map((n) => n.numero)
+              const predGuardar = {
+                user_id: (userTier as any).userId,
+                date: targetDate,
+                turno: turnoCanonical,
+                numeros: numerosGuardar,
+                status: "PENDING",
+                motor_version: "omega_v6_live",
+                confianza: 0,
+              }
+              const { error: insertErr } = await supabaseAdmin
+                .from("user_predictions")
+                .insert([predGuardar])
+              if (insertErr) {
+                logger.warn("[predictions LIVE-V6] auto-save user_prediction failed", { error: insertErr.message, turno: turnoCanonical })
+              }
+            } catch (e) {
+              logger.warn("[predictions LIVE-V6] auto-save exception", { error: String(e), turno: turnoCanonical })
             }
-            const { error: insertErr } = await supabaseAdmin
-              .from("user_predictions")
-              .insert([predGuardar])
-            if (insertErr) {
-              logger.warn("[predictions LIVE-V6] auto-save user_prediction failed", { error: insertErr.message, turno: turnoCanonical })
-            }
-          } catch (e) {
-            logger.warn("[predictions LIVE-V6] auto-save exception", { error: String(e), turno: turnoCanonical })
           }
 
           return NextResponse.json(responsePayload, {

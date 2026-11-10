@@ -1,11 +1,14 @@
 "use client"
 
 /**
- * Poceada Premium — página dedicada con la estética de Brinco (mismo CSS).
+ * Poceada Ciudad — página dedicada con la estética de Brinco (mismo CSS).
  *
- * Acceso Premium controlado en el CLIENTE (mirando /api/auth/me) y en el
- * SERVIDOR (/api/predictions rechaza a usuarios Free). Aquí se refleja el
- * estado para mostrar la UI. NO duplica motor: consume el MISMO endpoint
+ * Acceso: usuarios free autenticados pueden VER las 2 combinaciones
+ * (la predicción de 2 cifras no requiere Premium en el servidor).
+ * El GUARDADO de jugadas es PREMIUM: POST /api/mis-predicciones rechaza con
+ * 403 a free (gate `canAccessPremiumFeatures` en servidor, no sólo en
+ * cliente). Aquí se refleja el estado para mostrar la UI. NO duplica motor:
+ * consume el MISMO endpoint
  * de predicciones de la app (/api/predictions?sorteo=poceada) con la misma
  * fecha objetivo que la pantalla principal, valida con validatePredData y
  * guarda con los endpoints existentes (/api/mis-predicciones). La
@@ -49,6 +52,7 @@ export default function PoceadaPage() {
   const [msg, setMsg] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
   const [guardadoOk, setGuardadoOk] = useState<string | null>(null)
+  const [esPremium, setEsPremium] = useState(false)
   const [historial, setHistorial] = useState<MisPrediccion[]>([])
 
   const cargarHistorial = useCallback(async (tk: string) => {
@@ -85,6 +89,7 @@ export default function PoceadaPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((me) => {
         setAcceso("ok")
+        setEsPremium(Boolean(me?.canAccessPremiumFeatures))
         const f = fechaObjetivoPoceada()
         setFecha(f)
 
@@ -186,7 +191,7 @@ export default function PoceadaPage() {
   if (acceso === "no-auth") {
     return (
       <div className="brinco-wrap brinco-gate accent-amber">
-        <h2>Poceada Premium</h2>
+        <h2>Poceada Ciudad</h2>
         <p className="brinco-empty">Iniciá sesión para acceder.</p>
         <div className="brinco-actions" style={{ justifyContent: "center" }}>
           <button className="brinco-btn" onClick={() => router.push("/login")}>
@@ -203,7 +208,7 @@ export default function PoceadaPage() {
   return (
     <div className="brinco-wrap accent-amber">
       <div className="brinco-head">
-        <h1 className="brinco-title">Poceada Premium</h1>
+        <h1 className="brinco-title">Poceada Ciudad</h1>
         <button
           className="brinco-btn ghost"
           style={{ marginLeft: "auto", alignSelf: "center" }}
@@ -212,7 +217,7 @@ export default function PoceadaPage() {
           ← Volver a Quiniela
         </button>
       </div>
-      {pred?.numeros?.length === 20 ? (
+      {pred?.numeros?.length === 20 && acceso !== "no-premium" ? (
               <div className="brinco-card">
                 <div className="brinco-meta">
                   <span>
@@ -251,9 +256,15 @@ export default function PoceadaPage() {
           </div>
 
           <div className="brinco-actions">
-            <button className="brinco-btn" onClick={guardar} disabled={guardando}>
-              {guardando ? "Guardando…" : "Guardar jugada"}
-            </button>
+            {esPremium ? (
+              <button className="brinco-btn" onClick={guardar} disabled={guardando}>
+                {guardando ? "Guardando…" : "Guardar jugada"}
+              </button>
+            ) : (
+              <button className="brinco-btn ghost" onClick={() => router.push("/predictions")}>
+                🔒 Guardar jugada · Premium
+              </button>
+            )}
             <button className="brinco-btn ghost" onClick={() => router.push("/predictions")}>
               ← Volver a Quiniela
             </button>
@@ -282,7 +293,7 @@ export default function PoceadaPage() {
         </div>
       ) : acceso === "no-premium" ? (
         <div className="brinco-card brinco-empty">
-          Esta opción es de acceso premium. Actualizá tu plan para generar jugadas de Poceada.
+          Esta opción es de acceso premium. Actualizá tu plan para ver jugadas de Poceada Ciudad.
           <div style={{ marginTop: 10 }}>
             <button className="brinco-btn" onClick={() => router.push("/predictions")}>
               Ver planes

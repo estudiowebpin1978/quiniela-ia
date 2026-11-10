@@ -264,6 +264,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Turno inválido" }, { status: 400 })
     }
 
+    // Poceada Ciudad: guardar jugadas es PREMIUM. Free sólo ven la vista.
+    if (turnoCanonical === "Poceada" && !tier.canAccessPremiumFeatures) {
+      return NextResponse.json(
+        {
+          error: "Guardar jugadas de Poceada requiere Premium. Actualizá tu plan para verlas guardadas.",
+          upgradeRequired: true,
+        },
+        { status: 403 }
+      )
+    }
+
     // Validate numeros are numeric and within range
     const validateNums = (arr: unknown[], maxLen: number, maxVal: number): boolean => {
       if (!Array.isArray(arr) || arr.length === 0 || arr.length > maxLen) return false

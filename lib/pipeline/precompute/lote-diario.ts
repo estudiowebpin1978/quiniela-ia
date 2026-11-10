@@ -169,7 +169,7 @@ export async function ejecutarLotePrecompute(
       let redoblona: { cabeza: string; acompanante: string } | null = null
 
       if (!esPoceada) {
-      const { tres: v6_3rows, cuatro: v6_4rows } = await scoreCifrasV6(supabase, turno, today)
+        const { tres: v6_3rows, cuatro: v6_4rows } = await scoreCifrasV6(supabase, turno, today)
 
       // Take top-30 V6 candidates for V7/ML re-scoring
       const v6_3cands = mapearCandidatosV6(v6_3rows)
@@ -205,11 +205,12 @@ export async function ejecutarLotePrecompute(
       const blended3 = blendCandidatos(v6_3cands, v7_3cScores, ml_3cScores, engineWeights)
       const blended4 = blendCandidatos(v6_4cands, v7_4cScores, ml_4cScores, engineWeights)
 
-      const numeros_3 = formatCifras(blended3, 3)
-      const numeros_4 = formatCifras(blended4, 4)
+      numeros_3 = formatCifras(blended3, 3)
+      numeros_4 = formatCifras(blended4, 4)
       if (numeros_3.length === 0) logger.warn("[cron-precompute] 3 cifras empty", { turno, dataLen: v6_3rows?.length ?? 0 })
 
-      const redoblona = construirRedoblona(top10nums)
+      redoblona = construirRedoblona(top10nums)
+      }
 
       // Monte Carlo sembrado: capa de estabilidad del top-10 (no toca scores
       // ni ranking; determinista por día+turno).
@@ -244,7 +245,6 @@ export async function ejecutarLotePrecompute(
 
       results.push({ turno, ok: true, confidence: redondear(modelConsistency, 2) })
     } catch (e: unknown) {
-      } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : String(e)
       results.push({ turno, ok: false, error: errMsg })
     }
