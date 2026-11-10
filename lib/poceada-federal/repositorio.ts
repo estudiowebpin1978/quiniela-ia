@@ -322,6 +322,19 @@ export async function listarPrediccionesPorEstado(
   return filas
 }
 
+/** Última instantánea generada (más reciente por generado_en). */
+export async function ultimaPrediccion(): Promise<PrediccionGuardada | null> {
+  const sb = getSupabaseAdmin()
+  const { data, error } = await sb
+    .from("poceada_federal_predictions")
+    .select("*")
+    .order("generado_en", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) manejar(error)
+  return (data as PrediccionGuardada | null) ?? null
+}
+
 export async function guardarPrediccion(
   p: Omit<PrediccionGuardada, "id" | "creado_en" | "estado" | "evaluacion" | "evaluacion_draw_id"> & {
     estado?: PrediccionGuardada["estado"]

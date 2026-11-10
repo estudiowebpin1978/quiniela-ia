@@ -19,7 +19,7 @@
 
 import logger from "@/lib/logger"
 import type { TurnoType } from "./types"
-import { extraerNumerosConGemini } from "./ocr-fallback"
+import { extraerConPila as extraerNumerosConGemini } from "./ocr-fallback"
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 const FETCH_TIMEOUT = 12000

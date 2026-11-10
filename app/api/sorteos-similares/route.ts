@@ -18,6 +18,10 @@ export const maxDuration = 30
 
 const HF_MODEL = process.env.HF_MODEL || "sentence-transformers/all-MiniLM-L6-v2"
 const HF_URL = `https://api-inference.huggingface.co/pipeline/feature-extraction/${encodeURIComponent(HF_MODEL)}`
+const CF_MODEL = process.env.CF_EMBED_MODEL || "@cf/baai/bge-m3"
+const CF_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || ""
+const CF_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || ""
+const CF_URL = CF_ACCOUNT_ID ? `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/ai/run/${CF_MODEL}` : ""
 const FETCH_TIMEOUT = 25_000
 const MAX_DRAWS = 250
 const MAX_QUERY = 20
@@ -34,6 +38,41 @@ function simDiceTerms(a: number[], b: number[]): number {
   const sa = new Set(a.map(norm2))
   const inter = b.filter((x) => sa.has(norm2(x))).length
   return Math.round((2 * inter) / (a.length + b.length))
+}
+
+/**
+ * Cloudflare Workers AI (gratuito, ~10k neurons/día, sin cuota externa como HF).
+ * Modelo bge-m3: embeddings multilingües (entiende dígitos y español).
+ * Retorna (batch, dim) directo o null si el endpoint falla.
+ */
+async function embedCf(texts: string[]): Promise<number[][] | null> {
+  if (!CF_URL || !CF_API_TOKEN) return null
+  const res = await fetch(CF_URL, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${CF_API_TOKEN}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ text: texts }),
+    signal: AbortSignal.timeout(FETCH_TIMEOUT),
+  })
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "")
+    logger.info("[similar] CF rechazó (fallback HF>local)", { status: res.status, short: txt.slice(0, 200) })
+    return null
+  }
+  const json = (await res.json().catch(() => null)) as {
+    success?: boolean
+    result?: { data?: number[][]; shape?: number[] }
+    errors?: unknown
+  } | null
+  if (!json?.success || !Array.isArray(json?.result?.data)) {
+    logger.info("[similar] CF devolvió shape inesperado")
+    return null
+  }
+  const vecs = json.result.data.map((v) => l2Normalize(v.map(Number)))
+  if (vecs.length !== texts.length) return null
+  return vecs
 }
 
 function l2Normalize(v: number[]): number[] {
@@ -145,38 +184,39 @@ export async function GET(req: NextRequest) {
     c.similitud = simDiceTerms(numerosQuery, c.numbers)
   }
 
-  let method: "hugging-face" | "local" = "local"
+  let method: "cloudflare" | "hugging-face" | "local" = "local"
 
-  // --- Paso 2: si HF está disponible, usar embeddings ---
-  if (process.env.HF_API_KEY) {
+  const docs: string[] = []
+  for (const c of candidates) {
+    docs.push(`sorteo ${turno} ${c.fecha}: ${c.numbers.map(norm2).join(" ")}`)
+  }
+  const queryText = `sorteo ${turno} consulta: ${numerosQuery.map(norm2).join(" ")}`
+  const texts = [queryText, ...docs]
+
+  let vecs: number[][] | null = null
+
+  // --- Paso 2a: Cloudflare Workers AI (gratuito, modelo bge-m3 multilingüe) ---
+  vecs = await embedCf(texts)
+  if (vecs) method = "cloudflare"
+
+  // --- Paso 2b: Hugging Face si CF no respondió y hay clave ---
+  if (!vecs && process.env.HF_API_KEY) {
     try {
-      const docs: string[] = []
-      for (const c of candidates) {
-        docs.push(`sorteo ${turno} ${c.fecha}: ${c.numbers.map(norm2).join(" ")}`)
-      }
-      const queryText = `sorteo ${turno} consulta: ${numerosQuery.map(norm2).join(" ")}`
-
       const hfRes = await fetch(HF_URL, {
         method: "POST",
         headers: {
           authorization: `Bearer ${process.env.HF_API_KEY}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify({ inputs: [queryText, ...docs], options: { wait_for_model: true } }),
+        body: JSON.stringify({ inputs: texts, options: { wait_for_model: true } }),
         signal: AbortSignal.timeout(FETCH_TIMEOUT),
       })
 
       if (hfRes.ok) {
         const rawJson = await hfRes.json().catch(() => null)
-        const vecs = vectoresPorBatch(rawJson)
-        if (vecs && vecs.length === docs.length + 1) {
-          const qVec = l2Normalize(vecs[0])
-          const q = qVec // ya normalizado arriba (simplemente usado directamente)
-          for (let i = 0; i < docs.length; i++) {
-            const cVec = l2Normalize(vecs[i + 1])
-            const s = cosineSim(q, cVec)
-            ;(candidates[i] as { similitud?: number }).similitud = Math.round(s * SIMILARITY_SCALE)
-          }
+        const hfVecs = vectoresPorBatch(rawJson)
+        if (hfVecs && hfVecs.length === docs.length + 1) {
+          vecs = hfVecs.map((v) => l2Normalize(v))
           method = "hugging-face"
         } else {
           logger.info("[similar] HF devolvió shape inesperado, fallback local")
@@ -186,6 +226,16 @@ export async function GET(req: NextRequest) {
       }
     } catch (e) {
       logger.warn("[similar] HF request failed", { error: String(e) })
+    }
+  }
+
+  // --- Paso 2c: aplicar vectores (CF u HF) ---
+  if (vecs) {
+    const qVec = l2Normalize(vecs[0])
+    for (let i = 0; i < docs.length; i++) {
+      const cVec = l2Normalize(vecs[i + 1])
+      const s = cosineSim(qVec, cVec)
+      ;(candidates[i] as { similitud?: number }).similitud = Math.round(s * SIMILARITY_SCALE)
     }
   }
 

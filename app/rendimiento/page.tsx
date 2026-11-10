@@ -357,7 +357,7 @@ export default function RendimientoPage() {
           {simError && <p className="text-red-400 text-xs mt-2">{simError}</p>}
           {simRes && simRes.length > 0 && (
             <div className="mt-3 space-y-2">
-              <p className="text-xs text-gray-500">Método: {simMethod === "hugging-face" ? "embeddings Hugging Face" : "similitud local"}</p>
+              <p className="text-xs text-gray-500">Método: {simMethod === "cloudflare" ? "embeddings Cloudflare Workers AI" : simMethod === "hugging-face" ? "embeddings Hugging Face" : "similitud local"}</p>
               {simRes.map((r, i) => (
                 <div key={i} className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg">
                   <span className="text-emerald-400 font-mono text-xs w-10 shrink-0">{r.similitud}%</span>

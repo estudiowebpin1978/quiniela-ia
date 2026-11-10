@@ -150,18 +150,43 @@ export async function POST(req: NextRequest) {
     //    oficial (sin confirmar → queda explícito, nunca se inventa).
     const ultimo = historial[historial.length - 1]
     let prediccionId: string | null = null
+    let deduplicada = false
+    const generacionHuella = generacion.historial.huella
+    const objetivoConcurso =
+      objetivo.confirmado && objetivo.concurso != null ? objetivo.concurso : null
     try {
-      prediccionId = await repo.guardarPrediccion({
-        sorteo_objetivo_concurso: objetivo.confirmado && objetivo.concurso != null ? objetivo.concurso : null,
-        sorteo_objetivo_confirmado: Boolean(objetivo.confirmado && objetivo.concurso != null),
-        generado_en: new Date().toISOString(),
-        historial_corte_fecha: ultimaFecha,
-        historial_corte_concurso: ultimo.concurso,
-        entrenamiento_count: historial.length,
-        historial_huella: generacion.historial.huella,
-        algoritmo_version: generacion.version,
-        combinaciones: generacion.jugadas as unknown[],
-      })
+      // Dedup: misma huella + misma version + mismo objetivo que la ultima
+      // instantanea = la jugada seria identica; reutiliza existencia.
+      const previa = await repo.ultimaPrediccion().catch(() => null)
+      if (
+        previa &&
+        previa.historial_huella === generacionHuella &&
+        previa.algoritmo_version === generacion.version &&
+        ((objetivoConcurso !== null &&
+          previa.sorteo_objetivo_concurso === objetivoConcurso) ||
+         (objetivoConcurso === null &&
+          !previa.sorteo_objetivo_confirmado &&
+          previa.sorteo_objetivo_concurso === null))
+      ) {
+        prediccionId = previa.id
+        deduplicada = true
+        logger.info("[poceada-federal] instantanea deduplicada", {
+          id: previa.id,
+          huella: generacionHuella,
+        })
+      } else {
+        prediccionId = await repo.guardarPrediccion({
+          sorteo_objetivo_concurso: objetivoConcurso,
+          sorteo_objetivo_confirmado: objetivoConcurso !== null,
+          generado_en: new Date().toISOString(),
+          historial_corte_fecha: ultimaFecha,
+          historial_corte_concurso: ultimo.concurso,
+          entrenamiento_count: historial.length,
+          historial_huella: generacionHuella,
+          algoritmo_version: generacion.version,
+          combinaciones: generacion.jugadas as unknown[],
+        })
+      }
     } catch (e) {
       if (!(e instanceof ErrorMigracionPendiente)) throw e
     }
@@ -169,6 +194,7 @@ export async function POST(req: NextRequest) {
     logger.info("[poceada-federal] análisis", {
       historial: historial.length,
       prediccionId,
+      deduplicada,
       ventajaDemostrada: backtest.diferencia.ventajaDemostrada,
       duracionMs: Date.now() - t0,
     })
@@ -189,6 +215,7 @@ export async function POST(req: NextRequest) {
       backtest,
       objetivo,
       prediccionId,
+      deduplicada,
       version: generacion.version,
       generadoEn: generacion.generadoEn,
       duracionMs: Date.now() - t0,
