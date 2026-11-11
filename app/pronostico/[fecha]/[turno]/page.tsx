@@ -6,6 +6,12 @@ import PredictionPageContent from "../../[fecha]/PredictionPageContent";
 // ISR: revalidate every 5 minutes as fallback safety net
 export const revalidate = 300;
 
+// Only pre-generated params serve 200; any other turno/date -> 404 with real status.
+// (dynamicParams=false evita que el edge sirva un 200 con contenido 404.)
+export const dynamicParams = false;
+
+export const dynamic = "force-static";
+
 interface Props {
   params: Promise<{ fecha: string; turno: string }>;
 }

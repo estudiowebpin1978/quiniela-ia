@@ -14,7 +14,7 @@ export default function PerfilPage() {
   const [premium, setPremium] = useState(false)
   const [expDays, setExpDays] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<"pred" | "verif" | "hist" | "premium">("pred")
+  const [tab, setTab] = useState<"pred" | "hist">("pred")
 
   const cargar = useCallback(async () => {
     const a = getAuth()
@@ -47,7 +47,7 @@ export default function PerfilPage() {
   // la carga real ocurre dentro de la IIFE, igual que antes (una sola vez al montar).
   useEffect(() => { void (async () => { await cargar() })() }, [cargar])
 
-  const predLabels: Record<string, string> = { previs: "Previa", primera: "Primera", matutina: "Matutina", vespertina: "Vespertina", nocturna: "Nocturna", poceada: "Poceada", brinco: "Brinco" }
+  const predLabels: Record<string, string> = { previa: "Previa", primera: "Primera", matutina: "Matutina", vespertina: "Vespertina", nocturna: "Nocturna", poceada: "Poceada", brinco: "Brinco" }
 
   const won = preds.filter((p) => String(p.status) === "WON").length
   const near = preds.filter((p) => String(p.status) === "NEAR_MISS").length

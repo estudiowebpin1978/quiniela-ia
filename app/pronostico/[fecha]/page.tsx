@@ -7,6 +7,10 @@ import PredictionPageContent from "./PredictionPageContent";
 // On-demand revalidation via revalidatePath covers the primary flow
 export const revalidate = 300;
 
+// Solo pre-generados sirven 200; cualquier fecha/turno fuera del set -> 404 real
+export const dynamicParams = false;
+export const dynamic = "force-static";
+
 interface Props {
   params: Promise<{ fecha: string }>;
 }
