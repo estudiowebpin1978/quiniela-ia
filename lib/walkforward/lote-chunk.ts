@@ -185,7 +185,10 @@ export async function ejecutarChunkWalkforward(
           mlTop = []
         }
 
-        // 6. Actual draw for comparison
+        // 6. Actual draw for comparison.
+        // IMPORTANTE: el motor genera predicciones de 2 cifras (00-99); la
+        // comparación DEBE reducir el extracto oficial a las últimas 2 cifras
+        // (% 100), exactamente como lo hace `lib/verificacion/criterio.ts`.
         const { data: actualDraw } = await supabase
           .from("draws")
           .select("numbers")
@@ -193,7 +196,8 @@ export async function ejecutarChunkWalkforward(
           .in("jurisdiccion", jurisParaTurno(turno))
           .eq("date", dateStr)
           .single()
-        const actualNums: number[] = (actualDraw?.numbers || []) as number[]
+        const actualNumsFull: number[] = (actualDraw?.numbers || []) as number[]
+        const actualNums: number[] = actualNumsFull.map((n) => Number(n) % 100)
 
         // 7. Evaluate each engine independently (hit = any top-10 matches actual draw number)
         const v6HitsCount = v6Top.filter((n: number) => actualNums.includes(n)).length
@@ -248,11 +252,15 @@ export async function ejecutarChunkWalkforward(
         nearTotal += (isNearV6 ? 1 : 0) + (isNearV7 ? 1 : 0) + (isNearML ? 1 : 0) + (isNearEnsemble ? 1 : 0)
 
         // 9. Persist each engine independently
+        // `actual_numbers` almacenados = últimas 2 cifras del extracto oficial
+        // (coherente con el cálculo de `is_hit` ya aplicado y con
+        // `lib/verificacion/criterio.ts`).
+        const actualStore = actualNums
         const upserts = [
-          { turno, test_date: dateStr, engine_name: "V6", predicted_numbers: v6Top, actual_numbers: actualNums, is_hit: isHitV6, is_near_miss: isNearV6 },
-          { turno, test_date: dateStr, engine_name: "V7", predicted_numbers: v7TopNums, actual_numbers: actualNums, is_hit: isHitV7, is_near_miss: isNearV7 },
-          { turno, test_date: dateStr, engine_name: "ML", predicted_numbers: mlTopNums, actual_numbers: actualNums, is_hit: isHitML, is_near_miss: isNearML },
-          { turno, test_date: dateStr, engine_name: "ENSEMBLE", predicted_numbers: ensembleTop, actual_numbers: actualNums, is_hit: isHitEnsemble, is_near_miss: isNearEnsemble },
+          { turno, test_date: dateStr, engine_name: "V6", predicted_numbers: v6Top, actual_numbers: actualStore, is_hit: isHitV6, is_near_miss: isNearV6 },
+          { turno, test_date: dateStr, engine_name: "V7", predicted_numbers: v7TopNums, actual_numbers: actualStore, is_hit: isHitV7, is_near_miss: isNearV7 },
+          { turno, test_date: dateStr, engine_name: "ML", predicted_numbers: mlTopNums, actual_numbers: actualStore, is_hit: isHitML, is_near_miss: isNearML },
+          { turno, test_date: dateStr, engine_name: "ENSEMBLE", predicted_numbers: ensembleTop, actual_numbers: actualStore, is_hit: isHitEnsemble, is_near_miss: isNearEnsemble },
         ]
         for (const item of upserts) {
           await supabase.from("walkforward_results").upsert({
