@@ -1,0 +1,40 @@
+npm warn Unknown project config "allow-scripts". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+Vercel CLI 65.5.0 (Node.js 24.14.0)
+  Inspect         https://vercel.com/estudio-webpins-projects/quiniela-ia/CPYeYQDRtrCaM6JmUzga6x2phmpM
+  Production      https://quiniela-cvl71f8dp-estudio-webpins-projects.vercel.app
+Ôû▓ Aliased         https://quiniela-ia-two.vercel.app
+{
+  "status": "ok",
+  "deployment": {
+    "id": "dpl_CPYeYQDRtrCaM6JmUzga6x2phmpM",
+    "url": "https://quiniela-cvl71f8dp-estudio-webpins-projects.vercel.app",
+    "productionUrl": "https://quiniela-ia-two.vercel.app",
+    "inspectorUrl": "https://vercel.com/estudio-webpins-projects/quiniela-ia/CPYeYQDRtrCaM6JmUzga6x2phmpM",
+    "readyState": "READY",
+    "target": "production",
+    "deploymentApiUrl": "https://api.vercel.com/v13/deployments/dpl_CPYeYQDRtrCaM6JmUzga6x2phmpM",
+    "buildMachine": {
+      "cores": 2,
+      "memory": 8192,
+      "machine": "basic",
+      "selectionType": "fixed",
+      "selectionSource": "plan-default"
+    },
+    "deploymentProtection": []
+  },
+  "message": "Deployment quiniela-cvl71f8dp-estudio-webpins-projects.vercel.app ready. Production URL: https://quiniela-ia-two.vercel.app",
+  "next": [
+    {
+      "command": "vercel curl https://quiniela-ia-two.vercel.app",
+      "when": "Verify deployment, including when Deployment Protection is enabled"
+    },
+    {
+      "command": "vercel inspect quiniela-cvl71f8dp-estudio-webpins-projects.vercel.app",
+      "when": "Inspect deployment"
+    },
+    {
+      "command": "vercel deploy --prod",
+      "when": "Promote to production"
+    }
+  ]
+}

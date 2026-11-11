@@ -29,6 +29,8 @@
     "pages/**/*.ts",
     "pages/**/*.tsx",
     "scripts/**/*.ts",
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
     ".next/types/**/*.ts",
     "types/**/*.d.ts",
     ".next/dev/types/**/*.ts"

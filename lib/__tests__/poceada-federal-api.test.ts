@@ -17,6 +17,7 @@ vi.mock("@/lib/poceada-federal/repositorio", () => {
     historialValidado: vi.fn(async () => []),
     conteoEstados: vi.fn(async () => ({ pending: 0, validated: 0, conflict: 0, failed: 0 })),
     guardarPrediccion: vi.fn(async () => "pred-1"),
+    ultimaPrediccion: vi.fn(async () => null),
     listarPredicciones: vi.fn(async () => []),
     listarPrediccionesPorEstado: vi.fn(async () => []),
     marcarEvaluacion: vi.fn(async () => {}),
