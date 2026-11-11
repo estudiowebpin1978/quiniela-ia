@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import { fetchLatestTuJugadaPoceadaFederal, type TuJugadaDraw } from "@/lib/scrapers/tujugada-poceada-federal"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import logger from "@/lib/logger"
@@ -8,6 +9,8 @@ export const maxDuration = 30
 const GAME_ID = "d0e1f2a3-b4c5-6789-0abc-def012345678"
 
 export async function GET(req: NextRequest) {
+  const auth = await validateCronAuth(req)
+  if (!auth.authorized) return unauthorizedResponse()
   const fechaParam = req.nextUrl.searchParams.get("date")
   const fecha = fechaParam && /^\d{4}-\d{2}-\d{2}$/.test(fechaParam) ? fechaParam : new Date().toISOString().split("T")[0]
 

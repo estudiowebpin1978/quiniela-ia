@@ -134,27 +134,24 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Save per-turno differentiated weights to engine_config ─────
-    const turnos = ["ALL", "Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
-    for (const turnoName of turnos) {
-      // For the requested turno, use the optimized weights.
-      // For other turnos, keep existing weights (don't overwrite with defaults).
-      const weightsToSave = turnoName === turno
-        ? optimizedWeights
-        : V6_DEFAULT_WEIGHTS
+    // Solo guardar el turno solicitado; nunca pisar otros turnos (bug: antes sobrescribia ALL con defaults).
+    const VALID_TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
+    const turnoGuardar = VALID_TURNOS.includes(turno) ? turno : null
 
+    if (turnoGuardar) {
       await supabase.from("engine_config" as never).upsert({
         engine_version: engineVersion,
-        turno: turnoName,
-        ...weightsToSave,
+        turno: turnoGuardar,
+        ...optimizedWeights,
         w_bayesian: 0.03,
         decay_lambda: 0.02,
         markov_window_days: 90,
         bayesian_prior: 100,
         pattern_penalty_enabled: true,
-        optimized_from: turnoName === turno ? "optimizer" : "manual",
-        backtest_score: turnoName === turno ? baselineRate : undefined,
-        backtest_date: turnoName === turno ? endDate : undefined,
-        total_tests: turnoName === turno ? (baseline.total_tests || 0) : undefined,
+        optimized_from: "optimizer",
+        backtest_score: baselineRate,
+        backtest_date: endDate,
+        total_tests: baseline.total_tests || 0,
       } as never, { onConflict: "engine_version,turno" })
     }
 

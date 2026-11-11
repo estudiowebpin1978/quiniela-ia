@@ -4,6 +4,7 @@
  * oficial del día para el game_id de Poceada y compara.
  */
 import { NextRequest, NextResponse } from "next/server"
+import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from '@/lib/supabase-client'
 import logger from '@/lib/logger'
 import { estadoFinal, normalizeTurno, posicionesDe, type DrawRow, type PredictionRow } from "@/lib/verificacion/criterio"
@@ -12,6 +13,8 @@ import { buildHistoryInsert } from "@/lib/verificacion/historial"
 const GAME_ID = "d0e1f2a3-b4c5-6789-0abc-def012345678"
 
 export async function GET(req: NextRequest) {
+  const auth = await validateCronAuth(req)
+  if (!auth.authorized) return unauthorizedResponse()
   const fechaOverride = req.nextUrl.searchParams.get("date")
   const fecha = fechaOverride && /^\d{4}-\d{2}-\d{2}$/.test(fechaOverride)
     ? fechaOverride
