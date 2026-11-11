@@ -1,35 +1,28 @@
 # AUDIT_PROGRESS — Quiniela IA
 
-**Fecha:** 2026-11-11  
-**Alias:** https://quiniela-ia-two.vercel.app/  
-**Estado:** PARTIALLY FIXED — ver `AUDIT_FINAL_REPORT.md` para el informe completo.
+**Fecha:** 2026-11-11
+**Alias:** https://quiniela-ia-two.vercel.app/
+**Rama:** main — último commit local: ca3c230
 
-## Correcciones desplegadas (alias actual)
+## Verificado en vivo (alias principal)
 
-| Bloque | Archivos | Resultado |
-|---|---|---|
-| Tests vitest (tsconfig) | `tsconfig.json`, `lib/__tests__/tsconfig.json`, mock `ultimaPrediccion` | 392 passed |
-| Poceada cache MMR | `lib/pipeline/precompute/blend.ts` (`diversifyMMR(..., topN)`), `lote-diario.ts` (Poceada<16 → invalid) | Poceada puede llenar 20; cache roto rechazado |
-| `predictions_route.ts` | no servir cache corto Poceada | cae a cálculo correcto |
-| OCR fallback | `lib/scrapers/ocr-fallback.ts` sin regex ciega; Tesseract bajo `OCR_TESSERACT=1` | Elimina riesgo de números inventados |
-| `extractResultadosData` | `lib/scrapers/lotba-oficial.ts` bracket-matcher | Más robusto ante variaciones |
-| `NotificationBell` | `components/NotificationBell.tsx` `quiniela-ia-auth` | Campana funcional |
-| `/poceada-federal/combinaciones` | redirect a `/poceada-federal` | Elimina demo falso |
-| `/poceada` | banner hardcoded → nota honesta | sin números inventados |
-| `/rendimiento` | hit counts fake eliminados | métricas reales |
-| `/pronostico/[fecha]/[turno]` | 404 para turno inválido; fecha regex | mejor SEO |
-| Sitemap/JSON-LD | solo rutas reales | sin 404 en sitemap |
-| Admin | `loadCrons` lazy; botón duplicado; `perfil` intacto | menos ruido |
-| `/terminos` | ya no dice «no procesa dinero» | coherencia legal |
-| Security endpoints | 4 G without auth -> requieren CRON_SECRET o admin JWT | testeado 401 |
-| `weight-optimizer` | Solo el turno solicitado | ya no pisa engine_config |
+- 11/11 páginas adicionales devuelven 200 (`/`, /poceada, /poceada-federal, /poceada-federal/combinaciones, /brinco, /predictions, /rendimiento, /admin, /login, /perfil, `/pronostico/2026-11-11`, `/pronostico/2026-11-11/nocturna`) — smoke HTTP.
+- `/api/draws?limit=3` → sorteos reales de hoy (Previa y Primera, 2026-11-11).
+- `/api/poceada-federal/estado` → 2381 sorteos validados, corte al 2026‑11‑10.
+- `/api/sorteos-similares` → `method: cloudflare` (antes local), 5 resultados.
+- `/api/asistente-ia` (POST) → 200 con fallback determinístico.
+- Endpoints mutadores sin auth: ahora **401** (`/api/cron-scrape-poceada`, `/api/poceada/verify-manual`, `/api/poceada-ciudad/verify-manual`, `/api/cron-scrape-poceada-federal-tujugada`).
 
-## Pendientes / NOT VERIFIED
-- Ualá Bis (checkout/webhook real) — sin credenciales de prueba.
-- Registro/login con cuenta real — sin credenciales.
-- cron-job.org — sin acceso al panel.
-- E2E propios — no hay suite
-- Motor Omega (promoción/OOS) — no ejecutado en esta sesión.
+## Commited health
 
-## Evidencia detallada
-Ver `docs/AUDIT_FINAL_REPORT.md`.
+- `npx tsc --noEmit` → 0 errores.
+- `npm run build` -> Compiled successfully.
+- `npx vitest run` → **392 passed**.
+- Alias principal **NO pusheado** a GitHub: 58 archivos de diferencia — push pendiente de autorización expresa.
+
+## Pendientes (sin credenciales, sin autorización)
+
+- Registro/inicio de sesión con cuenta real.
+- Pago real Ualá Bis.
+- Transferencias reales (aprobación/rechazo admin).
+- Autopiloto con cuenta Premium real.
