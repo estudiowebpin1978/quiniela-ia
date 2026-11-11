@@ -62,14 +62,27 @@ export async function generateStaticParams() {
   }
 }
 
+const TURNOS_VALIDOS = ["previa", "primera", "matutina", "vespertina", "nocturna"] as const
+
 export default async function PronosticoFechaTurnoPage({ params }: Props) {
-  const { fecha, turno } = await params;
-  const supabase = getSupabaseAdmin();
+  const { fecha, turno } = await params
+  const turnoCanonical = turno.toLowerCase()
+
+  if (!TURNOS_VALIDOS.includes(turnoCanonical as (typeof TURNOS_VALIDOS)[number])) {
+    notFound()
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    notFound()
+  }
+
+  const supabase = getSupabaseAdmin()
 
   const { data: draws } = await supabase
     .from("draws")
     .select("*")
     .eq("date", fecha)
+    .ilike("turno", turnoCanonical)
     .order("turno", { ascending: true });
 
   if (!draws || draws.length === 0) {

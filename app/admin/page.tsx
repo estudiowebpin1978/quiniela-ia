@@ -81,7 +81,7 @@ export default function AdminPage() {
       setToken(s.access_token)
       void loadUsers(s.access_token)
       loadPendingPayments()
-      void loadCrons()
+      // loadCrons() se dispara al entrar a la pestaña Crons (ver botón)
     } catch { window.location.href = "/login" }
   }, [])
 
@@ -401,7 +401,6 @@ export default function AdminPage() {
           <button className={`tab${tab === "transferencias" ? " active" : ""}`} onClick={() => { setTab("transferencias"); loadTransfers() }}>Transferencias</button>
           <button className={`tab${tab === "crons" ? " active" : ""}`} onClick={() => { setTab("crons"); loadCrons() }}>Crons</button>
           <button className={`tab${tab === "poceada-verify" ? " active" : ""}`} onClick={() => { setTab("poceada-verify"); }}>Poceada Verif.</button>
-          <button className={`tab${tab === "poceada-ciudad-verify" ? " active" : ""}`} onClick={() => { setTab("poceada-ciudad-verify"); }}>Poceada Ciudad</button>
           <button className={`tab${tab === "poceada-ciudad-verify" ? " active" : ""}`} onClick={() => { setTab("poceada-ciudad-verify") }}>Poceada Ciudad</button>
         </div>
 

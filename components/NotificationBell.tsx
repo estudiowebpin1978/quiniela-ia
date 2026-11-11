@@ -60,7 +60,7 @@ export default function NotificationBell() {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const token = localStorage.getItem("sb-access-token") || ""
+      const token = (() => { try { const raw = typeof window !== 'undefined' ? localStorage.getItem('quiniela-ia-auth') : null; return raw ? (JSON.parse(raw).access_token || '') : '' } catch { return '' } })()
       if (!token) return
       const res = await fetch("/api/notifications?limit=20", {
         headers: { Authorization: `Bearer ${token}` },
@@ -98,7 +98,7 @@ export default function NotificationBell() {
   const markAllRead = async () => {
     setLoading(true)
     try {
-      const token = localStorage.getItem("sb-access-token") || ""
+      const token = (() => { try { const raw = typeof window !== 'undefined' ? localStorage.getItem('quiniela-ia-auth') : null; return raw ? (JSON.parse(raw).access_token || '') : '' } catch { return '' } })()
       await fetch("/api/notifications", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },

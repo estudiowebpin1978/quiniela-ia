@@ -138,7 +138,7 @@ export default async function ResultadoFechaPage({ params }: Props) {
                 {completedDraws.length} de 5 turnos con resultados oficiales
               </p>
             </div>
-            <Link href="/pronostico">
+            <Link href="/predictions">
               <Button3D variant="secondary" size="md">
                 Ver Pronósticos de Hoy
               </Button3D>

@@ -36,7 +36,8 @@ export async function refrescarPesosV7(turno: string) {
       .map((n: unknown) => (typeof n === "number" ? n : (n as { numero?: string }).numero))
       .filter((n): n is number => typeof n === "number")
 
-    const result = await adjustV7Weights(turno, predictedTop10.map((n: number) => ({ numero: String(n).padStart(2, "0"), factors: {} })), actualNums)
+    const factoresVacios = { survival: 0, correlation: 0, spacing: 0, frequency: 0, recency: 0, markov: 0, cycles: 0, temporal: 0, debt: 0, bayesian: 0 }
+    const result = await adjustV7Weights(turno, predictedTop10.map((n: number) => ({ numero: String(n).padStart(2, "0"), factors: factoresVacios })), actualNums)
     return { ok: true, result }
   } catch (e: unknown) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }

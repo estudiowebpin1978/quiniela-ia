@@ -340,16 +340,13 @@ export default function PoceadaPage() {
           </ul>
         )}
         <div className="brinco-actions">
-          <button className="brinco-btn ghost" onClick={() => router.push("/mis-predicciones")}>
+          <button className="brinco-btn ghost" onClick={() => router.push("/predictions")}>
             Ver todos mis análisis →
           </button>
         </div>
       </div>
-      <div style={{ margin: "10px 12px 0", padding: "10px 14px", borderRadius: 10, background: "linear-gradient(135deg,rgba(34,197,94,.08),rgba(34,197,94,.03))", border: "1px solid rgba(34,197,94,.25)", textAlign: "center" }}>
-        <b style={{ fontSize: 13, color: "#22c55e" }}>Resultado oficial verificado — 03/11/2026 (Sorteo Nº 9762)</b>
-        <div style={{ fontSize: 11, color: "#e6e6e6", marginTop: 4, fontWeight: 400 }}>
-          Números oficiales: <b>00 · 07 · 14 · 16 · 19 · 24 · 30 · 41 · 42 · 49 · 51 · 60 · 61 · 73 · 74 · 77 · 78 · 79 · 89 · 98</b>
-        </div>
+      <div style={{ margin: "10px 12px 0", textAlign: "center", fontSize: 12, color: "var(--text-dim,#9aa0a6)" }}>
+        Las jugadas se verifican automáticamente contra el resultado oficial publicado por LOTBA.
       </div>
     </div>
   )

@@ -7,7 +7,7 @@ export default function TerminosPage() {
 
         <div style={{ fontSize: 13, color: "#94a3b8", lineHeight: 1.8 }}>
           <p style={{ marginBottom: 16 }}>
-            <strong style={{ color: "#fff" }}>1. Servicio.</strong> Quiniela IA es una herramienta de análisis estadístico con fines de entretenimiento e investigación. No es un sitio de apuestas ni procesa dinero.
+            <strong style={{ color: "#fff" }}>1. Servicio.</strong> Quiniela IA es una herramienta de análisis estadístico con fines de entretenimiento e investigación. No es un sitio de apuestas. La aplicación vende pases Premium (capacitación de pago) mediante Ualá Bis y transferencias verificadas manualmente por administración; no procesa ni custodia juego real.
           </p>
           <p style={{ marginBottom: 16 }}>
             <strong style={{ color: "#fff" }}>2. Uso.</strong> El servicio es mayormente gratuito. Los usuarios premium acceden a análisis extendidos de 3 y 4 cifras.

@@ -176,12 +176,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 {
                   "@type": "DataDownload",
                   encodingFormat: "text/html",
-                  contentUrl: BASE_URL + "/resultados",
+                  contentUrl: BASE_URL + "/rendimiento",
                 },
                 {
                   "@type": "DataDownload",
                   encodingFormat: "text/html",
-                  contentUrl: BASE_URL + "/pronosticos",
+                  contentUrl: BASE_URL + "/predictions",
                 },
               ],
             }),

@@ -204,10 +204,10 @@ export default function RendimientoPage() {
           <h2 className="text-lg font-bold mb-4">Tasa de Acierto por Cifras</h2>
           <div className="space-y-3">
             {[
-              { label: "2 cifras", rate: summary.hitRate2, hits: summary.totalHits2, color: "from-green-500 to-emerald-500" },
-              { label: "3 cifras", rate: summary.hitRate3, hits: Math.round(summary.totalHits2 * 0.3), color: "from-blue-500 to-cyan-500" },
-              { label: "4 cifras", rate: summary.hitRate4, hits: Math.round(summary.totalHits2 * 0.1), color: "from-purple-500 to-pink-500" },
-            ].map(({ label, rate, hits, color }) => (
+              { label: "2 cifras", rate: summary.hitRate2, color: "from-green-500 to-emerald-500" },
+              { label: "3 cifras", rate: summary.hitRate3, color: "from-blue-500 to-cyan-500" },
+              { label: "4 cifras", rate: summary.hitRate4, color: "from-purple-500 to-pink-500" },
+            ].map(({ label, rate, color }) => (
               <div key={label} className="flex items-center gap-4">
                 <span className="text-sm text-gray-400 w-20">{label}</span>
                 <div className="flex-1 bg-slate-800 rounded-full h-4 overflow-hidden">
