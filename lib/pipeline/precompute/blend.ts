@@ -228,13 +228,15 @@ export function blendEngines(params: BlendParams): BlendedPrediction[] {
 }
 
 /**
- * Meta-diversidad real (MMR determinista): selecciona reordenando el top-10
+ * Meta-diversidad real (MMR determinista): selecciona hasta `maxSeleccion`
  * balanceando score (lambda) contra similitud de factor_attribution.
- * Nunca aleatorio: misma entrada → misma salida.
+ * Poceada pasa 20 (2 combinaciones de 8); el resto, 10.
+ * Nunca aleatorio: misma entrada ␾ misma salida.
  */
 export function diversifyMMR(
   blended: BlendedPrediction[],
   lambda: number = LAMBDA_MMR,
+  maxSeleccion: number = 10,
 ): DiversidadResultado {
   const maxScore = blended[0]?.score || 1
   const minScore = blended[blended.length - 1]?.score || 0
@@ -242,7 +244,7 @@ export function diversifyMMR(
 
   const seleccion: BlendedPrediction[] = []
   const remaining = [...blended]
-  while (seleccion.length < 10 && remaining.length > 0) {
+  while (seleccion.length < maxSeleccion && remaining.length > 0) {
     let bestMMR = -Infinity
     let bestIdx = 0
     for (let i = 0; i < remaining.length; i++) {

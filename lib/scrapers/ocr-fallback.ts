@@ -1,9 +1,9 @@
 /**
  * OCR fallback para extractores oficiales de LOTBA — todo el trabajo pesado
- * hace NADA de pago: texto limpio local + Tesseract.js, y sólo al final Gemini.
+ * hace NADA de pago: Tesseract.js solo con flag OCR_TESSERACT=1, y sólo al final Gemini.
  *
  * Capas (FAIL-SOFT, ninguna excepción se propaga):
- *   1. extraerNumerosLocal(html)   → strip de tags + regex de dígitos (puro)
+ *   1. extraerNumerosConTesseract  → solo <img> con numeros reales, flag OCR_TESSERACT=1
  *   2. extraerNumerosConTesseract  → <img> del HTML, tesseract.js (lazy)
  *   3. extraerNumerosConGemini     → último recurso, sólo si hay GEMINI_API_KEY
  *
@@ -62,42 +62,17 @@ function contextLengthBefore(text: string, index: number): number {
  *    Estrategia: quita datos de fechas (20XX/DD/MM) y prendas de formato popular.
  *    Devuelve 20 enteros si puede, null ante cualquier ambigüedad.
  */
-export async function extraerNumerosLocal(
+/** Flag: OCR de imagenes solo si el operador lo habilita (OCR_TESSERACT=1). */
+export async function extraerNumerosConTesseract(
   html: string,
   opts: ExtractOpts
 ): Promise<number[] | null> {
-  if (!htmlMetrics(html)) return null
-  const limit = rangeForKind(opts.kind)
-
-  const raw = visibleText(html)
-
-  const candidates: number[] = []
-  const seenIdx = new Set<number>()
-  for (const m of raw.matchAll(/\b\d{2,4}\b/g)) {
-    const s = m[0]
-    const n = parseInt(s, 10)
-    if (!Number.isInteger(n) || n < 0 || n > limit) continue
-    // Descarta años y formatos tipo "2001"
-    if (s.length === 4 && n >= 1900 && n <= 2099) continue
-    // Descarta tokens con formato de fecha (DD/MM/YY o MM/DD/YY precedido por '/' u ot)
-    // (los años ya fueron filtrados)
-    // Prendedor contextual: longitud del token de palabra anterior >= 3 => más retorno plausibe
-    const idx = m.index ?? -1
-    if (idx < 0 || seenIdx.has(idx)) continue
-    seenIdx.add(idx)
-    const ctx = contextLengthBefore(raw, idx)
-    void ctx
-    candidates.push(n)
-  }
-
-  // Patrón de tabla: buscamos las 20 FirstGroups consecutivas luego de elimininar ruido
-  if (candidates.length < 20) return null
-  logger.info("[ocr] local extrajo 20 números", { kind: opts.kind, sorteo: opts.sorteo ?? null })
-  return candidates.slice(0, 20)
+  if (process.env.OCR_TESSERACT !== "1") return null
+  return extraerNumerosConTesseractCore(html, opts)
 }
 
 /** 2. Tesseract.js sobre las imagenes del HTML (lazy,5MB límite). */
-export async function extraerNumerosConTesseract(
+async function extraerNumerosConTesseractCore(
   html: string,
   opts: ExtractOpts
 ): Promise<number[] | null> {
@@ -246,23 +221,21 @@ export async function extraerNumerosConGemini(
 }
 
 /**
- * Pila g r a t u i t a (sin proveedores): texto limpio → Tesseract.${" "}
+ * Pila gratuita (sin proveedores): OCR_TESSERACT=1 solo con imágenes del extracto${" "}
  * último recurso. Retorna null cuando ninguna capa completa 20 enteros.
  */
 export async function extraerNumerosGratis(
   html: string,
   opts: ExtractOpts
 ): Promise<number[] | null> {
-  const local = await extraerNumerosLocal(html, opts).catch(() => null)
-  if (local) return local
+  // Evidencia de imagenes con numeros? (solo entonces Tesseract)
   const tess = await extraerNumerosConTesseract(html, opts).catch(() => null)
-  if (tess) return tess
-  return null
+  return tess
 }
 
 /**
- * Entry point único para los llamadores: primero la pila gratuita (texto puro
- * + Tesseract), y sólo si no completa 20 números, Gemini como último recurso.
+ * Entry point único: primero la pila gratuita (Tesseract solo con flag),
+ * y sólo si no completa 20 números, Gemini como último recurso.
  */
 export async function extraerConPila(
   html: string,

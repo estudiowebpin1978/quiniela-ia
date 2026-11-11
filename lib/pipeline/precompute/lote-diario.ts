@@ -157,7 +157,7 @@ export async function ejecutarLotePrecompute(
       }
 
       // Meta-diversidad real (MMR determinista): diversifica determinísticamente usando scores y factor_attribution
-      const diversidad = diversifyMMR(blended)
+      const diversidad = diversifyMMR(blended, LAMBDA_MMR, topN)
       const blendedDiversified = diversidad.seleccion.slice(0, topN)
       if (diversidad.diversityRatio < 0.05) logger.info("[cron-precompute] Meta-diversidad MMR aplicada", { turno, diversityRatio: diversidad.diversityRatio, lambdaMMR: LAMBDA_MMR, selectedCount: diversidad.seleccion.length })
 

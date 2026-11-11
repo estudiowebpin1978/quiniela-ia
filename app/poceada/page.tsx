@@ -217,7 +217,7 @@ export default function PoceadaPage() {
           ← Volver a Quiniela
         </button>
       </div>
-      {pred?.numeros?.length === 20 && acceso !== "no-premium" ? (
+      {Array.isArray(pred?.numeros) && pred.numeros.length >= 16 && acceso !== "no-premium" ? (
               <div className="brinco-card">
                 <div className="brinco-meta">
                   <span>

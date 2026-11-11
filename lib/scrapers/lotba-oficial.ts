@@ -69,15 +69,71 @@ async function fetchText(url: string, timeout = FETCH_TIMEOUT): Promise<string |
   }
 }
 
-/** Extrae `window.RESULTADOS_DATA = [...]` (JSON con prefijo JS). */
+/**
+ * Extrae `window.RESULTADOS_DATA = [...]` tolerando variaciones de formato
+ * (tab/espacios/prop variable sin "window.", comillas simples, `:` vs `=`).
+ * Bracket-matcher real: sigue profundidad de corchetes y respeta strings/escapes,
+ * así que da igual que dentro haya `]; /*` o anidados. Valida o null.
+ */
 function extractResultadosData(html: string): unknown[] | null {
-  const m = html.match(/window\.RESULTADOS_DATA\s*=\s*(\[[\s\S]*?\])\s*;/)
+  // 1) Encontrar el marcador de la variable con permisividad de variantes
+  const marker = /(?:window\.)?RESULTADOS_DATA\s*[:=]\s*/g
+  const m = marker.exec(html)
   if (!m) return null
-  try {
-    return JSON.parse(m[1]) as unknown[]
-  } catch {
-    return null
+
+  const start = m.index + m[0].length
+  // 2) Localizar el `[` de apertura
+  const openIdx = html.indexOf("[", start)
+  // Si hay basura (p. ej. "false;") antes del array, esto falla -> null (fallback correcto)
+  if (openIdx < 0 || openIdx - start > 50) return null
+
+  // 3) Bracket-matcher respetando strings y \ escapes
+  let depth = 0
+  let inString = false
+  let stringQuote: string | null = null
+  let escaped = false
+  for (let i = openIdx; i < html.length; i++) {
+    const ch = html[i]
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (inString) {
+      if (ch === "\\") {
+        escaped = true
+        continue
+      }
+      if (ch === stringQuote) {
+        inString = false
+        stringQuote = null
+      }
+      continue
+    }
+    if (ch === '"' || ch === "'") {
+      inString = true
+      stringQuote = ch
+      continue
+    }
+    if (ch === "[" || ch === "{") depth++
+    else if (ch === "]" || ch === "}") {
+      depth--
+      if (depth === 0) {
+        const raw = html.slice(openIdx, i + 1)
+        try {
+          const parsed = JSON.parse(raw) as unknown
+          return Array.isArray(parsed) ? parsed : null
+        } catch (e) {
+          logger.warn("[lotba-oficial] RESULTADOS_DATA JSON.parse error", {
+            error: String(e),
+            sample: raw.slice(0, 400),
+          })
+          return null
+        }
+      }
+    }
   }
+  logger.warn("[lotba-oficial] RESULTADOS_DATA brackets unmatched", { start })
+  return null
 }
 
 // ─── Quiniela: lista de sorteos ──────────────────────────────────────────────
