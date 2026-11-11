@@ -146,8 +146,13 @@ export default function PoceadaPage() {
   }, [cargarHistorial])
 
   const rankingCompleto = (pred?.numeros || []).map((n: any) => (n && typeof n === "object" ? String(n.numero || n).padStart(2, "0") : String(n).padStart(2, "0")))
+  // Poceada (2cifras, 8 números por combinación). Con la muestra current >= 10:
+  //   - Combinación 1: ranking completo slice(0, 8)
+  //   - Combinación 2: slice sobre las posiciones medias (necesitamos >= 10)
+  // Si no hay suficientes posiciones (<10), no se muestra filtro de combos.
   const numerosA = rankingCompleto.slice(0, 8)
-  const numerosB = rankingCompleto.slice(8, 16)
+  const numerosB = rankingCompleto.slice(2, 10)
+  const muestraIncompleta = rankingCompleto.length > 0 && rankingCompleto.length < 16
 
   const guardar = async () => {
     if (!numerosA.length) return
@@ -217,7 +222,7 @@ export default function PoceadaPage() {
           ← Volver a Quiniela
         </button>
       </div>
-      {Array.isArray(pred?.numeros) && pred.numeros.length >= 16 && acceso !== "no-premium" ? (
+      {Array.isArray(pred?.numeros) && pred.numeros.length >= 10 && acceso !== "no-premium" ? (
               <div className="brinco-card">
                 <div className="brinco-meta">
                   <span>
