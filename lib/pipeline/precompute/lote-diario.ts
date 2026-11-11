@@ -80,14 +80,28 @@ export async function ejecutarLotePrecompute(
     try {
       const { data: existing } = await supabase
         .from("predictions_cache")
-        .select("computed_at")
+        .select("computed_at, numeros_2")
         .eq("turno", turno)
         .eq("date", today)
         .limit(1)
         .single()
+
+      // Poceada necesita 20 numeros (2 combinaciones de 8). Un cache corto
+      // (heredado del MMR que topaba a 10) se ignora para que se recompute.
+      let numsCacheLen = Array.isArray(existing?.numeros_2) ? existing.numeros_2.length : -1
+      if (!Array.isArray(existing?.numeros_2) && existing?.numeros_2) {
+        try {
+          const parsed = JSON.parse(String(existing.numeros_2))
+          numsCacheLen = Array.isArray(parsed) ? parsed.length : -1
+        } catch { /* ignora */ }
+      }
+
       if (existing?.computed_at) {
         const ageMin = (Date.now() - new Date(existing.computed_at).getTime()) / 60000
-        if (ageMin < 120) {
+        // Poceada con menos de 16 numeros guardados (p. ej. por el MMR que
+        // limitaba a 10) => cache invalida, recomputar con topN=20.
+        const cacheValido = turno !== "Poceada" || (numsCacheLen >= 16)
+        if (ageMin < 120 && cacheValido) {
           results.push({ turno, ok: true, confidence: 0, error: `Fresco (${Math.round(ageMin)}m < 2h); skip` })
           continue
         }

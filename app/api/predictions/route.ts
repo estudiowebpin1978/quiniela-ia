@@ -278,7 +278,16 @@ export async function GET(req: NextRequest) {
         ? await cacheFrescoPara(turnoCanonical, String(cached.date).slice(0, 10), targetDate)
         : true
 
-      if (cacheFresco && cached?.numeros_2 && Array.isArray(cached.numeros_2) && cached.numeros_2.length > 0) {
+      // Poceada necesita 20 numeros (2 combinaciones de 8). Un cache corto
+      // (p. ej. heredado del MMR que topaba a 10) NO se debe servir; se cae al
+      // c\u00e1lculo en vivo hasta que el precompute lo regenere con topN=20.
+      if (
+        cacheFresco &&
+        cached?.numeros_2 &&
+        Array.isArray(cached.numeros_2) &&
+        cached.numeros_2.length > 0 &&
+        (turnoCanonical !== "Poceada" || cached.numeros_2.length >= 16)
+      ) {
           // Cache hit — build response from pre-computed data
           const numeros: TopNumero[] = cached.numeros_2.map((item: Record<string, unknown>, i: number) => ({
             n: item.n as number,
