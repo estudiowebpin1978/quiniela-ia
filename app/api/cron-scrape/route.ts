@@ -309,7 +309,7 @@ export async function GET(req: NextRequest) {
     if (consensus.numbers.length !== 20) {
       throw new Error(`LOTBA ${turno}: se esperaban 20 números, recibidos ${consensus.numbers.length}`)
     }
-    const invalid = consensus.numbers.some((n: number) => !/^\d{4}$/.test(String(n)))
+    const invalid = consensus.numbers.some((n: number) => !Number.isInteger(n) || n < 0 || n > 9999)
     if (invalid) {
       throw new Error(`LOTBA ${turno}: resultado contiene números inválidos`)
     }
