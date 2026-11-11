@@ -3,14 +3,12 @@ import { notFound } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase-client";
 import PredictionPageContent from "../../[fecha]/PredictionPageContent";
 
-// ISR: revalidate every 5 minutes as fallback safety net
-export const revalidate = 300;
-
-// Only pre-generated params serve 200; any other turno/date -> 404 with real status.
-// (dynamicParams=false evita que el edge sirva un 200 con contenido 404.)
-export const dynamicParams = false;
-
-export const dynamic = "force-static";
+// SSR on demand: cada request consulta la DB. Devuelve HTTP 404 real cuando
+// no se puede generar la página, y 200 cuando corresponde. Evita el quirk de
+// ISR que servía 200 con contenido notFound.
+export const revalidate = 0;
+export const dynamic = "force-dynamic";
+export const dynamicParams = true;
 
 interface Props {
   params: Promise<{ fecha: string; turno: string }>;

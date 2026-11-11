@@ -3,13 +3,11 @@ import { notFound } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase-client";
 import PredictionPageContent from "./PredictionPageContent";
 
-// ISR: revalidate every 5 minutes as fallback safety net
-// On-demand revalidation via revalidatePath covers the primary flow
-export const revalidate = 300;
-
-// Solo pre-generados sirven 200; cualquier fecha/turno fuera del set -> 404 real
-export const dynamicParams = false;
-export const dynamic = "force-static";
+// SSR on demand: cada request resuelve la fecha contra la DB. Devuelve HTTP
+// 404 real si la fecha no existe o no hay sorteos, y 200 en caso contrario.
+export const revalidate = 0;
+export const dynamic = "force-dynamic";
+export const dynamicParams = true;
 
 interface Props {
   params: Promise<{ fecha: string }>;
