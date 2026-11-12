@@ -134,7 +134,6 @@ export default function BrincoPage() {
 
   const guardar = async () => {
     if (!data?.concursoObjetivo) return
-    const pred = modalidad === "junior" ? data.junior : data.tradicional
     if (!pred) return
     setGuardando(true)
     setMsg(null)
@@ -196,7 +195,7 @@ export default function BrincoPage() {
 
   const pred: Prediccion | null | undefined =
     modalidad === "junior" ? data?.junior : data?.tradicional
-
+  const sinResultadosPosteriores = Boolean(pred?.datosHasta) && (pred?.datosHasta ?? "") <= "2026-10-25"
   return (
     <div className="brinco-wrap accent-purple">
       <div className="brinco-head">
@@ -209,6 +208,12 @@ export default function BrincoPage() {
           ← Volver a Quiniela
         </button>
       </div>
+      {sinResultadosPosteriores && (
+        <div className="brinco-sync" style={{ margin: "0 0 12px", borderRadius: 12, fontSize: 13, textAlign: "center", lineHeight: 1.5 }}>
+          ⚠️{" "}<b>CAS aun no publica sorteos posteriores a {pred?.datosHasta ?? "datos histórico"}</b>.{" "}
+          Las verificaciones se disparan automáticamente al publicarse el próximo sorteo — mantener abierto o volver pronto.
+        </div>
+      )}
       <div className="brinco-tabs">
         <button
           className={"brinco-tab" + (modalidad === "tradicional" ? " on" : "")}
