@@ -14,6 +14,7 @@ import {
 } from "@/lib/brinco/importar"
 import { ultimosDomingos } from "@/lib/brinco/importar"
 import { brincoStoreSupabase, cargarSorteosBrinco, ultimaFechaBrinco } from "@/lib/brinco/store"
+import { importarFaltantesDesdeExtractoOficial } from "@/lib/brinco/scraper-extracto"
 import logger from "@/lib/logger"
 
 export interface EstadoSincronizacion {
@@ -25,6 +26,8 @@ export interface EstadoSincronizacion {
   errores: number
   sinResultado: number
   fuenteDisponible: boolean
+  /** Sorteos incorporados desde el extracto oficial de Lotería de Santa Fe (fallback). */
+  extractoImportados?: number
 }
 
 export interface ResultadoActualizacion {
@@ -65,6 +68,27 @@ export async function actualizarIncrementalBrinco(
     }
   }
 
+  // Fallback OFICIAL: la Lotería de Santa Fe publica el extracto aunque
+  // cas.gob.ar no lo haga (acontecido con 1378 y 1379 en noviembre 2026).
+  // Complementa al scrape de CAS — nunca sobrescribe filas existentes.
+  let extractoImportados = 0
+  let extractoErrores = 0
+  try {
+    const res = await importarFaltantesDesdeExtractoOficial(store)
+    extractoImportados = res.importados
+    extractoErrores = res.errores
+    if (res.importados > 0 || res.errores > 0) {
+      logger.info("[brinco-actualizar] extracto oficial", {
+        intentos: res.intentos,
+        importados: res.importados,
+        errores: res.errores,
+      })
+    }
+  } catch (e) {
+    extractoErrores++
+    logger.warn("[brinco-actualizar] extracto oficial falló", { error: String(e) })
+  }
+
   const sorteos = await cargarSorteosBrinco()
   const datosHasta = await ultimaFechaBrinco()
 
@@ -73,13 +97,14 @@ export async function actualizarIncrementalBrinco(
     estado: {
       sorteosTotales: sorteos.length,
       datosHasta,
-      actualizadoAhora: apply && informe.importados > 0,
-      importadosNuevos: informe.importados,
+      actualizadoAhora: apply && (informe.importados + extractoImportados) > 0,
+      importadosNuevos: informe.importados + extractoImportados,
       conflictos: informe.conflictos,
-      errores: informe.errores,
+      errores: informe.errores + extractoErrores,
       sinResultado: informe.sin_resultado,
-      // La fuente está "disponible" si no hubo errores de red/scrape en esta corrida.
-      fuenteDisponible: informe.errores === 0,
+      // La fuente está "disponible" si al menos una de las dos vías oficiales respondió sin error.
+      fuenteDisponible: informe.errores === 0 || extractoErrores === 0,
+      extractoImportados,
     },
   }
 }
