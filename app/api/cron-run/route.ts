@@ -218,7 +218,10 @@ export async function GET(req: NextRequest) {
         // Poceada pertenece a su propio juego (verificado en BD: sus 263 filas
         // usan d0e1f2a3..., no el game_id Nacional).
         p_game_id: turno === "Poceada" ? POCEADA_GAME_ID : GAME_ID,
-        p_jurisdiccion: LOTBA.jurisdiction,
+        // Poceada (jurisdiccion 'ciudad'): si se guarda como 'CABA' el
+        // verificador TS (jurisParaTurno) nunca la verifica y el historial
+        // queda vacío — bug detectado en auditoría 2026-11.
+        p_jurisdiccion: jurisParaTurno(turno)[0],
       } as never)
 
       if (upsertErr) {

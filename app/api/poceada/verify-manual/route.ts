@@ -1,13 +1,15 @@
 /**
- * Verificación de predicciones Poceada Federal por game_id
- * No depende del turno exacto (Matutina/Nocturna/Poceada) — busca cualquier sorteo
- * oficial del día para el game_id de Poceada y compara.
+ * Verificación de predicciones Poceada Ciudad (legado LOTBA) por game_id.
+ * No depende del turno exacto — busca cualquier sorteo oficial del día para el
+ * game_id de Poceada Ciudad (jurisdiccion 'ciudad') y compara.
+ * NOTA: Poceada Federal (Lotería de Santa Fe) NO pasa por aquí — se verifica
+ * vía `poceada_federal_*` y `evaluarPendientes()`.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from '@/lib/supabase-client'
 import logger from '@/lib/logger'
-import { estadoFinal, normalizeTurno, posicionesDe, type DrawRow, type PredictionRow } from "@/lib/verificacion/criterio"
+import { estadoFinal, posicionesDe, type DrawRow, type PredictionRow } from "@/lib/verificacion/criterio"
 import { buildHistoryInsert } from "@/lib/verificacion/historial"
 
 const GAME_ID = "d0e1f2a3-b4c5-6789-0abc-def012345678"
@@ -23,16 +25,18 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = getSupabaseAdmin()
 
-    // Buscar CUALQUIER sorteo oficial de Poceada para la fecha (independiente de turno/jurisdiccion)
+    // Buscar CUALQUIER sorteo oficial de Poceada Ciudad para la fecha
+    // (jurisdiccion 'ciudad' — excluir Quiniela y Provincia)
     const { data: drawRows } = await supabase
       .from("draws")
-      .select("date, turno, numbers, game_id")
+      .select("date, turno, numbers, game_id, jurisdiccion")
       .eq("game_id", GAME_ID)
+      .eq("jurisdiccion", "ciudad")
       .eq("date", fecha)
       .limit(5)
 
     if (!drawRows || drawRows.length === 0) {
-      return NextResponse.json({ ok: false, reason: "No hay sorteo oficial de Poceada Federal para " + fecha }, { status: 200 })
+      return NextResponse.json({ ok: false, reason: "No hay sorteo oficial de Poceada Ciudad para " + fecha }, { status: 200 })
     }
 
     // Tomar el primero disponible (matutina o nocturna)
@@ -47,7 +51,7 @@ export async function GET(req: NextRequest) {
       .or("status.eq.PENDING,status.is.null")
 
     const predictions = ((preds || []) as PredictionRow[]).filter(
-      (p) => normalizeTurno(p.turno || "") === "poceada" || (p.turno || "").toLowerCase().includes("poceada"),
+      (p) => (p.turno || "").toLowerCase().includes("poceada"),
     )
 
     if (predictions.length === 0) {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from '@/lib/supabase-client'
 import logger from '@/lib/logger'
-import { estadoFinal, normalizeTurno, posicionesDe, type DrawRow, type PredictionRow } from "@/lib/verificacion/criterio"
+import { estadoFinal, posicionesDe, type DrawRow, type PredictionRow } from "@/lib/verificacion/criterio"
 import { buildHistoryInsert } from "@/lib/verificacion/historial"
 
 const GAME_ID = "d0e1f2a3-b4c5-6789-0abc-def012345678" // Poceada Ciudad
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       .or("status.eq.PENDING,status.is.null")
 
     const predictions = ((preds || []) as PredictionRow[]).filter(
-      (p) => normalizeTurno(p.turno || "") === "poceada" || (p.turno || "").toLowerCase().includes("poceada"),
+      (p) => (p.turno || "").toLowerCase().includes("poceada"),
     )
 
     if (predictions.length === 0) {
