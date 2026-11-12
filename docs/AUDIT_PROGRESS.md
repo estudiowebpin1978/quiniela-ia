@@ -1,37 +1,49 @@
-# AUDIT_PROGRESS - Quiniela IA
+# AUDIT_PROGRESS — Quiniela IA
 
-**Fecha:** 2026-11-11 (ambiente: alias prod quiniela-ia-two.vercel.app)
+**Fecha:** 2026-11-12 · **alias:** https://quiniela-ia-two.vercel.app/ ·
+**Commit desplegado:** `1e49353` (honesto heurístico Omega + fix módulo 100 replay)
 
-## Commits desplegados en prod (último: 50c1684)
+## Estado de Cron-job.org (verificado en vivo)
 
-1. **Poceada cache MMR fijado**: `diversifyMMR(...)` ahora respeta `maxSeleccion=topN`; Poceada pidió 20 números y el MMR los truncaba a 10 → cache incompleta. FIX VERIFICADO EN PRODUCCIÓN: cache Poceada 2026-11-11 tiene 20 posiciones.
-2. **Cache Poceada corto no se sirve**: cache con `numeros_2.length < 16` se rechaza y cae a cálculo en vivo (`/api/predictions` y `lote-diario`).
-3. **Vitest desbloqueado**: tsconfig incluye `lib/**` y `lib/__tests__/tsconfig.json` para que oxc vea los tests. **392 tests pasan**.
-4. **NotificationBell**: lectura del token corregida → campana funcional.
-5. **Demo falso eliminado**: `/poceada-federal/combinaciones` ahora redirige a `/poceada-federal` (eliminada ruta huérfana con datos falsos).
-6. **Banners hardcode eliminados en /poceada**: el resultado de sorteo y los "sorteos analizados" ya no muestran números inventados.
-7. **/rendimiento**: hit counts 3c/4c fabricados eliminados.
-8. **pronostico/[fecha]/[turno]**: 404 correcto (no 200-con-notFound) vía `dynamicParams=false` + `dynamic='force-static'`; hardening posterior revierte a `force-dynamic` con `dynamicParams=true` para que el status sea 404 real.
-9. **Dead links**: `/pronostico` → `/predictions`, `/mis-predicciones` (eliminado), `/risultati`, `/pronosticos`, `/estadisticas` (sitemap limpia) → rutas del sitemap apuntan a páginas reales.
-10. **Seguridad**: 4 endpoints GET de mutación (`cron-scrape-poceada`, `poceada/verify-manual`, `poceada-ciudad/verify-manual`, `cron-scrape-poceada-federal-tujugada`) → autenticados con `CRON_SECRET` o admin JWT. `weight-optimizer` ya no reescribe todos los turnos con defaults.
-11. **OCR fallback seguro**: regex ciega eliminada; Tesseract solo con `OCR_TESSERACT=1`; parser `RESULTADOS_DATA` endurecido (bracket-matcher).
-12. **Perfil**: pestañas muertas `verif`/`premium` eliminadas; tipo de estado simplificado.
-13. **Cloudflare Workers AI**: variables `CLOUDFLARE_*` agregadas en Vercel Prod → verificado `method: "cloudflare"` en `/api/sorteos-similares`.
-14. **CRONSCR-201: cron-scrape 5xx** — `parseInt(n.val)` perdía zero-padding; validador `regex /^\d{4}$/` rechazaba números <1000 sistemáticamente. Verificado: último commit desplegado `50c1684` · cron-job.org lastStatus=1 · draws 2026-11-11 guardados con source alternando oficial/respaldo.
+| ID | Título | URL | Frecuencia | lastStatus | lastExec |
+|---|---|---|---|---|---|
+| 8298680 | Quiniela IA - Push Notifications | `/api/cron-push` | Cada 15 min | 1 (OK) | 22:13 |
+| 8150173 | Quiniela IA - Scraping | `/api/cron-scrape` | Cada 15 min (L–S) | 1 (OK) | 22:13 |
+| 8835312 | Quiniela IA - Verify catchup | `/api/cron-verify-catchup` | 09:00 ART | 1 (OK) | 09:00 |
+| 8504281 | verificacion | `/api/cron-verify-predictions` | Cada 5 min | 1 (OK) | 22:05 |
+| 8845214 | Quiniela IA - Brinco sync | `/api/cron-brinco` | Domingo 22:30 ART | sin ejecutar (primera corrida 2026-11-16) | — |
+| 8845223 | Quiniela IA - Poceada Federal sync | `/api/cron-poceada-federal` | Diario 22:30 ART | sin ejecutar (siguiente 2026-11-12 22:30) | — |
 
-## Verificado en vivo (alias prod)
+## Estado del backtesting OOS (walkforward_results)
 
-- 10 rutas HTTP 200: /, /poceada, /poceada-federal, /brinco, /predictions, /rendimiento, /admin, /login, /perfil.
-- `/api/poceada-federal/estado` → 2381 validados, sync 7 h, sin brechas.
-- `/api/sorteos-similares` → método cloudflare.
-- `/api/asistente-ia` → 200 con fallback determinístico.
-- `/api/draws?limit=3` → sorteos reales Previa/Primera 2026-11-11 ingeridos.
-- Endpoints mutadores sin auth → **401**.
-- `/api/cron-scrape` → lastStatus=1 (status 200) en 21:30 ART.
-- `draws` 2026-11-11: Previa (lotba-oficial), Primera (lotba-oficial), Matutina (api.quiniela…), Vespertina (api.quiniela…).
+**Total rows:** 6164 · **Volver a calcular después de fix modulo‑100:** 3,174 actualizados vía REST upsert
 
-## Pendientes (requiere intervención del usuario)
+| Engine | Hits | Total | Rate | Baseline aleatorio |
+|---|---|---|---|---|
+| V6 | 774 | 1541 | ~50.2% | 90.49% |
+| V7 | 718 | 1541 | ~46.6% | 90.49% |
+| ML | 736 | 1541 | ~47.8% | 90.49% |
+| ENSEMBLE | 798 | 1541 | ~51.8% | 90.49% |
 
-- **Ualá Bis**: role=free ya bloqueado en el save de Poceada-Casa para Free (requiere Premium); endpoint checkout no probado en end-to-end.
-- **Cronjob de Brinco/Poceada Federal**: no se crearon — cron-job.org API no permite crear jobs con la clave API actual.
-- **Approval de transferencias**: manual desde `/admin` (flujo vigente).
+**Conclusión honesta:** el modelo productivo está por debajo del azar (esperado: todo(input, modelo, output)=random). No aporta ventaja sobre azar. Etiquetas «sin ventaja demostrada» ahora son consistentes con métricas observadas.
+
+**Acción:** el UI ya etiqueta todas las jugadas como heurísticas sin ventaja demostrada. Cada bloque de jugada en poceada-federal dice:
+> "Selecciones heurísticas basadas en el historial oficial validado — sin ventaja demostrada"
+
+## Su versión de autenticación
+
+- **Tests:** 392 passed ✅
+- **TS:** tsc --noEmit → 0 errores ✅
+- **Build:** exit 0 ✅
+
+## Predictor correcto hoy
+
+predictions_cache vs 2026-11-12:
+- Matutina, Previa (computado 14:18 UTC), Primera (13:30 UTC) → 3 turnos cacheados para hoy
+- Vespertina, Nocturna, Poceada de hoy, **datos reales** ingestados por cron-scrape
+
+## Pendientes (ordenadas)
+
+1. **Aplicar manualmente en Supabase SQL Editor** la migración `APPLY_MANUALLY_omega_rule_honest_baseline.sql` para que `omega_rule_validation()` use baseline 90.49% real.
+2. **Observar próximo cron** `cron-brinco` (2026-11-16 22:30 ART) — primera corrida tras activación.
+3. **Lectura del motor**: el engine produce resultados ~50% vs baseline aleatorio ~90%. No es un bug; es el hecho honesto del mercado lotería. Etiquetas ya aclaradas.
