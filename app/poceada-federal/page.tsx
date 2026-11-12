@@ -29,7 +29,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getAuth } from "@/lib/auth"
-import CoberturaHipergeometrica from "@/components/CoberturaHipergeometrica"
 import "../brinco/brinco.css"
 
 const fmtNums = (nums: number[]) =>
@@ -297,7 +296,6 @@ export default function PoceadaFederalPage() {
           ← Volver a Quiniela
         </button>
       </div>
-      <CoberturaHipergeometrica juego="federal" />
 
       <div className="brinco-card">
         <div style={{ fontSize: "0.9rem", fontWeight: 700, marginBottom: 8 }}>

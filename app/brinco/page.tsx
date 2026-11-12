@@ -12,7 +12,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getAuth } from "@/lib/auth"
-import CoberturaHipergeometrica from "@/components/CoberturaHipergeometrica"
 import "./brinco.css"
 
 type Modalidad = "tradicional" | "junior"
@@ -209,7 +208,6 @@ export default function BrincoPage() {
           ← Volver a Quiniela
         </button>
       </div>
-      <CoberturaHipergeometrica juego="brinco" />
       {sinResultadosPosteriores && (
         <div className="brinco-sync" style={{ margin: "0 0 12px", borderRadius: 12, fontSize: 13, textAlign: "center", lineHeight: 1.5 }}>
           ⚠️{" "}<b>CAS aun no publica sorteos posteriores a {pred?.datosHasta ?? "datos histórico"}</b>.{" "}

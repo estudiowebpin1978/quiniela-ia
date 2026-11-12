@@ -30,7 +30,6 @@ import {
   type MisPrediccion,
 } from "@/lib/api/predictions"
 import { fechaObjetivoPoceada, fechaLarga } from "@/lib/poceada/fechas"
-import CoberturaHipergeometrica from "@/components/CoberturaHipergeometrica"
 import "../brinco/brinco.css"
 
 /** La Poceada se juega con 8 números (POCEADA_NUMBERS_COUNT). */
@@ -223,7 +222,6 @@ export default function PoceadaPage() {
           ← Volver a Quiniela
         </button>
       </div>
-      <CoberturaHipergeometrica juego="poceada" />
       {Array.isArray(pred?.numeros) && pred.numeros.length >= 10 && acceso !== "no-premium" ? (
               <div className="brinco-card">
                 <div className="brinco-meta">
