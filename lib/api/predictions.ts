@@ -31,6 +31,8 @@ export const PredDataSchema = z.object({
   })).optional(),
   diasAnalisis: z.number().optional(),
   totalSorteos: z.number().optional(),
+  sorteos_desde: z.string().nullable().optional(),
+  sorteos_hasta: z.string().nullable().optional(),
   stats: z.object({
     numeroMasFrecuente: z.object({
       numero: z.string(),

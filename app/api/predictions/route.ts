@@ -227,16 +227,20 @@ export async function GET(req: NextRequest) {
     // ── Heatmap de frecuencias (00-99) — fuente: draws oficiales (últimos ≤400) ──
     let heatmap: HeatmapItem[] = []
     let totalSorteos = 0
+    let sorteosDesde: string | null = null
+    let sorteosHasta: string | null = null
     try {
       const { data: heatmapRows } = await supabaseAdmin
         .from("draws")
-        .select("numbers")
+        .select("numbers, date")
         .eq("turno", turnoCanonical)
         .in("jurisdiccion", jurisParaTurno(turnoCanonical))
         .order("date", { ascending: false })
         .limit(400)
-      const rows = Array.isArray(heatmapRows) ? heatmapRows : []
+      const rows = Array.isArray(heatmapRows) ? (heatmapRows as Array<{ numbers: number[]; date: string }>) : []
       totalSorteos = rows.length
+      sorteosHasta = rows[0]?.date ?? null
+      sorteosDesde = rows[rows.length - 1]?.date ?? null
       const freq: number[] = new Array(100).fill(0)
       for (const row of rows) {
         const nums = (row as { numbers: number[] }).numbers
@@ -350,6 +354,8 @@ export async function GET(req: NextRequest) {
             top3: numeros.slice(0, 3).map((n) => n.numero),
             heatmap,
             totalSorteos,
+            sorteos_desde: sorteosDesde,
+            sorteos_hasta: sorteosHasta,
             _cached: true,
             computed_at: new Date().toISOString(),
             debug: {
@@ -488,6 +494,8 @@ export async function GET(req: NextRequest) {
             numeros,
             heatmap,
             totalSorteos,
+            sorteos_desde: sorteosDesde,
+            sorteos_hasta: sorteosHasta,
             confidence: null,
             confidence_type: "model_consistency",
             consistencia_modelo: null,

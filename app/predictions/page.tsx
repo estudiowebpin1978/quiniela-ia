@@ -126,6 +126,8 @@ type PredData = {
   numeros?: NumeroItem[];
   diasAnalisis?: number;
   totalSorteos?: number;
+  sorteos_desde?: string | null;
+  sorteos_hasta?: string | null;
   confidence?: number;
   aiInsight?: string;
   stats?: {
@@ -1260,6 +1262,15 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           <div className="hero">
             <h1>Quiniela IA <span onClick={() => setShowHowItWorks(true)} style={{cursor:"pointer",fontSize:14}}>ℹ️</span></h1>
                 <p>Análisis estadístico con 20 factores + Machine Learning. Datos oficiales actualizados.</p>
+                {dt?.totalSorteos != null && (
+                  <p style={{ fontSize: 11, color: "#64748b", marginTop: 4, lineHeight: 1.5 }}>
+                    📚 {dt.totalSorteos} sorteos oficiales analizados
+                    {dt.sorteos_desde && dt.sorteos_hasta
+                      ? ` (${String(dt.sorteos_desde).slice(0, 10)} → ${String(dt.sorteos_hasta).slice(0, 10)})`
+                      : ""}
+                    {" · "}datos oficiales LOTBA{" · "}motor V6+V7+ML + Monte Carlo{" · "}determinista (mismo análisis, mismos datos){" · "}heurística sin ventaja demostrada sobre el azar
+                  </p>
+                )}
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 8, textAlign: "center" }}>🎯 Elegí el sorteo que querés analizar:</div>
           <div className="sorteo-btns">

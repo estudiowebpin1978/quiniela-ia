@@ -118,7 +118,7 @@ export default function PoceadaPage() {
               numeros: d.numeros,
               confidence: d.confidence,
               aiInsight: d.aiInsight,
-              totalSorteos: d.totalSorteos || d.historial?.cantidad || 120,
+              totalSorteos: d.totalSorteos ?? d.debug?.sorteos_analizados ?? null,
             }
 
             let v: PredData | null = null
@@ -229,10 +229,10 @@ export default function PoceadaPage() {
                     Próximo sorteo: <b>{fecha ? fechaLarga(fecha) : "—"}</b>
             </span>
             <span>
-              Sorteos analizados: <b>{(pred as any)?.historial?.cantidad ?? ((pred as any)?.totalSorteos ?? 120)}</b>
+              Sorteos analizados: <b>{(pred as any)?.totalSorteos ?? "s/d"}</b>
             </span>
             <span>
-              Consistencia del modelo: <b>{(pred as any)?.confidence != null ? Math.round((pred as any).confidence * 100) + "%" : ((pred as any)?.confianza ?? "82%")}</b>
+              Consistencia del modelo: <b>{(pred as any)?.consistencia_modelo != null ? Math.round((pred as any).consistencia_modelo * 100) + "%" : "s/d"}</b>
             </span>
           </div>
 
