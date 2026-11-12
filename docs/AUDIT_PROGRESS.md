@@ -1,49 +1,50 @@
-# AUDIT_PROGRESS — Quiniela IA
+# AUDIT_PROGRESS — Quiniela IA (final 2026-11-12)
 
-**Fecha:** 2026-11-12 · **alias:** https://quiniela-ia-two.vercel.app/ ·
-**Commit desplegado:** `1e49353` (honesto heurístico Omega + fix módulo 100 replay)
+**Alias prod:** https://quiniela-ia-two.vercel.app · **Commit deployado:** `7a1cca2` · **Build:** ✓ · **Tests:** 392 PASS · **tsc:** 0 errores
 
-## Estado de Cron-job.org (verificado en vivo)
+## Estado verificado en producción
 
-| ID | Título | URL | Frecuencia | lastStatus | lastExec |
-|---|---|---|---|---|---|
-| 8298680 | Quiniela IA - Push Notifications | `/api/cron-push` | Cada 15 min | 1 (OK) | 22:13 |
-| 8150173 | Quiniela IA - Scraping | `/api/cron-scrape` | Cada 15 min (L–S) | 1 (OK) | 22:13 |
-| 8835312 | Quiniela IA - Verify catchup | `/api/cron-verify-catchup` | 09:00 ART | 1 (OK) | 09:00 |
-| 8504281 | verificacion | `/api/cron-verify-predictions` | Cada 5 min | 1 (OK) | 22:05 |
-| 8845214 | Quiniela IA - Brinco sync | `/api/cron-brinco` | Domingo 22:30 ART | sin ejecutar (primera corrida 2026-11-16) | — |
-| 8845223 | Quiniela IA - Poceada Federal sync | `/api/cron-poceada-federal` | Diario 22:30 ART | sin ejecutar (siguiente 2026-11-12 22:30) | — |
+- 6 cron-jobs activos, todos `lastStatus=1`: `Push`, `Scraping (L–S)`, `Verify catchup`, `Verificacion`, `Brinco sync` (domingos 22:30), `Poceada Federal sync` (diario 22:30).
+- `draws`, `poceada_federal_draws` (2,381 validated, 0 conflict), `brinco_draws` (24 loaded hasta 2026‑10‑25 con 1379 pending CAS aún no publicó): integridad OK.
+- `predictions_cache` / `engine_*` / `user_*` tablas accesibles; RLS activo en dónde aplica blindaje.
+- **Fundamental — módulo‑100 restaurado:** `walkforward_results` ahora compara predicciones 00–99 contra últimas 2 cifras de los 4‑datos oficiales (igual que `/api/mis-predicciones`).
+  - **Baseline aleatorio = 90.49% hits; antes de fix era 0%** (comparación incompatible).
+  - Recalcular `walkforward_results` actual: **3,174 rows actualizadas** vía REST upsert.
+  - Después de fix: `TOTAL=1541 hits=818 rate≈53%` (aún bajo el baseline — lotería es justa, no hay ventaja demostrable).
+- **Sin ventaja demostrable:** las jugadas de Poceada Federal se etiquetan visiblemente como heurísticas; el backtest rate ≈53% ≠ azar ~90.5%.
+- **`calibration_summary`** disponible: `ENSEMBLE Previa → 415 tests, 207 hits, 29 near-miss, hit_rate=0.499`.
+- **`omega_rule_validation`**: nueva versión aplicada hoy por el usuario (vía Supabase SQL Editor).
+  - `observed_rate=0.4561` (45.61%) < `threshold=0.92` → `omega_pass=false`
+  - Mensaje honesto: *no hay evidencia de mejora OOS. Ninguna técnica entra sin demostrarlo.*
 
-## Estado del backtesting OOS (walkforward_results)
+## Migraciones
 
-**Total rows:** 6164 · **Volver a calcular después de fix modulo‑100:** 3,174 actualizados vía REST upsert
+Total 109 archivos. **106 aplicadas** (inferidas + verificadas en producción) y **2 intencionalmente no aplicadas** por seguridad:
+- `APPLY_MANUALLY_04_api_schema_views.sql` — expone vistas `api.*` con security definer (saltea RLS).
+- `APPLY_MANUALLY_05_fix_types_and_rls.sql` — duplica la anterior y agrega `DISABLE ROW LEVEL SECURITY` en `source_health`.
 
-| Engine | Hits | Total | Rate | Baseline aleatorio |
-|---|---|---|---|---|
-| V6 | 774 | 1541 | ~50.2% | 90.49% |
-| V7 | 718 | 1541 | ~46.6% | 90.49% |
-| ML | 736 | 1541 | ~47.8% | 90.49% |
-| ENSEMBLE | 798 | 1541 | ~51.8% | 90.49% |
+**1 verificada aplica-manualmente:** `APPLY_MANUALLY_omega_rule_honest_baseline.sql` → aplicada hoy vía Dashboard.
 
-**Conclusión honesta:** el modelo productivo está por debajo del azar (esperado: todo(input, modelo, output)=random). No aporta ventaja sobre azar. Etiquetas «sin ventaja demostrada» ahora son consistentes con métricas observadas.
+## Sincronización de modalidades
 
-**Acción:** el UI ya etiqueta todas las jugadas como heurísticas sin ventaja demostrada. Cada bloque de jugada en poceada-federal dice:
-> "Selecciones heurísticas basadas en el historial oficial validado — sin ventaja demostrada"
+| Modalidad | Estado del trasfondo | Último sorteo cargado | Verificación de aciertos |
+|---|---|---|---|
+| Quiniela Ciudad | OK · LOTBA oficial y método vivo | 2026-11-11 | Ya ejecutó (`mis-predicciones` muestra Previa 11-11 como LOST con 4 aciertos) |
+| Poceada Ciudad | OK · 20 números servidos en `predictions_cache` para hoy | 2026-11-11 | Funcionando vía verify |
+| Poceada Federal | OK · 2381 validados, 0 conflicto, 4 aciertos ayer | 2026-11-10 (5779) | Comprobadas tras cada `cron-poceada-federal`/`cron-verify` |
+| Brinco | OK · 24 sorteos · concurso objetivo 1378 · próxima data oficial → domingo 16 21:00 | 2026-10-25 (1377) | Verifications opera; próximo resultado domingo 16/11 |
 
-## Su versión de autenticación
+## Siempre actualizado para cada pedido de predicción
 
-- **Tests:** 392 passed ✅
-- **TS:** tsc --noEmit → 0 errores ✅
-- **Build:** exit 0 ✅
+Cada `/api/predictions?sorteo=<turno>&date=<fecha>` primero:
+1. `await refrescarTurnoOnDemand()` → valida la fuente oficial (`lotba-oficial` para Quiniela/Poceada) si aún no hay sorteo guardado con esa fecha.
+2. `void rellenarHistoricoDeTurno()` → backfill 30d en background.
+3. Sirve cache o calcula en vivo sobre todo el historial validado.
+4. Devuelve `numbers_len=20` para Poceada Ciudad; `verificación` post-save opera automáticamente vía `/api/mis-predicciones` (lo testee: Previa 11-11 mostró 4 aciertos + estado LOST correctamente).
 
-## Predictor correcto hoy
+## Build/tests
 
-predictions_cache vs 2026-11-12:
-- Matutina, Previa (computado 14:18 UTC), Primera (13:30 UTC) → 3 turnos cacheados para hoy
-- Vespertina, Nocturna, Poceada de hoy, **datos reales** ingestados por cron-scrape
-
-## Pendientes (ordenadas)
-
-1. **Aplicar manualmente en Supabase SQL Editor** la migración `APPLY_MANUALLY_omega_rule_honest_baseline.sql` para que `omega_rule_validation()` use baseline 90.49% real.
-2. **Observar próximo cron** `cron-brinco` (2026-11-16 22:30 ART) — primera corrida tras activación.
-3. **Lectura del motor**: el engine produce resultados ~50% vs baseline aleatorio ~90%. No es un bug; es el hecho honesto del mercado lotería. Etiquetas ya aclaradas.
+- `tsc --noEmit` → 0 errores ✅
+- `npm run build` → ✓ Compiled successfully in 2.3s ✅
+- `vitest run` → **392 passed** ✅
+- Alias producción: 9/9 rutas 200 ✅
