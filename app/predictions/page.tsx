@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { usePushNotifications } from "@/components/PushNotifications";
 import PaywallModal from "@/components/PaywallModal";
 import WhatsAppFAB from "@/components/WhatsAppFAB";
+import CoberturaHipergeometrica from "@/components/CoberturaHipergeometrica";
 import FooterDisclaimer from "@/components/FooterDisclaimer";
 import HitRateBanner from "@/components/HitRateBanner";
 import GamificationBadge from "@/components/GamificationBadge";
@@ -1271,6 +1272,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     {" · "}datos oficiales LOTBA{" · "}motor V6+V7+ML + Monte Carlo{" · "}determinista (mismo análisis, mismos datos){" · "}heurística sin ventaja demostrada sobre el azar
                   </p>
                 )}
+            <CoberturaHipergeometrica juego="quiniela" />
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 8, textAlign: "center" }}>🎯 Elegí el sorteo que querés analizar:</div>
           <div className="sorteo-btns">
