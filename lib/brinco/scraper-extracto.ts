@@ -5,7 +5,11 @@
  * de Brinco. La Lotería de Santa Fe —autoridad publicante del juego— sí los
  * muestra en su app de extractos:
  *
- *   http://apps.loteriasantafe.gov.ar:8078/Extractos/paginas/mostrarBrinco.xhtml
+ *   https://apps.loteriasantafe.gov.ar:8443/Extractos/paginas/mostrarBrinco.xhtml
+ *
+ * (La app también escucha en :8078 sólo HTTP — inalcanzable desde runtimes
+ * serverless sin proxy; :8443 sirve el mismo sitio por TLS y sí es alcanzable.
+ * Verificado por la propia URL mostrada por DDG/pingdom y con GET/POST reales.)
  *
  * Estructura: formulario JSF (PrimeFaces 5.2), selects de mes ("Noviembre 2026")
  * y sorteo ("Domingo 8 - 1379"), los 6 números Tradicionales y 6 Junior en
@@ -22,7 +26,7 @@
  * Garantías: nunca se inventan datos — si el extracto no responde o el concurso
  * no existe, se devuelve resultado `error`/`sin_resultado` y se conserva lo que
  * ya hay en la base. Fuente verificable: enlace al PDF oficial por sorteo.
- * Nota: el servidor solo sirve HTTP (no TLS); es el sitio oficial de la autoridad.
+ * Nota: la autoridad publica el mismo sitio por TLS en :8443; usamos ese origen.
  */
 
 import logger from "@/lib/logger"
@@ -32,7 +36,7 @@ import {
 } from "@/lib/brinco/importar"
 import type { BrincoSorteoScrapeado } from "@/lib/brinco/scraper-cas"
 
-const URL_XHTML = "http://apps.loteriasantafe.gov.ar:8078/Extractos/paginas/mostrarBrinco.xhtml"
+const URL_XHTML = "https://apps.loteriasantafe.gov.ar:8443/Extractos/paginas/mostrarBrinco.xhtml"
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 const FETCH_TIMEOUT = 15000

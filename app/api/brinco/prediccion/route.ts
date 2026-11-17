@@ -17,19 +17,16 @@ export const dynamic = "force-dynamic"
  * Bearer token de sesión y `canAccessPremiumFeatures` (premium/admin). Rechaza
  * usuarios Free desde el servidor.
  *
- * Antes de generar, hace una actualización INCREMENTAL breve (cacheada) para
- * detectar sorteos faltantes sin re-descargar el historial completo. Determinista:
- * misma historia + mismo concurso objetivo → misma jugada.
+ * Antes de generar, hace una actualización INCREMENTAL (cada pedido): consulta
+ * la fuente oficial (cas.gob.ar o el extracto oficial de Lotería de Santa Fe,
+ * con TLS en :8443) para incorporar sorteos faltantes — así la jugada y los
+ * datos hasta/los sorteos usados siempre están al día. Determinista: misma
+ * historia + mismo concurso objetivo → misma jugada.
  */
 
-// La jugada es idéntica para todos (pública): cache global corto para no
-// repetir scraping ante varios usuarios simultáneos.
-interface CacheEntry {
-  ts: number
-  payload: unknown
-}
-const CACHE = new Map<string, CacheEntry>()
-const CACHE_TTL = 5 * 60 * 1000
+// Cada pedido Premium sincroniza y verifica SIEMPRE contra la fuente oficial
+// (barato: un GET al extracto + upsert sólo si hay sorteo nuevo). Sin cache
+// compartida para no servir sorteos desactualizados.
 
 export async function GET(req: NextRequest) {
   try {
@@ -57,13 +54,7 @@ export async function GET(req: NextRequest) {
     const modalidadParam = searchParams.get("modalidad") || "ambos"
     const modalidad: ModalidadBrinco = modalidadParam === "junior" ? "junior" : "tradicional"
 
-    const cacheKey = "brinco:prediccion"
-    const hit = CACHE.get(cacheKey)
-    if (hit && Date.now() - hit.ts < CACHE_TTL) {
-      return NextResponse.json(hit.payload)
-    }
-
-    // 1. Actualización incremental (breve): detecta sorteos faltantes.
+    // 1. Actualización incremental: detecta sorteos faltantes.
     const { estado } = await actualizarIncrementalBrinco({ domingos: 3, apply: true })
 
     // 1b. Auto-verificación: predicciones cuyo concurso ya tiene resultado
@@ -85,7 +76,6 @@ export async function GET(req: NextRequest) {
           "No hay sorteos de Brinco importados todavía. El historial se carga desde la fuente oficial " +
           "(cas.gob.ar). Intentá de nuevo más tarde.",
       }
-      CACHE.set(cacheKey, { ts: Date.now(), payload })
       return NextResponse.json(payload, { status: 503 })
     }
 
@@ -130,7 +120,6 @@ export async function GET(req: NextRequest) {
           : "Junior: sorteo adicional (Siempre Sale) evaluado con la misma jugada.",
     }
 
-    CACHE.set(cacheKey, { ts: Date.now(), payload })
     return NextResponse.json(payload)
   } catch (e) {
     logger.error("[brinco/prediccion] error", { error: String(e) })
