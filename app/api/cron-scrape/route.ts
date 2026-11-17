@@ -53,12 +53,12 @@ async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
   } catch { return false }
 }
 
-import { LOTBA } from "@/lib/config/lotba"
+import { jurisParaTurno } from "@/lib/procedencia"
 
 async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const supabase = getSupabaseAdmin()
-    const jurisdiccion = LOTBA.jurisdiction
+    const jurisdiccion = jurisParaTurno(turno)[0]
 
     // Save draw
     const { error } = await supabase.rpc("upsert_draw" as never, {

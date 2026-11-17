@@ -4,6 +4,7 @@ import { guardarPrediccionBrinco, listarPrediccionesBrinco } from "@/lib/brinco/
 import { verificarPendientesBrinco } from "@/lib/brinco/verificar"
 import { validarCombinacion } from "@/lib/brinco/reglas"
 import { BRINCO_ENGINE_VERSION } from "@/lib/brinco/motor"
+import { actualizarIncrementalBrinco } from "@/lib/brinco/actualizar"
 import logger from "@/lib/logger"
 
 export const dynamic = "force-dynamic"
@@ -35,6 +36,13 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "50", 10) || 50))
 
+    // REGLA DEL PROYECTO: la BD se actualiza SIEMPRE antes de responder
+    // (sincronización best-effort; si la fuente falla se lista lo que hay).
+    try {
+      await actualizarIncrementalBrinco({ domingos: 3, apply: true })
+    } catch {
+      // nunca bloquear la lectura por una falla de red externa
+    }
     // Auto-verificación bajo demanda: si la fuente oficial ya publicó el
     // resultado del concurso, marcar aciertos antes de listar. Así el usuario
     // que abre /brinco ve el resultado apenas exista, sin esperar al cron.
@@ -64,6 +72,13 @@ export async function POST(req: NextRequest) {
         { error: "Brinco es una función Premium", tier: tier.role, upgradeRequired: true },
         { status: 403 },
       )
+    }
+
+    // Misma REGLA DEL PROYECTO: actualizar antes de guardar la jugada.
+    try {
+      await actualizarIncrementalBrinco({ domingos: 3, apply: true })
+    } catch {
+      // best-effort: guardar lo que el usuario pidió aunque la fuente falle
     }
 
     const body = await req.json().catch(() => null)

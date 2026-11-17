@@ -54,6 +54,19 @@ export async function GET(req: NextRequest) {
   const denegado = await requerirPremium(req)
   if (denegado) return denegado
   try {
+    // REGLA DEL PROYECTO: la BD se actualiza SIEMPRE antes de responder,
+    // también en lecturas asociadas a predicciones (best-effort: si la fuente
+    // falla se devuelve lo que hay, nunca un error 5xx por sync).
+    try {
+      const inf = await sincronizar({ repo: repoSinc })
+      logger.info("[pf-combinaciones] sync pre-GET", {
+        ok: inf.ok,
+        importados: inf.importados,
+        datosNuevos: inf.importados > 0 || inf.corroborados > 0,
+      })
+    } catch (e) {
+      logger.warn("[pf-combinaciones] sync pre-GET omitido", { error: String(e) })
+    }
     // Frente F: cerrar pendientes contra resultados oficiales validados (antes
     // de listar, para que la respuesta refleje el estado actualizado).
     let evaluacion: InformeEvaluacion | null = null

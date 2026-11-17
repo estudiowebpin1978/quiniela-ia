@@ -17,11 +17,11 @@
  */
 import { esDiaSinSorteo, esTurnoSinSorteo } from "@/lib/feriados"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
+import { jurisParaTurno } from "@/lib/procedencia"
 import { fetchQuinielaDraw, fetchPoceadaDrawOficial, SOURCE_LOTBA } from "@/lib/scrapers/lotba-oficial"
 import { fetchWithConsensus } from "@/lib/scrapers/consensus"
 import { TURNOS, type TurnoType, type SourceStats, GAME_ID } from "@/lib/scrapers/types"
 import { POCEADA_GAME_ID } from "@/lib/config"
-import { LOTBA } from "@/lib/config/lotba"
 import { invalidateAllPredictionCaches } from "@/lib/cache/prediction-cache-invalidation"
 import logger from "@/lib/logger"
 
@@ -85,7 +85,8 @@ async function guardarDrawIdempotente(turno: string, fechaISO: string, nums: num
   const { error } = await supabase.rpc("upsert_draw" as never, {
     p_date: fechaISO, p_turno: turno, p_numbers: nums, p_source: source,
     p_game_id: turno === "Poceada" ? POCEADA_GAME_ID : GAME_ID,
-    p_jurisdiccion: LOTBA.jurisdiction,
+    // Regla dura del sistema: Poceada Ciudad = 'ciudad', resto = 'CABA'.
+    p_jurisdiccion: jurisParaTurno(turno)[0],
   } as never)
   if (error) return { ok: false, error: error.message }
   try {
