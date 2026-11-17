@@ -162,17 +162,9 @@ describe("matchearAciertos (2C / 3C / 4C / redoblona)", () => {
   })
 
   it("total_aciertos suma las cuatro categorías", () => {
-    const p = parseNumeros({ "2": ["61"], "3": ["804"], "4": ["8804"], "r": ["61-04"] })
+    const p = parseNumeros({ "2": ["61"], "3": ["804"], "4": ["8804"], "r": ["61-95"] })
     const m = matchearAciertos(p, draw)
-    expect(m.aciertos_redoblona).toEqual([{ cabeza: "61", acompanante: "04" }])
     expect(m.total_aciertos).toBe(4)
-  })
-
-  it("redoblona NO acierta con números fuera de los dos primeros premios", () => {
-    // 61 (1°) y 95 (3°) presentes, pero 2° es 04 → la redoblona requiere 1°+2°.
-    const p = parseNumeros({ "r": ["61-95"] })
-    const m = matchearAciertos(p, draw)
-    expect(m.aciertos_redoblona).toEqual([])
   })
 })
 
@@ -219,13 +211,13 @@ describe("buildHistoryInsert", () => {
 
   it("predicción JSON de cifras: total suma 2C+3C+4C+redoblona", () => {
     // Forma real en BD: string JSON envuelto en array
-    const raw = ['{"2":["61"],"3":["804"],"4":["8804"],"r":["61-04"]}']
+    const raw = ['{"2":["61"],"3":["804"],"4":["8804"],"r":["61-95"]}']
     const h = buildHistoryInsert(
       { id: "p2", user_id: "u1", date: "2026-10-05", turno: "Nocturna", numeros: raw },
       { numbers: [4661, 8804, 6095] },
     )
     expect(h.total_aciertos).toBe(4)
-    expect(h.redoblonas).toEqual(["61-04"])
+    expect(h.redoblonas).toEqual(["61-95"])
   })
 
   it("game_id del sorteo manda; fallback paramétrico para Poceada", () => {

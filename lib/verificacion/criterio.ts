@@ -146,8 +146,9 @@ export function deriveNums(
 /**
  * Cruza los números de la predicción con el sorteo oficial derivado.
  * Misma semántica en ambos verificadores: `puesto` = índice (base 1) del
- * primer match en la lista oficial; la redoblona acierta solo si el cartón
- * contiene los DOS PRIMEROS premios (1° y 2°), en cualquier orden.
+ * primer match en la lista oficial; la redoblona acierta si cabeza Y
+ * acompañante aparecen (en cualquier orden) entre los números sorteados
+ * (criterio INTERNO del proyecto, ver blend.ts).
  */
 export function matchearAciertos(
   parsed: ParsedNumeros,
@@ -173,15 +174,13 @@ export function matchearAciertos(
     if (parts.length === 2) {
       const cabeza = parts[0].padStart(2, "0")
       const acompanante = parts[1].padStart(2, "0")
-      // Regla oficial de la Quiniela: la redoblona acierta cuando tu cartón
-      // contiene los dos PRIMEROS premios (1° y 2°), en cualquier orden.
-      // Antes: cualquier par presente en los 20 sorteados (sobrecontaba).
-      const primero = nums2[0]
-      const segundo = nums2[1]
-      const ok =
-        (cabeza === primero && acompanante === segundo) ||
-        (cabeza === segundo && acompanante === primero)
-      if (ok) {
+      // Criterio INTERNO del proyecto (decisión 2026-10-13, NO alterar): el par
+      // acierta si cabeza Y acompañante aparecen en cualquier posición del
+      // sorteo (20 números), en cualquier orden. NO es la "Redoblona Exacta"
+      // oficial (1° y 2° en orden) ni la "Redoblona por Extensión". La RPC
+      // verify_predictions_for_draw usa otro criterio (1° y 2°) — divergencia
+      // asumida y documentada, no se retro-ajustan tickets históricos.
+      if (nums2.includes(cabeza) && nums2.includes(acompanante)) {
         aciertosRedoblona.push({ cabeza, acompanante })
       }
     }

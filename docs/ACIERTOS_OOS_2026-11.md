@@ -12,7 +12,9 @@ vaciaban el conteo, y se midió todo con estadística estricta.
 | `app/api/cron-run/route.ts` | Poceada Ciudad se guardaba con `jurisdiccion='CABA'` → el verificador TS (`jurisParaTurno`) nunca hallaba el sorteo → `prediction_history` quedaba vacío para predicciones Poceada | Guardado con `jurisParaTurno(turno)[0]` (`ciudad` para Poceada) |
 | `app/api/poceada/verify-manual/route.ts` | Mislabel “Poceada Federal” pero usa game_id de Poceada Ciudad, sin filtro de jurisdicción (verificaba contra cualquier sorteo del día de ese game_id, incl. Provincia) | Re-etiquetado, filtra `jurisdiccion='ciudad'`, eliminada comparación muerta `normalizeTurno()==="poceada"` |
 | `app/api/poceada-ciudad/verify-manual/route.ts` | Comparación muerta `normalizeTurno()==="poceada"` (siempre falsa) | Eliminada |
-| `lib/verificacion/criterio.ts` | Redoblona TS aceptaba cualquier par presente entre los 20 sorteados **(sobrecontaba)**; RPC y regla oficial exigen los DOS PRIMEROS premios (1° y 2°), cualquier orden | TS alineado a RPC (cabeza+acompañante = 1°+2°) |
+| `lib/verificacion/criterio.ts` | Redodblona TS vs RPC divergían (TS = par presente entre los 20, cualquier orden; RPC = 1° y 2°) | Se decidió conservar el criterio INTERNO (TS, antena 2026-10-13 en `pipeline/precompute/blend.ts`): el par acierta con ambos números presentes en el sorteo, en cualquier orden. NO se retro-ajustan tickets históricos. Divergencia documentada, no bug |
+
+Medición de la redoblona sobre datos reales (2026-11-17): 230 predicciones con redoblona elegida, 8 con acierto (3.5%) contra azar ≈ 3.84% — sin ventaja, como todo lo detectado en este sistema. El par (top-1, top-2) del blend heurístico es, estadísticamente, equivalente a un par al azar.
 
 Sin efecto sobre el motor (V6/V7/ML/Ensemble intactos). Sin migración SQL
 necesaria (el lado TS es el que estaba mal).
