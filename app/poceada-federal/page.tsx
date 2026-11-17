@@ -359,7 +359,17 @@ export default function PoceadaFederalPage() {
                 </span>
               ) : (
                 <span style={{ color: "#ffc107" }}>
-                  ⚠ Consulta parcial: una fuente oficial no respondió — se usó el histal validado.
+                  ⚠ Consulta parcial: una fuente oficial no respondió — se usó el historial validado.
+                  {analisis.sincronizacion?.detalle && (
+                    <>
+                      <br />
+                      <span style={{ fontSize: "0.78rem", color: "#e0b64e" }} title={analisis.sincronizacion.detalle}>
+                        Detalle: {analisis.sincronizacion.detalle.length > 140
+                          ? analisis.sincronizacion.detalle.slice(0, 140) + "…"
+                          : analisis.sincronizacion.detalle}
+                      </span>
+                    </>
+                  )}
                 </span>
               )}
             </div>
