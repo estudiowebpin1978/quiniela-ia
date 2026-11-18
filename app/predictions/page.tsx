@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { usePushNotifications } from "@/components/PushNotifications";
 import PaywallModal from "@/components/PaywallModal";
 import WhatsAppFAB from "@/components/WhatsAppFAB";
+import RedoblonasCoOcurrencia from "@/components/RedoblonasCoOcurrencia";
 import FooterDisclaimer from "@/components/FooterDisclaimer";
 import HitRateBanner from "@/components/HitRateBanner";
 import GamificationBadge from "@/components/GamificationBadge";
@@ -1272,6 +1273,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   </p>
                 )}
           </div>
+          {userRole !== "free" && <RedoblonasCoOcurrencia turno={so} />}
           <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 8, textAlign: "center" }}>🎯 Elegí el sorteo que querés analizar:</div>
           <div className="sorteo-btns">
             {SORTEOS.map((s) => (
