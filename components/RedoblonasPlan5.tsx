@@ -18,6 +18,7 @@
  * Sin ventaja demostrada sobre el azar — etiquetado honestamente.
  */
 import { useEffect, useMemo, useState } from "react"
+import { getAccessToken } from "@/lib/auth"
 
 interface Props {
   turno: string
@@ -57,6 +58,20 @@ const PLAN: Array<{
   { orden: 4, rol: "Cobertura inversa", a: 1, b: 0, puestos: "20 · 20", explicacion: "B y A en cualquier posición (orden inverso del Par base)" },
   { orden: 5, rol: "Respaldo refuerzos", a: 2, b: 3, puestos: "20 · 20", explicacion: "C y D en cualquier posición" },
 ]
+
+type ParStatus = "frecuente" | "normal" | "nuevo"
+
+const STATUS_STYLE: Record<ParStatus, { etiqueta: string; color: string; fondo: string }> = {
+  frecuente: { etiqueta: "FRECUENTE", color: "#4ade80", fondo: "rgba(34,197,94,.14)" },
+  normal: { etiqueta: "NORMAL", color: "#fbbf24", fondo: "rgba(251,191,36,.12)" },
+  nuevo: { etiqueta: "NUEVO", color: "#38bdf8", fondo: "rgba(56,189,248,.12)" },
+}
+
+function statusDePar(freq: number | undefined, sobreAzar: number | undefined): ParStatus {
+  if (freq === 0) return "nuevo"
+  if ((sobreAzar ?? 0) >= 1.2) return "frecuente"
+  return "normal"
+}
 
 export default function RedoblonasPlan5({ turno, anchors }: Props) {
   const [stats, setStats] = useState<StatsPayload | null>(null)
@@ -99,6 +114,47 @@ export default function RedoblonasPlan5({ turno, anchors }: Props) {
 
   // Texto de "Puestos Oficiales" tal como se pidió — criterio interno del plan
   const AZAR_CONJUNTA = ((20 * 19) / (100 * 99)) * 100
+
+  // Guardado de las 5 jugadas como predicción (Premium) — verifica solas
+  const [guardando, setGuardando] = useState<"idle" | "ok" | "err" | "duplicado" | "saving">("idle")
+  const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
+
+  const paresParaGuardar = useMemo(
+    () => pares.map(([a, b]) => `${String(a).padStart(2, "0")}-${String(b).padStart(2, "0")}`),
+    [pares],
+  )
+
+  const guardarPlan = async () => {
+    setGuardando("saving")
+    setErrorGuardado(null)
+    try {
+      const hoy = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
+      const accessToken = getAccessToken() ?? ""
+      const rd = [paresParaGuardar[0], paresParaGuardar[1], paresParaGuardar[2], paresParaGuardar[3], paresParaGuardar[4]]
+      const body = {
+        date: hoy,
+        turno,
+        numeros: { "2": [anchors[0], anchors[1]], r: rd },
+      }
+      const r = await fetch("/api/mis-predicciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(body),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (r.ok) {
+        setGuardando("ok")
+      } else if (r.status === 409 || d?.duplicate) {
+        setGuardando("duplicado")
+      } else {
+        setGuardando("err")
+        setErrorGuardado(d?.error || `Error del servidor (${r.status})`)
+      }
+    } catch (e) {
+      setGuardando("err")
+      setErrorGuardado(e instanceof Error ? e.message : "Error de red")
+    }
+  }
 
   if (!anchorsValidos) return null
 
@@ -143,6 +199,7 @@ export default function RedoblonasPlan5({ turno, anchors }: Props) {
                 <th style={{ padding: "4px 6px" }}>Role</th>
                 <th style={{ padding: "4px 6px" }}>Puestos Oficiales</th>
                 <th style={{ padding: "4px 6px" }}>Hist.</th>
+                <th style={{ padding: "4px 6px" }}>Estado</th>
               </tr>
             </thead>
             <tbody>
@@ -152,10 +209,18 @@ export default function RedoblonasPlan5({ turno, anchors }: Props) {
                   (p) => p.label === `${String(x).padStart(2, "0")}-${String(y).padStart(2, "0")}` ||
                         p.label === `${String(y).padStart(2, "0")}-${String(x).padStart(2, "0")}`,
                 )
+                const status = statusDePar(st?.frecuencia, st?.sobreAzar)
+                const style = STATUS_STYLE[status]
                 return (
-                  <tr key={s.orden} style={{ borderTop: "1px solid rgba(250,204,21,.14)" }}>
+                  <tr
+                    key={s.orden}
+                    style={{
+                      borderTop: "1px solid rgba(250,204,21,.14)",
+                      background: `linear-gradient(90deg, ${style.fondo}, transparent 55%)`,
+                    }}
+                  >
                     <td style={{ padding: "4px 6px", color: "#a8a29e" }}>{s.orden}</td>
-                    <td style={{ padding: "4px 6px", fontWeight: 700, color: "#fde047" }}>
+                    <td style={{ padding: "4px 6px", fontWeight: 700, color: status === "nuevo" ? "#7dd3fc" : "#fde047" }}>
                       {x} - {y}
                     </td>
                     <td style={{ padding: "4px 6px", color: "#cbd5e1" }} title={s.explicacion}>
@@ -178,6 +243,23 @@ export default function RedoblonasPlan5({ turno, anchors }: Props) {
                     <td style={{ padding: "4px 6px", color: "#a8a29e" }}>
                       {st ? `${st.frecuencia}×` : "…"}
                     </td>
+                    <td style={{ padding: "4px 6px" }}>
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 800,
+                          letterSpacing: 0.5,
+                          color: style.color,
+                          background: `${style.color}22`,
+                          border: `1px solid ${style.color}55`,
+                          borderRadius: 6,
+                          padding: "2px 6px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {style.etiqueta}
+                      </span>
+                    </td>
                   </tr>
                 )
               })}
@@ -185,6 +267,11 @@ export default function RedoblonasPlan5({ turno, anchors }: Props) {
           </table>
         </div>
 
+        <div style={{ marginTop: 10, fontSize: 10, color: "#a8a29e", lineHeight: 1.5 }}>
+          <span style={{ color: "#4ade80" }}>● FRECUENTE</span> = ≥1.2× azar en la muestra ·{" "}
+          <span style={{ color: "#fbbf24" }}>● NORMAL</span> = entorno azar ·{" "}
+          <span style={{ color: "#38bdf8" }}>● NUEVO</span> = 0 veces en la muestra.
+        </div>
         <div style={{ marginTop: 10, fontSize: 11, color: "#a8a29e", lineHeight: 1.5 }}>
           <b style={{ color: "#e7e5e4" }}>Puestos Oficiales:</b> 10 = el número debe salir entre las 10 primeras
           posiciones del extracto oficial; 20 = puede salir en cualquier posición del extracto (00-99).
@@ -211,6 +298,37 @@ export default function RedoblonasPlan5({ turno, anchors }: Props) {
         {statsError && (
           <p style={{ color: "#fbbf24", fontSize: 11, marginTop: 8 }}>{statsError}</p>
         )}
+
+        <button
+          onClick={guardarPlan}
+          disabled={guardando === "saving"}
+          style={{
+            width: "100%",
+            marginTop: 12,
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid rgba(250,204,21,.5)",
+            background: guardando === "ok" ? "rgba(34,197,94,.22)" : guardando.startsWith("err") ? "rgba(239,68,68,.18)" : guardando === "duplicado" ? "rgba(56,189,248,.18)" : "rgba(250,204,21,.22)",
+            color: guardando === "ok" ? "#4ade80" : guardando.startsWith("err") ? "#f87171" : guardando === "duplicado" ? "#7dd3fc" : "#fde047",
+            fontWeight: 800,
+            fontSize: 12,
+            cursor: guardando === "saving" ? "wait" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+          }}
+        >
+          {guardando === "saving" && "Guardando las 5 jugadas…"}
+          {guardando === "ok" && "✓ 5 jugadas guardadas — se verifican solas con el resultado oficial"}
+          {guardando === "duplicado" && "Ya guardaste un análisis para este turno hoy"}
+          {guardando === "err" && `No se pudo guardar: ${errorGuardado ?? "error"}`}
+          {guardando === "idle" && "💾 Guardar las 5 jugadas (Premium)"}
+        </button>
+        <p style={{ color: "#64748b", margin: "6px 0 0", fontSize: 10, lineHeight: 1.5 }}>
+          Se guarda como una predicción del turno con las 5 redoblonas; el verificador automático marca aciertos
+          (criterio interno: par presente en los 20 números del extracto) al publicarse el sorteo.
+        </p>
 
         <p style={{ color: "#64748b", margin: "8px 0 0", fontSize: 10, lineHeight: 1.5 }}>
           Referencia azar P(ambos) ≈ {AZAR_CONJUNTA.toFixed(2)}% por par. Criterio interno del plan (ordenación por las 4
