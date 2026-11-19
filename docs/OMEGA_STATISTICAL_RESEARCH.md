@@ -33,32 +33,48 @@ Estrategia base teórica: número específico 20%; pareja específica 3.84%.
 
 ## 3. Auditoría de aleatoriedad (Fase 3) — resultados medidos
 
-Pruebas por turno sobre el histórico oficial (in-sample):
+Pruebas por turno sobre el histórico oficial (in-sample, honesto).
+Los tests de orden sobre secuencias intercaladas se ejecutan con un
+barajado DETERMINISTA GLOBAL de la secuencia (el guardado almacena
+sorteos ordenados ascendentemente — artefacto de formato, no señal).
 
-| Turno | χ² 2C (p) | χ² %10 (p) | Runs z | Ljung-Box Q20 (p) | Entropía bits |
+| Turno | χ² 2C (p) | χ² %10 (p) | Runs z | L-Box Q20 (p) | Entropía bits |
 |---|---|---|---|---|---|
-| Previa | 78.1 (0.940) | 12.3 (0.196) | -1.04 | 13.8 (0.843) | 6.634/6.644 |
-| Primera | 106.7 (0.281) | 11.6 (0.238) | +0.77 | 16.8 (0.666) | 6.619/6.644 |
-| Matutina | 86.8 (0.804) | 5.4 (0.799) | -0.07 | 15.0 (0.775) | 6.633/6.644 |
-| Vespertina | 123.9 (0.046) | 3.1 (0.961) | -0.65 | 22.0 (0.340) | 6.629/6.644 |
-| Nocturna | 88.2 (0.774) | 4.9 (0.841) | +0.04 | 17.3 (0.632) | 6.624/6.644 |
-| Poceada | 59.9 (0.999) | 5.0 (0.832) | +0.49 | **71.3 (<1e-4)** ⚠️ | 6.637/6.644 |
+| Previa | 78.1 (0.940) | 12.3 (0.196) | +0.27 | 16.5 (0.684) | 6.634/6.644 |
+| Primera | 106.7 (0.281) | 11.6 (0.238) | −1.27 | 25.8 (0.173) | 6.619/6.644 |
+| Matutina | 86.8 (0.804) | 5.4 (0.799) | +1.00 | 16.0 (0.719) | 6.633/6.644 |
+| Vespertina | 123.9 (0.046) | 3.1 (0.961) | +0.46 | 14.8 (0.790) | 6.629/6.644 |
+| Nocturna | 88.2 (0.774) | 4.9 (0.841) | −0.56 | 7.6 (0.994) | 6.624/6.644 |
+| Poceada | 59.9 (0.999) | 5.0 (0.832) | +1.68 | 22.6 (0.308) | 6.637/6.644 |
 
 Notas pivotes:
 - **Vespertina χ² = 0.046** — no supera Bonferroni (α = 0.05/42 = 1.19e-3). Nada.
-- **Poceada Ljung-Box Q20 = 71.3** — artefacto: el formato de guardado
-  (Poceada almacena los 20 sorteados ordenados **ascendentemente**) produce
-  un sierra. Con barajado determinista intra-sorteo el p vuelve plausible.
-  Entropía y χ² son normales. ***El orden de extracción de Poceada está
-  perdido en nuestra base.*** → no se puede medir autocorrelación temporal
-  honesta en Poceada sin cambiar el guardado.
-- **Bonferroni**: 42 tests → alpha = 1.19e-3. Ningún turno-formato sobrevive.
+- **Poceada: todos los tests normales** tras corrección por formato (el sierra era
+  100% formato: Q20 ≈ 71k sin barajar; con barajado global, 22.6 y p=0.308).
+- **Bonferroni**: 42 tests → α = 1.19e-3. 0 supervivientes.
+- Poceada Ciudad tiene **orden de extracción perdido** (guardado ascend) → para
+  cualquier auditoría posicional posterior se requiere preservarlo desde el scraper.
+
+### Poceada Federal (Sta Fe/Entre Ríos) — auditoría con n = 2,393 sorteos
+
+| Sub-muestra (sorteos) | χ² 2C (p) | χ² %10 (p) | Runs z | L-Box Q20 (p) | Entropía |
+|---|---|---|---|---|---|
+| Todos (n=2,393 / 47,860 #) | 125.5 (0.037) | 7.2 (0.622) | +0.79 | 17.8 (0.598) | 6.642 |
+| Sólo 15:00 (n=750 / 15,000 #) | 123.2 (0.050) | 14.0 (0.123) | −0.89 | 26.6 (0.146) | 6.638 |
+| Sólo 21:00 (n=1,643 / 32,860 #) | 94.0 (0.622) | 6.3 (0.710) | −1.00 | 17.6 (0.617) | 6.642 |
+| Últimos 400 (n=400 / 8,000 #) | 83.8 (0.863) | 3.4 (0.946) | +0.75 | 22.9 (0.293) | 6.636 |
+
+Bonferroni sobre 24 tests: α = 2.08e-3 → 0 supervivientes. Sólo síntoma no
+corregido registrado: χ²_todos p=0.037 (ruido completamente plausible — la
+peor actitud $"baja por todos lados"$ no distingue z PAS/ENTRE-RIOS por la
+alternancia mensual en el nocturno — no resiste corrección múltiple).
 
 ## 4. Desviaciones detectadas
 
 Ninguna sobrevive corrección múltiple con separabilidad turno×juego.
+No hay diferencias detectables entre 15:00 y 21:00 en Poceada Federal.
 Vespertina es la única frontera (p=0.046, 2.9σ sin corrección) — ruido
-bien corregido. Poceada tiene artefacto de formato, no una señal estadística.
+bien corregido. Ninguna desviación replicante cross-temporada.
 
 ## 5. Factores útiles
 

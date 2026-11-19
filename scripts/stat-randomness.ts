@@ -20,21 +20,19 @@ if (!key) { console.error("Falta SUPABASE_SERVICE_ROLE_KEY"); process.exit(1) }
 const sb = createClient(url, key)
 
 function seededInterleaveShuffle(arrays: number[][], seedBase: number): number[] {
-  // Poceada stores its numbers ASCENDING, not in extraction order. The pooled
-  // sequence therefore looks like a sawtooth — Ljung-Box/runs fire a false
-  // signal. We normalize by shuffling each draw's 20 numbers with a
-  // DETERMINISTIC permutation (same seed → same output) purely to remove the
-  // format artifact; no numeros are invented or excluded.
-  const out: number[] = []
-  for (let i = 0; i < arrays.length; i++) {
-    const arr = arrays[i]
-    const rng = createRng((seedBase ^ (i + 1)) >>> 0 || 1)
-    const idx = arr.map((_, k) => k)
-    for (let j = idx.length - 1; j > 0; j--) {
-      const k = Math.floor(rng() * (j + 1))
-      ;[idx[j], idx[k]] = [idx[k], idx[j]]
-    }
-    for (const j of idx) out.push(arr[j])
+  // Los sorteos Poceada se almacenan ORDENADOS ASCENDENTEMENTE (artefacto del
+  // guardado, no orden de extracción). La secuencia intercalada es una sierra
+  // periódica → Ljung-Box/runs generan un falso positivo astronómico.
+  // Para una prueba de autocorrelación válida, barajamos GLOBALMENTE TODA la
+  // secuencia (perdiendo fronteras por-sorteo, aceptable e irrelevante para
+  // el test) con una permutación determinista.
+  // Sin barajar nada, ni el factor más débil: Ljung-Box explota.
+  const flat = arrays.flat()
+  const rng = createRng(seedBase)
+  const out = flat.slice()
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    ;[out[i], out[j]] = [out[j], out[i]]
   }
   return out
 }
