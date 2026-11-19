@@ -1,67 +1,77 @@
 # Estado por modalidad — Quiniela IA (2026-11-18)
 
-Veredicto después de auditoría completa. Ninguno de los motores demostrará
-ventaja sobre el azar en OOS (y V7 incluso está por debajo del ensemble en
-algunas áreas, aunque por encima en dos turnos específicos — ruido estadístico).
+DATOS PRECISOS CORREGIDOS — la versión previa de este doc confundía
+turnos individuales con modalidades y tenía pares no acordes.
 
-## Tabla OOS por turno y motor (walkforward_results, draws mod-100)
+Fuentes: BD producción (draws / poceada_federal_draws / brinco_draws /
+prediction_history) consultada 2026-11-18.
 
-| Turno | Engine | Folds | Hit% [IC95 %%] | Mejor elección |
-|---|---|---|---|---|
-| Previa | V6 | 420 | 52.1 [47.4–56.9] | V6 / ML ≈ (empate plausible) |
-| Previa | V7 | 420 | 50.0 [45.2–54.8] | — |
-| Previa | ML | 420 | 51.9 [47.1–56.7] | — |
-| Previa | ENSEMBLE | 420 | 50.5 [45.7–55.3] | — |
-| Primera | V6 | 211 | 55.0 [48.3–61.7] | **ENSEMBLE** |
-| Primera | V7 | 211 | 46.4 [39.7–53.2] | — |
-| Primera | ML | 211 | 55.5 [48.7–62.2] | — |
-| Primera | ENSEMBLE | 211 | **59.7 [53.1–66.3]** | ← mejor de la serie |
-| Matutina | V6 | 359 | 46.5 [41.4–51.7] | **V7** (ruido, sin soporte) |
-| Matutina | V7 | 359 | 50.1 [45.0–55.3] | — |
-| Matutina | ML | 359 | 39.6 [34.5–44.6] | — |
-| Matutina | ENSEMBLE | 359 | 48.5 [43.3–53.6] | — |
-| Vespertina | V6 | 359 | 56.8 [51.7–61.9] | **ENSEMBLE** |
-| Vespertina | V7 | 359 | 40.9 [35.9–46.0] | — |
-| Vespertina | ML | 359 | 55.7 [50.6–60.8] | — |
-| Vespertina | ENSEMBLE | 359 | **59.9 [54.8–65.0]** | ← mejor de la serie |
-| Nocturna | V6 | 220 | 42.7 [36.2–49.3] | **V7** (ruido, sin soporte) |
-| Nocturna | V7 | 220 | 50.0 [43.4–56.6] | — |
-| Nocturna | ML | 220 | 37.7 [31.3–44.1] | — |
-| Nocturna | ENSEMBLE | 220 | 44.1 [37.5–50.7] | — |
-| — | V6 global | 1,569 | 51.0 [48.5–53.5] | — |
-| — | V7 global | 1,569 | 47.5 [45.0–50.0] | — |
-| — | ML global | 1,569 | 48.4 [46.0–50.9] | — |
-| — | ENSEMBLE global | 1,569 | **52.5 [50.0–55.0]** | ← mejor global |
+## Censo por modalidad (partidas/sorteos reales guardados)
 
-## Observaciones críticas (honestas)
+| Modalidad | Sorteos/picks | Alcance | Fuente |
+|---|---|---|---|
+| Quiniela Ciudad (Previa · Primera · Matutina · Vespertina · Nocturna) | **1210** | 2025-11-20 → 2026-11-18 | LOTBA oficial + consenso 3-fuente |
+| Redoblonas (picks de usuarios — histórico verificado) | **237** picks verificados | 2026-11-18 | prediction_history |
+| Poceada Ciudad | **301** | 2025-11-20 → 2026-11-18 | LOTBA Poceada |
+| Poceada Federal (Santa Fe) | **2393** | 2021-06-22 → 2026-11-17 | IAFAS + extracto Santa Fe |
+| Brinco | **30** | 2026-05-03 → 2026-11-15 | Extracto oficial CAS |
 
-1. **Per-modalidad winner per turno** (`V6 / V7 top-score`) es un artefacto de
-   la técnica: escoger el modelo que ganó en esta muestra = sobreajuste a ruido
-   (ICs amplios, sin significancia vs comparación múltiple). No se permuta motor por turno.
-2. **ENSEMBLE global es robusto** (primero en 2/5 turnos, segundo en 1):
-   es la mejor elección de sistema sin asumir nada que no sea evidencia.
-3. **Azar (top-10 vs 20 mod-100) ≈ 90.49%** — todos los motores están por debajo.
-   Esto no es un error de cálculo: es la realidad del régimen.
-4. **Poceada Federal**: `pf-combinaciones-1.0.0` OOS ≈ baseline (Dif. −0.0048 IC95
-   [−0.138, +0.129]). Sin ventaja. Mantener configuración actual.
-5. **Brinco**: 30 sorteos — potencia nula. Mantener marca honesta.
-6. **Redoblonas (Polda 5)**: viable como análisis
-   de estadísticas históricas, no como predictor.
-7. **Poceada Ciudad**: 2 combos (20 posiciones cacheado), sin ventaja OOS.
-   Chis-q uniform — ninguna desviación detectable.
+Draws jurisdicción Ciudad = **1210** (5 turnos).
+Jurisdicciones: CABA 1210 · ciudad (Poceada Ciudad) 301 · provincia 291.
 
-## Recomendación de promoción por turno
+### Distribución por turno Ciudad (jurisdiccion=CABA/ciudad)
 
-Promover cambios por turno constituye overgrid a ruido. Los conflictos
-que aparecen (V7 gana Nocturna/Matutina en esta muestra sin soporte IC)
-no justifican tocar pesos → el ensemble representa el máximo honest-out
-disponible en este momento. **NO se modifican pesos.**
+| Turno | Sorteos | Desde | Hasta |
+|---|---|---|---|
+| Previa | 301 | 2025-11-20 | 2026-11-18 |
+| Primera | 151 | 2025-11-20 | 2026-11-18 |
+| Matutina | 299 | 2025-11-20 | 2026-11-18 |
+| Vespertina | 299 | 2025-11-20 | 2026-11-18 |
+| Nocturna | 160 | 2025-11-20 | 2026-11-18 |
 
-## Siguientes pasos realmente útiles
+## Redoblonas
 
-1. **Más datos**: replay (walkforward) de más sorteos históricos (>2024) para
-   cerrar intervalos IC.
-2. **No asumir señal inexistente**: continuar con prior uniforme; marca honest
-   label siempre activo; sin promoción sin OOS.
-3. **Datos fresco**: sync on-demand (R1) ya está en prod y Brinco
-   (extracto oficial) mantiene historial vivo y verificaciones.
+- Picks del usuario guardados: **237** (con redoblonas ≥1 par).
+- Picks con al menos 1 par acertado: **9** (3.8%).
+- Azar de un par específico ≈ 3.84 % ⇒ indistinguible del azar N=237.
+- Criterio interno del sistema (par presente en los 20 del extracto, cualquier orden).
+- No hay ventaja estadística o demostrada sobre el azar en redoblonas.
+- El motor genera 5 jugadas por análisis (Plan Operativo) — ningún ace.
+
+## OOS walk-forward por turno (census show guin 1569 folds por engine en todos los turnos)
+
+Azar: P(al menos 1 de los top-10 aparece entre los 20 del extracto mod-100) ≈ 90.49%.
+
+| Turno | V6 | V7 | ML | ENSEMBLE | Walk-forward winner |
+|---|---|---|---|---|---|
+| Previa | 52.1 [47–57] | 50.0 [45–55] | 51.9 [47–57] | 50.5 [46–55] | V6 ≈ ML ≈ ENS (empate) |
+| Primera | 55.0 [48–62] | 46.4 [40–53] | 55.5 [49–62] | **59.7 [53.1–66.3]** | **ENSEMBLE** |
+| Matutina | 46.5 [41–52] | 50.1 [45–55] | 39.6 [35–45] | 48.5 [43–54] | V7 (ruido, sin soporte bonferroni) |
+| Vespertina | 56.8 [52–62] | 40.9 [36–46] | 55.7 [51–61] | **59.9 [54.8–65.0]** | **ENSEMBLE** |
+| Nocturna | 42.7 [36–49] | 50.0 [43–57] | 37.7 [31–44] | 44.1 [38–51] | V7 (ruido) |
+| **Global** | 51.0 | 47.5 | 48.4 | **52.5 [50–55]** | **ENSEMBLE** |
+
+ICs amplios; ninguna ventaja robusta; ningún predictor válido con IC.
+Recomendación: **ENSEMBLE queda como está en las 5 modalidades Ciudad**.
+Promover un motor por turno = sobreajuste a ruido.
+
+## Veredicto global por modalidad
+
+| Modalidad | Veredicto |
+|---|---|
+| Quiniela Ciudad | Uniforme (χ²≈0.99-0.93, terminaciones ok). Ensemble > motores individuales en IC pero por debajo del azar 90.49%. Marca honesta. |
+| Redoblonas | Picks de usuarios: 3.8% hits ≈ azar. Sin ventaje demostrable. Marcado en UI. |
+| Poceada Ciudad | Uniforme χ² (p=0.999). 301 sorteos. Mismo veredicto. |
+| Poceada Federal | Uniforme incluso con n=2393. Walk-forward dif. = −0.0048 (IC [−0.138, +0.129]) → sin ventaja. |
+| Brinco | Sin advantage demostrado (modelo marca honestamente). |
+
+## Notas honestas
+
+1. No hay ninguna modalidad con ventaja OOS demostrable sobre el azar.
+   El único lugar con potencia real (Poceada Federal, n=2393) respalda null.
+2. Las "primeras 151"* de Primera son sorteos reales del rango
+   2025-11-20 → 2026-11-18 (excluyendo domingos y feriados, y antes sólo se
+   monitorea desde noviembre 2025, no antes).
+3. walkforward_results refleja 1,569 folds por motor en Ciudad, no sorteos.
+4. Las estadísticas de "Redoblonas" contabilizan picks del usuario, no
+   universo de sorteos; universo de sorteos es el mismo de Ciudad (1,210).
