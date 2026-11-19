@@ -50,7 +50,7 @@ const PLANS = [
   { label: "30 días", days: 30, amount: 10000 },
 ]
 
-type Tab = "dashboard" | "usuarios" | "pagos" | "transferencias" | "crons" | "poceada-verify" | "poceada-ciudad-verify"
+type Tab = "dashboard" | "usuarios" | "pagos" | "transferencias" | "crons" | "poceada-verify" | "poceada-ciudad-verify" | "sync"
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("dashboard")
@@ -71,6 +71,13 @@ export default function AdminPage() {
   const [crons, setCrons] = useState<CronStatus[]>([])
   const [cronsLoading, setCronsLoading] = useState(false)
   const [cronsOverall, setCronsOverall] = useState<{ status: string; fueraDeFrecuencia: string[] }>({ status: "unknown", fueraDeFrecuencia: [] })
+  const [syncStatus, setSyncStatus] = useState<{
+    generatedAt?: string
+    overall?: string
+    modalities?: Array<{ turno: string; totalSorteos: number; lastDate: string | null; status: string; note?: string }>
+    alerts?: string[]
+  } | null>(null)
+  const [syncLoading, setSyncLoading] = useState(false)
 
   useEffect(() => {
     const raw = localStorage.getItem("quiniela-ia-auth")
@@ -128,6 +135,15 @@ export default function AdminPage() {
       const d = await r.json()
       setWebhookLogs(d.webhook_logs || [])
     } catch {} finally { setLogsLoading(false) }
+  }
+
+  async function loadSyncStatus() {
+    setSyncLoading(true)
+    try {
+      const r = await fetch("/api/sync-status", { cache: "no-store", headers: { Authorization: "Bearer " + token } })
+      const d = await r.json()
+      setSyncStatus(d)
+    } catch {} finally { setSyncLoading(false) }
   }
 
   async function loadCrons() {
@@ -400,6 +416,7 @@ export default function AdminPage() {
           <button className={`tab${tab === "pagos" ? " active" : ""}`} onClick={() => { setTab("pagos"); loadWebhookLogs() }}>Pagos</button>
           <button className={`tab${tab === "transferencias" ? " active" : ""}`} onClick={() => { setTab("transferencias"); loadTransfers() }}>Transferencias</button>
           <button className={`tab${tab === "crons" ? " active" : ""}`} onClick={() => { setTab("crons"); loadCrons() }}>Crons</button>
+          <button className={`tab${tab === "sync" ? " active" : ""}`} onClick={() => { setTab("sync"); loadSyncStatus() }}>Sync/Health</button>
           <button className={`tab${tab === "poceada-verify" ? " active" : ""}`} onClick={() => { setTab("poceada-verify"); }}>Poceada Verif.</button>
           <button className={`tab${tab === "poceada-ciudad-verify" ? " active" : ""}`} onClick={() => { setTab("poceada-ciudad-verify") }}>Poceada Ciudad</button>
         </div>
@@ -696,6 +713,55 @@ export default function AdminPage() {
                   )
                 })}
               </div>
+            )}
+          </div>
+        )}
+
+        {tab === "sync" && (
+          <div className="section">
+            <div className="section-header">
+              <div className="section-title">Sincronización / frescura por juego</div>
+              <button className="btn btn-outline" onClick={loadSyncStatus} disabled={syncLoading}>
+                {syncLoading ? "Cargando…" : "Refrescar"}
+              </button>
+            </div>
+            {syncStatus?.generatedAt && (
+              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 8 }}>
+                Generado {new Date(syncStatus.generatedAt).toLocaleString("es-AR")} · Estado global: <b style={{ color: syncStatus.overall === "ok" ? "#22c55e" : "#f59e0b" }}>{syncStatus.overall?.toUpperCase() ?? "—"}</b>
+              </div>
+            )}
+            {syncStatus?.alerts && syncStatus.alerts.length > 0 && (
+              <div style={{ fontSize: 12, color: "#fbbf24", marginBottom: 8 }}>{syncStatus.alerts.join(" · ")}</div>
+            )}
+            {syncStatus?.modalities && (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ textAlign: "left", color: "#a5b4fc" }}>
+                    <th style={{ padding: "6px 8px" }}>Juego / turno</th>
+                    <th style={{ padding: "6px 8px" }}>Sorteos</th>
+                    <th style={{ padding: "6px 8px" }}>Último</th>
+                    <th style={{ padding: "6px 8px" }}>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {syncStatus.modalities.map((m, i) => (
+                    <tr key={i} style={{ borderTop: "1px solid rgba(148,163,184,.15)" }}>
+                      <td style={{ padding: "6px 8px" }}>{m.turno}</td>
+                      <td style={{ padding: "6px 8px" }}>{m.totalSorteos}</td>
+                      <td style={{ padding: "6px 8px" }}>{m.lastDate ?? "—"}</td>
+                      <td style={{ padding: "6px 8px", color: m.status === "fresh" ? "#22c55e" : m.status === "empty" ? "#ef4444" : "#f59e0b" }}>{m.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {syncStatus?.modalities && (
+              <div style={{ marginTop: 12 }}>
+                <button className="btn btn-outline" onClick={() => window.open("/api/sync-status", "_blank")}>Ver JSON crudo</button>
+              </div>
+            )}
+            {!syncStatus && !syncLoading && (
+              <p style={{ color: "#64748b", fontSize: '0.85rem' }}>Tocá «Refrescar» para cargar el estado de ingesta por modalidad.</p>
             )}
           </div>
         )}
