@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { jurisParaTurno } from "@/lib/procedencia"
 import { TURNOS } from "@/lib/scrapers/types"
 import { calcularCoOcurrencias } from "@/lib/analisis/redoblonas-coocurrencia"
+import { calcularStatsPares } from "@/lib/analisis/redoblonas-plan5"
 import logger from "@/lib/logger"
 
 export const dynamic = "force-dynamic"
@@ -30,6 +31,35 @@ export async function GET(req: NextRequest) {
   const turnoCanonical = TURNOS.find((t) => t.toLowerCase() === turno.toLowerCase())
   if (!turnoCanonical) {
     return NextResponse.json({ ok: false, error: "turno inválido", turnos: TURNOS }, { status: 400 })
+  }
+
+  // ── Rama: estadísticas de un conjunto concreto de pares (Plan 5 Redobonas) ───
+  const paresParam = searchParams.get("pares")
+  if (paresParam) {
+    const crudos = paresParam.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 10)
+    const pares: Array<[number, number]> = []
+    for (const p of crudos) {
+      const m = p.match(/^(\d{1,2})-(\d{1,2})$/)
+      if (!m) return NextResponse.json({ ok: false, error: `par inválido: ${p}` }, { status: 400 })
+      pares.push([Number.parseInt(m[1], 10), Number.parseInt(m[2], 10)])
+    }
+    if (pares.length === 0) return NextResponse.json({ ok: false, error: "sin pares" }, { status: 400 })
+
+    const sb = getSupabaseAdmin()
+    const { data, error } = await sb
+      .from("draws")
+      .select("date, numbers")
+      .eq("turno", turnoCanonical)
+      .in("jurisdiccion", jurisParaTurno(turnoCanonical))
+      .order("date", { ascending: false })
+      .limit(limit)
+    if (error) {
+      logger.warn("[redoblonas/plan5] error draws", { turno: turnoCanonical, error: error.message })
+      return NextResponse.json({ ok: false, error: "historial no disponible" }, { status: 500 })
+    }
+    const rows = (data as Array<{ date: string; numbers: number[] }> | null ?? []).slice().reverse()
+    const stats = calcularStatsPares(rows, pares)
+    return NextResponse.json({ ok: true, turno: turnoCanonical, ...stats })
   }
 
   const cacheKey = `${turnoCanonical}:${limit}`

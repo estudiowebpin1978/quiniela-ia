@@ -19,6 +19,7 @@ import { usePushNotifications } from "@/components/PushNotifications";
 import PaywallModal from "@/components/PaywallModal";
 import WhatsAppFAB from "@/components/WhatsAppFAB";
 import RedoblonasCoOcurrencia from "@/components/RedoblonasCoOcurrencia";
+import RedoblonasPlan5 from "@/components/RedoblonasPlan5";
 import FooterDisclaimer from "@/components/FooterDisclaimer";
 import HitRateBanner from "@/components/HitRateBanner";
 import GamificationBadge from "@/components/GamificationBadge";
@@ -941,6 +942,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   const nums4 = useMemo(() => (dt?.numeros_4 ?? []).filter((n): n is string => typeof n === "string"), [dt?.numeros_4]);
   const rdbl = useMemo(() => (dt?.redoblona ?? ""), [dt?.redoblona]);
   const rankingData = useMemo<LocalRankingItem[]>(() => (dt?.ranking ?? []) as LocalRankingItem[], [dt?.ranking]);
+  const anchorsRD = useMemo(
+    () => (rankingData ?? []).slice(0, 4).map((r) => String(r.numero).padStart(2, "0")) as [string, string, string, string],
+    [rankingData],
+  );
   const ranking = rankingData;
   const isPoceada = so === "Poceada";
   const maxNums = isPoceada ? 8 : 10;
@@ -1768,6 +1773,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                             <div style={{ fontSize: 11, color: "#64748b" }}>Criterio interno: acierta si ambos números salen en el sorteo (cualquier orden). No es la Redoblona oficial de LOTBA (Exacta 3500× · Extensión 70×).</div>
                           </div>
                         )}
+                        {anchorsRD.length >= 4 && <RedoblonasPlan5 turno={so} anchors={anchorsRD} />}
                         {dt?.numeros?.slice(0, 5).map((r, i) => (
                           <div className="rc" key={i}>
                             <div className="rn">{r.numero}</div>
