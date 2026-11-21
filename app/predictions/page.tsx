@@ -651,13 +651,21 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     const diaActual = ahora.getDay()
     const fechaActual = hoyArgentina()
     const feriados = todosLosFeriados()
-    
+
     // If today has no draws at all (Sunday or holiday), skip to next valid day
     if (feriados.includes(fechaActual)) return nextValidDate(sorteo)
     if (diaActual === 0) return nextValidDate(sorteo)
-    
+
     // Today is a valid draw day for this turno — show today
     return fechaActual
+  }
+
+  function razonSalto(sorteo: string): string | null {
+    const fechaActual = hoyArgentina()
+    const feriados = todosLosFeriados()
+    if (feriados.includes(fechaActual)) return "Hoy es feriado nacional — no hay sorteos"
+    if (new Date().getDay() === 0) return "Hoy es domingo — no hay sorteos"
+    return null
   }
 
   const cargarMisPreds = useCallback(async (token: string) => {
@@ -1488,6 +1496,19 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           )}
           {dn && !ld && (
             <>
+              {razonSalto(so) && (
+                <div style={{
+                  background: "rgba(236,72,153,.08)",
+                  border: "1px solid rgba(236,72,153,.3)",
+                  borderRadius: 10,
+                  padding: "9px 14px",
+                  marginBottom: 14,
+                  color: "#d53f8c",
+                  fontSize: 12,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>{razonSalto(so)}</div>
+                </div>
+              )}
               <div
                 style={{
                   background: "rgba(255,45,85,.06)",
@@ -1524,6 +1545,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   Copiar
                 </button>
               </div>
+
 
               {guestMode && (
                 <div style={{

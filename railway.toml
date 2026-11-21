@@ -1,0 +1,19 @@
+[build]
+  # Build command for Next.js
+  command = "npm run build"
+
+[env]
+  # Variables de entorno
+  NEXT_PUBLIC_SUPABASE_URL = "https://wazkylxgqckjfkcmfotl.supabase.co"
+  SUPABASE_SERVICE_ROLE_KEY = "TU_SUPABASE_SERVICE_ROLE_KEY"
+  CRON_SECRET = "TU_CRON_SECRET"
+  # Otras variables que necesitas
+  # ... (agrega todas las que estén en .env.local)
+
+[services]
+  # Servir Next.js en Railway
+  web
+    build = "npm run build"
+    start = "npm run start"
+    env = ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "CRON_SECRET"]
+    # Puedes añadir más variables aquí si las necesitas
