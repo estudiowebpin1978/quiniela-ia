@@ -77,7 +77,12 @@ function cutoffArt(fechaISO: string, turno: string): number {
 async function tieneDraw(turno: string, fechaISO: string): Promise<boolean> {
   const supabase = getSupabaseAdmin()
   const { data } = await supabase
-    .from("draws").select("id").eq("turno", turno).eq("date", fechaISO).limit(1)
+    .from("draws")
+    .select("id")
+    .eq("turno", turno)
+    .eq("date", fechaISO)
+    .in("jurisdiccion", jurisParaTurno(turno))
+    .limit(1)
   return Array.isArray(data) && data.length > 0
 }
 async function guardarDrawIdempotente(turno: string, fechaISO: string, nums: number[], source: string): Promise<{ ok: boolean; error?: string }> {
@@ -101,7 +106,7 @@ async function guardarDrawIdempotente(turno: string, fechaISO: string, nums: num
 }
 
 /** Un solo (turno, fecha) genérico. No sirve de nada si ya existe. */
-export async function refrescarTurnoOnDemand(turno: string, fechaISO: string): Promise<ResultadoRefreshTurno> {
+export async function refrescarTurnoOnDemand(turno: string, fechaISO: string, appOrigin?: string): Promise<ResultadoRefreshTurno> {
   try {
     if (!OFFICIAL_TIME_ART[turno]) return { status: "skipped", detail: "turno_desconocido" }
     if (!TURNOS.includes(turno as TurnoType)) return { status: "skipped", detail: "turno_no_valido" }
@@ -141,13 +146,21 @@ export async function refrescarTurnoOnDemand(turno: string, fechaISO: string): P
 
     // Event-driven: dispara precompute del turno (fire-and-forget)
     try {
-      const baseUrl = process.env.VERCEL_URL
+      const baseUrl = appOrigin || (process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
-        : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia-two.vercel.app"
+        : process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia-two.vercel.app")
       const cronKey = process.env.CRON_SECRET || ""
-      fetch(`${baseUrl}/api/cron-precompute?turno=${encodeURIComponent(turno)}`, {
-        headers: { Authorization: `Bearer ${cronKey}` },
-      }).catch(() => {})
+      if (!cronKey) {
+        logger.warn("[refresh-on-demand] precompute skipped: CRON_SECRET is not configured", { turno })
+      } else {
+        fetch(new URL(`/api/cron-precompute?turno=${encodeURIComponent(turno)}`, baseUrl), {
+          headers: { Authorization: `Bearer ${cronKey}` },
+        }).then((response) => {
+          if (!response.ok) throw new Error(`cron-precompute returned HTTP ${response.status}`)
+        }).catch((e) => {
+          logger.warn("[refresh-on-demand] precompute request failed", { error: String(e), turno })
+        })
+      }
     } catch { /* no-fatal */ }
 
     logger.info("[refresh-on-demand] draw saved", { fecha: fechaISO, turno, source })
@@ -161,15 +174,15 @@ export async function refrescarTurnoOnDemand(turno: string, fechaISO: string): P
 /**
  * Barrel-scan de los últimos `windowDays` días para el turno y completa
  * cualquier sorteo faltante. Idempotente. Devuelve resumen para auditoría.
- * NO bloquea la respuesta del caller: usar vaciado (`void`) en lectores.
+ * Las rutas de predicción esperan una ventana corta para no servir datos obsoletos.
  */
-export async function rellenarHistoricoDeTurno(turno: string, windowDays = VENTANA_HIST_DIAS): Promise<ReporteHistorico> {
+export async function rellenarHistoricoDeTurno(turno: string, windowDays = VENTANA_HIST_DIAS, appOrigin?: string): Promise<ReporteHistorico> {
   const resumen: ReporteHistorico = { turno, totalDias: 0, fresh: 0, saved: 0, skipped: 0, errores: 0, detalle: [] }
   if (!TURNOS.includes(turno as TurnoType)) { resumen.skipped++; return resumen }
   const hoy = hoyArt()
   for (const fechaISO of calendarioMenos(hoy, windowDays)) {
     resumen.totalDias++
-    const r = await refrescarTurnoOnDemand(turno, fechaISO)
+    const r = await refrescarTurnoOnDemand(turno, fechaISO, appOrigin)
     resumen.detalle.push(r)
     resumen[r.status === "fresh" ? "fresh" : r.status === "saved" ? "saved" : r.status === "error" ? "errores" : "skipped"]++
   }

@@ -12,6 +12,8 @@
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getAuth } from "@/lib/auth"
+import { z } from "zod"
+import { ApiErrorResponseSchema, AuthMeResponseSchema } from "@/lib/api/predictions"
 import "./brinco.css"
 
 type Modalidad = "tradicional" | "junior"
@@ -72,6 +74,61 @@ interface HistRow {
   created_at: string
 }
 
+const PrediccionSchema = z.object({
+  modalidad: z.string(),
+  combinacion: z.array(z.number()),
+  combinacionFormateada: z.array(z.string()),
+  alternativas: z.array(z.array(z.number())),
+  factores: z.array(z.object({
+    numero: z.number(),
+    frecuencia: z.number(),
+    recencia: z.number(),
+    atraso: z.number(),
+    antiSplit: z.number(),
+    score: z.number(),
+  })),
+  nHistorico: z.number(),
+  datosHasta: z.string().nullable(),
+  engineVersion: z.string(),
+  aviso: z.string(),
+})
+
+const RespuestaPrediccionSchema = z.object({
+  ok: z.boolean(),
+  error: z.string().optional(),
+  aviso: z.string().optional(),
+  concursoObjetivo: z.number().optional(),
+  datosHasta: z.string().optional(),
+  sorteosTotales: z.number().optional(),
+  sincronizacion: z.object({
+    sorteosTotales: z.number(),
+    datosHasta: z.string().nullable(),
+    importadosNuevos: z.number(),
+    errores: z.number(),
+    sinResultado: z.number(),
+    fuenteDisponible: z.boolean(),
+  }).optional(),
+  tradicional: PrediccionSchema.optional(),
+  junior: PrediccionSchema.nullable().optional(),
+  juniorNota: z.string().optional(),
+  upgradeRequired: z.boolean().optional(),
+  trialExpired: z.boolean().optional(),
+}).passthrough()
+
+const HistorialResponseSchema = z.object({
+  ok: z.boolean().optional(),
+  historial: z.array(z.object({
+    id: z.string(),
+    concurso_objetivo: z.number(),
+    fecha_objetivo: z.string().nullable(),
+    modalidad: z.string(),
+    numeros: z.array(z.number()),
+    aciertos_tradicional: z.number().nullable(),
+    aciertos_junior: z.number().nullable(),
+    created_at: z.string(),
+  })),
+}).passthrough()
+
 const fmtNums = (nums: number[]) =>
   [...nums].sort((a, b) => a - b).map((n) => String(n).padStart(2, "0"))
 
@@ -92,7 +149,7 @@ export default function BrincoPage() {
     try {
       const r = await fetch("/api/brinco/historial", { headers: { Authorization: "Bearer " + tk } })
       if (r.ok) {
-        const d = await r.json()
+        const d = HistorialResponseSchema.parse(await r.json())
         if (d?.ok) setHistorial(d.historial || [])
       }
     } catch {}
@@ -108,7 +165,7 @@ export default function BrincoPage() {
     const tk = auth.access_token
 
     fetch("/api/auth/me", { headers: { Authorization: "Bearer " + tk } })
-      .then((r) => (r.ok ? r.json() : null))
+      .then(async (r) => (r.ok ? AuthMeResponseSchema.parse(await r.json()) : null))
       .then((me) => {
         const premium =
           me?.canAccessPremiumFeatures || me?.role === "premium" || me?.role === "admin"
@@ -120,8 +177,8 @@ export default function BrincoPage() {
         setAcceso("ok")
         // Cargar predicción (con update incremental server-side).
         fetch("/api/brinco/prediccion", { headers: { Authorization: "Bearer " + tk } })
-          .then((r) => r.json())
-          .then((d: RespuestaPrediccion) => setData(d))
+          .then(async (r) => RespuestaPrediccionSchema.parse(await r.json()))
+          .then((d) => setData(d))
           .catch(() => setMsg("No se pudo cargar la predicción."))
           .finally(() => setCargando(false))
         cargarHistorial(tk)
@@ -154,7 +211,7 @@ export default function BrincoPage() {
           datos_hasta: pred.datosHasta,
         }),
       })
-      const d = await r.json()
+      const d = ApiErrorResponseSchema.extend({ ok: z.boolean().optional() }).parse(await r.json())
       if (d?.ok) {
         setGuardadoOk(`Guardada para el concurso ${data.concursoObjetivo} (${modalidad}).`)
         cargarHistorial(tk)

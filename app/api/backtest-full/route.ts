@@ -15,6 +15,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
 import logger from "@/lib/logger"
 import { jurisParaTurno } from "@/lib/procedencia"
+import { evaluateTopK } from "@/lib/backtest/metrics"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -30,6 +31,8 @@ interface BacktestResult {
   engine: string
   totalDraws: number
   validatedDraws: number
+  attemptedDraws: number
+  failedPredictions: number
   windowSize: number
 
   // Core metrics
@@ -73,13 +76,22 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const turno = searchParams.get("turno") || "Primera"
-    const days = Math.min(parseInt(searchParams.get("days") || "90"), 365)
-    const windowSize = parseInt(searchParams.get("window") || "60")
+    const days = Number(searchParams.get("days") || "90")
+    const windowSize = Number(searchParams.get("window") || "60")
     const engine = searchParams.get("engine") || "v6"
 
     const validTurnos = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
     if (!validTurnos.includes(turno)) {
       return NextResponse.json({ error: `Turno inválido. Válidos: ${validTurnos.join(", ")}` }, { status: 400 })
+    }
+    if (!Number.isInteger(days) || days < 1 || days > 365) {
+      return NextResponse.json({ error: "days debe ser un entero entre 1 y 365" }, { status: 400 })
+    }
+    if (!Number.isInteger(windowSize) || windowSize < 10 || windowSize > 365) {
+      return NextResponse.json({ error: "window debe ser un entero entre 10 y 365" }, { status: 400 })
+    }
+    if (engine !== "v6") {
+      return NextResponse.json({ error: "El único motor disponible en esta ruta es v6" }, { status: 400 })
     }
 
     const supabase = getSupabaseAdmin()
@@ -109,6 +121,8 @@ export async function GET(req: NextRequest) {
     logger.info(`[backtest-full] Testing ${turno} with ${draws.length} draws, window=${windowSize}`)
 
     // Walk-forward backtesting
+    let evaluatedDraws = 0
+    let failedPredictions = 0
     let precisionAt1 = 0
     let precisionAt3 = 0
     let precisionAt5 = 0
@@ -119,22 +133,19 @@ export async function GET(req: NextRequest) {
     let mrrSum = 0
     const recentResults: BacktestResult['recentResults'] = []
 
-    // Random baseline: expected hits = 10 * (20/100) = 2.0
-    const randomExpectedHits = 2.0
-    const randomPrecisionAt10 = 1 - hypergeometricPMF(0, 100, 20, 10)
+    let randomExpectedHits = 0
+    let randomPrecisionAt10 = 0
 
     for (let i = windowSize; i < draws.length; i++) {
       const targetDraw = draws[i]
-      const actualNums = (targetDraw.numbers as number[]).map((n: number) => {
+      const actualNums = [...new Set((targetDraw.numbers as number[]).map((n: number) => {
         const mod = n % 100
         return mod < 10 ? `0${mod}` : `${mod}`
-      })
+      }))]
 
-      // Use the SQL engine to get predictions (simulating what would have been predicted)
-      // We call the engine with the turno, using the date BEFORE this draw
-      const predDate = new Date(targetDraw.date)
-      predDate.setDate(predDate.getDate() - 1)
-      const predDateStr = predDate.toISOString().split("T")[0]
+      // The SQL function filters with date < p_date, so the target draw's
+      // date excludes every result from that day and prevents look-ahead.
+      const predDateStr = targetDraw.date
 
       try {
         const { data: predData, error: predError } = await supabase.rpc(
@@ -147,19 +158,36 @@ export async function GET(req: NextRequest) {
         )
 
         if (predError || !predData || !Array.isArray(predData) || predData.length === 0) {
+          failedPredictions++
+          logger.warn("[backtest-full] prediction unavailable", {
+            turno,
+            date: targetDraw.date,
+            error: predError?.message || "empty prediction",
+          })
           continue
         }
 
         // Extract top-10 predicted 2-digit numbers
-        const predicted = predData
+        const predicted = [...new Set(predData
           .slice(0, 10)
-          .map((row: Record<string, unknown>) => {
-            const num = Number(row.numero) % 100
-            return num < 10 ? `0${num}` : `${num}`
-          })
+          .filter((row: unknown): row is Record<string, unknown> =>
+            typeof row === "object" && row !== null && "numero" in row
+          )
+          .map((row: Record<string, unknown>) => Number(row.numero))
+          .filter((num: number) => Number.isInteger(num) && num >= 0)
+          .map((num: number) => {
+            const normalized = num % 100
+            return normalized < 10 ? `0${normalized}` : `${normalized}`
+          }))]
+        if (predicted.length === 0) {
+          failedPredictions++
+          logger.warn("[backtest-full] prediction had no valid numbers", { turno, date: targetDraw.date })
+          continue
+        }
 
         // Calculate hits
-        const hits = predicted.filter((n: string) => actualNums.includes(n))
+        const metrics = evaluateTopK(predicted, actualNums)
+        const hits = metrics.hitsTop10
         const hitCount = hits.length
 
         // Hit positions (which of the top-10 matched)
@@ -173,14 +201,18 @@ export async function GET(req: NextRequest) {
         mrrSum += rr
 
         // Update metrics
-        if (hitCount > 0) precisionAt10++
-        if (hitPositions.some((p: number) => p < 5)) precisionAt5++
-        if (hitPositions.some((p: number) => p < 3)) precisionAt3++
-        if (hitPositions.includes(0)) precisionAt1++
+        if (metrics.hitAt10) precisionAt10++
+        if (metrics.hitAt5) precisionAt5++
+        if (predicted.slice(0, 3).some((n: string) => actualNums.includes(n))) precisionAt3++
+        if (metrics.hitAt1) precisionAt1++
 
+        evaluatedDraws++
         totalHitsTop10 += hitCount
         if (hitCount > maxHits) maxHits = hitCount
         hitDistribution[hitCount] = (hitDistribution[hitCount] || 0) + 1
+
+        randomExpectedHits += 10 * actualNums.length / 100
+        randomPrecisionAt10 += 1 - hypergeometricPMF(0, 100, actualNums.length, 10)
 
         // Store recent results
         if (i >= draws.length - 10) {
@@ -193,18 +225,35 @@ export async function GET(req: NextRequest) {
           })
         }
       } catch (e) {
-        // Engine call failed for this draw, skip
+        failedPredictions++
+        logger.warn("[backtest-full] engine call failed", {
+          turno,
+          date: targetDraw.date,
+          error: e instanceof Error ? e.message : String(e),
+        })
         continue
       }
     }
 
-    const v = draws.length - windowSize || 1
+    const v = evaluatedDraws
+    if (v === 0) {
+      return NextResponse.json({
+        error: "No se pudo evaluar ninguna predicción del motor.",
+        totalDraws: draws.length,
+        attemptedDraws: draws.length - windowSize,
+        failedPredictions,
+      }, { status: 503 })
+    }
+    randomExpectedHits /= v
+    randomPrecisionAt10 /= v
 
     const result: BacktestResult = {
       turno,
       engine,
       totalDraws: draws.length,
       validatedDraws: v,
+      attemptedDraws: draws.length - windowSize,
+      failedPredictions,
       windowSize,
 
       precisionAt1: Math.round((precisionAt1 / v) * 1000) / 10,

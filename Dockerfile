@@ -1,29 +1,24 @@
-# Dockerfile para Railway (Next.js)
-FROM node:18-alpine AS builder
+# Dockerfile para Next.js
+FROM node:20-alpine AS builder
 
-# Instalar dependencias
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
-# Copiar código fuente
 COPY . .
 RUN npm run build
 
-# Imagen de producción
-FROM node:18-alpine
+FROM node:20-alpine AS runner
 WORKDIR /app
 
-# Copiar dependencias de producción
-COPY --from=builder /app/node_modules ./node_modules
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
 COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/.next ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
 
-# Copiar código fuente
-COPY . .
-
-# Exponer puerto
 EXPOSE 3000
-
-# Ejecutar servidor
 CMD ["npm", "run", "start"]

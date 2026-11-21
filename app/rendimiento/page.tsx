@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { z } from "zod"
 
 interface DailyAccuracy {
   fecha: string
@@ -40,6 +41,62 @@ interface RendimientoData {
   }[]
 }
 
+const RendimientoDataSchema = z.object({
+  ok: z.literal(true),
+  summary: z.object({
+    totalPredictions: z.number(),
+    totalHits2: z.number(),
+    hitRate2: z.number(),
+    hitRate3: z.number(),
+    hitRate4: z.number(),
+    bestStreak: z.number(),
+    currentStreak: z.number(),
+    topTurno: z.string(),
+    algorithmConfidence: z.number(),
+  }),
+  dailyAccuracy: z.array(z.object({
+    fecha: z.string(),
+    total_predictions: z.number(),
+    total_hits: z.number(),
+    hit_rate: z.number(),
+  })),
+  factorPerformance: z.array(z.object({
+    factor: z.string(),
+    current_weight: z.number(),
+    accuracy_7d: z.number(),
+    trend: z.enum(["up", "down", "stable"]),
+  })),
+  recentHits: z.array(z.object({
+    fecha: z.string(),
+    turno: z.string(),
+    numero: z.string(),
+    puesto: z.number(),
+  })),
+})
+
+const RendimientoResponseSchema = z.union([
+  RendimientoDataSchema,
+  z.object({ ok: z.literal(false), error: z.string().optional() }).passthrough(),
+])
+
+const AssistantResponseSchema = z.object({
+  ok: z.boolean(),
+  error: z.string().optional(),
+  respuesta: z.string().optional(),
+}).passthrough()
+
+const SorteosSimilaresResponseSchema = z.object({
+  ok: z.boolean(),
+  error: z.string().optional(),
+  method: z.string().optional(),
+  resultados: z.array(z.object({
+    fecha: z.string(),
+    turno: z.string(),
+    numbers: z.array(z.number()),
+    similitud: z.number(),
+  })).optional(),
+}).passthrough()
+
 const FACTOR_LABELS: Record<string, string> = {
   frequency: "Frecuencia",
   hot: "Calor",
@@ -77,7 +134,7 @@ export default function RendimientoPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ pregunta }),
       })
-      const j = await r.json().catch(() => null)
+      const j = AssistantResponseSchema.parse(await r.json())
       if (!r.ok || !j?.ok) {
         setAsistenteError(j?.error ?? "El asistente no responde en este momento.")
       } else {
@@ -113,12 +170,12 @@ export default function RendimientoPage() {
     setSimRes(null)
     try {
       const r = await fetch(`/api/sorteos-similares?numeros=${nums.join(",")}&turno=${encodeURIComponent(simTurno)}&limit=5`)
-      const j = await r.json().catch(() => null)
+      const j = SorteosSimilaresResponseSchema.parse(await r.json())
       if (!r.ok || !j?.ok) {
         setSimError(j?.error ?? "No se pudo buscar sorteos similares.")
       } else {
         setSimMethod(String(j.method ?? "local"))
-        setSimRes(Array.isArray(j.resultados) ? j.resultados : [])
+        setSimRes(j.resultados ?? [])
       }
     } catch {
       setSimError("Error de red al buscar sorteos similares.")
@@ -129,7 +186,7 @@ export default function RendimientoPage() {
 
   useEffect(() => {
     fetch("/api/rendimiento")
-      .then(r => r.json())
+      .then(async (r) => RendimientoResponseSchema.parse(await r.json()))
       .then(d => { if (d.ok) setData(d) })
       .catch(() => {})
       .finally(() => setLoading(false))

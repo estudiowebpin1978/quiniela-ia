@@ -28,32 +28,66 @@ interface Resp {
   nota: string
 }
 
+function esParRow(value: unknown): value is ParRow {
+  if (!value || typeof value !== "object") return false
+  const row = value as Record<string, unknown>
+  return (
+    typeof row.par === "string" &&
+    typeof row.frecuencia === "number" &&
+    typeof row.probConjunta === "number" &&
+    typeof row.probA_dado_B === "number" &&
+    typeof row.probB_dado_A === "number" &&
+    typeof row.sobreAzar === "number"
+  )
+}
+
+function esRespuesta(value: unknown): value is Resp {
+  if (!value || typeof value !== "object") return false
+  const data = value as Record<string, unknown>
+  return (
+    data.ok === true &&
+    typeof data.turno === "string" &&
+    typeof data.sorteos === "number" &&
+    (data.desde === null || typeof data.desde === "string") &&
+    (data.hasta === null || typeof data.hasta === "string") &&
+    typeof data.azarConjunta === "number" &&
+    typeof data.azarCondicional === "number" &&
+    Array.isArray(data.pares) &&
+    data.pares.every(esParRow) &&
+    typeof data.nota === "string"
+  )
+}
+
 export default function RedoblonasCoOcurrencia({ turno }: { turno: string }) {
-  const [data, setData] = useState<Resp | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [cargando, setCargando] = useState(true)
+  const [resultado, setResultado] = useState<{
+    turno: string
+    data: Resp | null
+    error: string | null
+    loading: boolean
+  }>({ turno, data: null, error: null, loading: true })
 
   useEffect(() => {
     let vivo = true
-    setCargando(true)
-    setError(null)
-    setData(null)
     fetch(`/api/redoblonas?turno=${encodeURIComponent(turno)}&limit=800`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: Resp | null) => {
+      .then((raw) => {
         if (!vivo) return
-        if (!d?.ok) {
-          setError("Estadística histórica no disponible por ahora.")
+        if (!esRespuesta(raw)) {
+          setResultado({ turno, data: null, error: "Estadística histórica no disponible por ahora.", loading: false })
           return
         }
-        setData(d)
+        setResultado({ turno, data: raw, error: null, loading: false })
       })
-      .catch(() => vivo && setError("No se pudo cargar la co-ocurrencia."))
-      .finally(() => vivo && setCargando(false))
+      .catch(() => vivo && setResultado({ turno, data: null, error: "No se pudo cargar la co-ocurrencia.", loading: false }))
     return () => {
       vivo = false
     }
   }, [turno])
+
+  const mismoTurno = resultado.turno === turno
+  const data = mismoTurno ? resultado.data : null
+  const error = mismoTurno ? resultado.error : null
+  const cargando = !mismoTurno || resultado.loading
 
   return (
     <details

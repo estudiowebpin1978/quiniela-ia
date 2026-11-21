@@ -89,6 +89,7 @@ export async function GET(req: NextRequest) {
       ok: informe.ok,
       importados: informe.importados,
       conflictos: informe.conflictos,
+      detalle: informe.detalle,
       evaluados: evaluacion ? (evaluacion.evaluadas ?? 0) : null,
       duracionMs: Date.now() - t0,
     }, t0)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseUrl, getSupabaseKey } from "@/lib/config"
+import { evaluateTopK } from "@/lib/backtest/metrics"
 
 export const dynamic = "force-dynamic"
 
@@ -60,22 +61,26 @@ export async function GET(req: NextRequest) {
       }
 
       const predicted = Object.entries(freq)
-        .sort((a, b) => b[1] - a[1])
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
         .slice(0, 10)
         .map(([n]) => n)
 
-      const hits = predicted.filter(n => targetNums.includes(n))
+      const metrics = evaluateTopK(predicted, targetNums)
+      const hits = metrics.hitsTop10
       validatedDraws++
       totalHitsTop10 += hits.length
       if (hits.length > maxHits) maxHits = hits.length
-      if (predicted.includes(targetNums[0])) hitAt1++
-      if (hits.length > 0) { hitAt5++; hitAt10++ }
+      if (metrics.hitAt1) hitAt1++
+      if (metrics.hitAt5) hitAt5++
+      if (metrics.hitAt10) hitAt10++
     }
 
     const v = validatedDraws || 1
     return NextResponse.json({
       total_draws: totalDraws,
       validated_draws: validatedDraws,
+      method: "rolling-frequency-baseline",
+      train_window: trainWindow,
       metrics_top_1: {
         hitAt1: Math.round((hitAt1 / v) * 1000) / 10,
         totalDraws: validatedDraws,

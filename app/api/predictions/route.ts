@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { resolveUserTier } from "@/lib/auth/tier"
+import { getGuestTier, resolveUserTier } from "@/lib/auth/tier"
 import { normalizarCronToken } from "@/lib/cron/auth"
 import { cacheFrescoParaDestino } from "@/lib/api/predictions"
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limiter"
@@ -118,14 +118,15 @@ export async function GET(req: NextRequest) {
 
     // ── Autenticar al usuario para el Paywall ──
     const token = req.headers.get("authorization")?.replace("Bearer ", "") || ""
-    if (!token) {
+    const guestRequest = !token && req.headers.get("x-guest-mode") === "true"
+    if (!token && !guestRequest) {
       return NextResponse.json({
         error: "Iniciá sesión para ver predicciones.",
         upgradeRequired: true,
       }, { status: 401 })
     }
 
-    const userTier = await resolveUserTier(token)
+    const userTier = guestRequest ? getGuestTier() : await resolveUserTier(token)
 
     if (!userTier.canAccess2Cifras) {
       // Auto-recovery: if user has no trial dates, try to fix their profile
@@ -176,19 +177,24 @@ export async function GET(req: NextRequest) {
     const requestedDate = searchParams.get("date")
     const targetDate = (requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) ? requestedDate : todayBsAs
 
-    // Actualización on-demand: si el sorteo de hoy para este turno todavía no
-    // está en la base, reescrapea sólo este turno (idempotente, fail-soft,
-    // respeta horario oficial y feriados) para que la predicción corra con
-    // el historial vigente en vez de depender únicamente del cron externo.
-    try {
-      await refrescarTurnoOnDemand(turnoCanonical, targetDate)
-    } catch (e) {
-      logger.warn("[predictions] refresh on-demand omitido", { error: String(e), turno: turnoCanonical })
+    // Sincronizar antes de cualquier caché para todos los usuarios, también
+    // invitados. Recuperar además huecos recientes para no dejar un día perdido
+    // (p. ej. un cron que falló anoche) fuera del historial usado por el motor.
+    const appOrigin = req.nextUrl.origin
+    const refresh = await refrescarTurnoOnDemand(turnoCanonical, targetDate, appOrigin)
+    if (refresh.status === "error") {
+      logger.warn("[predictions] on-demand refresh incomplete", { detail: refresh.detail, turno: turnoCanonical })
     }
-    // Backfill retroactivo de los últimos 30 días (fire-and-forget) — garantiza
-    // que la base quede completa para la verificación automática de aciertos
-    // aunque el sorteo haya sido omitido por el cron externo (idempotente).
-    void rellenarHistoricoDeTurno(turnoCanonical).catch(() => {})
+    if (targetDate === todayBsAs) {
+      const history = await rellenarHistoricoDeTurno(turnoCanonical, 4, appOrigin)
+      if (history.errores > 0 || history.saved > 0) {
+        logger.info("[predictions] recent history catch-up", {
+          turno: turnoCanonical,
+          saved: history.saved,
+          errors: history.errores,
+        })
+      }
+    }
 
     // ── Cache invalidation (admin-only) ──
     if (searchParams.get("invalidate") === "1") {
@@ -391,7 +397,7 @@ export async function GET(req: NextRequest) {
           // Poceada Ciudad: EXCEPCIÓN — el guardado es PREMIUM-only vía POST
           // /api/mis-predicciones (botón "Guardar jugada"); auto-guardarlo en
           // silencio para todos rompía el gate free->premium.
-          if (turnoCanonical !== "Poceada") {
+          if (userTier.userId && turnoCanonical !== "Poceada") {
             try {
               const numerosGuardar = numeros.map((n) => n.numero)
               const predGuardar = {
@@ -510,7 +516,7 @@ export async function GET(req: NextRequest) {
           // ── AUTO-SAVE: guardar predicción del usuario (LIVE-V6 camino) ──
           // Poceada Ciudad: EXCEPCIÓN — guardado PREMIUM-only vía POST
           // /api/mis-predicciones; auto-guardar en silencio sería un bypass.
-          if (turnoCanonical !== "Poceada") {
+          if (userTier.userId && turnoCanonical !== "Poceada") {
             try {
               const numerosGuardar = numeros.map((n) => n.numero)
               const predGuardar = {
@@ -593,10 +599,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await req.json()
-    const { turno, date, include3And4 = false } = body
+    const rawBody: unknown = await req.json()
+    if (typeof rawBody !== "object" || rawBody === null || Array.isArray(rawBody)) {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+    }
+    const body = rawBody as Record<string, unknown>
+    const turno = body.turno
+    const date = body.date
+    if (body.include3And4 !== undefined && typeof body.include3And4 !== "boolean") {
+      return NextResponse.json({ error: "include3And4 must be a boolean" }, { status: 400 })
+    }
+    const include3And4 = body.include3And4 === true
 
-    if (!turno || !date) {
+    if (typeof turno !== "string" || !turno || typeof date !== "string" || !date) {
       return NextResponse.json({ error: "Missing turno or date" }, { status: 400 })
     }
     const validTurnos = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]

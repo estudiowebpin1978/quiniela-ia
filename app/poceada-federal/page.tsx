@@ -29,6 +29,8 @@
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getAuth } from "@/lib/auth"
+import { z } from "zod"
+import { ApiErrorResponseSchema, AuthMeResponseSchema } from "@/lib/api/predictions"
 import "../brinco/brinco.css"
 
 const fmtNums = (nums: number[]) =>
@@ -134,6 +136,119 @@ interface PredGuardada {
   } | null
 }
 
+const AnalisisSchema = z.object({
+  sincronizacion: z.object({
+    ok: z.boolean(),
+    datosNuevos: z.boolean().optional(),
+    detalle: z.string().optional(),
+  }),
+  historial: z.object({
+    cantidad: z.number(),
+    desde: z.string(),
+    hasta: z.string(),
+    huella: z.string(),
+    antiguedadUltimoDias: z.number().optional(),
+  }),
+  jugadas: z.array(z.object({
+    orden: z.number(),
+    estrategia: z.string(),
+    numeros: z.array(z.number()),
+  })),
+  etiqueta: z.string(),
+  ventajaDemostrada: z.boolean().nullable(),
+  probabilidadesTeoricas: z.object({
+    alMenos6: z.number(),
+    alMenos7: z.number(),
+    alMenos8: z.number(),
+    exactamente8: z.number(),
+    nota: z.string(),
+  }),
+  advertencias: z.array(z.string()),
+  backtest: z.object({
+    estado: z.string(),
+    muestra: z.object({
+      evaluaciones: z.number(),
+      desde: z.string(),
+      hasta: z.string(),
+      trainInicial: z.number(),
+      paso: z.number(),
+    }),
+    modelo: z.object({
+      promedioGeneral: z.number(),
+      maximoPromedio: z.number(),
+      promedioPorJugada: z.array(z.number()),
+      conteosMayoresIgual: z.object({ g6: z.number(), g7: z.number(), g8: z.number() }),
+      proporciones: z.object({ g6: z.number(), g7: z.number(), g8: z.number() }),
+    }),
+    azar: z.object({
+      promedioGeneral: z.number(),
+      maximoPromedio: z.number(),
+      promedioPorJugada: z.array(z.number()),
+      conteosMayoresIgual: z.object({ g6: z.number(), g7: z.number(), g8: z.number() }),
+      proporciones: z.object({ g6: z.number(), g7: z.number(), g8: z.number() }),
+      desviacionEntreConjuntos: z.number(),
+    }),
+    diferencia: z.object({
+      promedioGeneral: z.number(),
+      intervalo95: z.tuple([z.number(), z.number()]),
+      errorEstandar: z.number(),
+      ventajaDemostrada: z.boolean(),
+      pPermutacion: z.number(),
+      conjuntosReferencia: z.number(),
+      bloques: z.array(z.object({
+        indice: z.number(),
+        desde: z.string(),
+        hasta: z.string(),
+        evaluaciones: z.number(),
+        diferencia: z.number(),
+      })),
+      holdout: z.object({
+        evaluaciones: z.number(),
+        desde: z.string(),
+        hasta: z.string(),
+        diferencia: z.number(),
+        intervalo95: z.tuple([z.number(), z.number()]),
+        contradice: z.boolean(),
+      }).nullable(),
+      condiciones: z.object({ ic95: z.boolean(), permutacion: z.boolean(), holdout: z.boolean() }),
+    }),
+    interpretacion: z.string(),
+  }),
+  objetivo: z.object({
+    confirmado: z.boolean(),
+    concurso: z.number().optional(),
+    fecha: z.string().optional(),
+    nota: z.string().optional(),
+  }),
+  prediccionId: z.string().nullable(),
+  generadoEn: z.string(),
+  version: z.string(),
+}).passthrough()
+
+const PredGuardadaSchema = z.object({
+  id: z.string(),
+  generado_en: z.string(),
+  historial_huella: z.string(),
+  historial_corte_fecha: z.string(),
+  sorteo_objetivo_concurso: z.number().nullable(),
+  sorteo_objetivo_confirmado: z.boolean(),
+  estado: z.enum(["pendiente", "evaluada", "no_evaluable"]),
+  combinaciones: z.array(z.unknown()),
+  evaluacion: z.object({
+    concursoEvaluado: z.number().optional(),
+    fechaEvaluada: z.string().optional(),
+    numerosOficiales: z.array(z.number()).optional(),
+    aciertosPorJugada: z.array(z.number()).optional(),
+    maximo: z.number().optional(),
+    motivo: z.string().optional(),
+  }).nullable(),
+})
+
+const GuardadasResponseSchema = z.object({
+  ok: z.boolean().optional(),
+  predicciones: z.array(PredGuardadaSchema),
+}).passthrough()
+
 const filaMetrica = (a: string, b: string | number, c?: string | number) => (
   <tr key={a}>
     <td style={{ padding: "4px 8px 4px 0", color: "var(--text-dim,#9aa0a6)" }}>{a}</td>
@@ -168,8 +283,8 @@ export default function PoceadaFederalPage() {
         headers: { Authorization: "Bearer " + tk },
       })
       if (!r.ok) return
-      const d = await r.json().catch(() => null)
-      if (d?.ok && Array.isArray(d.predicciones)) setGuardadas(d.predicciones as PredGuardada[])
+      const d = GuardadasResponseSchema.parse(await r.json())
+      if (d.ok) setGuardadas(d.predicciones)
     } catch {}
   }, [])
 
@@ -182,8 +297,8 @@ export default function PoceadaFederalPage() {
     Promise.resolve()
       .then(() => {
         if (!tk) return null
-        return fetch("/api/auth/me", { headers: { Authorization: "Bearer " + tk } }).then((r) =>
-          r.ok ? r.json() : null
+        return fetch("/api/auth/me", { headers: { Authorization: "Bearer " + tk } }).then(async (r) =>
+          r.ok ? AuthMeResponseSchema.parse(await r.json()) : null
         )
       })
       .then((me) => {
@@ -218,7 +333,7 @@ export default function PoceadaFederalPage() {
         method: "POST",
         headers: { Authorization: "Bearer " + tk },
       })
-      const d = await r.json().catch(() => null)
+      const raw: unknown = await r.json().catch(() => ({}))
       if (r.status === 401) {
         setErrorAnalisis("Sesión requerida: iniciá sesión de nuevo.")
         return
@@ -228,19 +343,22 @@ export default function PoceadaFederalPage() {
         return
       }
       if (r.status === 503) {
-        if (d?.error === "sin_historial_validado") setErrorAnalisis(d.detalle)
-        else if (d?.error === "migracion_pendiente")
+        const errorData = ApiErrorResponseSchema.extend({ detalle: z.string().optional() }).parse(raw)
+        if (errorData.error === "sin_historial_validado") setErrorAnalisis(errorData.detalle || "No hay historial validado.")
+        else if (errorData.error === "migracion_pendiente")
           setErrorAnalisis(
             "La migración del módulo todavía no está aplicada en Supabase (20261015060000_poceada_federal_module.sql)."
           )
-        else setErrorAnalisis(d?.detalle || "Servicio no disponible.")
+        else setErrorAnalisis(errorData.detalle || "Servicio no disponible.")
         return
       }
-      if (!r.ok || !d?.ok) {
-        setErrorAnalisis(d?.detalle || "No se pudo generar el análisis.")
+      if (!r.ok) {
+        const errorData = ApiErrorResponseSchema.extend({ detalle: z.string().optional() }).parse(raw)
+        setErrorAnalisis(errorData.detalle || errorData.error || "No se pudo generar el análisis.")
         return
       }
-      setAnalisis(d as Analisis)
+      const d = AnalisisSchema.parse(raw)
+      setAnalisis(d)
       // Comparación con la ÚLTIMA registrada (antes de refrescar la lista):
       // el generador es determinista — si la huella del historial no cambió,
       // las jugadas coinciden y se explica explícitamente.

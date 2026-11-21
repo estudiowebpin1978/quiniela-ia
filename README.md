@@ -6,12 +6,13 @@
 - `app/api/cron-scrape/route.ts`: scraper protegido para cargar resultados de sorteos en Supabase (5 turnos).
 - `app/api/mis-predicciones/route.ts`: API para leer las predicciones guardadas y calcular aciertos.
 - `app/api/resultado/route.ts`: API para consultar resultados reales por fecha y turno.
+- Modo invitado: permite solicitar análisis de 2 cifras sin cuenta; no actualiza sorteos ni guarda predicciones y mantiene el límite de peticiones por IP.
 - GitHub Actions:
   - `.github/workflows/ci.yml` ejecuta `npm ci` y `npm run build` en cada push/pull request a `main`.
 
 ## Variables de entorno necesarias
 
-Estas variables deben configurarse en Vercel y también localmente para el desarrollo.
+Estas variables deben configurarse como Worker secrets en Cloudflare y localmente para desarrollo.
 
 ### Core (requeridas)
 - `NEXT_PUBLIC_SUPABASE_URL` — URL de Supabase.
@@ -52,26 +53,28 @@ Estas variables deben configurarse en Vercel y también localmente para el desar
 | OCR fallback (lots/pags LOTBA) | texto limpio local → Tesseract.js → Gemini | sin costo, sin cuotas por defecto |
 | Cron verify/scrape | cron-job.org (libre) | sin cambios |
 
-### Cloudflare Workers AI — como obtener las credenciales (gratis)
+### Cloudflare Workers AI — credenciales opcionales
 1. En https://dash.cloudflare.com Create account (free).
-2. My Profile → API Tokens → Create Token → plantilla "Edit Cloudflare Workers AI".
+2. My Profile → API Tokens → Create Token con permisos mínimos para Workers AI. No reutilices el token de despliegue.
 3. Account Home → copia Account ID.
-4. Vercel → proyecto `quiniela-ia` → Settings → Environment Variables (scope Production) → agregar `CLOUDFLARE_ACCOUNT_ID` y `CLOUDFLARE_API_TOKEN`.
-5. Redeploy (`npx vercel --prod`) y probar `/api/sorteos-similares` → `method=cloudflare`.
+4. Cloudflare Dashboard → Workers & Pages → `quiniela-ia` → Settings → Variables and Secrets → agrega `CLOUDFLARE_ACCOUNT_ID` y `CLOUDFLARE_API_TOKEN`.
+5. Probar `/api/sorteos-similares` → `method=cloudflare`.
 
 ### Turnos (opcional, default hardcoded)
 - `TURNOS` — JSON array de turnos (ej: `["Previa","Primera","Matutina","Vespertina","Nocturna"]`).
 
 ---
 
-## Configuración de Cron Jobs (cron-job.org + Vercel Cron)
+## Configuración de Cron Jobs
 
-La mayoría de los jobs se gestionan vía **cron-job.org**; `/api/cron-premium-expiry` se ejecuta con **Vercel Cron** (diario 04:00 UTC, definido en `vercel.json`).
+Cloudflare Workers programa de forma nativa el scrapeo de seguridad cada 15 minutos y la verificación de predicciones cada 5 minutos. No dupliques esos dos trabajos en cron-job.org. La configuración de `vercel.json` no se ejecuta en Cloudflare Workers.
 
 | Job | Endpoint | Frecuencia | Descripción |
 |-----|----------|------------|-------------|
-| **Verify predictions** | `/api/cron-verify-predictions` | Cada 5 min | Verifica aciertos contra sorteos oficiales y evalúa los factores V6 (`factor_weight_history`) |
-| **Scrape safety net** | `/api/cron-scrape` | Cada 15 min | Scrapeo periódico de los turnos con sorteo |
+| **Verify predictions** | Cloudflare Cron → `/api/cron-verify-predictions` | Cada 5 min | Verifica aciertos contra sorteos oficiales y evalúa los factores V6 (`factor_weight_history`) |
+| **Scrape + catch-up** | Cloudflare Cron → `/api/cron-scrape` | Cada 15 min | Scrapea resultados publicados y reintenta huecos de los últimos 4 días |
+| **Poceada Federal** | cron-job.org → `/api/cron-poceada-federal` | Diario, después del sorteo | Importa resultados oficiales IAFAS y registra fallas de corroboración |
+| **Brinco** | cron-job.org → `/api/cron-brinco` | Domingos, después del sorteo | Importa resultados oficiales y verifica predicciones |
 | Scrape Previa | `/api/cron-scrape?turno=Previa` | 10:30 Mon-Sat | Scrape sorteo Previa |
 | Scrape Primera | `/api/cron-scrape?turno=Primera` | 12:30 Mon-Sat | Scrape sorteo Primera |
 | Scrape Matutina | `/api/cron-scrape?turno=Matutina` | 15:30 Mon-Sat | Scrape sorteo Matutina |
@@ -81,13 +84,13 @@ La mayoría de los jobs se gestionan vía **cron-job.org**; `/api/cron-premium-e
 | Auto-approve transfers | `/api/cron-auto-approve-transfers` | Cada 30 min | Auto-aprueba transferencias > N horas |
 | Push notifications | `/api/cron-push` | Cada 15 min | Envía notificaciones push |
 | Verify catchup | `/api/cron-verify-catchup` | 09:00 daily | Verifica predicciones pendientes |
-| **Premium expiry** (Vercel Cron) | `/api/cron-premium-expiry` | Diario 04:00 UTC | Downgrade de premium vencido + push de vencimiento |
+| Premium expiry | `/api/cron-premium-expiry` | Diario 04:00 UTC | Downgrade de premium vencido + push de vencimiento |
 
 **Autenticación**: los endpoints cron aceptan `?secret=CRON_SECRET` o el header `Authorization: Bearer CRON_SECRET`. En Vercel, configurá `CRON_SECRET` como variable de entorno: Vercel la envía automáticamente en `Authorization`. En cron-job.org, configurá ese header manualmente. `x-vercel-cron: 1` por sí solo no autentica una solicitud.
 
-**Nota**: los jobs de scrape se ejecutan DESPUÉS del sorteo (para capturar resultados). Las predicciones son **on-demand**: se generan cuando el usuario las solicita (`GET /api/predictions`) — el antiguo cron Auto-Predict fue removido.
+**Nota**: los jobs de scrape se ejecutan DESPUÉS del sorteo. Antes de responder, las rutas de predicción sincronizan el turno/modalidad solicitado y recuperan huecos recientes antes de consultar la caché. Esto aplica también al modo invitado. El cron de Quiniela reintenta automáticamente resultados faltantes de los últimos 4 días. Las predicciones son **on-demand** (`GET /api/predictions`); el antiguo cron Auto-Predict fue removido.
 
-**Agendado externo**: `/api/cron-run` (orchestrator scrape + precompute) y la cadencia de 15 min de `/api/cron-scrape` se programan **externamente desde cron-job.org**; no figuran en `vercel.json`, que solo define `/api/cron-premium-expiry`.
+**Agendado externo**: los demás trabajos de la tabla siguen requiriendo cron-job.org. `/api/cron-run` (orchestrator scrape + precompute) y `/api/cron-premium-expiry` deben programarse allí si se necesitan; el Worker ya programa `/api/cron-scrape` y `/api/cron-verify-predictions`.
 
 ---
 
@@ -98,15 +101,37 @@ La mayoría de los jobs se gestionan vía **cron-job.org**; `/api/cron-premium-e
 El flujo `.github/workflows/ci.yml`:
 - Se ejecuta en `push` y `pull_request` para `main`.
 - Instala dependencias con `npm ci`.
-- Ejecuta `npm run build`.
+- Ejecuta lint, typecheck, pruebas y build.
+
+El workflow `.github/workflows/cron.yml` es manual (`workflow_dispatch`); usa los secretos `APP_URL` y `CRON_SECRET` para pruebas o backfills solicitados. La programación de producción no depende de GitHub Actions.
 
 ---
 
-## Requisitos para despliegue en Vercel
+## Despliegue en Cloudflare Workers
 
-1. Agregar las variables de entorno listadas arriba.
-2. Verificar que el proyecto use `npm run build`.
-3. Activar el despliegue automático en Vercel si deseas.
+El proyecto está adaptado con vinext para desplegarse como Cloudflare Worker:
+
+```bash
+npm ci
+npm run build:vinext
+npm run start:vinext
+```
+
+Para desplegarlo en Cloudflare:
+
+```bash
+npx wrangler login
+npm run deploy:vinext
+```
+
+Agrega las variables de entorno en el dashboard de Cloudflare Workers o mediante secretos:
+
+```bash
+npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+npx wrangler secret put CRON_SECRET
+```
+
+El liveness del Worker está disponible en `/api/live`.
 
 ---
 
@@ -126,5 +151,7 @@ El flujo `.github/workflows/ci.yml`:
 - `npm run dev` — iniciar en modo desarrollo.
 - `npm run build` — compilar para producción.
 - `npm run start` — arrancar servidor de producción.
-- `npm run deploy` — deploy a producción en Vercel.
+- `npm run build:vinext` — compilar para Cloudflare Workers.
+- `npm run start:vinext` — previsualizar el Worker localmente.
+- `npm run deploy:vinext` — desplegar en Cloudflare Workers.
 - `npm run lint` — ejecutar ESLint.

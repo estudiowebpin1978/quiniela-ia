@@ -24,8 +24,10 @@ import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getAuth } from "@/lib/auth"
 import {
-  validatePredData,
+  ApiErrorResponseSchema,
+  AuthMeResponseSchema,
   validateMisPrediccionesResponse,
+  validatePredictionResponse,
   type PredData,
   type MisPrediccion,
 } from "@/lib/api/predictions"
@@ -59,16 +61,8 @@ export default function PoceadaPage() {
     try {
       const r = await fetch("/api/mis-predicciones", { headers: { Authorization: "Bearer " + tk } })
       if (!r.ok) return
-      const d = await r.json()
-      const arr: unknown[] = Array.isArray(d?.predictions) ? d.predictions : []
-      const poceadas = arr.filter(
-        (p) => typeof p === "object" && p !== null && String((p as { turno?: string }).turno || "").toLowerCase() === "poceada"
-      )
-      try {
-        setHistorial(validateMisPrediccionesResponse({ predictions: poceadas }).predictions)
-      } catch {
-        setHistorial(poceadas as MisPrediccion[])
-      }
+      const d = validateMisPrediccionesResponse(await r.json())
+      setHistorial(d.predictions.filter((p) => p.turno?.toLowerCase() === "poceada"))
     } catch {
       /* el historial es best-effort */
     }
@@ -86,7 +80,7 @@ export default function PoceadaPage() {
     // Poceada Ciudad es para todos los usuarios autenticados (el endpoint no
     // rechaza al Free; la restricción antigua era solo en el cliente)
     fetch("/api/auth/me", { headers: { Authorization: "Bearer " + tk } })
-      .then((r) => (r.ok ? r.json() : null))
+      .then(async (r) => (r.ok ? AuthMeResponseSchema.parse(await r.json()) : null))
       .then((me) => {
         setAcceso("ok")
         setEsPremium(Boolean(me?.canAccessPremiumFeatures))
@@ -98,7 +92,8 @@ export default function PoceadaPage() {
           headers: { Authorization: "Bearer " + tk },
         })
           .then(async (r) => {
-            const d = await r.json().catch(() => ({}))
+            const raw: unknown = await r.json().catch(() => ({}))
+            const errorData = ApiErrorResponseSchema.safeParse(raw)
             if (r.status === 401) {
               setAcceso("no-auth")
               return
@@ -107,26 +102,8 @@ export default function PoceadaPage() {
               setAcceso("no-premium")
               return
             }
-            if (!r.ok) throw new Error(d?.error || "Error del servidor: " + r.status)
-            if (d?.error) throw new Error(d.error)
-
-            // Normaliza para Poceada Ciudad (usa el mismo formato que la pantalla principal)
-            const predData = {
-              ...(d.pred || d),
-              heatmap: d.heatmap,
-              ranking: d.numeros,
-              numeros: d.numeros,
-              confidence: d.confidence,
-              aiInsight: d.aiInsight,
-              totalSorteos: d.totalSorteos ?? d.debug?.sorteos_analizados ?? null,
-            }
-
-            let v: PredData | null = null
-            try {
-              v = validatePredData(predData)
-            } catch {
-              v = predData as PredData
-            }
+            if (!r.ok) throw new Error((errorData.success ? errorData.data.error : undefined) || "Error del servidor: " + r.status)
+            const v: PredData = validatePredictionResponse(raw)
             if (!v?.numeros_2?.length && !v?.numeros?.length) {
               throw new Error("Todavía no hay predicción de Poceada para esta fecha.")
             }
@@ -166,7 +143,7 @@ export default function PoceadaPage() {
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + tk },
         body: JSON.stringify({ date: fecha, turno: "Poceada", numeros: numerosA }),
       })
-      const d = await r.json().catch(() => ({}))
+      const d = ApiErrorResponseSchema.parse(await r.json().catch(() => ({})))
       if (r.status === 409) {
         setMsg(d?.error || "Ya guardaste un análisis para este turno.")
         return

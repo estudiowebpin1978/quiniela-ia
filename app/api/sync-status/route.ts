@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
+import { classifyDrawFreshness } from "@/lib/cron/freshness"
 import logger from "@/lib/logger"
 
 export const dynamic = "force-dynamic"
@@ -48,7 +49,7 @@ export async function GET(_req: NextRequest) {
 
     for (const turno of TURNOS) {
       const jurisdiccion = turno === "Poceada" ? ["ciudad"] : ["CABA"] as const
-      const [q, q2] = await Promise.all([
+      const [q, latest, earliest] = await Promise.all([
         sb
           .from("draws")
           .select("id", { count: "exact", head: true })
@@ -61,67 +62,77 @@ export async function GET(_req: NextRequest) {
           .in("jurisdiccion", jurisdiccion)
           .order("date", { ascending: false })
           .limit(1),
+        sb
+          .from("draws")
+          .select("date")
+          .eq("turno", turno)
+          .in("jurisdiccion", jurisdiccion)
+          .order("date", { ascending: true })
+          .limit(1),
       ])
       const count = q.count ?? 0
-      const lastDate = (q2.data as Array<{ date?: string }> | null)?.[0]?.date ?? null
+      const lastDate = (latest.data as Array<{ date?: string }> | null)?.[0]?.date ?? null
+      const firstDate = (earliest.data as Array<{ date?: string }> | null)?.[0]?.date ?? null
       let status: (typeof result)[number]["status"]
       let detail: string | undefined
-      if (!lastDate || count === 0) {
+      if (q.error || latest.error || earliest.error) {
+        status = "error"
+        detail = q.error?.message ?? latest.error?.message ?? earliest.error?.message
+        logger.error("[sync-status] draws query failed", { turno, error: detail })
+      } else if (!lastDate || count === 0) {
         status = "empty"
         detail = "sin sorteos en la base"
       } else {
         const age = ageMinutes(lastDate, now)
-        // >30h → suspicious or 2d gap; >72h → alarmas
-        if (age > 72 * 60) status = "stale_3d"
-        else if (age > 30 * 60) status = "stale_1d"
-        else status = "fresh"
+        status = classifyDrawFreshness(age)
         detail = `último sorteo ${lastDate} (${Math.round(age / 60)}h atrás)`
       }
-      result.push({ turno, totalSorteos: count, firstDate: lastDate, lastDate, ageMinutes: lastDate ? ageMinutes(lastDate, now) : null, status, note: detail })
+      result.push({ turno, totalSorteos: count, firstDate, lastDate, ageMinutes: lastDate ? ageMinutes(lastDate, now) : null, status, note: detail })
     }
 
     // Brinco: leer brinco_draws
-    const { count: brincoCount } = await sb
-      .from("brinco_draws")
-      .select("concurso", { count: "exact", head: true })
-    const { data: brincoRows } = await sb
-      .from("brinco_draws")
-      .select("fecha")
-      .eq("estado_verificacion", "verified_official")
-      .order("fecha", { ascending: false })
-      .limit(1)
-    const brincoLast = (brincoRows as Array<{ fecha?: string }> | null)?.[0]?.fecha ?? null
+    const [brincoCountQuery, brincoLatest, brincoEarliest] = await Promise.all([
+      sb.from("brinco_draws").select("concurso", { count: "exact", head: true }).in("estado_verificacion", ["verified_official", "cross_checked"]),
+      sb.from("brinco_draws").select("fecha").in("estado_verificacion", ["verified_official", "cross_checked"]).order("fecha", { ascending: false }).limit(1),
+      sb.from("brinco_draws").select("fecha").in("estado_verificacion", ["verified_official", "cross_checked"]).order("fecha", { ascending: true }).limit(1),
+    ])
+    const brincoCount = brincoCountQuery.count ?? 0
+    const brincoLast = (brincoLatest.data as Array<{ fecha?: string }> | null)?.[0]?.fecha ?? null
+    const brincoFirst = (brincoEarliest.data as Array<{ fecha?: string }> | null)?.[0]?.fecha ?? null
+    const brincoAge = brincoLast ? Math.round((now.getTime() - new Date(brincoLast + "T12:00:00-03:00").getTime()) / 60000) : null
+    const brincoError = brincoCountQuery.error ?? brincoLatest.error ?? brincoEarliest.error
     result.push({
       turno: "Brinco",
-      totalSorteos: brincoCount ?? 0,
-      firstDate: null,
+      totalSorteos: brincoCount,
+      firstDate: brincoFirst,
       lastDate: brincoLast,
-      ageMinutes: brincoLast ? Math.round((now.getTime() - new Date(brincoLast + "T12:00:00-03:00").getTime()) / 60000) : null,
-      status: brincoLast ? "fresh" : "empty",
-      note: brincoLast ? `último sorteo ${brincoLast}` : "sin sorteos",
+      ageMinutes: brincoAge,
+      status: brincoError ? "error" : brincoLast && brincoAge != null ? classifyDrawFreshness(brincoAge, 8 * 24 * 60, 15 * 24 * 60) : "empty",
+      note: brincoError?.message ?? (brincoLast ? `último sorteo ${brincoLast} (${Math.round((brincoAge ?? 0) / 60)}h atrás)` : "sin sorteos"),
     })
+    if (brincoError) logger.error("[sync-status] Brinco query failed", { error: brincoError.message })
 
     // Poceada Federal
-    const { count: pfCount } = await sb
-      .from("poceada_federal_draws")
-      .select("concurso", { count: "exact", head: true })
-      .eq("estado", "validated")
-    const { data: pfRows } = await sb
-      .from("poceada_federal_draws")
-      .select("fecha")
-      .eq("estado", "validated")
-      .order("fecha", { ascending: false })
-      .limit(1)
-    const pfLast = (pfRows as Array<{ fecha?: string }> | null)?.[0]?.fecha ?? null
+    const [pfCountQuery, pfLatest, pfEarliest] = await Promise.all([
+      sb.from("poceada_federal_draws").select("concurso", { count: "exact", head: true }).eq("estado", "validated"),
+      sb.from("poceada_federal_draws").select("fecha").eq("estado", "validated").order("fecha", { ascending: false }).limit(1),
+      sb.from("poceada_federal_draws").select("fecha").eq("estado", "validated").order("fecha", { ascending: true }).limit(1),
+    ])
+    const pfCount = pfCountQuery.count ?? 0
+    const pfLast = (pfLatest.data as Array<{ fecha?: string }> | null)?.[0]?.fecha ?? null
+    const pfFirst = (pfEarliest.data as Array<{ fecha?: string }> | null)?.[0]?.fecha ?? null
+    const pfAge = pfLast ? Math.round((now.getTime() - new Date(pfLast + "T12:00:00-03:00").getTime()) / 60000) : null
+    const pfError = pfCountQuery.error ?? pfLatest.error ?? pfEarliest.error
     result.push({
       turno: "Poceada Federal",
-      totalSorteos: pfCount ?? 0,
-      firstDate: null,
+      totalSorteos: pfCount,
+      firstDate: pfFirst,
       lastDate: pfLast,
-      ageMinutes: pfLast ? Math.round((now.getTime() - new Date(pfLast + "T12:00:00-03:00").getTime()) / 60000) : null,
-      status: pfLast ? "fresh" : "empty",
-      note: pfLast ? `último sorteo ${pfLast}` : "sin sorteos",
+      ageMinutes: pfAge,
+      status: pfError ? "error" : pfLast && pfAge != null ? classifyDrawFreshness(pfAge) : "empty",
+      note: pfError?.message ?? (pfLast ? `último sorteo ${pfLast}` : "sin sorteos"),
     })
+    if (pfError) logger.error("[sync-status] Poceada Federal query failed", { error: pfError.message })
 
     const overallFresh = result.every((r) => r.status === "fresh")
     const overall = overallFresh ? "ok" : "attention"
@@ -132,7 +143,7 @@ export async function GET(_req: NextRequest) {
         overall,
         modalities: result,
         alerts: result.filter((r) => r.status !== "fresh").map((r) => `${r.turno}: ${r.status} (${r.note ?? ""})`),
-        note: "Cada ruta sincroniza on-demand; si está fuera de frecuencia, el próximo request la corrige automáticamente o cron-scrape lo reparará en ±15 min.",
+        note: "Las rutas de predicción sincronizan antes de leer caché. cron-scrape reintenta sorteos actuales y completa huecos recientes automáticamente.",
       },
       { headers: { "Cache-Control": "no-store" } },
     )

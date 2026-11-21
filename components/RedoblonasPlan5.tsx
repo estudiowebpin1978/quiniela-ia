@@ -44,6 +44,33 @@ interface StatsPayload {
   alMenos3: number
 }
 
+function esParPayload(value: unknown): value is ParPayload {
+  if (!value || typeof value !== "object") return false
+  const row = value as Record<string, unknown>
+  return (
+    typeof row.label === "string" &&
+    typeof row.frecuencia === "number" &&
+    typeof row.probConjunta === "number" &&
+    typeof row.sobreAzar === "number"
+  )
+}
+
+function esStatsPayload(value: unknown): value is StatsPayload {
+  if (!value || typeof value !== "object") return false
+  const data = value as Record<string, unknown>
+  return (
+    data.ok === true &&
+    typeof data.muestra === "number" &&
+    (data.desde === null || typeof data.desde === "string") &&
+    (data.hasta === null || typeof data.hasta === "string") &&
+    Array.isArray(data.pares) &&
+    data.pares.every(esParPayload) &&
+    typeof data.alMenos1 === "number" &&
+    typeof data.alMenos2 === "number" &&
+    typeof data.alMenos3 === "number"
+  )
+}
+
 const PLAN: Array<{
   orden: number
   rol: string
@@ -74,9 +101,6 @@ function statusDePar(freq: number | undefined, sobreAzar: number | undefined): P
 }
 
 export default function RedoblonasPlan5({ turno, anchors }: Props) {
-  const [stats, setStats] = useState<StatsPayload | null>(null)
-  const [statsError, setStatsError] = useState<string | null>(null)
-
   const anchorsValidos =
     Array.isArray(anchors) &&
     anchors.length >= 4 &&
@@ -90,28 +114,35 @@ export default function RedoblonasPlan5({ turno, anchors }: Props) {
     () => (anchorsValidos ? pares.map(([a, b]) => `${a}-${b}`).join(",") : ""),
     [pares, anchorsValidos],
   )
+  const requestKey = `${turno}:${paresQuery}`
+  const [resultadoStats, setResultadoStats] = useState<{
+    key: string
+    stats: StatsPayload | null
+    error: string | null
+  }>({ key: "", stats: null, error: null })
 
   useEffect(() => {
     if (!anchorsValidos) return
     let vivo = true
-    setStats(null)
-    setStatsError(null)
     fetch(`/api/redoblonas?turno=${encodeURIComponent(turno)}&limit=400&pares=${encodeURIComponent(paresQuery)}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: StatsPayload | null) => {
+      .then((raw) => {
         if (!vivo) return
-        if (!d?.ok) {
-          setStatsError("Historial no disponible para calcular rendimiento.")
+        if (!esStatsPayload(raw)) {
+          setResultadoStats({ key: requestKey, stats: null, error: "Historial no disponible para calcular rendimiento." })
           return
         }
-        setStats(d)
+        setResultadoStats({ key: requestKey, stats: raw, error: null })
       })
-      .catch(() => vivo && setStatsError("No se pudo cargar el historial."))
+      .catch(() => vivo && setResultadoStats({ key: requestKey, stats: null, error: "No se pudo cargar el historial." }))
     return () => {
       vivo = false
     }
-  }, [turno, paresQuery])
+  }, [turno, paresQuery, anchorsValidos, requestKey])
 
+  const statsActuales = resultadoStats.key === requestKey ? resultadoStats : null
+  const stats = statsActuales?.stats ?? null
+  const statsError = statsActuales?.error ?? null
   // Texto de "Puestos Oficiales" tal como se pidió — criterio interno del plan
   const AZAR_CONJUNTA = ((20 * 19) / (100 * 99)) * 100
 
@@ -141,14 +172,17 @@ export default function RedoblonasPlan5({ turno, anchors }: Props) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify(body),
       })
-      const d = await r.json().catch(() => ({}))
+      const responseBody: unknown = await r.json().catch(() => null)
+      const d = responseBody && typeof responseBody === "object" && !Array.isArray(responseBody)
+        ? responseBody as Record<string, unknown>
+        : {}
       if (r.ok) {
         setGuardando("ok")
-      } else if (r.status === 409 || d?.duplicate) {
+      } else if (r.status === 409 || d.duplicate === true) {
         setGuardando("duplicado")
       } else {
         setGuardando("err")
-        setErrorGuardado(d?.error || `Error del servidor (${r.status})`)
+        setErrorGuardado(typeof d.error === "string" ? d.error : `Error del servidor (${r.status})`)
       }
     } catch (e) {
       setGuardando("err")

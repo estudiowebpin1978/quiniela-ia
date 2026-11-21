@@ -1,7 +1,7 @@
 /**
  * Fast scraper endpoint - solo scrapea turnos de HOY.
- * Diseñado para ser llamado cada 15 min por Vercel Cron.
- * No hace backfill (para eso usar /api/cron-nacional?fill=deep).
+ * Diseñado para ser llamado cada 15 min por el agendador configurado.
+ * También reintenta sorteos faltantes de los últimos cuatro días calendario.
  *
  * Fuente única autorizada: quiniela.loteriadelaciudad.gob.ar (quiniela)
  *                          poceada.loteriadelaciudad.gob.ar (poceada)
@@ -27,6 +27,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { invalidateAllPredictionCaches } from "@/lib/cache/prediction-cache-invalidation"
 import { updateEnginePerformance } from "@/lib/ensemble/meta-ensemble"
 import { getNextToPredictAfter } from "@/lib/quiniela-timeline"
+import { rellenarHistoricoDeTurno } from "@/lib/scrapers/refrescar-on-demand"
 import type { TurnoQuiniela } from "@/types/engine"
 import logger from "@/lib/logger"
 import { getCalibration } from "@/lib/probability/calibration"
@@ -47,6 +48,7 @@ async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
       .select("id")
       .eq("date", fechaISO)
       .eq("turno", turno)
+      .in("jurisdiccion", jurisParaTurno(turno))
       .limit(1)
     if (error) return false
     return Array.isArray(data) && data.length > 0
@@ -55,7 +57,7 @@ async function tieneDraw(fechaISO: string, turno: string): Promise<boolean> {
 
 import { jurisParaTurno } from "@/lib/procedencia"
 
-async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string): Promise<{ ok: boolean; error?: string }> {
+async function guardarDraw(fechaISO: string, turno: string, nums: number[], source: string, appOrigin: string): Promise<{ ok: boolean; error?: string }> {
   try {
     const supabase = getSupabaseAdmin()
     const jurisdiccion = jurisParaTurno(turno)[0]
@@ -95,11 +97,8 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
     try {
       const next = getNextToPredictAfter(turno as TurnoQuiniela)
       if (next) {
-        const baseUrl = process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}`
-          : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia-two.vercel.app"
         const cronKey = process.env.CRON_SECRET || ""
-        fetch(`${baseUrl}/api/cron-precompute?turno=${encodeURIComponent(next.turno)}`, {
+        fetch(`${appOrigin}/api/cron-precompute?turno=${encodeURIComponent(next.turno)}`, {
           headers: { Authorization: `Bearer ${cronKey}` },
         }).catch(() => {})
       }
@@ -211,6 +210,7 @@ export async function GET(req: NextRequest) {
     return unauthorizedResponse()
   }
 
+  const appOrigin = req.nextUrl.origin
   logger.info("cron-scrape: authorized", { source: authResult.source })
 
   const overrideDate = req.nextUrl.searchParams.get("date")
@@ -254,6 +254,13 @@ export async function GET(req: NextRequest) {
   let divergences = 0
   const sourceStats: SourceStats = {}
   const saveErrors: string[] = []
+  const clearTurnoError = (turno: string) => {
+    const index = saveErrors.findIndex((error) => error.startsWith(`${turno}:`))
+    if (index < 0) return
+    const [error] = saveErrors.splice(index, 1)
+    if (error.includes("DIVERGENCIA")) divergences = Math.max(0, divergences - 1)
+    errores = Math.max(0, errores - 1)
+  }
 
   // Parallelize turnos for faster scraping (each turno is independent)
   const TURNO_TIMES_UTC: Record<string, string> = {
@@ -322,6 +329,7 @@ export async function GET(req: NextRequest) {
         .select("numbers, source")
         .eq("date", fechaISO)
         .eq("turno", turno)
+        .in("jurisdiccion", jurisParaTurno(turno))
         .limit(1)
         .single()
       
@@ -340,7 +348,7 @@ export async function GET(req: NextRequest) {
       logger.info("cron-scrape: numbers changed, updating", { fecha: fechaISO, turno })
     }
 
-    const saveResult = await guardarDraw(fechaISO, turno, consensus.numbers, consensus.source)
+    const saveResult = await guardarDraw(fechaISO, turno, consensus.numbers, consensus.source, appOrigin)
     const status = !saveResult.ok ? "error" : drawExists ? "updated" : "saved"
     return { turno, status: status as "error" | "updated" | "saved",
              numbers: saveResult.ok ? consensus.numbers : undefined,
@@ -396,7 +404,7 @@ export async function GET(req: NextRequest) {
     logger.warn("cron-scrape: error limpiando sorteos viejos", { error: String(e) })
   }
 
-  const duration = Date.now() - start
+  let duration = Date.now() - start
 
   // ── Verification: runs immediately after draw save via verify_predictions_for_draw ──
   let totalVerified = 0
@@ -409,18 +417,6 @@ export async function GET(req: NextRequest) {
       logger.error("cron-scrape: engine performance update failed", { error: String(e) })
     }
   }
-
-  // Log cron execution
-  logCronExecution("cron-scrape", {
-    fecha: fechaISO,
-    guardados,
-    errores,
-    divergences,
-    eliminadas,
-    drawsDeleted,
-    totalVerified,
-    sourceStats
-  }, start)
 
   // ── Generate engine predictions for NEXT turnos INLINE ────────
   try {
@@ -489,6 +485,7 @@ export async function GET(req: NextRequest) {
         .select("id, numbers")
         .eq("date", fechaISO)
         .eq("turno", poceadaTurno)
+        .eq("jurisdiccion", "ciudad")
         .limit(1)
 
       if (existingPoceada && existingPoceada.length > 0) {
@@ -535,11 +532,8 @@ export async function GET(req: NextRequest) {
 
       // Trigger precompute for Poceada
       try {
-        const baseUrl = process.env.VERCEL_URL
-          ? `https://${process.env.VERCEL_URL}`
-          : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia-two.vercel.app"
         const cronKey = process.env.CRON_SECRET || ""
-        fetch(`${baseUrl}/api/cron-precompute?turno=Poceada`, {
+        fetch(`${appOrigin}/api/cron-precompute?turno=Poceada`, {
           headers: { Authorization: `Bearer ${cronKey}` },
         }).catch(() => {})
       } catch { /* non-fatal */ }
@@ -580,7 +574,7 @@ export async function GET(req: NextRequest) {
 
     if (guardados > 0) {
       try {
-        const analyticsUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"}/api/cron-analytics`
+        const analyticsUrl = `${appOrigin}/api/cron-analytics`
         const cronSecret = process.env.CRON_SECRET || ""
         fetch(analyticsUrl, {
           method: "POST",
@@ -627,11 +621,12 @@ export async function GET(req: NextRequest) {
       if (await tieneDraw(fechaISO, turno)) continue
 
       const nums = await fetchQuinielaDraw(fechaISO, turno)
-      if (nums && nums.length >= 20) {
-        const saveResult = await guardarDraw(fechaISO, turno, nums, SOURCE_LOTBA)
+      if (nums && nums.length === 20) {
+        const saveResult = await guardarDraw(fechaISO, turno, nums, SOURCE_LOTBA, appOrigin)
         if (saveResult.ok) {
           guardados++
           resultados[turno] = nums
+          clearTurnoError(turno)
           logger.info("[cron-scrape] auto-healed from official LOTBA", { fecha: fechaISO, turno })
         }
       }
@@ -640,7 +635,7 @@ export async function GET(req: NextRequest) {
     // Poceada: idem si la sección principal no pudo guardarla
     if (!singleTurno && !(resultados["Poceada"] && resultados["Poceada"].length >= 20) && !(await tieneDraw(fechaISO, "Poceada"))) {
       const nums = await fetchPoceadaDrawOficial(fechaISO)
-      if (nums && nums.length >= 20) {
+      if (nums && nums.length === 20) {
         const { error } = await getSupabaseAdmin().rpc("upsert_draw" as never, {
           p_date: fechaISO,
           p_turno: "Poceada",
@@ -652,6 +647,7 @@ export async function GET(req: NextRequest) {
         if (!error) {
           guardados++
           resultados["Poceada"] = nums
+          clearTurnoError("Poceada")
           logger.info("[cron-scrape] auto-healed poceada from official LOTBA", { fecha: fechaISO })
         }
       }
@@ -660,18 +656,70 @@ export async function GET(req: NextRequest) {
     logger.warn("[cron-scrape] official auto-healing skipped", { error: String(e) })
   }
 
-  // Refresh draw_stats manually (trigger removed; best-effort, non-blocking)
-  // OJO: supabase-js NO lanza excepción en errores de RPC — van en .error.
-  // Antes no se chequeaba y el refresh fallaba en silencio (la MV quedó
-  // semanalmente vencida por la RPC SECURITY INVOKER sin privilegios).
+  // Recover recent gaps as well as today's draw. This is idempotent and only
+  // contacts official sources for dates that are missing from the database.
+  if (!overrideDate) {
+    const turnosHistorico = singleTurno ? [singleTurno as TurnoType] : TURNOS
+    try {
+      const reportes = await Promise.all(
+        turnosHistorico.map((turno) => rellenarHistoricoDeTurno(turno, 4, appOrigin)),
+      )
+      for (const reporte of reportes) {
+        guardados += reporte.saved
+        errores += reporte.errores
+        if (reporte.errores > 0) {
+          saveErrors.push(`${reporte.turno}: ${reporte.errores} fallos al recuperar sorteos recientes`)
+          logger.warn("[cron-scrape] recent history catch-up incomplete", {
+            turno: reporte.turno,
+            saved: reporte.saved,
+            errors: reporte.errores,
+          })
+        } else if (reporte.saved > 0) {
+          logger.info("[cron-scrape] recent history catch-up completed", {
+            turno: reporte.turno,
+            saved: reporte.saved,
+          })
+        }
+      }
+      if (reportes.some((reporte) => reporte.saved > 0)) {
+        try {
+          await updateEnginePerformance()
+        } catch (e) {
+          logger.error("[cron-scrape] catch-up engine performance update failed", { error: String(e) })
+        }
+      }
+    } catch (e) {
+      errores++
+      saveErrors.push(`Catch-up histórico: ${String(e)}`)
+      logger.error("[cron-scrape] recent history catch-up failed", { error: String(e) })
+    }
+  }
+
+  // The API-schema wrapper refreshes only when stale and logs its own execution.
+  // supabase-js returns RPC failures in .error rather than throwing.
   try {
     const supabase = getSupabaseAdmin()
-    const { error: dsErr } = await supabase.rpc("refresh_draw_stats_rpc" as never)
+    const { error: dsErr } = await supabase.schema("api").rpc("refresh_draw_stats_rpc" as never)
     if (dsErr) throw new Error(dsErr.message)
     logger.info("[cron-scrape] draw_stats refreshed")
   } catch (e: unknown) {
     logger.warn("[cron-scrape] draw_stats refresh failed (non-blocking)", { error: String(e) })
   }
+
+  duration = Date.now() - start
+  logCronExecution("cron-scrape", {
+    ok: errores === 0 && divergences === 0,
+    fecha: fechaISO,
+    guardados,
+    errores,
+    divergences,
+    eliminadas,
+    drawsDeleted,
+    totalVerified,
+    sourceStats,
+    saveErrors,
+    duration,
+  }, start)
 
   return NextResponse.json({
     ok: errores === 0 && divergences === 0,

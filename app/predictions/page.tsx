@@ -42,7 +42,18 @@ import { useSound } from "@/lib/sound/audio-manager";
 import { triggerHaptic } from "@/lib/haptics";
 import { useSettings } from "@/components/ui/Settings";
 import { ConfettiEffect, GlowOrbs, NeonBackground } from "@/components/ui/Effects";
-import { validatePredData } from "@/lib/api/predictions";
+import {
+  ApiErrorResponseSchema,
+  AuthMeResponseSchema,
+  BacktestResponseSchema,
+  DrawResponseSchema,
+  JsonObjectSchema,
+  PaymentStatusResponseSchema,
+  type BacktestResponse,
+  validateMisPrediccionesResponse,
+  validatePredictionResponse,
+  type PredData,
+} from "@/lib/api/predictions";
 import { RealtimeResults, RealtimeBadge } from "@/components/RealtimeResults";
 import { RealtimeVerification } from "@/components/RealtimeVerification";
 import { getQuinielaEntry, getQuinielaIcon, getQuinielaName, getLast2CifrasEntry } from "@/lib/utils/quinielaDictionary";
@@ -97,8 +108,6 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
  
-type AnyRecord = Record<string, any>
-
 const CONTACT = "estudiowebpin@gmail.com";
 const WA = "https://api.whatsapp.com/send?phone=5493412500029";
 const APP_URL = "https://quiniela-ia-two.vercel.app";
@@ -111,33 +120,7 @@ const HORAS: Record<string, string> = {
   Nocturna: "21:00",
   Poceada: "21:00"
 };
-type LocalRankingItem = {
-  [key: string]: unknown;
-  numero: string;
-  score?: number;
-  prob?: number;
-};
-
-type PredData = {
-  [key: string]: unknown
-  numeros_2: string[];
-  numeros_3?: string[];
-  numeros_4?: string[];
-  redoblona?: string;
-  ranking?: LocalRankingItem[];
-  numeros?: NumeroItem[];
-  diasAnalisis?: number;
-  totalSorteos?: number;
-  sorteos_desde?: string | null;
-  sorteos_hasta?: string | null;
-  confidence?: number;
-  aiInsight?: string;
-  stats?: {
-    numeroMasFrecuente?: { numero: string; frecuencia: number; significado: string };
-    numeroMayorRetraso?: { numero: string; retraso: number; significado: string };
-  };
-  heatmap?: { n: number; f: number; s: unknown; pct: number }[];
-};
+type LocalRankingItem = NonNullable<PredData["ranking"]>[number];
 
 function PageInner() {
   const router = useRouter();
@@ -155,7 +138,7 @@ function PageInner() {
   const [dn, setDn] = useState(false);
   const [er, setEr] = useState("");
   const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [backtestData, setBacktestData] = useState<AnyRecord | null>(null);
+  const [backtestData, setBacktestData] = useState<BacktestResponse | null>(null);
   const [backtestLoading, setBacktestLoading] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [dt, setDt] = useState<PredData | null>(null);
@@ -173,7 +156,7 @@ function PageInner() {
     const controller = new AbortController();
     setNumHistoryLoading(true);
     fetch(`/api/number-history?number=${encodeURIComponent(numDetail.numero)}&turno=${encodeURIComponent(so)}`, { signal: controller.signal })
-      .then(r => (r.ok ? r.json() : null))
+      .then(async (r) => (r.ok ? JsonObjectSchema.parse(await r.json()) : null))
       .then(data => { setNumHistory(data); setNumHistoryLoading(false); })
       .catch((e) => { if (e?.name !== "AbortError") setNumHistoryLoading(false); });
     return () => controller.abort();
@@ -282,10 +265,12 @@ function PageInner() {
     (async () => {
       try {
         const r = await fetch(`/api/resultado?date=${fechaPred}&turno=${encodeURIComponent(currentTurno)}&t=${Date.now()}`);
-        const drawData = await r.json();
+        const drawData: unknown = await r.json();
+        if (!drawData || typeof drawData !== "object" || Array.isArray(drawData)) return;
+        const draw = drawData as { found?: unknown; numbers?: unknown };
         if (cancelled) return;
-        if (drawData?.found && drawData?.numbers?.length) {
-          const reales = drawData.numbers.map((n: string | number) => String(Number(n) % 100).padStart(2, "0"));
+        if (draw.found === true && Array.isArray(draw.numbers) && draw.numbers.length > 0) {
+            const reales = draw.numbers.map((n: string | number) => String(Number(n) % 100).padStart(2, "0"));
           const predichos = dt.numeros_2.slice(0, currentTurno === "Poceada" ? 8 : 10).map((n: any) => String(n.num ?? n.numero ?? n).padStart(2, "0"));
           const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }));
           setResultadoControl({ aciertos, predichos, reales, fecha: fechaPred, turno: currentTurno } as ResultadoControl);
@@ -353,7 +338,7 @@ function PageInner() {
     }
 
     fetch("/api/auth/me", { headers: { Authorization: "Bearer " + auth.access_token } })
-      .then((r) => (r.ok ? r.json() : null))
+      .then(async (r) => (r.ok ? AuthMeResponseSchema.parse(await r.json()) : null))
       .then((d) => {
         // Premium real (pago/admin). Trial free NO desbloquea 3/4/redoblona.
         if (d?.canAccessPremiumFeatures || d?.role === "premium" || d?.role === "admin") setPr(true);
@@ -363,7 +348,7 @@ function PageInner() {
         if (apiIsAdmin) { isAdminRef.current = true; setUserRole("admin"); setPr(true); }
         else if (d?.role) { setUserRole(d.role as "free" | "premium" | "admin"); }
         if (d?.userId) setUserId(d.userId);
-        if (d?.premium_until) setPremExpiry({ premium_until: d.premium_until, daysRemaining: d.daysRemaining });
+        if (d?.premium_until) setPremExpiry({ premium_until: d.premium_until, daysRemaining: d.daysRemaining ?? null });
       })
       .catch(() => {});
     // Handle payment success/failure from Ualá redirect
@@ -378,10 +363,10 @@ function PageInner() {
         attempts++;
         try {
           const r = await fetch("/api/payment-status", { headers: { Authorization: "Bearer " + auth.access_token } });
-          const d = await r.json();
+          const d = PaymentStatusResponseSchema.parse(await r.json());
           if (d.isPremium || d.canAccessPremiumFeatures) {
             setPr(true);
-            if (d.premium_until) setPremExpiry({ premium_until: d.premium_until, daysRemaining: d.daysRemaining });
+            if (d.premium_until) setPremExpiry({ premium_until: d.premium_until, daysRemaining: d.daysRemaining ?? null });
             clearInterval(pollPremiumRef.current!);
             toast("Premium activado. ¡Bienvenido!");
           } else if (attempts >= 6) {
@@ -427,7 +412,7 @@ function PageInner() {
 
       try {
         const r = await fetch(`/api/resultado?date=${hoy}&turno=${turnoToCheck}&t=${Date.now()}`)
-        const d = await r.json()
+        const d = DrawResponseSchema.parse(await r.json())
         if (d?.found && d?.numbers?.length) {
           const latestKey = `${hoy}-${turnoToCheck.toLowerCase()}`
           setLastDrawDate(prev => {
@@ -515,10 +500,13 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
       const url = "/api/predictions?sorteo=" + encodeURIComponent(currentTurno) + "&date=" + predDate + "&t=" + Date.now();
       const r = await fetch(url, {
-        headers: { Authorization: "Bearer " + tkRef.current },
+        headers: {
+          ...(tkRef.current ? { Authorization: "Bearer " + tkRef.current } : {}),
+          ...(guestMode ? { "X-Guest-Mode": "true" } : {}),
+        },
       });
       if (!r.ok) {
-        const errData = await r.json().catch(() => ({}));
+        const errData = ApiErrorResponseSchema.parse(await r.json().catch(() => ({})));
         const msg = errData?.error || ("Error del servidor: " + r.status);
         if (r.status === 403) {
           throw new Error(errData?.trialExpired
@@ -529,38 +517,12 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         }
         throw new Error(msg);
       }
-      const d = await r.json();
-      if (!d) {
-        throw new Error("No hay datos");
-      }
-      if (d.error) {
-        throw new Error(d.error);
-      }
-
-      // Normalize the payload into a single shape before validation
-      const predData = {
-        ...(d.pred || d),
-        heatmap: d.heatmap,
-        ranking: d.numeros,
-        numeros: d.numeros,
-        redoblona: d.redoblona ?? d.pred?.redoblona,
-        confidence: d.confidence,
-        aiInsight: d.aiInsight,
-        monte_carlo: d.monte_carlo ?? d.pred?.monte_carlo,
-      };
-
       // Strict runtime validation + type safety (protects against malformed API/DB responses)
-      let validatedPredData: PredData | null = null;
+      let validatedPredData: PredData;
       try {
-         
-        validatedPredData = validatePredData(predData) as any;
-      } catch (parseError) {
-        // Non-fatal fallback: keep the raw payload if it has the minimum required fields
-        if (Array.isArray(predData?.numeros_2)) {
-          validatedPredData = predData;
-        } else {
-          throw new Error("Datos recibidos del servidor no válidos");
-        }
+        validatedPredData = validatePredictionResponse(await r.json());
+      } catch {
+        throw new Error("Datos recibidos del servidor no válidos");
       }
 
       // Guard against null / undefined / empty arrays before rendering
@@ -674,8 +636,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     if (token) {
       try {
         const r = await fetch("/api/mis-predicciones", { headers: { Authorization: "Bearer " + token } });
-        const d = await r.json();
-        if (d.predictions?.length) apiPreds = d.predictions;
+        const d = validateMisPrediccionesResponse(await r.json());
+        if (d.predictions.length) apiPreds = d.predictions;
       } catch {}
     }
 
@@ -734,7 +696,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         if (!fechaVal || !turnoVal) return p
         try {
           const r = await fetch(`/api/resultado?date=${fechaVal}&turno=${encodeURIComponent(turnoVal)}`)
-          const draw = await r.json()
+          const draw = DrawResponseSchema.parse(await r.json())
           if (draw?.found && draw?.numbers?.length) {
             const reales = draw.numbers.map((n: string | number) => String(Number(n) % 100).padStart(2, "0"))
             const pred2 = Array.isArray(p.numeros) ? p.numeros : (p.numeros?.["2"] || [])
@@ -775,7 +737,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     try {
       const fechaPrediccion = fechaSorteo(so); // Usa la fecha real de la predicción, no hoy
       const r2 = await fetch(`/api/resultado?date=${fechaPrediccion}&turno=${encodeURIComponent(so)}`);
-      const drawData = await r2.json();
+      const drawData = DrawResponseSchema.parse(await r2.json());
       if (!drawData?.found || !drawData?.numbers?.length) {
         setResultadoControl({
           error: `Aún no hay resultado oficial para ${so} del ${fechaPrediccion}. Se cargan automáticamente hasta 30 min después del sorteo.`,
@@ -850,7 +812,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
           body: JSON.stringify({ date: fechaSorteoStr, turno: so, numeros: numerosGuardar }),
         });
-        const data = await res.json();
+        const data = ApiErrorResponseSchema.parse(await res.json());
         if (res.status === 409) {
           setGuardando(false);
           toast(data?.error || "Ya guardaste un análisis para este turno", "info");
@@ -949,7 +911,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
   const nums3 = useMemo(() => (dt?.numeros_3 ?? []).filter((n): n is string => typeof n === "string"), [dt?.numeros_3]);
   const nums4 = useMemo(() => (dt?.numeros_4 ?? []).filter((n): n is string => typeof n === "string"), [dt?.numeros_4]);
   const rdbl = useMemo(() => (dt?.redoblona ?? ""), [dt?.redoblona]);
-  const rankingData = useMemo<LocalRankingItem[]>(() => (dt?.ranking ?? []) as LocalRankingItem[], [dt?.ranking]);
+  const rankingData = useMemo<LocalRankingItem[]>(() => dt?.ranking ?? [], [dt?.ranking]);
   const anchorsRD = useMemo(
     () => (rankingData ?? []).slice(0, 4).map((r) => String(r.numero).padStart(2, "0")) as [string, string, string, string],
     [rankingData],
@@ -1959,7 +1921,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     <div className="trend-metric">
                       <div className="trend-metric-title">Indicador de Tendencia Global</div>
                       <div className="trend-metric-value">
-                        {dt?.numeros?.[0]?.tendencia > 0 ? "📈 Alcista" : "📉 Bajista"}
+                        {(dt?.numeros?.[0]?.tendencia ?? 0) > 0 ? "📈 Alcista" : "📉 Bajista"}
                       </div>
                       <div className="trend-metric-desc">
                         Basado en la diferencia entre frecuencia reciente vs histórica
@@ -2250,7 +2212,10 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               )}
           {tab === "acc" && (
             <div style={{marginTop:12}}>
-              <div className="sec">Precisión del Motor Predictivo</div>
+              <div className="sec">Validación del baseline histórico</div>
+              <div style={{fontSize:11,color:"var(--dim)",marginBottom:12,lineHeight:1.5}}>
+                Esta prueba usa frecuencia de los {backtestData?.train_window || 60} sorteos anteriores; no ejecuta el motor Omega ni demuestra una ventaja sobre el azar.
+              </div>
               {!backtestData && !backtestLoading && (
                 <button onClick={async () => {
                   setBacktestLoading(true)
@@ -2258,7 +2223,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     const r = await fetch(`/api/backtest?turno=${so}&days=90`, {
                       headers: { Authorization: "Bearer " + (tkRef.current || getAccessToken() || "") },
                     })
-                    const d = await r.json().catch(() => null)
+                    const d = BacktestResponseSchema.parse(await r.json().catch(() => ({})))
                     if (!r.ok || !d || !d.metrics_top_10) {
                       toast(d?.error === "Forbidden" ? "Esta función es para usuarios Premium" : (d?.error || "No se pudieron calcular las métricas. Intentá de nuevo."), "error")
                     } else {
@@ -2269,20 +2234,20 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   }
                   setBacktestLoading(false)
                 }} style={{width:"100%",padding:14,borderRadius:12,border:"1.5px solid rgba(99,102,241,.4)",background:"rgba(99,102,241,.08)",color:"#818cf8",fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:14}}>
-                  📊 Calcular métricas de precisión
+                  📊 Evaluar baseline por frecuencia
                 </button>
               )}
               {backtestLoading && (
                 <div style={{textAlign:"center",padding:30,color:"var(--dim)",fontSize:12}}>
                   <div style={{fontSize:24,marginBottom:8}}>⏳</div>
-                  Ejecutando walk-forward backtesting...
+                  Ejecutando evaluación walk-forward...
                 </div>
               )}
               {backtestData && (
                 <>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:14}}>
                     {[
-                      { label: "Hit@1", value: backtestData.metrics_top_1?.hitAt1 || 0, color: "#a855f7", desc: "Acierto exacto" },
+                      { label: "Hit@1", value: backtestData.metrics_top_1?.hitAt1 || 0, color: "#a855f7", desc: "El #1 aparece en el extracto" },
                       { label: "Hit@5", value: backtestData.metrics_top_5?.hitAt5 || 0, color: "#6366f1", desc: "Al menos 1 en top 5" },
                       { label: "Hit@10", value: backtestData.metrics_top_10?.hitAt10 || 0, color: "#ec4899", desc: "Al menos 1 en top 10" },
                     ].map((m, i) => (
@@ -2312,7 +2277,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     </div>
                   </div>
                   <div style={{fontSize:9,color:"var(--dim)",textAlign:"center",lineHeight:1.5}}>
-                     Walk-forward parcial (jun–dic 2025) con {backtestData.metrics_top_10?.totalDraws || 0} sorteos de {backtestData.total_draws} totales · Motor de 20 factores · Top 10 análisis
+                    Walk-forward del baseline: {backtestData.metrics_top_10?.totalDraws || 0} sorteos evaluados de {backtestData.total_draws} cargados · Top 10 por frecuencia histórica
                   </div>
                   <button onClick={() => setBacktestData(null)} style={{width:"100%",padding:10,borderRadius:10,border:"1px solid rgba(255,255,255,.08)",background:"transparent",color:"var(--dim)",fontSize:10,cursor:"pointer",marginTop:10}}>
                     Recalcular

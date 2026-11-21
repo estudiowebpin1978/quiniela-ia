@@ -8,7 +8,7 @@
 
 | Modalidad / endpoint | Sync antes de responder | Archivo |
 |---|---|---|
-| Quiniela (todas las turnos) + Poceada Ciudad | `refrescarTurnoOnDemand(turno, date)` + `rellenarHistoricoDeTurno` (fire-and-forget), **await antes de cualquier cache** | `app/api/predictions/route.ts` |
+| Quiniela (todos los turnos) + Poceada Ciudad | `refrescarTurnoOnDemand(turno, date)` y recuperación **await** de huecos recientes (4 días), antes de cualquier caché y también para invitados | `app/api/predictions/route.ts` |
 | Poceada Federal (generación) | `sincronizar({ repo: repoSinc })` (IAFAS + extracto/corroboración SF) | `app/api/poceada-federal/combinaciones/route.ts` POST |
 | Poceada Federal (lecturas) | idem best-effort (nunca 5xx por sync) | `app/api/poceada-federal/combinaciones/route.ts` GET |
 | Brinco (generación) | `actualizarIncrementalBrinco()` (CAS o extracto oficial :8443) | `app/api/brinco/prediccion/route.ts` |
@@ -24,14 +24,14 @@
 3. **Idempotencia**: `upsert_draw` sólo si falta o difiere; nunca se pisa un sorteo con datos peores ("nunca vacío sobre datos").
 4. **Reloj oficial**: el sorteo se guarda recién tras `hora oficial + 2 min buffer` (ART) para no fabricar "resultado" antes de tiempo; los soroctetos aparecen cuando el extracto oficial los publica.
 5. **Jurisdicción dura**: `Poceada → 'ciudad'`, `Previa..Nocturna → 'CABA'` — en TODOS los caminos de guardado (stats, cron, webhooks). Violación conocida corregida 2026-11 (cron-run, refrescar-on-demand, cron-scrape hardening).
-6. **Sync barato cuando no hay novedad**: un GET por sorteo/día faltante; ante varios usuarios simultáneos no multiplica llamadas a las fuentes (sin escrituras redundantes).
+6. **Sync barato cuando no hay novedad**: se consulta Supabase primero y sólo se llama a la fuente oficial para un sorteo/día faltante; las escrituras son idempotentes.
 
 ## Cómo verificar la regla en producción
 
 1. Pedir una predicción: `GET /api/predictions?sorteo=Nocturna&t=<cachebuster>` → verificar en la UI "sorteos oficiales analizados (de → hasta)".
 2. `/brinco`: mostrar "datos hasta" igual a la última fecha de sorteo importada.
 3. `/poceada-federal`: "Generar nuevo análisis" → la respuesta incluye `sincronizacion: { ok, datosNuevos, importados… }`.
-4. Logs Vercel: `vercel logs --query "actualizar"` → `[refresh-on-demand] draw saved` o `[brinco-actualizar] extracto oficial`.
+4. Logs del Worker y `cron_logs` en Supabase → `[refresh-on-demand] draw saved` o `[brinco-actualizar] extracto oficial`.
 
 ## Qué NO cubre (y por qué)
 

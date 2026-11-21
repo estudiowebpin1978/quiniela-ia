@@ -12,6 +12,7 @@ export const RankingItemSchema = z.object({
   bayesianConfidence: z.number().optional(),
   bayesianPosterior: z.number().optional(),
   confidenceCalibrated: z.number().optional(), // audit: calibración obligatoria antes de exponer probabilidad
+  tendencia: z.number().optional(),
 });
 
 export const PredDataSchema = z.object({
@@ -62,7 +63,9 @@ export const PredDataSchema = z.object({
     numeros_3: z.array(z.string()).optional(),
     numeros_4: z.array(z.string()).optional(),
     redoblona: z.string().nullable().optional(),
+    monte_carlo: z.unknown().optional(),
   }).optional(),
+  monte_carlo: z.unknown().optional(),
   debug: z.record(z.string(), z.unknown()).optional(),
 }).passthrough();
 
@@ -70,7 +73,29 @@ export type RankingItem = z.infer<typeof RankingItemSchema>;
 export type PredData = z.infer<typeof PredDataSchema>;
 
 export function validatePredData(data: unknown): PredData {
-  return PredDataSchema.parse(data) as PredData;
+  return PredDataSchema.parse(data);
+}
+
+export function validatePredictionResponse(data: unknown): PredData {
+  const envelope = JsonObjectSchema.parse(data);
+  const nested = JsonObjectSchema.safeParse(envelope.pred);
+  const prediction = nested.success ? nested.data : envelope;
+  const debug = JsonObjectSchema.safeParse(envelope.debug ?? prediction.debug);
+  const sorteosAnalizados = debug.success ? debug.data.sorteos_analizados : undefined;
+
+  return PredDataSchema.parse({
+    ...prediction,
+    heatmap: envelope.heatmap ?? prediction.heatmap,
+    ranking: envelope.numeros ?? prediction.numeros ?? prediction.ranking,
+    numeros: envelope.numeros ?? prediction.numeros,
+    redoblona: envelope.redoblona ?? prediction.redoblona,
+    confidence: envelope.confidence ?? prediction.confidence,
+    aiInsight: envelope.aiInsight ?? prediction.aiInsight,
+    monte_carlo: envelope.monte_carlo ?? prediction.monte_carlo,
+    debug: envelope.debug ?? prediction.debug,
+    totalSorteos: envelope.totalSorteos ?? prediction.totalSorteos ??
+      (typeof sorteosAnalizados === "number" ? sorteosAnalizados : undefined),
+  });
 }
 
 /**
@@ -220,6 +245,55 @@ export const MisPrediccionesResponseSchema = z.object({
   predictions: z.array(MisPrediccionSchema),
   count: z.number().optional(),
 });
+
+export const AuthMeResponseSchema = z.object({
+  canAccessPremiumFeatures: z.boolean().optional(),
+  role: z.string().optional(),
+  email: z.string().optional(),
+  userId: z.string().optional(),
+  premium_until: z.string().nullable().optional(),
+  daysRemaining: z.number().nullable().optional(),
+}).passthrough();
+
+export const PaymentStatusResponseSchema = z.object({
+  isPremium: z.boolean().optional(),
+  canAccessPremiumFeatures: z.boolean().optional(),
+  premium_until: z.string().nullable().optional(),
+  daysRemaining: z.number().nullable().optional(),
+}).passthrough();
+
+export const DrawResponseSchema = z.object({
+  found: z.boolean().optional(),
+  numbers: z.array(z.union([z.string(), z.number()])).optional(),
+}).passthrough();
+
+export const JsonObjectSchema = z.record(z.string(), z.unknown());
+
+export const ApiErrorResponseSchema = z.object({
+  error: z.string().optional(),
+  trialExpired: z.boolean().optional(),
+  upgradeRequired: z.boolean().optional(),
+}).passthrough();
+
+export const BacktestResponseSchema = z.object({
+  total_draws: z.number().optional(),
+  validated_draws: z.number().optional(),
+  train_window: z.number().optional(),
+  method: z.string().optional(),
+  metrics_top_1: z.object({ hitAt1: z.number(), totalDraws: z.number() }).optional(),
+  metrics_top_5: z.object({ hitAt5: z.number(), totalDraws: z.number() }).optional(),
+  metrics_top_10: z.object({
+    hitAt10: z.number(),
+    totalDraws: z.number(),
+    avgHitsPerDraw: z.number(),
+    maxHits: z.number(),
+    precision: z.number(),
+    recall: z.number(),
+  }).optional(),
+  error: z.string().optional(),
+}).passthrough();
+
+export type BacktestResponse = z.infer<typeof BacktestResponseSchema>;
 
 export function validateMisPrediccionesResponse(data: unknown): { predictions: MisPrediccion[] } {
   return MisPrediccionesResponseSchema.parse(data);

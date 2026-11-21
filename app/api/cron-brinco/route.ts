@@ -31,12 +31,14 @@ export async function GET(req: NextRequest) {
     const verificacion = await verificarPendientesBrinco()
 
     const result = {
-      ok: estado.errores === 0,
-      importados: informe.importados,
+      ok: estado.errores === 0 && estado.conflictos === 0,
+      importados: estado.importadosNuevos,
       omitidos: informe.omitidos_duplicados,
-      conflictos: informe.conflictos,
-      errores: informe.errores,
-      sinResultado: informe.sin_resultado,
+      conflictos: estado.conflictos,
+      errores: estado.errores,
+      sinResultado: estado.sinResultado,
+      fuenteDisponible: estado.fuenteDisponible,
+      extractoImportados: estado.extractoImportados ?? 0,
       sorteosTotales: estado.sorteosTotales,
       datosHasta: estado.datosHasta,
       prediccionesVerificadas: verificacion.verificadas,

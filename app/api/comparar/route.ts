@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
+import { z } from "zod"
 import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth"
-import type { PredictionRow, ComparisonResult, DrawRow } from "@/lib/api/types"
+import type { ComparisonResult } from "@/lib/api/types"
+
+const PredictionRowsSchema = z.array(z.object({
+  id: z.string(),
+  user_id: z.string(),
+  date: z.string(),
+  turno: z.string(),
+  numeros: z.unknown(),
+  created_at: z.string(),
+}))
+
+const DrawRowsSchema = z.array(z.object({
+  numbers: z.array(z.number()),
+}))
 
 function getSK(): string {
   return (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
@@ -14,19 +28,29 @@ function normalizeTurno(t: string): string {
   return t.replace(/-\d+cifras?$/i, "").toLowerCase().trim()
 }
 
-function parseNumeros(predNumeros: PredictionRow["numeros"]): { n2: string[]; n3: string[]; n4: string[] } {
-  let data: number[] | Record<string, string[]> | string = predNumeros
+function parseNumeros(predNumeros: unknown): { n2: string[]; n3: string[]; n4: string[] } {
+  let data = predNumeros
   if (Array.isArray(data) && data.length === 1 && typeof data[0] === "string") {
-    try { data = JSON.parse(data[0] as string) as Record<string, string[]> } catch {}
+    try { data = JSON.parse(data[0]) } catch { return { n2: [], n3: [], n4: [] } }
   }
   if (Array.isArray(data)) {
-    return { n2: data.map((n: number | string) => String(n).padStart(2, "0")), n3: [], n4: [] }
+    return {
+      n2: data.filter((n): n is number | string => typeof n === "number" || typeof n === "string")
+        .map((n) => String(n).padStart(2, "0")),
+      n3: [],
+      n4: [],
+    }
   }
-  const obj = data as Record<string, string[]>
+  if (!data || typeof data !== "object") return { n2: [], n3: [], n4: [] }
+  const obj = data as Record<string, unknown>
+  const digits = (value: unknown, length: number) => Array.isArray(value)
+    ? value.filter((n): n is number | string => typeof n === "number" || typeof n === "string")
+      .map((n) => String(n).padStart(length, "0"))
+    : []
   return {
-    n2: (obj["2"] || []).map((n: string) => String(n).padStart(2, "0")),
-    n3: (obj["3"] || []).map((n: string) => String(n).padStart(3, "0")),
-    n4: (obj["4"] || []).map((n: string) => String(n).padStart(4, "0")),
+    n2: digits(obj["2"], 2),
+    n3: digits(obj["3"], 3),
+    n4: digits(obj["4"], 4),
   }
 }
 
@@ -55,14 +79,15 @@ export async function GET(req: NextRequest) {
     const predRes = await fetch(url, {
       headers: { "apikey": SK, "Authorization": `Bearer ${SK}` }
     })
-    const predictions = await predRes.json()
+    if (!predRes.ok) throw new Error(`Supabase user_predictions devolvió HTTP ${predRes.status}`)
+    const predictions = PredictionRowsSchema.parse(await predRes.json())
     
     if (!predictions?.length) {
       return NextResponse.json({ message: "No hay análisis para comparar", results: [] })
     }
 
-    const fechas = [...new Set(predictions.map((p: PredictionRow) => p.date))] as string[]
-    const turnos = [...new Set(predictions.map((p: PredictionRow) => normalizeTurno(p.turno || "")))] as string[]
+    const fechas = [...new Set(predictions.map((p) => p.date))]
+    const turnos = [...new Set(predictions.map((p) => normalizeTurno(p.turno || "")))]
     
     const drawsMap: Record<string, number[]> = {}
     for (const f of fechas) {
@@ -72,7 +97,8 @@ export async function GET(req: NextRequest) {
           `${SB}/rest/v1/draws?date=eq.${f}&turno=eq.${normalizedTurno}&select=numbers&limit=1`,
           { headers: { "apikey": SK, "Authorization": `Bearer ${SK}` } }
         )
-        const draws = await drawRes.json()
+        if (!drawRes.ok) throw new Error(`Supabase draws devolvió HTTP ${drawRes.status}`)
+        const draws = DrawRowsSchema.parse(await drawRes.json())
         if (draws?.[0]?.numbers) {
           drawsMap[`${f}-${t}`] = draws[0].numbers
         }

@@ -46,6 +46,10 @@ const emptyTier = (overrides: Partial<UserTier> = {}): UserTier => ({
   ...overrides,
 })
 
+export function getGuestTier(): UserTier {
+  return emptyTier({ canAccess2Cifras: true })
+}
+
 export function trialUntilISO(from = Date.now()): string {
   return new Date(from + FREE_TRIAL_DAYS * 86400000).toISOString()
 }

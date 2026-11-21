@@ -7,7 +7,11 @@
  * string "cc-aa" y la tarjeta hacía .join (esperaba tupla).
  */
 import { describe, it, expect } from "vitest"
-import { mapApiPredictionCard } from "@/lib/api/predictions"
+import {
+  mapApiPredictionCard,
+  validatePredData,
+  validatePredictionResponse,
+} from "@/lib/api/predictions"
 
 describe("mapApiPredictionCard", () => {
   // Fixture del path cache (GET/POST cache-first): confidence 0-1,
@@ -118,5 +122,35 @@ describe("mapApiPredictionCard", () => {
       expect(out.factores).toBeUndefined()
       expect(out.turno).toBe("Nocturna")
     }
+  })
+})
+
+describe("validatePredData", () => {
+  it("accepts a valid prediction response", () => {
+    expect(validatePredData({ numeros_2: ["07", "42"] }).numeros_2).toEqual(["07", "42"])
+  })
+
+  it("rejects malformed or incomplete prediction responses", () => {
+    expect(() => validatePredData(null)).toThrow()
+    expect(() => validatePredData({ numeros_2: "07" })).toThrow()
+    expect(() => validatePredData({ numeros: [] })).toThrow()
+  })
+
+  it("normalizes and validates a nested live prediction response", () => {
+    const result = validatePredictionResponse({
+      pred: { numeros_2: ["07", "42"], redoblona: "07-42" },
+      numeros: [{ numero: "07", score: 0.8, prob: 0.1 }],
+      confidence: 0.6,
+      debug: { sorteos_analizados: 125 },
+    })
+
+    expect(result.numeros_2).toEqual(["07", "42"])
+    expect(result.redoblona).toBe("07-42")
+    expect(result.numeros?.[0]?.numero).toBe("07")
+    expect(result.totalSorteos).toBe(125)
+  })
+
+  it("rejects nested responses with invalid prediction numbers", () => {
+    expect(() => validatePredictionResponse({ pred: { numeros_2: "07" } })).toThrow()
   })
 })

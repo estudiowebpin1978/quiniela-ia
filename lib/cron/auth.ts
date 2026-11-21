@@ -108,8 +108,9 @@ export function logCronExecution(
     r.error != null ||
     r.ok === false ||
     r.success === false ||
-    (typeof r.totalErrors === "number" && r.totalErrors > 0) ||
-    (typeof r.errors === "number" && r.errors > 0)
+    ["totalErrors", "errors", "errores", "divergences", "conflicts", "conflictos", "failed"].some(
+      (key) => typeof r[key] === "number" && (r[key] as number) > 0,
+    )
 
   logger.info(`[CRON] ${endpoint} completed`, {
     elapsed,
@@ -124,7 +125,9 @@ export function logCronExecution(
         cron_name: endpoint,
         status: hasError ? "error" : "success",
         duration_ms: elapsed,
-        error_message: hasError ? String((result as Record<string, unknown>).error) : null,
+        error_message: hasError
+          ? String(r.error ?? r.detail ?? r.detalle ?? "El trabajo terminó con errores o resultados incompletos")
+          : null,
         metadata: result,
       })
     })
