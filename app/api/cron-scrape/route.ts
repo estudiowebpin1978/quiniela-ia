@@ -118,89 +118,6 @@ async function guardarDraw(fechaISO: string, turno: string, nums: number[], sour
   }
 }
 
-const MAX_DRAWS = 2000
-const MIN_DRAWS = 1500
-
-async function limpiarSorteosViejos(): Promise<number> {
-  try {
-    const supabase = getSupabaseAdmin()
-
-    const { count: totalDraws } = await supabase
-      .from("draws")
-      .select("*", { count: "exact", head: true })
-
-    if (!totalDraws || totalDraws <= MAX_DRAWS) return 0
-
-    const toDelete = totalDraws - MIN_DRAWS
-    if (toDelete <= 0) return 0
-
-    const { data: oldest } = await supabase
-      .from("draws")
-      .select("date")
-      .order("date", { ascending: true })
-      .limit(toDelete)
-
-    if (!Array.isArray(oldest) || oldest.length === 0) return 0
-
-    // Delete by date cutoff (a .in("id", [...1000]) exceeds PostgREST limits → "Bad Request")
-    const cutoffDate = oldest[oldest.length - 1].date
-
-    const { error } = await supabase
-      .from("draws")
-      .delete()
-      .lte("date", cutoffDate)
-
-    if (error) {
-      logger.error("cron-scrape: error deleting old draws", { error: error.message, count: oldest.length })
-      return 0
-    }
-
-    logger.info("cron-scrape: old draws deleted", { count: oldest.length, remainingTotal: totalDraws - oldest.length })
-    return oldest.length
-  } catch (e) {
-    logger.warn("cron-scrape: error in limpiarSorteosViejos", { error: String(e) })
-    return 0
-  }
-}
-
-async function limpiarPrediccionesViejas(): Promise<number> {
-  try {
-    const supabase = getSupabaseAdmin()
-    // Use Buenos Aires time for cutoff (24h ago)
-    const now = new Date()
-    const bueNow = new Date(now.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }))
-    const hace24h = new Date(bueNow.getTime() - 24 * 60 * 60 * 1000)
-    const cutoffISO = hace24h.toISOString()
-    const todayBUE = now.toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
-    
-    const { data: old, error: fetchError } = await supabase
-      .from("user_predictions")
-      .select("id, date")
-      .lt("created_at", cutoffISO)
-      .lt("date", todayBUE)
-      .limit(200)
-    
-    if (fetchError || !Array.isArray(old) || old.length === 0) return 0
-    const ids = old.map((p: { id: string }) => p.id)
-
-    const { data: verified } = await supabase
-      .from("prediction_history")
-      .select("prediction_id")
-      .in("prediction_id", ids)
-    
-    const verifiedIds = new Set((verified || []).map((v: { prediction_id: string }) => v.prediction_id))
-    const deletableIds = ids.filter((id: string) => !verifiedIds.has(id))
-    if (deletableIds.length === 0) return 0
-
-    const { error: deleteError } = await supabase
-      .from("user_predictions")
-      .delete()
-      .in("id", deletableIds)
-    
-    return deleteError ? 0 : deletableIds.length
-  } catch { return 0 }
-}
-
 export async function GET(req: NextRequest) {
   const start = Date.now()
   
@@ -382,27 +299,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Limpiar predicciones de usuarios mayores a 24hs
-  let eliminadas = 0
-  try {
-    eliminadas = await limpiarPrediccionesViejas()
-    if (eliminadas > 0) {
-      logger.info("cron-scrape: predicciones limpiadas", { cantidad: eliminadas })
-    }
-  } catch (e) {
-    logger.warn("cron-scrape: error limpiando predicciones", { error: String(e) })
-  }
-
-  // Limpiar sorteos antiguos si DB excede MAX_DRAWS
-  let drawsDeleted = 0
-  try {
-    drawsDeleted = await limpiarSorteosViejos()
-    if (drawsDeleted > 0) {
-      logger.info("cron-scrape: sorteos antiguos eliminados", { cantidad: drawsDeleted })
-    }
-  } catch (e) {
-    logger.warn("cron-scrape: error limpiando sorteos viejos", { error: String(e) })
-  }
+  // Keep the response fields for older monitors; official draws and user
+  // predictions remain available for historical analysis and delayed verification.
+  const eliminadas = 0
+  const drawsDeleted = 0
 
   let duration = Date.now() - start
 
