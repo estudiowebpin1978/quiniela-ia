@@ -21,7 +21,8 @@ export default function EliminarCuenta() {
       <p>Por obligaciones legales y contables, los registros de transacciones se conservan por un periodo de 5 anos segun la legislacion argentina.</p>
       <h2 style={{marginTop:32}}>Contacto</h2>
       <p>Email: <a href="mailto:estudiowebpin@gmail.com" style={{color:"#c9a84c"}}>estudiowebpin@gmail.com</a></p>
-      <p>Web: <a href="https://quiniela-ia-two.vercel.app" style={{color:"#c9a84c"}}>quiniela-ia-two.vercel.app</a></p>
+      <p>Web: <a href="https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev" style={{color:"#c9a84c"}}>quiniela-ia-two.vercel.app</a></p>
     </div>
   )
 }
+

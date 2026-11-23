@@ -148,7 +148,7 @@ export async function refrescarTurnoOnDemand(turno: string, fechaISO: string, ap
     try {
       const baseUrl = appOrigin || (process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
-        : process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia-two.vercel.app")
+        : process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev")
       const cronKey = process.env.CRON_SECRET || ""
       if (!cronKey) {
         logger.warn("[refresh-on-demand] precompute skipped: CRON_SECRET is not configured", { turno })
@@ -196,3 +196,4 @@ export async function rellenarTodoHistorico(windowDays = VENTANA_HIST_DIAS): Pro
   for (const turno of todos) out.push(await rellenarHistoricoDeTurno(turno, windowDays))
   return out
 }
+

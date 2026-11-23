@@ -99,7 +99,7 @@ await supabase.from("draws").select().eq("turno", turno);
 // SameSite cookies
 // Origin validation en webhooks
 const origin = req.headers.get("origin");
-if (origin !== "https://quiniela-ia-two.vercel.app") {
+if (origin !== "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev") {
   return new Response("Unauthorized", { status: 401 });
 }
 ```
@@ -116,3 +116,4 @@ if (signature !== expected) {
   return new Response("Invalid signature", { status: 401 });
 }
 ```
+

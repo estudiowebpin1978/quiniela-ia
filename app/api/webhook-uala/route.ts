@@ -18,7 +18,7 @@
  * para activación manual desde /api/admin.
  *
  * URL a registrar en Ualá Bis (se envía via notification_url al crear la orden):
- *   https://quiniela-ia-two.vercel.app/api/webhook-uala
+ *   https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/api/webhook-uala
  */
 
 import { NextRequest, NextResponse } from "next/server"
@@ -461,3 +461,4 @@ export async function POST(req: NextRequest) {
   )
   return NextResponse.json({ ok: true })
 }
+

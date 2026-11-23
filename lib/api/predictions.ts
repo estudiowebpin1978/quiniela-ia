@@ -3,7 +3,7 @@ import { z } from "zod";
 export const RankingItemSchema = z.object({
   numero: z.string(),
   score: z.number(),
-  prob: z.number(),
+  prob: z.number().optional(),
   emoji: z.string().optional(),
   significado: z.string().optional(),
   rank: z.number().optional(),

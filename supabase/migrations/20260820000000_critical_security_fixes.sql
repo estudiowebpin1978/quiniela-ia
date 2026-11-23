@@ -382,7 +382,7 @@ BEGIN
   END IF;
 
   req_id := net.http_get(
-    url := 'https://quiniela-ia-two.vercel.app/api/cron-scrape?turno=' || LOWER(turno) || '&secret=' || secret,
+    url := 'https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/api/cron-scrape?turno=' || LOWER(turno) || '&secret=' || secret,
     timeout_milliseconds := 60000
   );
   RAISE NOTICE 'Scrape %: request_id=%', turno, req_id;

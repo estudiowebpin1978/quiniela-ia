@@ -1,6 +1,6 @@
 # AUDIT_PROGRESS — Quiniela IA (final 2026-11-12)
 
-**Alias prod:** https://quiniela-ia-two.vercel.app · **Commit deployado:** `7a1cca2` · **Build:** ✓ · **Tests:** 392 PASS · **tsc:** 0 errores
+**Alias prod:** https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev · **Commit deployado:** `7a1cca2` · **Build:** ✓ · **Tests:** 392 PASS · **tsc:** 0 errores
 
 ## Estado verificado en producción
 
@@ -48,3 +48,4 @@ Cada `/api/predictions?sorteo=<turno>&date=<fecha>` primero:
 - `npm run build` → ✓ Compiled successfully in 2.3s ✅
 - `vitest run` → **392 passed** ✅
 - Alias producción: 9/9 rutas 200 ✅
+

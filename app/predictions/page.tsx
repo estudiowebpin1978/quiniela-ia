@@ -110,7 +110,7 @@ interface BeforeInstallPromptEvent extends Event {
  
 const CONTACT = "estudiowebpin@gmail.com";
 const WA = "https://api.whatsapp.com/send?phone=5493412500029";
-const APP_URL = "https://quiniela-ia-two.vercel.app";
+const APP_URL = "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev";
 const SORTEOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"];
 const HORAS: Record<string, string> = {
   Previa: "10:15",
@@ -2639,3 +2639,4 @@ export default function Page() {
     </ToastProvider>
   );
 }
+

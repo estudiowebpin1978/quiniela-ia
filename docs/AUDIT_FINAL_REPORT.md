@@ -1,6 +1,6 @@
 # Quiniela IA — Auditoría de producción 2026-11-11
 
-**Alias:** https://quiniela-ia-two.vercel.app/  
+**Alias:** https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/  
 **Commit del último deploy:** `c60e2ce`  
 **Build:** ✓ Compiled successfully 2.4 s · `tsc --noEmit` 0 errores · **vitest 392 PASS**
 
@@ -61,3 +61,4 @@
 4. Aprobación manual de transferencias — requiere aprobación humana real (NOT VERIFIED / flujo correcto implementado).
 
 **No se entregó ninguna credencial pública/privada al repositorio.**
+

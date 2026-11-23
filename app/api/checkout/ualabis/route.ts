@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 5. Create checkout order ───────────────────────────────────────
-  const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app")
+  const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev")
     .replace(/"/g, "").trim()
 
   const planData = PLANS[plan]
@@ -235,3 +235,4 @@ export async function POST(req: NextRequest) {
   logger.info(`[checkout/${debugId}] ✅ CHECKOUT CREATED`, { userId, plan, amount: planData.amount, url: checkoutUrl.substring(0, 80) })
   return NextResponse.json({ checkoutUrl })
 }
+

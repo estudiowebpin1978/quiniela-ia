@@ -139,7 +139,7 @@ describe("validatePredData", () => {
   it("normalizes and validates a nested live prediction response", () => {
     const result = validatePredictionResponse({
       pred: { numeros_2: ["07", "42"], redoblona: "07-42" },
-      numeros: [{ numero: "07", score: 0.8, prob: 0.1 }],
+      numeros: [{ n: 7, numero: "07", score: 0.8, significado: "El revólver", rank: 1 }],
       confidence: 0.6,
       debug: { sorteos_analizados: 125 },
     })
@@ -147,6 +147,7 @@ describe("validatePredData", () => {
     expect(result.numeros_2).toEqual(["07", "42"])
     expect(result.redoblona).toBe("07-42")
     expect(result.numeros?.[0]?.numero).toBe("07")
+    expect(result.numeros?.[0]?.prob).toBeUndefined()
     expect(result.totalSorteos).toBe(125)
   })
 

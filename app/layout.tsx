@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Providers from "@/components/Providers";
 
-const BASE_URL = "https://quiniela-ia-two.vercel.app";
+const BASE_URL = "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev";
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),

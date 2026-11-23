@@ -242,7 +242,7 @@ export async function POST(request: Request) {
         try {
           const baseUrl = process.env.VERCEL_URL
             ? `https://${process.env.VERCEL_URL}`
-            : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia-two.vercel.app"
+            : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev"
           fetch(`${baseUrl}/api/cron-precompute?turno=${encodeURIComponent(turno)}`, {
             headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
           }).catch(() => {})
@@ -281,7 +281,7 @@ export async function POST(request: Request) {
                 // Compute prediction ONCE for the premium tier
                 const baseUrl = process.env.VERCEL_URL
                   ? `https://${process.env.VERCEL_URL}`
-                  : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia-two.vercel.app"
+                  : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev"
 
                 const predRes = await fetch(`${baseUrl}/api/predictions`, {
                   method: "POST",
@@ -432,3 +432,4 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   return POST(request)
 }
+

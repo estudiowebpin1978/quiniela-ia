@@ -1,6 +1,6 @@
 # AUDIT_PROGRESS — Quiniela IA
 
-**Fecha:** 2026-11-11 · **alias:** https://quiniela-ia-two.vercel.app/ ·
+**Fecha:** 2026-11-11 · **alias:** https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/ ·
 **Commit desplegado:** `50c1684` (cron-scrape 267 líneas → deploy-exit=0)
 
 ## Estado de Cron-job.org (verificado en vivo)
@@ -58,3 +58,4 @@ contiene `CREATE OR REPLACE FUNCTION omega_rule_validation()` con:
 2. **[RECOMENDADO]** Verificar el próximo cron `cron-brinco` (2026-11-16 22:30) — primera corrida tras activación.
 3. **[OPCIONAL]** Ejecutar un set de backtests re-fetch automáticos vía Supabase `cron-poceada-federal` para que el replay corrija hits con el fix nuevo.
 4. **[PENDIENTE]** Asistente IA en `/rendimiento` — requiere aprobación humana de free→premium y CAN I verify usuarios nuevos.
+

@@ -20,26 +20,58 @@ interface Props {
   predictions?: PrediccionGuardada[]
 }
 
+function isSorteoHistorial(value: unknown): value is SorteoHistorial {
+  if (!value || typeof value !== "object") return false
+  const draw = value as Record<string, unknown>
+  return (
+    typeof draw.date === "string" &&
+    typeof draw.turno === "string" &&
+    Array.isArray(draw.numbers) &&
+    draw.numbers.every((number) => typeof number === "number")
+  )
+}
+
 export default function HistorialAciertos({ predictions = [] }: Props) {
   const [draws, setDraws] = useState<SorteoHistorial[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(false)
+  const [refreshError, setRefreshError] = useState(false)
 
   useEffect(() => {
-    fetchDraws()
-  }, [])
-
-  async function fetchDraws() {
-    try {
-      const res = await fetch("/api/draws?limit=30")
-      if (!res.ok) throw new Error("Error fetching draws")
-      const data = await res.json()
-      setDraws(Array.isArray(data) ? data : data.draws || [])
-    } catch (err) {
-    } finally {
-      setLoading(false)
+    let active = true
+    const fetchDraws = async () => {
+      try {
+        const res = await fetch("/api/draws?limit=30", { cache: "no-store" })
+        if (!res.ok) throw new Error("Error fetching draws")
+        const data: unknown = await res.json()
+        if (!Array.isArray(data) || !data.every(isSorteoHistorial)) {
+          throw new Error("Invalid draws response")
+        }
+        if (active) {
+          setDraws(data)
+          setRefreshError(false)
+        }
+      } catch {
+        if (active) setRefreshError(true)
+      } finally {
+        if (active) setLoading(false)
+      }
     }
-  }
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void fetchDraws()
+    }
+
+    void fetchDraws()
+    const intervalId = window.setInterval(() => void fetchDraws(), 5 * 60 * 1000)
+    window.addEventListener("focus", refreshWhenVisible)
+    document.addEventListener("visibilitychange", refreshWhenVisible)
+    return () => {
+      active = false
+      window.clearInterval(intervalId)
+      window.removeEventListener("focus", refreshWhenVisible)
+      document.removeEventListener("visibilitychange", refreshWhenVisible)
+    }
+  }, [])
 
   const drawsWithHits = useMemo(() => {
     return draws.map(draw => {
@@ -82,6 +114,19 @@ export default function HistorialAciertos({ predictions = [] }: Props) {
     )
   }
 
+  if (refreshError && draws.length === 0) {
+    return (
+      <div>
+        <div role="status" style={{ padding: 12, marginBottom: 8, textAlign: "center", color: "#fbbf24", fontSize: 12 }}>
+          No se pudo actualizar el historial. Se volverá a intentar automáticamente.
+        </div>
+        <div style={{ padding: 20, textAlign: "center", color: "#64748b" }}>
+          No hay resultados cargados aún
+        </div>
+      </div>
+    )
+  }
+
   if (draws.length === 0) {
     return (
       <div style={{ padding: 20, textAlign: "center", color: "#64748b" }}>
@@ -92,6 +137,11 @@ export default function HistorialAciertos({ predictions = [] }: Props) {
 
   return (
     <div>
+      {refreshError && (
+        <div role="status" style={{ padding: 12, marginBottom: 8, textAlign: "center", color: "#fbbf24", fontSize: 12 }}>
+          No se pudo actualizar el historial. Se muestran los últimos datos disponibles.
+        </div>
+      )}
       {predictions.length > 0 && (
         <div style={{
           display: "flex", gap: 8, marginBottom: 12, padding: "10px 14px",

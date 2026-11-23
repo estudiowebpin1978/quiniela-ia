@@ -14,7 +14,7 @@ import logger from "@/lib/logger"
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 const FROM_EMAIL = "Quiniela IA <notificaciones@quiniela-ia.com>"
-const APP_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia-two.vercel.app"
+const APP_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev"
 
 interface EmailResult {
   ok: boolean
@@ -252,3 +252,4 @@ export async function sendPremiumExpiryEmail(
     </div>
   `))
 }
+

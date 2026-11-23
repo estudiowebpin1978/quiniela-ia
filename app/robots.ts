@@ -1,7 +1,7 @@
 import { MetadataRoute } from 'next';
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = 'https://quiniela-ia-two.vercel.app';
+  const baseUrl = 'https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev';
 
   return {
     rules: [
