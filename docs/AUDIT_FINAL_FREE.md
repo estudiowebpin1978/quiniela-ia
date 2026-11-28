@@ -144,6 +144,12 @@ GitHub Free: CI (lint/typecheck/test/build) en la repo; sin minutos facturables 
   - `/api/predictions?sorteo=poceada` → 400 "Sorteo inválido. Válidos: previa, primera, matutina, vespertina, nocturna".
   - `/api/cron-brinco` y `/api/cron-poceada-federal` → **404**.
   - `/api/health` → 200 (status `degraded` únicamente por "cache de hoy" aún no generada a esa hora — el precompute diario corre 04:20 UTC; sin alertas de Poceada/Brinco).
+- Páginas eliminadas: `/poceada`, `/brinco`, `/poceada-federal` → **404** en producción.
+- `/api/stats` → 200; `/api/estrategia?turno=nocturna` → 200 (redoblonas OK).
+- `node scripts/e2e-auth-test.mjs` (contra prod): registro → login → upgrade premium →
+  guardar predicción → historial → limpieza → **"TODO FUNCIONA ✅"**.
+- `node scripts/audit-tables.mjs`: **29/29 tablas referenciadas existen** en Supabase (0 faltantes).
+- Commit: `c4fa766` en `refactor/free-quiniela-redoblonas` (217 archivos, +2434/−15817).
 
 ## 7. Pendientes manuales
 

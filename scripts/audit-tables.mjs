@@ -16,7 +16,7 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } })
 
-// 1. recolectar .from("x") del código
+// 1. recolectar llamadas .from(nombre_tabla) del código
 const roots = ["app", "lib", "scripts", "components"]
 const froms = new Map() // tabla -> [archivos]
 function walk(dir) {
