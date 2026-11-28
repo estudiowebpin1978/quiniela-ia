@@ -121,7 +121,7 @@ export interface BlendParams {
   engineWeights: EngineWeights
   /** Scores del motor cross-turno (opcional; se ignora si CT <= 0). */
   ctPredictions?: Map<number, number>
-  /** Poceada necesita 20 números (2 combinaciones de 8). Default 10 (Quiniela). */
+  /** Cantidad de números a devolver. Default 10 (Quiniela). */
   topN?: number
 }
 
@@ -230,8 +230,8 @@ export function blendEngines(params: BlendParams): BlendedPrediction[] {
 /**
  * Meta-diversidad real (MMR determinista): selecciona hasta `maxSeleccion`
  * balanceando score (lambda) contra similitud de factor_attribution.
- * Poceada pasa 20 (2 combinaciones de 8); el resto, 10.
- * Nunca aleatorio: misma entrada ␾ misma salida.
+ * Default 10 (Quiniela).
+ * Nunca aleatorio: misma entrada → misma salida.
  */
 export function diversifyMMR(
   blended: BlendedPrediction[],

@@ -18,7 +18,6 @@ export const TURNOS_ORDER: TurnoQuiniela[] = [
   "Matutina",
   "Vespertina",
   "Nocturna",
-  "Poceada",
 ]
 
 /**
@@ -26,19 +25,11 @@ export const TURNOS_ORDER: TurnoQuiniela[] = [
  *
  * - Previa depends on yesterday's Nocturna (last draw of previous day)
  * - All other Ciudad turnos depend on today's previous turno
- * - Poceada es un juego separado que se resuelve con el ÚLTIMO Quiniela del
- *   día (Nocturna 21:00); su extracto oficial se publica en
- *   poceada.loteriadelaciudad.gob.ar → el pipeline no necesita esperar al
- *   sorteo de Quiniela para procesarla.
  */
 export function getDependency(targetTurno: TurnoQuiniela): {
   turno: TurnoQuiniela
   dateOffset: number // 0 = today, -1 = yesterday
-} | null {
-  // Poceada: no prerequisite draw needed (official extract published on its own site)
-  if (targetTurno === "Poceada") {
-    return null
-  }
+} {
   const idx = TURNOS_ORDER.indexOf(targetTurno)
   if (idx <= 0) {
     // Previa depends on yesterday's Nocturna
@@ -138,29 +129,6 @@ export async function validatePrerequisite(
   | { valid: false; reason: string; expected: { turno: string; date: string }; found: { turno: string; date: string; id: string } | null }
 > {
   const dep = getDependency(targetTurno)
-
-  // Poceada: no prerequisite — find its latest draw
-  if (!dep) {
-    const { data: latestDraw } = await supabase
-      .from("draws")
-      .select("id, turno, date")
-      .eq("turno", targetTurno)
-      .in("jurisdiccion", jurisParaTurno(targetTurno))
-      .order("date", { ascending: false })
-      .limit(1)
-      .single()
-
-    if (!latestDraw) {
-      return {
-        valid: false,
-        reason: `No draws found for ${targetTurno}`,
-        expected: { turno: targetTurno, date: "any" },
-        found: null,
-      }
-    }
-
-    return { valid: true, lastDrawId: latestDraw.id }
-  }
 
   // Expectativa real: salta días sin sorteo y turnos suspendidos
   // (ver resolverDependencia — sin esto quedaba bloqueada tras domingos/feriados)

@@ -23,10 +23,9 @@ const OFFICIAL_TIME_ART: Record<string, string> = {
   Matutina: "15:00",
   Vespertina: "18:30",
   Nocturna: "21:30",
-  Poceada: "21:15",
 }
 
-const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"] as const
+const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"] as const
 
 function ageMinutes(dateIso: string, now = new Date()): number {
   const d = new Date(`${dateIso}T12:00:00-03:00`)
@@ -48,7 +47,7 @@ export async function GET(_req: NextRequest) {
     }> = []
 
     for (const turno of TURNOS) {
-      const jurisdiccion = turno === "Poceada" ? ["ciudad"] : ["CABA"] as const
+      const jurisdiccion = ["CABA"] as const
       const [q, latest, earliest] = await Promise.all([
         sb
           .from("draws")
@@ -89,50 +88,6 @@ export async function GET(_req: NextRequest) {
       }
       result.push({ turno, totalSorteos: count, firstDate, lastDate, ageMinutes: lastDate ? ageMinutes(lastDate, now) : null, status, note: detail })
     }
-
-    // Brinco: leer brinco_draws
-    const [brincoCountQuery, brincoLatest, brincoEarliest] = await Promise.all([
-      sb.from("brinco_draws").select("concurso", { count: "exact", head: true }).in("estado_verificacion", ["verified_official", "cross_checked"]),
-      sb.from("brinco_draws").select("fecha").in("estado_verificacion", ["verified_official", "cross_checked"]).order("fecha", { ascending: false }).limit(1),
-      sb.from("brinco_draws").select("fecha").in("estado_verificacion", ["verified_official", "cross_checked"]).order("fecha", { ascending: true }).limit(1),
-    ])
-    const brincoCount = brincoCountQuery.count ?? 0
-    const brincoLast = (brincoLatest.data as Array<{ fecha?: string }> | null)?.[0]?.fecha ?? null
-    const brincoFirst = (brincoEarliest.data as Array<{ fecha?: string }> | null)?.[0]?.fecha ?? null
-    const brincoAge = brincoLast ? Math.round((now.getTime() - new Date(brincoLast + "T12:00:00-03:00").getTime()) / 60000) : null
-    const brincoError = brincoCountQuery.error ?? brincoLatest.error ?? brincoEarliest.error
-    result.push({
-      turno: "Brinco",
-      totalSorteos: brincoCount,
-      firstDate: brincoFirst,
-      lastDate: brincoLast,
-      ageMinutes: brincoAge,
-      status: brincoError ? "error" : brincoLast && brincoAge != null ? classifyDrawFreshness(brincoAge, 8 * 24 * 60, 15 * 24 * 60) : "empty",
-      note: brincoError?.message ?? (brincoLast ? `último sorteo ${brincoLast} (${Math.round((brincoAge ?? 0) / 60)}h atrás)` : "sin sorteos"),
-    })
-    if (brincoError) logger.error("[sync-status] Brinco query failed", { error: brincoError.message })
-
-    // Poceada Federal
-    const [pfCountQuery, pfLatest, pfEarliest] = await Promise.all([
-      sb.from("poceada_federal_draws").select("concurso", { count: "exact", head: true }).eq("estado", "validated"),
-      sb.from("poceada_federal_draws").select("fecha").eq("estado", "validated").order("fecha", { ascending: false }).limit(1),
-      sb.from("poceada_federal_draws").select("fecha").eq("estado", "validated").order("fecha", { ascending: true }).limit(1),
-    ])
-    const pfCount = pfCountQuery.count ?? 0
-    const pfLast = (pfLatest.data as Array<{ fecha?: string }> | null)?.[0]?.fecha ?? null
-    const pfFirst = (pfEarliest.data as Array<{ fecha?: string }> | null)?.[0]?.fecha ?? null
-    const pfAge = pfLast ? Math.round((now.getTime() - new Date(pfLast + "T12:00:00-03:00").getTime()) / 60000) : null
-    const pfError = pfCountQuery.error ?? pfLatest.error ?? pfEarliest.error
-    result.push({
-      turno: "Poceada Federal",
-      totalSorteos: pfCount,
-      firstDate: pfFirst,
-      lastDate: pfLast,
-      ageMinutes: pfAge,
-      status: pfError ? "error" : pfLast && pfAge != null ? classifyDrawFreshness(pfAge) : "empty",
-      note: pfError?.message ?? (pfLast ? `último sorteo ${pfLast}` : "sin sorteos"),
-    })
-    if (pfError) logger.error("[sync-status] Poceada Federal query failed", { error: pfError.message })
 
     const overallFresh = result.every((r) => r.status === "fresh")
     const overall = overallFresh ? "ok" : "attention"

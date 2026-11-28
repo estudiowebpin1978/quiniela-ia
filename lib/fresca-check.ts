@@ -11,7 +11,7 @@ import { getSupabaseAdmin } from "@/lib/supabase-client"
 export async function verificarFrescaPredicciones() {
   const supabase = getSupabaseAdmin()
   const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format()
-  const turnos = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"]
+  const turnos = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
   const faltantes: Array<{ turno: string; fecha: string; estado: string }> = []
 
@@ -28,7 +28,7 @@ export async function verificarFrescaPredicciones() {
       .from("draws")
       .select("date, turno")
       .eq("turno", turno)
-      .eq("jurisdiccion", turno === "Poceada" ? "ciudad" : "CABA")
+      .eq("jurisdiccion", "CABA")
       .gte("date", hoy)
       .order("date", { ascending: true })
       .limit(1)

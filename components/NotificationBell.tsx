@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect, useCallback, useRef } from "react"
+import { readJsonObject } from "@/lib/json-response"
 
 interface Notification {
   id: string
@@ -66,7 +67,7 @@ export default function NotificationBell() {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) return
-      const data = await res.json()
+      const data = await readJsonObject<{ unreadCount?: number; notifications?: Notification[] }>(res)
       const newUnread = data.unreadCount || 0
       if (newUnread > prevUnreadRef.current) {
         playNotifSound()

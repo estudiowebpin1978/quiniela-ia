@@ -3,6 +3,7 @@
  * No inventa números: solo interpreta el ranking matemático ya calculado.
  * Timeout estricto para no romper el presupuesto de Vercel Hobby.
  */
+import { readJsonObject } from "@/lib/json-response"
 
 export type PredictionSummaryInput = {
   turno: string
@@ -76,7 +77,7 @@ export async function generatePredictionSummary(
           signal: ctrl.signal,
         })
         if (res.ok) {
-          const data = await res.json()
+          const data = await readJsonObject<{ message?: { content?: string } }>(res)
           const text = data?.message?.content?.trim()
           if (text) {
             clearTimeout(timer)
@@ -109,7 +110,7 @@ export async function generatePredictionSummary(
         signal: ctrl.signal,
       })
       if (res.ok) {
-        const data = await res.json()
+        const data = await readJsonObject<{ choices?: Array<{ message?: { content?: string } }> }>(res)
         const text = data?.choices?.[0]?.message?.content?.trim()
         if (text) {
           clearTimeout(timer)
@@ -134,7 +135,9 @@ export async function generatePredictionSummary(
         }
       )
       if (res.ok) {
-        const data = await res.json()
+        const data = await readJsonObject<{
+          candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+        }>(res)
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
         if (text) {
           clearTimeout(timer)

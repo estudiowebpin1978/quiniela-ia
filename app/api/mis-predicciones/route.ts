@@ -7,6 +7,7 @@ import type { PredictionHistoryRow, DrawRow } from "@/lib/api/types"
 import { calcularAciertosApi } from "@/lib/verificacion/api-aciertos"
 import { normalizarRedoblonaR } from "@/lib/batch-upsert"
 import { jurisParaTurno, JURIS_LOTBA } from "@/lib/procedencia"
+import { isJsonRecord } from "@/lib/json-response"
 
 // In-memory rate limiter for POST
 const rateLimitMap = new Map<string, { count: number; windowStart: number }>()
@@ -87,8 +88,8 @@ export async function GET(req: NextRequest) {
         .from("draws")
         .select("numbers,turno,date")
         .in("date", uniqueDates)
-        // Procedencia (frente C): lotes multi-turno → solo juegos de LOTBA
-        // (Quiniela 'CABA' + Poceada legado 'ciudad'); provincia fuera.
+        // Procedencia (frente C): lotes multi-turno → solo Quiniela 'CABA';
+        // provincia fuera.
         .in("jurisdiccion", JURIS_LOTBA)
         .limit(200)
 
@@ -139,15 +140,13 @@ export async function GET(req: NextRequest) {
       // Cálculo puro de aciertos → lib/verificacion/api-aciertos.ts
       // (1) historial = criterio unificado; (2) sin historial = picks × sorteo.
       // NO se lee user_predictions.aciertos: esa columna es mixta (posiciones,
-      // 0 placeholder del ±1 de NEAR_MISS, centinelas 3/4/5 de 3C/4C/redoblona
-      // y conteo 5-8 en Poceada) — ver nota en api-aciertos.ts.
+      // 0 placeholder del ±1 de NEAR_MISS, centinelas 3/4/5 de 3C/4C/redoblona)
+      // — ver nota en api-aciertos.ts.
       const calc = calcularAciertosApi({
         numeros: pred.numeros,
         premium: tier.canAccessPremiumFeatures,
         historial: history,
         numerosSorteo: draw?.numbers && Array.isArray(draw.numbers) ? draw.numbers : null,
-        // Poceada = juego SOLO de 2 cifras (00-99), distinto de Quiniela.
-        esPoceada: turnoLower === "poceada",
       })
       const pred2 = calc.numeros_2
       const pred3 = calc.numeros_3
@@ -244,11 +243,13 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = tier.userId
-    const { date, turno, numeros } = await req.json()
+    const body: unknown = await req.json()
+    if (!isJsonRecord(body)) return NextResponse.json({ error: "JSON inválido" }, { status: 400 })
+    const { date, turno, numeros } = body
     const hasNumeros = Array.isArray(numeros)
       ? numeros.length > 0
       : numeros && typeof numeros === "object" && Object.keys(numeros).length > 0
-    if (!date || !turno || !hasNumeros) {
+    if (typeof date !== "string" || typeof turno !== "string" || !hasNumeros) {
       return NextResponse.json({ error: "Faltan campos" }, { status: 400 })
     }
 
@@ -258,21 +259,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate turno
-    const VALID_TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"]
+    const VALID_TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
     const turnoCanonical = turno.charAt(0).toUpperCase() + turno.slice(1).toLowerCase()
     if (!VALID_TURNOS.includes(turnoCanonical)) {
       return NextResponse.json({ error: "Turno inválido" }, { status: 400 })
-    }
-
-    // Poceada Ciudad: guardar jugadas es PREMIUM. Free sólo ven la vista.
-    if (turnoCanonical === "Poceada" && !tier.canAccessPremiumFeatures) {
-      return NextResponse.json(
-        {
-          error: "Guardar jugadas de Poceada requiere Premium. Actualizá tu plan para verlas guardadas.",
-          upgradeRequired: true,
-        },
-        { status: 403 }
-      )
     }
 
     // Validate numeros are numeric and within range
@@ -284,60 +274,38 @@ export async function POST(req: NextRequest) {
       })
     }
     const numsArr = Array.isArray(numeros) ? numeros : null
-    const numsObj = !numsArr && typeof numeros === "object" ? numeros : null
-    // Poceada: SOLO 8 números de 2 cifras (00-99), guardados como array plano.
-    // Es un juego distinto de la Quiniela (no existe 3/4 cifras ni redoblona).
-    // ANTES la validación solo corría si llegaba un array → un objeto
-    // {2,3,4,r} la esquivía y se guardaba con claves "3"/"4", lo que hacía
-    // que la UI mostrara "3 CIFRAS"/"4 CIFRAS" para Poceada.
-    if (turnoCanonical === "Poceada") {
-      const arr = Array.isArray(numeros)
-        ? numeros
-        : (numeros && typeof numeros === "object"
-            ? ((numeros as Record<string, unknown>)["2"] || (numeros as Record<string, unknown>)["numeros_2"]) || []
-            : [])
-      if (!Array.isArray(arr) || arr.length !== 8 || !validateNums(arr, 8, 99)) {
-        return NextResponse.json({ error: "Poceada requiere exactamente 8 números de 2 cifras (00-99)" }, { status: 400 })
-      }
-    }
+    const numsObj = !numsArr && isJsonRecord(numeros) ? numeros : null
 
     if (numsArr && !validateNums(numsArr, 20, 99)) {
       return NextResponse.json({ error: "Números inválidos" }, { status: 400 })
     }
     if (numsObj) {
-      const n2 = numsObj?.["2"] || numsObj?.numeros_2
-      if (n2 && n2.length > 0 && !validateNums(n2, 20, 99)) {
+      const n2 = numsObj["2"] || numsObj.numeros_2
+      if (n2 != null && (!Array.isArray(n2) || (n2.length > 0 && !validateNums(n2, 20, 99)))) {
         return NextResponse.json({ error: "Números 2 cifras inválidos" }, { status: 400 })
       }
-      const n3 = numsObj?.["3"] || numsObj?.numeros_3
-      if (n3 && n3.length > 0 && !validateNums(n3, 20, 999)) {
+      const n3 = numsObj["3"] || numsObj.numeros_3
+      if (n3 != null && (!Array.isArray(n3) || (n3.length > 0 && !validateNums(n3, 20, 999)))) {
         return NextResponse.json({ error: "Números 3 cifras inválidos" }, { status: 400 })
       }
-      const n4 = numsObj?.["4"] || numsObj?.numeros_4
-      if (n4 && n4.length > 0 && !validateNums(n4, 20, 9999)) {
+      const n4 = numsObj["4"] || numsObj.numeros_4
+      if (n4 != null && (!Array.isArray(n4) || (n4.length > 0 && !validateNums(n4, 20, 9999)))) {
         return NextResponse.json({ error: "Números 4 cifras inválidos" }, { status: 400 })
       }
     }
 
     let numerosToStore: string[]
-    if (turnoCanonical === "Poceada") {
-      // Poceada SIEMPRE se guarda como array plano de 8 cifras 2 (00-99),
-      // aunque el cliente mande un objeto {2,3,4,r} — en Poceada no existen
-      // 3/4 cifras ni redoblona.
-      const arr = Array.isArray(numeros)
-        ? numeros
-        : (numeros && typeof numeros === "object"
-            ? ((numeros as Record<string, unknown>)["2"] || (numeros as Record<string, unknown>)["numeros_2"]) || []
-            : [])
-      numerosToStore = (arr as unknown[]).map((n: unknown) => String(n).padStart(2, "0"))
-    } else if (tier.canAccessPremiumFeatures) {
+    if (tier.canAccessPremiumFeatures) {
       if (Array.isArray(numeros)) {
         numerosToStore = numeros.map((n: unknown) => String(n).padStart(2, '0'))
       } else if (numeros && typeof numeros === "object") {
-        const nums2 = (numeros?.["2"] || numeros?.numeros_2 || []).map((n: unknown) => String(n).padStart(2, '0'))
-        const nums3 = (numeros?.["3"] || numeros?.numeros_3 || []).map((n: unknown) => String(n).padStart(3, '0'))
-        const nums4 = (numeros?.["4"] || numeros?.numeros_4 || []).map((n: unknown) => String(n).padStart(4, '0'))
-        const rblRaw = numeros?.["r"] ?? numeros?.redoblona ?? null
+        const nums2Value = numsObj?.["2"] || numsObj?.numeros_2
+        const nums3Value = numsObj?.["3"] || numsObj?.numeros_3
+        const nums4Value = numsObj?.["4"] || numsObj?.numeros_4
+        const nums2 = (Array.isArray(nums2Value) ? nums2Value : []).map((n) => String(n).padStart(2, '0'))
+        const nums3 = (Array.isArray(nums3Value) ? nums3Value : []).map((n) => String(n).padStart(3, '0'))
+        const nums4 = (Array.isArray(nums4Value) ? nums4Value : []).map((n) => String(n).padStart(4, '0'))
+        const rblRaw = numsObj?.["r"] ?? numsObj?.redoblona ?? null
         // ARRAY (o null) siempre: un scalar rompe la RPC verify_predictions_for_draw
         const rbl = normalizarRedoblonaR(rblRaw)
         numerosToStore = [JSON.stringify({ "2": nums2, "3": nums3, "4": nums4, "r": rbl })]
@@ -347,7 +315,7 @@ export async function POST(req: NextRequest) {
     } else {
       const only2 = Array.isArray(numeros)
         ? numeros
-        : (numeros?.["2"] || numeros?.numeros_2 || [])
+        : (Array.isArray(numsObj?.["2"]) ? numsObj["2"] : Array.isArray(numsObj?.numeros_2) ? numsObj.numeros_2 : [])
       numerosToStore = only2.map((n: unknown) => String(n).padStart(2, '0'))
     }
 

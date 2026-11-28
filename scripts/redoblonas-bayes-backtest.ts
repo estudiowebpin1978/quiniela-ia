@@ -16,7 +16,7 @@ const key = process.env.SUPABASE_SERVICE_ROLE_KEY || ""
 if (!key) { console.error("Falta SUPABASE_SERVICE_ROLE_KEY"); process.exit(1) }
 const sb = createClient(url, key)
 
-const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"]
+const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
 const PLAN = [
   [0, 1],

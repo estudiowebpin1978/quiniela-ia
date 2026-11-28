@@ -24,7 +24,7 @@ try {
   }
 } catch { /* sin .env.local: se usan las variables de entorno */ }
 
-const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"]
+const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
 const argDias = process.argv.find((a) => a.startsWith("--dias="))
 const DIAS = argDias ? Math.max(1, parseInt(argDias.split("=")[1], 10) || 15) : 15

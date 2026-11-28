@@ -23,7 +23,7 @@ import {
   fusionarRankings,
   rankingAleatorio,
 } from "@/lib/selector/walkforward"
-import { mulberry32 } from "@/lib/poceada-federal/backtest"
+import { mulberry32 } from "@/lib/estadistica/backtest-utils"
 import type { CandidatoSelector, SorteoSelector } from "@/lib/selector/tipos"
 
 // ─── Utilidades sintéticas (NUNCA datos reales) ──────────────────────────────
@@ -344,9 +344,9 @@ describe("selector/walkforward — protocolo", () => {
     expect(r.diferencia.metaVsMejorCandidato?.mejor).toBe("sabio")
   })
 
-  it("rechaza turnos que no son de la Quiniela Ciudad (Poceada)", async () => {
+  it("rechaza turnos que no son de la Quiniela Ciudad", async () => {
     await expect(
-      walkForwardSelector(sorteosSesgados(30, sesgo), [], { turno: "Poceada", warmup: 10 })
+      walkForwardSelector(sorteosSesgados(30, sesgo), [], { turno: "TurnoInvalido", warmup: 10 })
     ).rejects.toThrow(/Turno inválido/)
   })
 

@@ -25,7 +25,7 @@ const FETCH_TIMEOUT = 25_000
 const MAX_PREGUNTA = 500
 const MAX_TURNO_DRAWS = 25
 
-const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"] as const
+const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"] as const
 type Turno = (typeof TURNOS)[number]
 
 function hoyArt(): string {
@@ -109,7 +109,7 @@ async function cargarDatos(supabase: ReturnType<typeof getSupabaseAdmin>): Promi
 
   const texto = [
     `HOY (ART): ${HOY}`,
-    "HORARIOS OFICIALES (ART): Previa 10:30 | Primera 12:30 | Matutina 15:00 | Vespertina 18:30 | Nocturna 21:30 | Poceada 21:15",
+    "HORARIOS OFICIALES (ART): Previa 10:30 | Primera 12:30 | Matutina 15:00 | Vespertina 18:30 | Nocturna 21:30",
     "Referencia de terminos (muestra sobre los ultimos sorteos validos, solo terminales de 2 cifras salvo que se diga lo contrario):",
     ...bodyLines,
   ].join("\n")

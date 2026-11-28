@@ -1,14 +1,9 @@
 import { describe, it, expect } from "vitest"
 import {
   QUINIELA,
-  POCEADA,
   pNinguno,
   pCoincidenciaMod,
   pCabezaMod,
-  pAlMenosT,
-  pPoceada,
-  hipergeom,
-  logChoose,
 } from "@/lib/estrategia/probabilidades"
 
 describe("pNinguno (hipergeométrica de producto)", () => {
@@ -64,53 +59,4 @@ describe("pCabezaMod — criterio estricto 'cabeza en picks'", () => {
   })
 })
 
-describe("hipergeométrica / logChoose", () => {
-  it("logChoose(10,3)=120", () => {
-    expect(Math.exp(logChoose(10, 3))).toBeCloseTo(120, 6)
-  })
-  it("las PMF de Poceada suman 1", () => {
-    let s = 0
-    for (let k = 0; k <= 8; k++) s += hipergeom(8, 100, 20, k)
-    expect(s).toBeCloseTo(1, 8)
-  })
-})
 
-describe("pPoceada — baseline azar ≥5 (exacto vs aproximación)", () => {
-  it("K=8, ≥5 aciertos = hipergeométrica exacta ≈ 0.00754 (sin reemplazo)", () => {
-    // El sorteo es SIN reemplazo (20 distintos de 100) → hipergeométrica.
-    // oos-eval usaba 0.0104 (BINOMIAL n=8, p=0.2 con reemplazo — approx. que
-    // sobreestima la cola); desde 2026-10-13 usa hyperTail (exacta) y en
-    // calibration.ts quedó documentada la diferencia. Aquí la exacta.
-    const p = pPoceada(POCEADA, 8, 5)
-    expect(p).toBeGreaterThan(0.0074)
-    expect(p).toBeLessThan(0.0077)
-  })
-  it("coincide con binomTail(5,8,0.2)=0.0104 si se aproxima con reemplazo", () => {
-    // Verificación cruzada de la aproximación binomial que oos-eval USABA
-    // (documentación de la corrida 2026-09-25; no es el valor exacto).
-    let binom = 0
-    const c = (n: number, k: number): number => {
-      let r = 1
-      for (let i = 0; i < k; i++) r = (r * (n - i)) / (i + 1)
-      return r
-    }
-    for (let k = 5; k <= 8; k++) binom += c(8, k) * 0.2 ** k * 0.8 ** (8 - k)
-    expect(binom).toBeGreaterThan(0.0103)
-    expect(binom).toBeLessThan(0.0105)
-  })
-  it("K más grande aumenta la probabilidad", () => {
-    expect(pPoceada(POCEADA, 12, 5)).toBeGreaterThan(pPoceada(POCEADA, 8, 5))
-  })
-  it("umbral alto → probabilidad baja", () => {
-    expect(pPoceada(POCEADA, 8, 8)).toBeLessThan(pPoceada(POCEADA, 8, 5))
-  })
-})
-
-describe("pAlMenosT", () => {
-  it("t=0 → 1", () => {
-    expect(pAlMenosT(8, 100, 20, 0)).toBeCloseTo(1, 8)
-  })
-  it("t > K → 0", () => {
-    expect(pAlMenosT(8, 100, 20, 9)).toBe(0)
-  })
-})

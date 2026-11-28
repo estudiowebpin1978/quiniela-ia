@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkRateLimit, RATE_LIMIT_PRESETS } from "@/lib/rate-limiter";
 import logger from "@/lib/logger";
+import { isJsonRecord } from "@/lib/json-response"
 
 function getEnv(key: string): string {
   return (process.env[key] || "").replace(/"/g, "").trim();
@@ -23,15 +24,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Supabase no configurado" }, { status: 500 });
   }
 
-  let email: string, password: string, action: string;
+  let body: unknown
   try {
-    const body = await req.json();
-    email = body.email;
-    password = body.password;
-    action = body.action;
+    body = await req.json()
   } catch {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
+  if (!isJsonRecord(body)) {
+    return NextResponse.json({ error: "JSON inválido." }, { status: 400 })
+  }
+  const emailValue = body.email
+  const passwordValue = body.password
+  const actionValue = body.action
+  const email = typeof emailValue === "string" ? emailValue : ""
+  const password = typeof passwordValue === "string" ? passwordValue : ""
+  const action = typeof actionValue === "string" ? actionValue : ""
   if (!email || !password) return NextResponse.json({ error: "Faltan campos." }, { status: 400 });
 
   // Fresh client per request, NO custom fetch wrapper

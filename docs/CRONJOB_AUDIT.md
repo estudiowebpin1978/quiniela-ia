@@ -11,10 +11,10 @@
 | 8150173 | Quiniela IA - Scraping | `/api/cron-scrape` | Cada 15 min (L–S) | 1 (OK) | 22:00 |
 | 8835312 | Quiniela IA - Verify catchup | `/api/cron-verify-catchup` | 09:00 ART | 1 (OK) | 09:00 |
 | 8504281 | verificacion | `/api/cron-verify-predictions` | Cada 5 min | 1 (OK) | 22:05 |
-| **8845214** | **Quiniela IA - Brinco sync** | `/api/cron-brinco` | Domingos 22:30 ART | — | sin ejecutar aún |
-| **8845223** | **Quiniela IA - Poceada Federal sync** | `/api/cron-poceada-federal` | Diario 22:30 ART | — | prx: 2026-11-11 22:30 |
 
-**Nota sobre Brinco:** vence **2027-11-11** — volver a actualizar la fecha antes del vencimiento.
+**Jobs eliminados (refactor free 2026-11-28):** se dieron de baja los jobs
+`8845214` (Brinco sync) y `8845223` (Poceada Federal sync). Sus endpoints ya no
+existen — **borrarlos también en cron-job.org** si siguen listados.
 
 ## Estado Omega y backtest
 
@@ -48,14 +48,9 @@ contiene `CREATE OR REPLACE FUNCTION omega_rule_validation()` con:
 | Modalidad | Último sorteo | Falencias | Acción |
 |---|---|---|---|
 | Quiniela Ciudad (Previa/Primera/Matutina/Vespertina/Nocturna) | 2026-11-11 (Previa, Primera, Matutina, Vespert) | ninguna | OK |
-| Poceada Ciudad | 2026-11-10 (source lotba-oficial) | Ninguna — 20 números | OK, cache fresca hoy |
-| Brinco | 2026-10-25 (concurso 1377) | Ninguna — 24 sorteos cargados | Tabla en regla |
-| Poceada Federal | 2026-11-10 (concurso 5779) | Ninguna — 2381 validados | OK, 2443 sorteos en DB |
 
 ## Pendientes ordenadas
 
 1. **[CRÍTICO]** Aplicar `supabase/migrations/APPLY_MANUALLY_omega_rule_honest_baseline.sql` en Supabase Dashboard → SQL Editor.
-2. **[RECOMENDADO]** Verificar el próximo cron `cron-brinco` (2026-11-16 22:30) — primera corrida tras activación.
-3. **[OPCIONAL]** Ejecutar un set de backtests re-fetch automáticos vía Supabase `cron-poceada-federal` para que el replay corrija hits con el fix nuevo.
-4. **[PENDIENTE]** Asistente IA en `/rendimiento` — requiere aprobación humana de free→premium y CAN I verify usuarios nuevos.
+2. **[PENDIENTE]** Asistente IA en `/rendimiento` — requiere aprobación humana de free→premium y CAN I verify usuarios nuevos.
 

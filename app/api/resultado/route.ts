@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { readJsonArray } from "@/lib/json-response"
 const SB=()=>(process.env.NEXT_PUBLIC_SUPABASE_URL||"").replace(/"/g,"").trim()
 const SK=()=>(process.env.SUPABASE_SERVICE_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY||"").replace(/"/g,"").trim()
 
@@ -49,7 +50,7 @@ export async function GET(req:NextRequest){
       throw new Error(`DB error: ${r.status}`)
     }
 
-    const data=await r.json()
+    const data=await readJsonArray<{ numbers?: unknown[] }>(r)
 
     if(!data?.[0]?.numbers?.length){
       return NextResponse.json({

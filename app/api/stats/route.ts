@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseUrl, getSupabaseKey } from "@/lib/config"
 import type { DrawRow } from "@/lib/api/types"
+import { readJsonArray, readJsonObject } from "@/lib/json-response"
 
 export const dynamic = "force-dynamic"
 
@@ -18,8 +19,8 @@ export async function GET(req: NextRequest) {
     })
 
     if (statsRes.ok) {
-      const stats = await statsRes.json()
-      if (stats && typeof stats === 'object' && stats.total_sorteos !== undefined) {
+      const stats = await readJsonObject<Record<string, unknown>>(statsRes)
+      if (typeof stats.total_sorteos === "number") {
         return NextResponse.json(stats)
       }
     }
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
     const drawsRes = await fetch(`${SB}/rest/v1/draws?select=date,turno,numbers&order=date.desc&limit=5000`, {
       headers: { "apikey": SK, "Authorization": `Bearer ${SK}` }
     })
-    const rows: DrawRow[] = await drawsRes.json()
+    const rows = await readJsonArray<DrawRow>(drawsRes)
     if (!rows?.length) return NextResponse.json({ totalSorteos: 0, mensaje: "Sin datos" })
 
     const turnos = ["previa", "primera", "matutina", "vespertina", "nocturna"]

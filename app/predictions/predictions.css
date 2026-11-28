@@ -197,7 +197,7 @@ body {
   background: linear-gradient(180deg,#fb7185,#f43f5e 40%,#e11d48);
   transform: translateY(-4px); box-shadow: 0 15px 0 #9d174d, 0 20px 55px rgba(236,72,153,.65), 0 0 30px rgba(236,72,153,.3);
 }
-/* Botones de juego (Brinco / Poceada / Federal): dos líneas, label + subtítulo */
+/* Botones de juego: dos líneas, label + subtítulo */
 .btn-game { padding: 20px 24px; font-size: 18px; letter-spacing: 1px; flex-direction: column; }
 .btn-game .gsub {
   display: block; font-size: 12.5px; font-weight: 700;
@@ -642,7 +642,7 @@ body {
   }
   .gen-row .btn-gen {
     /* Sin padding/font-size propios: el botón "Generar Análisis" debe tener
-       las MISMAS dimensiones que los botones de Brinco y Poceada (todos
+       las MISMAS dimensiones que los demás botones de acción (todos
        .btn-gen base). Antes este override lo achicaba a 14px/13px sólo en
        móvil y quedaba desfasado. */
     width: 100%;

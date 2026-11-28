@@ -35,10 +35,6 @@ describe("getDependency", () => {
     expect(getDependency("Vespertina")).toEqual({ turno: "Matutina", dateOffset: 0 })
     expect(getDependency("Nocturna")).toEqual({ turno: "Vespertina", dateOffset: 0 })
   })
-
-  it("Poceada es independiente (juego separado 00-99)", () => {
-    expect(getDependency("Poceada")).toBeNull()
-  })
 })
 
 describe("resolverDependencia", () => {

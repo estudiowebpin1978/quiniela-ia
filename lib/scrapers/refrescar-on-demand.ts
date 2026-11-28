@@ -18,12 +18,12 @@
 import { esDiaSinSorteo, esTurnoSinSorteo } from "@/lib/feriados"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { jurisParaTurno } from "@/lib/procedencia"
-import { fetchQuinielaDraw, fetchPoceadaDrawOficial, SOURCE_LOTBA } from "@/lib/scrapers/lotba-oficial"
+import { fetchQuinielaDraw, SOURCE_LOTBA } from "@/lib/scrapers/lotba-oficial"
 import { fetchWithConsensus } from "@/lib/scrapers/consensus"
 import { TURNOS, type TurnoType, type SourceStats, GAME_ID } from "@/lib/scrapers/types"
-import { POCEADA_GAME_ID } from "@/lib/config"
 import { invalidateAllPredictionCaches } from "@/lib/cache/prediction-cache-invalidation"
 import logger from "@/lib/logger"
+import { getAppBaseUrl } from "@/lib/app-url"
 
 export interface ResultadoRefreshTurno {
   status: "skipped" | "fresh" | "saved" | "error"
@@ -45,7 +45,6 @@ const OFFICIAL_TIME_ART: Record<string, string> = {
   Matutina: "15:00",
   Vespertina: "18:30",
   Nocturna: "21:30",
-  Poceada: "21:15",
 }
 const BUFFER_MS = 2 * 60 * 1000
 const VENTANA_HIST_DIAS = 30
@@ -89,8 +88,7 @@ async function guardarDrawIdempotente(turno: string, fechaISO: string, nums: num
   const supabase = getSupabaseAdmin()
   const { error } = await supabase.rpc("upsert_draw" as never, {
     p_date: fechaISO, p_turno: turno, p_numbers: nums, p_source: source,
-    p_game_id: turno === "Poceada" ? POCEADA_GAME_ID : GAME_ID,
-    // Regla dura del sistema: Poceada Ciudad = 'ciudad', resto = 'CABA'.
+    p_game_id: GAME_ID,
     p_jurisdiccion: jurisParaTurno(turno)[0],
   } as never)
   if (error) return { ok: false, error: error.message }
@@ -125,15 +123,11 @@ export async function refrescarTurnoOnDemand(turno: string, fechaISO: string, ap
     let nums: number[] | null = null
     let source = "consensus"
 
-    if (turno === "Poceada") {
-      const numsOficial = await fetchPoceadaDrawOficial(fechaISO).catch(() => null)
-      if (numsOficial?.length === 20) { nums = numsOficial; source = SOURCE_LOTBA }
-    }
     if (!nums) {
       const consensus = await fetchWithConsensus(fechaISO, fechaUrl, turno as TurnoType, stats).catch(() => null)
       if (consensus?.numbers && consensus.numbers.length === 20 && consensus.ok) {
         nums = consensus.numbers; source = consensus.source || "consensus"
-      } else if (turno !== "Poceada") {
+      } else {
         const oficial = await fetchQuinielaDraw(fechaISO, turno as TurnoType).catch(() => null)
         if (oficial && oficial.length >= 20) { nums = oficial; source = SOURCE_LOTBA }
       }
@@ -146,9 +140,7 @@ export async function refrescarTurnoOnDemand(turno: string, fechaISO: string, ap
 
     // Event-driven: dispara precompute del turno (fire-and-forget)
     try {
-      const baseUrl = appOrigin || (process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev")
+      const baseUrl = appOrigin || getAppBaseUrl()
       const cronKey = process.env.CRON_SECRET || ""
       if (!cronKey) {
         logger.warn("[refresh-on-demand] precompute skipped: CRON_SECRET is not configured", { turno })
@@ -191,7 +183,7 @@ export async function rellenarHistoricoDeTurno(turno: string, windowDays = VENTA
 
 /** Barrido completo para auditoría: todos los turnos. Retorna por turno. */
 export async function rellenarTodoHistorico(windowDays = VENTANA_HIST_DIAS): Promise<ReporteHistorico[]> {
-  const todos = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"] as const
+  const todos = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"] as const
   const out: ReporteHistorico[] = []
   for (const turno of todos) out.push(await rellenarHistoricoDeTurno(turno, windowDays))
   return out

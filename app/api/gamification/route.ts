@@ -4,6 +4,7 @@ import { getSupabaseUrl, getSupabaseKey, sbHeaders, isAdminEmail } from "@/lib/c
 import { validateJwt } from "@/lib/auth/jwt"
 import logger from "@/lib/logger"
 import type { GamificationRow, AchievementRow, GamificationUpdate } from "@/lib/api/types"
+import { readJsonArray } from "@/lib/json-response"
 
 const SB_URL = getSupabaseUrl()
 const SB_KEY = getSupabaseKey()
@@ -21,7 +22,7 @@ async function getGamification(userId: string) {
     { headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}` } }
   )
   if (!res.ok) return null
-  const rows = await res.json()
+  const rows = await readJsonArray<GamificationRow>(res)
   return rows?.[0] || null
 }
 
@@ -31,7 +32,7 @@ async function getAchievements(userId: string) {
     { headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}` } }
   )
   if (!res.ok) return []
-  return await res.json()
+  return readJsonArray<AchievementRow>(res)
 }
 
 async function getTurnosUsed(userId: string) {
@@ -40,8 +41,8 @@ async function getTurnosUsed(userId: string) {
     { headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}` } }
   )
   if (!res.ok) return new Set<string>()
-  const rows = await res.json()
-  return new Set<string>(rows.map((r: { turno: string }) => r.turno?.replace(/\d+cifras$/, "").toLowerCase()).filter(Boolean))
+  const rows = await readJsonArray<{ turno: string }>(res)
+  return new Set<string>(rows.map((r) => r.turno?.replace(/\d+cifras$/, "").toLowerCase()).filter(Boolean))
 }
 
 async function upsertGamification(userId: string, data: GamificationUpdate) {

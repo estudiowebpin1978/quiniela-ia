@@ -22,14 +22,14 @@ const MAX_IMGS = 3
 const MAX_IMGBYTES = 5 * 1024 * 1024
 
 interface ExtractOpts {
-  kind: "quiniela" | "poceada"
+  kind: "quiniela"
   sorteo?: number | null
   fechaISO?: string
   turno?: string
 }
 
-function rangeForKind(kind: "quiniela" | "poceada"): number {
-  return kind === "quiniela" ? 9999 : 99
+function rangeForKind(_kind: "quiniela"): number {
+  return 9999
 }
 
 function htmlMetrics(html: string): boolean {
@@ -157,7 +157,8 @@ export async function extraerNumerosConGemini(
   const range = rangeForKind(opts.kind)
   const prompt =
     "EXTRAE los 20 números del sorteo procedente de la página HTML. Responde EXCLUSIVAMENTE en el siguiente formato:\n\nNUMBERS: n1,n2,...,n20\nSi la página NO tiene los 20 números o no los leíste con seguridad respondé EXCLUSIVAMENTE:\n\nNUMBERS: NONE\n\nReglas:\n" +
-    `${opts.kind === "quiniela" ? "- Jurisdicción CABA (51). Los números son 4 dígitos entre 0000 y 9999; lee valores con ceros a la izquierda como enteros (ej. \"0743\" -> 743).\n" : "- El juego es Poceada; los 20 números vienen en el juego Tradicional como valores de 2 dígitos entre 00 y 99.\n"}- Formato de salida: NUMBERS: n1,n2,...,n20 (exactamente 20 enteros separados por coma).\n`
+    "- Jurisdicción CABA (51). Los números son 4 dígitos entre 0000 y 9999; lee valores con ceros a la izquierda como enteros (ej. \"0743\" -> 743).\n" +
+    "- Formato de salida: NUMBERS: n1,n2,...,n20 (exactamente 20 enteros separados por coma).\n"
 
   let res: Response
   try {

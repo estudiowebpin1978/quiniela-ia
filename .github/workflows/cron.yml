@@ -29,6 +29,9 @@ on:
 jobs:
   fetch-draws:
     runs-on: ubuntu-latest
+    env:
+      APP_URL: ${{ secrets.APP_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -37,15 +40,14 @@ jobs:
 
       - name: Validate required secrets
         run: |
-          if [ -z "${{ secrets.APP_URL }}" ]; then echo "Missing APP_URL secret"; exit 1; fi
-          if [ -z "${{ secrets.CRON_SECRET }}" ]; then echo "Missing CRON_SECRET secret"; exit 1; fi
+          if [ -z "$APP_URL" ]; then echo "Missing APP_URL secret"; exit 1; fi
+          if [ -z "$CRON_SECRET" ]; then echo "Missing CRON_SECRET secret"; exit 1; fi
 
-      # Nota: la URL lleva el secret pero NUNCA se imprime en logs (solo status/body).
+      # El secreto viaja en Authorization, no en la URL ni en los logs.
       - name: Scrape today
         if: inputs.skip_scrape != 'true'
         run: |
-          url="${{ secrets.APP_URL }}/api/cron-scrape?secret=${{ secrets.CRON_SECRET }}"
-          response=$(curl -s -w "\n%{http_code}" "$url")
+          response=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $CRON_SECRET" "${APP_URL%/}/api/cron-scrape")
           http_code=$(tail -n1 <<< "$response")
           body=$(sed '$d' <<< "$response")
           echo "HTTP status: $http_code"
@@ -56,18 +58,25 @@ jobs:
         if: inputs.history == 'true'
         run: |
           days="${{ inputs.days || '7' }}"
-          url="${{ secrets.APP_URL }}/api/cron-backfill?secret=${{ secrets.CRON_SECRET }}&days=$days"
-          response=$(curl -s -w "\n%{http_code}" "$url")
+          response=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $CRON_SECRET" "${APP_URL%/}/api/cron-backfill?days=$days")
           http_code=$(tail -n1 <<< "$response")
           body=$(sed '$d' <<< "$response")
           echo "HTTP status: $http_code"
           echo "$body"
           if [ "$http_code" -ne 200 ]; then echo "ERROR: History API returned $http_code"; exit 1; fi
 
+      - name: Generate predictions
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $CRON_SECRET" "${APP_URL%/}/api/cron-precompute")
+          http_code=$(tail -n1 <<< "$response")
+          body=$(sed '$d' <<< "$response")
+          echo "HTTP status: $http_code"
+          echo "$body"
+          if [ "$http_code" -ne 200 ]; then echo "ERROR: Prediction precompute returned $http_code"; exit 1; fi
+
       - name: Trigger ML training via API
         run: |
-          url="${{ secrets.APP_URL }}/api/cron-ml-training?secret=${{ secrets.CRON_SECRET }}"
-          response=$(curl -s -w "\n%{http_code}" "$url")
+          response=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $CRON_SECRET" "${APP_URL%/}/api/cron-ml-training")
           http_code=$(tail -n1 <<< "$response")
           body=$(sed '$d' <<< "$response")
           echo "HTTP status: $http_code"
@@ -76,8 +85,7 @@ jobs:
 
       - name: Run analytics computation
         run: |
-          url="${{ secrets.APP_URL }}/api/cron-analytics?secret=${{ secrets.CRON_SECRET }}"
-          response=$(curl -s -w "\n%{http_code}" "$url")
+          response=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer $CRON_SECRET" "${APP_URL%/}/api/cron-analytics")
           http_code=$(tail -n1 <<< "$response")
           body=$(sed '$d' <<< "$response")
           echo "HTTP status: $http_code"

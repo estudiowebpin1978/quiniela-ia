@@ -110,7 +110,7 @@ export function aciertoEn20Puestos(
   sorteo: SorteoSelector,
   cifras: 3 | 4
 ): boolean {
-  const derivados = deriveNums(sorteo.numbers, false)
+  const derivados = deriveNums(sorteo.numbers)
   const set = new Set(cifras === 3 ? derivados.nums3 : derivados.nums4)
   for (const p of picks) {
     if (set.has(String(p % 10 ** cifras).padStart(cifras, "0"))) return true

@@ -18,7 +18,7 @@
  * para activación manual desde /api/admin.
  *
  * URL a registrar en Ualá Bis (se envía via notification_url al crear la orden):
- *   https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/api/webhook-uala
+ *   https://<dominio-publico>/api/webhook-uala
  */
 
 import { NextRequest, NextResponse } from "next/server"
@@ -27,6 +27,7 @@ import { timingSafeEqual, createHmac } from "crypto"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { PLAN_DAYS, AMOUNT_PLAN_MAP, ADMIN_EMAILS } from "@/lib/config"
 import logger from "@/lib/logger"
+import { readJsonObject } from "@/lib/json-response"
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -127,7 +128,7 @@ async function getUalaToken(): Promise<string | null> {
       return null
     }
 
-    const data = await response.json()
+    const data = await readJsonObject<{ access_token?: string }>(response)
     return data.access_token || null
   } catch (error) {
     logger.error("[webhook-uala] Ualá auth error", { error: String(error) })
@@ -153,7 +154,11 @@ async function verifyUalaOrder(orderId: string): Promise<{ verified: boolean; st
       return { verified: false, status: "FETCH_ERROR" }
     }
 
-    const data = await response.json()
+    const data = await readJsonObject<{
+      status?: string
+      amount?: number
+      external_reference?: string
+    }>(response)
     return {
       verified: true,
       status: (data.status || "").toString().toUpperCase(),

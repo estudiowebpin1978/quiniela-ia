@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseUrl, getSupabaseKey } from "@/lib/config";
 import { validateCronAuth, unauthorizedResponse } from "@/lib/cron/auth";
+import { readJsonArray } from "@/lib/json-response";
 
 const SB = getSupabaseUrl();
 const SK = getSupabaseKey();
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
       }
     );
     if (!res.ok) return NextResponse.json({ found: false, fecha, turno });
-    const rows = await res.json();
+    const rows = await readJsonArray<{ date?: string; turno?: string; numbers?: number[] }>(res);
 
     if (!rows?.[0]) {
       return NextResponse.json({ found: false, fecha, turno });

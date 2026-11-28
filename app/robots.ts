@@ -1,7 +1,8 @@
 import { MetadataRoute } from 'next';
+import { getAppBaseUrl } from "@/lib/app-url";
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = 'https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev';
+  const baseUrl = getAppBaseUrl();
 
   return {
     rules: [

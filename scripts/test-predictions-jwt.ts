@@ -12,6 +12,7 @@
  */
 
 import "dotenv/config"
+import { readJsonObject } from "@/lib/json-response"
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -41,7 +42,10 @@ async function main() {
     process.exit(1)
   }
 
-  const auth = await authRes.json()
+  const auth = await readJsonObject<{
+    access_token: string
+    user: { email?: string; role?: string }
+  }>(authRes)
   const token = auth.access_token
   console.log(`   OK — user: ${auth.user.email}, role: ${auth.user.role}`)
 
@@ -64,15 +68,20 @@ async function main() {
         continue
       }
 
-      const data = await res.json()
+      const data = await readJsonObject<{
+        numeros?: Array<{ numero?: string; score?: number }>
+        debug?: { engine_version?: string }
+        _cached?: boolean
+      }>(res)
 
       // Validate structure
-      const hasTopNums = Array.isArray(data.numeros) && data.numeros.length > 0
-      const hasTop3 = data.numeros?.[0]?.numero !== undefined
-      const hasScore = typeof data.numeros?.[0]?.score === "number"
+      const numbers = data.numeros
+      const hasTopNums = Array.isArray(numbers) && numbers.length > 0
+      const hasTop3 = numbers?.[0]?.numero !== undefined
+      const hasScore = typeof numbers?.[0]?.score === "number"
 
       if (hasTopNums && hasTop3 && hasScore) {
-        const top5 = data.numeros.slice(0, 5).map((n: any) => n.numero).join(", ")
+        const top5 = numbers.slice(0, 5).map((n) => n.numero).join(", ")
         console.log(`   PASS — top 5: ${top5}`)
         console.log(`   Engine: ${data.debug?.engine_version || "unknown"}, cached: ${data._cached}`)
         passed++

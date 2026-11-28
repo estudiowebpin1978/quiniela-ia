@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { tablaEVQuiniela, resumenEVQuiniela, estructuraPoceada, APUESTA_MINIMA_LOTBA, FUENTE_PREMIOS } from "@/lib/estrategia/premios-lotba"
+import { tablaEVQuiniela, resumenEVQuiniela, APUESTA_MINIMA_LOTBA, FUENTE_PREMIOS } from "@/lib/estrategia/premios-lotba"
 import logger from "@/lib/logger"
 
 /**
@@ -12,8 +12,7 @@ import logger from "@/lib/logger"
  * la casa) y eso se muestra sin maquillaje.
  *
  * Público a propósito: son datos regulatorios + matemática, sin información
- * personal. Poceada queda fuera (pendiente de transcribir de la programación
- * oficial, sin datos inventados).
+ * personal.
  */
 
 export const dynamic = "force-dynamic"
@@ -45,7 +44,6 @@ export async function GET(req: NextRequest) {
         mejorEV: resumen.mejorEV,
         observacion: resumen.observacion,
       },
-      poceada: estructuraPoceada(),
       aviso_legal:
         "Análisis estadístico con fines informativos. La lotería es un evento aleatorio e independiente. " +
         "El valor esperado de casi todas las apuestas es negativo (borde de la casa). No se garantiza ningún resultado. Jugar con responsabilidad.",

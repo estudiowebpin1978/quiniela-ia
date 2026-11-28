@@ -5,12 +5,10 @@
  * Motivo de existir (auditoría 2026-10-12, prod):
  *  - El Cron de Vercel (/api/cron-premium-expiry, "0 4 * * *") está registrado
  *    pero NO recibe invocaciones (0 corridas automáticas en cron_logs).
- *  - /api/cron-brinco depende de un cron externo que todavía no existe.
  *  - /api/cron-scrape (externo) puede pausarse sin aviso.
  *  - En cambio cron-verify-predictions corre cada ~5 min de forma continua.
  *
- * Por eso Brinco (sync + verificación) y los vencimientos Premium se ejecutan
- * aquí con su propia cadencia:
+ * Por eso los vencimientos Premium se ejecutan aquí con su propia cadencia:
  *  - gate por cron_logs: no corre si su última corrida es reciente;
  *  - try/catch por tarea: un fallo no afecta a la otra ni a la verificación;
  *  - logCronExecution con su propio nombre, así /api/health
@@ -19,26 +17,14 @@
 
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { logCronExecution } from "@/lib/cron/auth"
-import { actualizarIncrementalBrinco } from "@/lib/brinco/actualizar"
-import { verificarPendientesBrinco } from "@/lib/brinco/verificar"
 import { procesarVencimientosPremium } from "@/lib/premium/vencimientos"
-import { ejecutarLotePrecompute } from "@/lib/pipeline/precompute/lote-diario"
-import { autoTrainAll } from "@/lib/ml/auto-train"
-import { ejecutarChunkWalkforward } from "@/lib/walkforward/lote-chunk"
 import logger from "@/lib/logger"
 
 const INTERVALOS_MS = {
-  /** Sync incremental desde CAS + verificación de predicciones. */
-  "cron-brinco": 2 * 60 * 60 * 1000,
   /** Downgrade de Premium vencido + avisos (cadencia diaria). */
   "cron-premium-expiry": 20 * 60 * 60 * 1000,
 } as const
 
-/** Separación mínima entre corridas del lote precompute (respaldo diario). */
-const PRECOMPUTE_INTERVALO_MS = 23 * 60 * 60 * 1000
-
-/** Re-entrenamiento ML (Markov + RF + NN por turno): respaldo semanal. */
-const ML_INTERVALO_MS = 7 * 24 * 60 * 60 * 1000
 
 /** ¿Pasó el intervalo mínimo desde la última corrida registrada del tarea? */
 async function debeEjecutar(nombre: string, intervaloMs: number): Promise<boolean> {
@@ -72,31 +58,6 @@ export interface InformeTareasAuxiliares {
 export async function ejecutarTareasAuxiliares(): Promise<InformeTareasAuxiliares> {
   const informe: InformeTareasAuxiliares = { ejecutadas: [], omitidas: [], errores: [] }
 
-  // ── Brinco: sync incremental + verificación de predicciones ──────────
-  try {
-    if (await debeEjecutar("cron-brinco", INTERVALOS_MS["cron-brinco"])) {
-      const t0 = Date.now()
-      const { informe: informeImport, estado } = await actualizarIncrementalBrinco({ domingos: 3, apply: true })
-      const v = await verificarPendientesBrinco()
-      logCronExecution("cron-brinco", {
-        origen: "tareas-auxiliares",
-        importados: informeImport.importados,
-        errores: informeImport.errores,
-        sinResultado: informeImport.sin_resultado,
-        datosHasta: estado.datosHasta,
-        prediccionesVerificadas: v.verificadas,
-        pendientesRevisadas: v.pendientes,
-        pendientesSinResultado: v.sinResultado,
-      }, t0)
-      informe.ejecutadas.push("cron-brinco")
-    } else {
-      informe.omitidas.push("cron-brinco")
-    }
-  } catch (e) {
-    informe.errores.push("cron-brinco")
-    logger.warn("[tareas-auxiliares] cron-brinco falló (no bloquea)", { error: String(e) })
-  }
-
   // ── Vencimientos Premium (downgrade + avisos) ────────────────────────
   try {
     if (await debeEjecutar("cron-premium-expiry", INTERVALOS_MS["cron-premium-expiry"])) {
@@ -110,56 +71,6 @@ export async function ejecutarTareasAuxiliares(): Promise<InformeTareasAuxiliare
   } catch (e) {
     informe.errores.push("cron-premium-expiry")
     logger.warn("[tareas-auxiliares] cron-premium-expiry falló (no bloquea)", { error: String(e) })
-  }
-
-  // ── Precompute del ensemble (respaldo diario) ─────────────────────────
-  // El disparo externo (cron-job.org) puede pausarse sin aviso, como ya pasó
-  // con cron-premium-expiry y cron-brinco (auditoría 2026-10-12). Con este gate
-  // el lote diario no depende de ese trigger: si no corrió en ~24 h, corre aquí.
-  // Idempotente: reescribe la fila de cache del día con la misma semilla.
-  let precomputeCorrio = false
-  let mlCorrio = false
-  try {
-    if (await debeEjecutar("cron-precompute", PRECOMPUTE_INTERVALO_MS)) {
-      const r = await ejecutarLotePrecompute(null, "tareas-auxiliares")
-      informe.ejecutadas.push("cron-precompute")
-      precomputeCorrio = true
-      if (!r.results.every((x) => x.ok)) {
-        logger.warn("[tareas-auxiliares] precompute con turnos con error", { resultados: r.results })
-      }
-    } else {
-      informe.omitidas.push("cron-precompute")
-    }
-  } catch (e) {
-    informe.errores.push("cron-precompute")
-    logger.warn("[tareas-auxiliares] cron-precompute falló (no bloquea)", { error: String(e) })
-  }
-
-  // ── Re-entrenamiento ML (respaldo semanal) ────────────────────────────
-  // El POST /api/cron-ml-training depende de un trigger externo que puede
-  // no llegar (mismo modo de falla que cron-precompute). Con este gate los
-  // modelos ML se re-entrenan al menos semanalmente. Presupuesto dinámico:
-  // si el precompute corrió en este mismo tick, el time budget se reduce.
-  try {
-    if (await debeEjecutar("cron-ml-training", ML_INTERVALO_MS)) {
-      const t0 = Date.now()
-      const presupuestoMs = precomputeCorrio ? 40_000 : 85_000
-      const results = await autoTrainAll(false, t0 + presupuestoMs)
-      const total = results.reduce((s, r) => s + r.modelos.length, 0)
-      logCronExecution("cron-ml-training", {
-        origen: "tareas-auxiliares",
-        total,
-        turnos: results.map((r) => r.turno).join(","),
-        tiempoMs: Date.now() - t0,
-      }, t0)
-      informe.ejecutadas.push("cron-ml-training")
-      mlCorrio = true
-    } else {
-      informe.omitidas.push("cron-ml-training")
-    }
-  } catch (e) {
-    informe.errores.push("cron-ml-training")
-    logger.warn("[tareas-auxiliares] cron-ml-training falló (no bloquea)", { error: String(e) })
   }
 
   // ── Sweep de verificaciones atrasadas (respaldo ~48 h) ────────────────
@@ -182,43 +93,6 @@ export async function ejecutarTareasAuxiliares(): Promise<InformeTareasAuxiliare
   } catch (e) {
     informe.errores.push("cron-verify-catchup")
     logger.warn("[tareas-auxiliares] cron-verify-catchup falló (no bloquea)", { error: String(e) })
-  }
-
-  // ── Walk-forward OOS por chunks (respaldo ~2 h) ───────────────────────
-  // walkforward_results alimenta los pesos dinámicos (loadEngineWeightsDecayed
-  // con decaimiento temporal): en prod estaba 10 meses sin correr y el ajuste
-  // de pesos quedó neutralizado. Corre un turno por tick (el de cursor más
-  // atrasado) con chunk de 15 fechas; a gate 2 h el atraso de ~10 meses se
-  // recupera en ~2 días y luego mantiene el día en curso. NUNCA en el mismo
-  // tick que el precompute o el re-entrenamiento ML (presupuesto del tick).
-  try {
-    if (await debeEjecutar("cron-walkforward", 2 * 60 * 60 * 1000) && !precomputeCorrio && !mlCorrio) {
-      const sb = getSupabaseAdmin()
-      const { data: progs } = await sb
-        .from("walkforward_progress")
-        .select("turno, last_processed_date")
-        .order("last_processed_date", { ascending: true })
-        .limit(1)
-      const turnoElegido = progs?.[0]?.turno || "Previa"
-
-      const t0 = Date.now()
-      const chunk = await ejecutarChunkWalkforward(turnoElegido, 15, 0)
-      const r = chunk[0]
-      logCronExecution("cron-walkforward", {
-        origen: "tareas-auxiliares",
-        turno: turnoElegido,
-        procesadas: r?.processed ?? 0,
-        hits: r?.hits_total ?? 0,
-        ultimaFecha: r?.dates?.slice(-1)[0] ?? null,
-        tiempoMs: Date.now() - t0,
-      }, t0)
-      informe.ejecutadas.push("cron-walkforward")
-    } else {
-      informe.omitidas.push("cron-walkforward")
-    }
-  } catch (e) {
-    informe.errores.push("cron-walkforward")
-    logger.warn("[tareas-auxiliares] cron-walkforward falló (no bloquea)", { error: String(e) })
   }
 
   return informe

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { QUINIELA, POCEADA } from "@/lib/estrategia/probabilidades"
+import { QUINIELA } from "@/lib/estrategia/probabilidades"
 import {
   calcularEV,
   probabilidadModalidad,
@@ -14,9 +14,6 @@ describe("probabilidadModalidad (delega a probabilidades.ts)", () => {
   })
   it("cabeza Quiniela K=10 = 0.10", () => {
     expect(probabilidadModalidad(QUINIELA, "cabeza", 10)).toBeCloseTo(0.1, 10)
-  })
-  it("poceada K=8 ≥5 = hipergeométrica exacta", () => {
-    expect(probabilidadModalidad(POCEADA, "poceada", 8)).toBeCloseTo(0.00754, 4)
   })
 })
 
@@ -69,7 +66,7 @@ describe("calcularEV — fail-closed sin premios oficiales", () => {
   })
   it("suma otrosPremios (varias categorías)", () => {
     const r = calcularEV({
-      modalidad: "poceada",
+      modalidad: "multicategoría",
       kPicks: 8,
       pGanar: 0.0075,
       premio: 10000,

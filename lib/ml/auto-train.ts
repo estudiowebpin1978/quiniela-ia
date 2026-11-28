@@ -14,6 +14,7 @@ import { setModelos, getModelos, MLCachedModel } from "./cache"
 import logger from "@/lib/logger"
 import type { SorteoRow } from "@/lib/api/types"
 import { jurisRest } from "@/lib/procedencia"
+import { readJsonArray, readJsonObject } from "@/lib/json-response"
 
 const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
 
@@ -70,8 +71,10 @@ class OllamaAI implements AIProvider {
       })
     })
     if (!res.ok) throw new Error(`Ollama ${res.status}`)
-    const data = await res.json()
-    return { choices: [{ message: { content: data?.message?.content } }] }
+    const data = await readJsonObject<{ message?: { content?: string } }>(res)
+    const content = data.message?.content
+    if (!content) throw new Error("Ollama returned no message content")
+    return { choices: [{ message: { content } }] }
   }
 }
 
@@ -134,9 +137,9 @@ async function fetchDraws(turno: string, limit = 5000): Promise<SorteoRow[]> {
       { headers: { apikey: SK, Authorization: `Bearer ${SK}` } }
     )
     if (!res.ok) return []
-    const rows = await res.json()
+    const rows = await readJsonArray<{ date: string; turno: string; numbers: number[] }>(res)
     return rows
-      .filter((r: { numbers?: number[] }) => Array.isArray(r.numbers) && r.numbers.length >= 20)
+      .filter((r) => Array.isArray(r.numbers) && r.numbers.length >= 20)
       .map((r: { date: string; turno: string; numbers: number[] }) => ({
         fecha: r.date,
         turno: r.turno,
@@ -358,7 +361,7 @@ export async function loadFromSupabase(turno: string): Promise<MLCachedModel[] |
     )
     if (!res.ok) return null
 
-    const rows = await res.json()
+    const rows = await readJsonArray<{ modelos: string }>(res)
     if (!rows?.length) return null
 
     const modelos = JSON.parse(rows[0].modelos)

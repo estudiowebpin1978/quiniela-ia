@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { esDiaSinSorteo, esTurnoSinSorteo } from "@/lib/feriados"
-import { TURNOS, GAME_ID, POCEADA_GAME_ID, TurnoType } from "@/lib/scrapers/types"
+import { TURNOS, GAME_ID, TurnoType } from "@/lib/scrapers/types"
 import { parseNumerosEnvivo, parseNacionalQuiniela } from "@/lib/scrapers/parsers"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
@@ -102,9 +102,8 @@ async function scrapeDate(fechaISO: string): Promise<{ saved: number; errors: nu
       p_turno: turno,
       p_numbers: result.numbers,
       p_source: result.source,
-      // Cada turno con su juego: Poceada pertenece a su propio game_id
-      // (verificado en BD:263 filas Poceada usan d0e1f2a3..., no el Nacional).
-      p_game_id: turno === "Poceada" ? POCEADA_GAME_ID : GAME_ID,
+      // Quiniela de la Ciudad: todos los turnos comparten el game_id Nacional.
+      p_game_id: GAME_ID,
       p_jurisdiccion: "CABA",
     } as never)
 

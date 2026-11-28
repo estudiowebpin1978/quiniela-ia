@@ -13,7 +13,6 @@ import type { PredictionResponse, TopNumero, HeatmapItem } from "./types"
 export const maxDuration = 30
 
 const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
-const POCEADA_GAME_ID = "d0e1f2a3-b4c5-6789-0abc-def012345678"
 
 // ── In-memory prediction cache (survives warm serverless instances) ──
 interface MemCacheEntry { payload: unknown; expiresAt: number }
@@ -74,7 +73,7 @@ function invalidateMemCache(): void { predictionMemCache.clear() }
 function normalizeTurno(t: string): string {
   const map: Record<string, string> = {
     previa: "Previa", primera: "Primera", matutina: "Matutina",
-    vespertina: "Vespertina", nocturna: "Nocturna", poceada: "Poceada"
+    vespertina: "Vespertina", nocturna: "Nocturna"
   }
   return map[t.toLowerCase()] || t
 }
@@ -163,8 +162,8 @@ export async function GET(req: NextRequest) {
     const turnoRaw = searchParams.get("sorteo") || "previa"
     const turnoQuery = turnoRaw.toLowerCase()
 
-    if (!["previa", "primera", "matutina", "vespertina", "nocturna", "poceada"].includes(turnoQuery)) {
-      return NextResponse.json({ error: `Sorteo inválido. Válidos: previa, primera, matutina, vespertina, nocturna, poceada` }, { status: 400 })
+    if (!["previa", "primera", "matutina", "vespertina", "nocturna"].includes(turnoQuery)) {
+      return NextResponse.json({ error: `Sorteo inválido. Válidos: previa, primera, matutina, vespertina, nocturna` }, { status: 400 })
     }
 
     const turnoCanonical = normalizeTurno(turnoQuery)
@@ -288,15 +287,13 @@ export async function GET(req: NextRequest) {
         ? await cacheFrescoPara(turnoCanonical, String(cached.date).slice(0, 10), targetDate)
         : true
 
-      // Poceada necesita 20 numeros (2 combinaciones de 8). Un cache corto
-      // (p. ej. heredado del MMR que topaba a 10) NO se debe servir; se cae al
-      // c\u00e1lculo en vivo hasta que el precompute lo regenere con topN=20.
+      // Un cache corto (p. ej. heredado del MMR que topaba a 10) NO se debe
+      // servir; se cae al cálculo en vivo hasta que el precompute lo regenere.
       if (
         cacheFresco &&
         cached?.numeros_2 &&
         Array.isArray(cached.numeros_2) &&
-        cached.numeros_2.length > 0 &&
-        (turnoCanonical !== "Poceada" || cached.numeros_2.length >= 16)
+        cached.numeros_2.length > 0
       ) {
           // Cache hit — build response from pre-computed data
           const numeros: TopNumero[] = cached.numeros_2.map((item: Record<string, unknown>, i: number) => ({
@@ -394,10 +391,7 @@ export async function GET(req: NextRequest) {
           } catch { /* best-effort Redis write */ }
 
           // ── AUTO-SAVE: guardar predicción del usuario para verificación posterior ──
-          // Poceada Ciudad: EXCEPCIÓN — el guardado es PREMIUM-only vía POST
-          // /api/mis-predicciones (botón "Guardar jugada"); auto-guardarlo en
-          // silencio para todos rompía el gate free->premium.
-          if (userTier.userId && turnoCanonical !== "Poceada") {
+          if (userTier.userId) {
             try {
               const numerosGuardar = numeros.map((n) => n.numero)
               const predGuardar = {
@@ -489,7 +483,7 @@ export async function GET(req: NextRequest) {
             ok: true,
             date: targetDate,
             turno: turnoCanonical,
-            game_id: turnoCanonical === "Poceada" ? POCEADA_GAME_ID : GAME_ID,
+            game_id: GAME_ID,
             pred: {
               numeros_2,
               numeros_3,
@@ -514,9 +508,7 @@ export async function GET(req: NextRequest) {
           }
 
           // ── AUTO-SAVE: guardar predicción del usuario (LIVE-V6 camino) ──
-          // Poceada Ciudad: EXCEPCIÓN — guardado PREMIUM-only vía POST
-          // /api/mis-predicciones; auto-guardar en silencio sería un bypass.
-          if (userTier.userId && turnoCanonical !== "Poceada") {
+          if (userTier.userId) {
             try {
               const numerosGuardar = numeros.map((n) => n.numero)
               const predGuardar = {

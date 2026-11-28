@@ -27,7 +27,21 @@ export async function GET(req: NextRequest) {
   if (!auth.authorized) return unauthorizedResponse()
 
   const turnoFilter = req.nextUrl.searchParams.get("turno")
+  if (!turnoFilter) {
+    // Fan-out: cada turno se precompute en su propia invocación para no
+    // exceder el límite de 50 subrequests / 10 ms de CPU de Workers Free.
+    const cronKey = process.env.CRON_SECRET || ""
+    const origin = req.nextUrl.origin
+    const turnos = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
+    for (const t of turnos) {
+      fetch(`${origin}/api/cron-precompute?turno=${encodeURIComponent(t)}`, {
+        headers: { Authorization: `Bearer ${cronKey}` },
+      }).catch(() => {})
+    }
+    return NextResponse.json({ ok: true, dispatched: turnos })
+  }
+
   const result = await ejecutarLotePrecompute(turnoFilter, "route")
 
-  return NextResponse.json(result)
+  return NextResponse.json(result, { status: result.ok ? 200 : 500 })
 }

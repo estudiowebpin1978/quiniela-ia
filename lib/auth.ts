@@ -4,6 +4,7 @@
  */
 
 import { STORAGE_KEYS, readStorage, writeStorage, removeStorage } from "@/lib/storage";
+import { readJsonObject } from "@/lib/json-response"
 
 export interface AuthData {
   access_token: string;
@@ -52,7 +53,7 @@ export async function refreshSession(): Promise<AuthData | null> {
       body: JSON.stringify({ refresh_token: auth.refresh_token }),
     });
     if (!r.ok) { clearAuth(); return null; }
-    const data = await r.json();
+    const data = await readJsonObject<AuthData>(r);
     const newAuth: AuthData = {
       access_token: data.access_token,
       refresh_token: data.refresh_token || auth.refresh_token,

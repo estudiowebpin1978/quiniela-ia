@@ -71,7 +71,7 @@ async function main(): Promise<void> {
   const tipos = await import("../lib/selector/tipos")
   const evaluarMod = await import("../lib/selector/evaluar")
   const candMod = await import("../lib/selector/candidatos")
-  const pfBacktest = await import("../lib/poceada-federal/backtest")
+  const pfBacktest = await import("../lib/estadistica/backtest-utils")
   const { mapearCandidatosV6 } = await import("../lib/pipeline/precompute/blend")
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
@@ -173,7 +173,7 @@ async function cargarSorteos(
     const { data, error } = await supabase
       .from("draws")
       .select("date,turno,numbers")
-      // Procedencia (frente C): solo juegos de LOTBA (Quiniela + Poceada);
+      // Procedencia (frente C): solo el juego Quiniela Ciudad (CABA);
       // provincia es otro juego y contaminaría la validación del selector.
       .in("jurisdiccion", JURIS_LOTBA)
       .order("date", { ascending: true })
@@ -187,7 +187,7 @@ async function cargarSorteos(
   for (const t of turnos) porTurno.set(t, [])
   for (const f of filas) {
     const arr = porTurno.get(f.turno)
-    if (!arr) continue // sólo columna Ciudad / turnos Quiniela (sin Poceada)
+    if (!arr) continue // sólo columna Ciudad / turnos Quiniela
     arr.push({ fecha: f.date, turno: f.turno, numbers: f.numbers as number[] })
   }
   for (const arr of porTurno.values()) arr.sort((a, b) => a.fecha.localeCompare(b.fecha))

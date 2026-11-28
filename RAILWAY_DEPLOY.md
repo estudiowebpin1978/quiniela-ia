@@ -1,103 +1,97 @@
-# Migración a Railway/Render — Guía paso a paso
+# Despliegue en Railway
 
-## ✅ Lo que ya está preparado (automáticamente)
+La aplicación se construye con el `Dockerfile` de la raíz. Railway detecta ese
+archivo automáticamente; el contenedor escucha en el puerto que Railway inyecta
+en `PORT`.
 
-| Archivo | Estado | Descripción |
-|---------|--------|-------------|
-| `Dockerfile` | ✅ Creado | Imagen Node.js 18 con Next.js |
-| `railway.toml` | ✅ Creado | Configuración de build y variables |
-| `.env.example` | ✅ Actualizado | Variables de entorno completas |
-| `migrate-to-railway.sh` | ✅ Creado | Script de ayuda para migración |
-| Verificación tsc | ✅ Pasada | `tsc --noEmit` exit 0 |
-| Verificación tests | ✅ Pasada | 412 tests pass |
-| Verificación build | ✅ Pasada | `npm run build` exit 0 |
+## Preparar el servicio
 
-## 🔧 Lo que hacer manualmente (3 pasos)
+1. Crea un proyecto Railway y conecta el repositorio de GitHub.
+2. En **Settings → Networking**, genera un dominio público antes del primer build.
+3. En **Variables**, configura las variables requeridas de abajo. Define
+   `NEXT_PUBLIC_BASE_URL` como referencia Railway:
+   `https://${{ RAILWAY_PUBLIC_DOMAIN }}`.
+4. Despliega. Al cambiar una variable `NEXT_PUBLIC_*`, dispara un nuevo build:
+   Next.js las incluye en los recursos del navegador durante la compilación.
+5. Configura **Healthcheck Path** como `/api/live` en los ajustes del
+   servicio. Es una comprobación ligera de que el proceso web responde; usa
+   `/api/sync-status` por separado para revisar la frescura de datos.
 
-### Paso 1 — Crea cuenta en Railway
+No fijes `PORT`: Railway asigna el puerto y `next start` lo consume. Tampoco
+configures `OLLAMA_HOST=http://localhost:11434`; Ollama no corre dentro de este
+contenedor. Si se usa un servidor Ollama separado, configura su dirección de red
+accesible desde Railway.
 
-1. Ve a https://railway.app
-2. Haz click en "Start for free"
-3. Autentícate con GitHub (es la forma más fácil)
-4. No necesitas tarjeta de crédito para el plan gratuito ($5 créditos/mes)
+## Variables requeridas
 
-### Paso 2 — Conecta tu repositorio
+| Variable | Uso |
+|---|---|
+| `NEXT_PUBLIC_BASE_URL` | URL pública; usar `https://${{ RAILWAY_PUBLIC_DOMAIN }}` |
+| `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave pública de Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Acceso server-side a Supabase; mantener privada |
+| `SUPABASE_JWT_SECRET` | Validación de JWT |
+| `CRON_SECRET` | Secreto largo y aleatorio compartido con los cron jobs |
 
-1. En el dashboard de Railway, haz click en "New Project"
-2. Selecciona "Deploy from GitHub repo"
-3. Busca y conecta tu repositorio `quiniela-ia` (el que tiene tu código)
-4. Railway detectará automáticamente que es Next.js
-5. Haz click en "Deploy Now"
+Las variables `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+`NEXT_PUBLIC_BASE_URL` y `RAILWAY_PUBLIC_DOMAIN` se pasan al stage de build en el
+Dockerfile. No pongas claves privadas en variables `NEXT_PUBLIC_*`.
 
-### Paso 3 — Configura las variables de entorno
+## Variables opcionales
 
-1. Ve a Settings → Variables del proyecto
-2. Pega todas las variables del archivo `.env.example` que ves a continuación:
+Configura sólo las integraciones que se usan:
 
-   - Copia el contenido completo
-   - Pega en el campo "Variables"
+- `ADMIN_EMAILS`
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY`
+- `GROQ_API_KEY`, `GEMINI_API_KEY`, `HF_API_KEY`, `HF_MODEL`
+- `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `CF_EMBED_MODEL`
+- `UALA_USERNAME`, `UALA_CLIENT_ID`, `UALA_CLIENT_SECRET`,
+  `UALA_WEBHOOK_SECRET`
+- `RESEND_API_KEY`
 
-## 📋 Variables de entorno requeridas
+No copies literalmente los valores de ejemplo ni pegues secretos en archivos del
+repositorio.
 
-Copia todo esto en Railway → Settings → Variables:
+## Tareas programadas
 
-```
-NODE_ENV=production
-NEXT_PUBLIC_BASE_URL=https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev
-NEXT_PUBLIC_SUPABASE_URL=https://wazkylxgqckjfkcmfotl.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=tu-clave-anon-aqui
-SUPABASE_SERVICE_ROLE_KEY=tu-clave-service-role-aqui
-SUPABASE_JWT_SECRET=tu-jwt-secret-aqui
-CRON_SECRET=tu-cron-secret-aqui
-ADMIN_EMAIL=estudiowebpin@gmail.com
-ADMIN_EMAILS=estudiowebpin@gmail.com
-TRANSFER_AUTO_APPROVE_HOURS=1
-NEXT_PUBLIC_VAPID_PUBLIC_KEY=tu-vapid-public-key
-VAPID_PRIVATE_KEY=tu-vapid-private-key
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=llama3.2:3b
-GROQ_API_KEY=tu-groq-api-key
-GEMINI_API_KEY=tu-gemini-api-key
-HF_API_KEY=tu-hf-api-key
-HF_MODEL=sentence-transformers/all-MiniLM-L6-v2
-CLOUDFLARE_ACCOUNT_ID=tu-account-id
-CLOUDFLARE_API_TOKEN=tu-api-token
-CF_EMBED_MODEL=@cf/baai/bge-m3
-GROQ_MODEL=openai/gpt-oss-120b
-UALA_USERNAME=tu-uala-username
-UALA_CLIENT_ID=tu-uala-client-id
-UALA_CLIENT_SECRET=tu-uala-client-secret
-UALA_WEBHOOK_SECRET=
-```
+`vercel.json` no agenda tareas en Railway. El workflow de
+[cron.yml](./.github/workflows/cron.yml) es manual y no reemplaza los cron jobs
+recurrentes. En el proveedor de cron actualiza cada URL para usar el dominio
+público generado por Railway y conserva su frecuencia:
 
-## 🔄 Actualizar los cron-jobs en cron-job.org
+- `/api/cron-push`
+- `/api/cron-scrape`
+- `/api/cron-verify-catchup`
+- `/api/cron-verify-predictions`
+- `/api/cron-sync-monitor`
 
-Una vez que Railway te de el dominio, ve a:
+Envía el encabezado `Authorization: Bearer <CRON_SECRET>` en las rutas protegidas;
+no pongas el secreto en la URL. Para ejecutar el workflow manual desde GitHub,
+configura los secrets de Actions `APP_URL` (dominio público Railway) y
+`CRON_SECRET`.
 
-https://cron-job.org → Cronjobs → cada uno de tus 6 crons y actualiza la URL:
+Si mantienes los trabajos `pg_cron` de Supabase, aplica la migración
+`20261123233724_railway_pg_cron.sql` y configura en Supabase los ajustes
+`app.settings.railway_app_url` (origen HTTPS de Railway) y `app.settings.cron_secret`
+(el mismo secreto de `CRON_SECRET`) ejecutando en el SQL Editor:
 
-| Cron original | Nuevo URL |
-|---------------|-----------|
-| `quiniela-ia-two.vercel.app/api/cron-push` | `https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/api/cron-push` |
-| `quiniela-ia-two.vercel.app/api/cron-scrape` | `https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/api/cron-scrape` |
-| `quiniela-ia-two.vercel.app/api/cron-verify-catchup` | `https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/api/cron-verify-catchup` |
-| `quiniela-ia-two.vercel.app/api/cron-verify-predictions` | `https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/api/cron-verify-predictions` |
-| `quiniela-ia-two.vercel.app/api/cron-brinco` | `https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/api/cron-brinco` |
-| `quiniela-ia-two.vercel.app/api/cron-poceada-federal` | `https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/api/cron-poceada-federal` |
-| `quiniela-ia-two.vercel.app/api/cron-sync-monitor` | `https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/api/cron-sync-monitor` |
-
-El `CRON_SECRET` se mantiene igual.
-
-## ✅ Verificación post-deploy
-
-Una vez deployado, prueba:
-
-```bash
-# 1. Verifica que el sitio responde
-curl https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/api/sync-status
-
-# 2. Verifica que las predicciones funcionan
-curl https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/api/predictions?sorteo=primera
+```sql
+ALTER DATABASE postgres SET app.settings.railway_app_url = 'https://<dominio-publico>';
+ALTER DATABASE postgres SET app.settings.cron_secret = '<mismo-valor-de-CRON_SECRET>';
 ```
 
-Debe responder con `overall: ok` y `alerts: []`.
+No guardes esos valores en migraciones ni en Git. Desactiva los cron triggers
+del Worker anterior para evitar ejecuciones duplicadas.
+
+## Comprobaciones
+
+Después del despliegue:
+
+1. `GET https://<dominio-publico>/api/sync-status` debe devolver HTTP 200 y un
+   JSON con estado `overall`.
+2. Prueba `/api/predictions?sorteo=primera` y confirma que devuelve datos.
+3. Ejecuta un cron manualmente con el encabezado de autorización y comprueba su
+   respuesta y los logs de Railway.
+
+`/api/sync-status` puede devolver `overall: "attention"` si faltan sorteos; eso
+indica estado de datos y no necesariamente que el proceso web esté caído.

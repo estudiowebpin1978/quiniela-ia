@@ -14,7 +14,7 @@ export async function GET(req:NextRequest){
       .from("draws")
       .select("turno, numbers, date")
       // Procedencia (frente C): sesgos solo del juego Quiniela Ciudad (los
-      // turnos de abajo son turnos de Quiniela; Poceada y provincia fuera).
+      // turnos de abajo son turnos de Quiniela; provincia fuera).
       .in("jurisdiccion", JURIS_QUINIELA_CIUDAD)
       .limit(5000)
     if(!rows?.length)return NextResponse.json({ok:true, message:"Sin datos", sesgos:{}, sesgos_mensuales:{}})

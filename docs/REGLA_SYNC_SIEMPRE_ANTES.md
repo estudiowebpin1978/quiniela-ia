@@ -8,30 +8,24 @@
 
 | Modalidad / endpoint | Sync antes de responder | Archivo |
 |---|---|---|
-| Quiniela (todos los turnos) + Poceada Ciudad | `refrescarTurnoOnDemand(turno, date)` y recuperación **await** de huecos recientes (4 días), antes de cualquier caché y también para invitados | `app/api/predictions/route.ts` |
-| Poceada Federal (generación) | `sincronizar({ repo: repoSinc })` (IAFAS + extracto/corroboración SF) | `app/api/poceada-federal/combinaciones/route.ts` POST |
-| Poceada Federal (lecturas) | idem best-effort (nunca 5xx por sync) | `app/api/poceada-federal/combinaciones/route.ts` GET |
-| Brinco (generación) | `actualizarIncrementalBrinco()` (CAS o extracto oficial :8443) | `app/api/brinco/prediccion/route.ts` |
-| Brinco (historial/guardar jugada) | idem + `verificarPendientesBrinco()` | `app/api/brinco/historial/route.ts` GET y POST |
-| Verificación de predicciones | RPC `verify_predictions_for_draw` / `verificarPendientesBrinco()` / `evaluarPendientes()` corren demand-driven y en crons | varios |
+| Quiniela (todos los turnos) | `refrescarTurnoOnDemand(turno, date)` y recuperación **await** de huecos recientes (4 días), antes de cualquier caché y también para invitados | `app/api/predictions/route.ts` |
+| Verificación de predicciones | RPC `verify_predictions_for_draw` / `evaluarPendientes()` corren demand-driven y en crons | varios |
 
 **Regla de falla:** el sync es *best-effort* — si la fuente oficial no responde, la respuesta NO falla: se devuelve el historial ya cargado con los datos declarados como usados en la propia respuesta (`sorteos*`, `sincronizacion`/`totalSorteos` reales).
 
 ## Invariantes de la regla
 
 1. **Siempre ANTES**: el sync precede a cualquier lectura (cache/memoria/DB) de la respuesta. Ninguna página devuelve picks basados en datos vencidos.
-2. **Sólo fuentes oficiales**: LOTBA (Ciudad), Lotería de Santa Fe + IAFAS (Poceada Federal), CAS/Lotería de Santa Fe (Brinco). Nunca un agregador no oficial como camino de escritura.
+2. **Sólo fuentes oficiales**: LOTBA (Ciudad). Nunca un agregador no oficial como camino de escritura.
 3. **Idempotencia**: `upsert_draw` sólo si falta o difiere; nunca se pisa un sorteo con datos peores ("nunca vacío sobre datos").
 4. **Reloj oficial**: el sorteo se guarda recién tras `hora oficial + 2 min buffer` (ART) para no fabricar "resultado" antes de tiempo; los soroctetos aparecen cuando el extracto oficial los publica.
-5. **Jurisdicción dura**: `Poceada → 'ciudad'`, `Previa..Nocturna → 'CABA'` — en TODOS los caminos de guardado (stats, cron, webhooks). Violación conocida corregida 2026-11 (cron-run, refrescar-on-demand, cron-scrape hardening).
+5. **Jurisdicción dura**: `Previa..Nocturna → 'CABA'` — en TODOS los caminos de guardado (stats, cron, webhooks). Violación conocida corregida 2026-11 (cron-run, refrescar-on-demand, cron-scrape hardening).
 6. **Sync barato cuando no hay novedad**: se consulta Supabase primero y sólo se llama a la fuente oficial para un sorteo/día faltante; las escrituras son idempotentes.
 
 ## Cómo verificar la regla en producción
 
 1. Pedir una predicción: `GET /api/predictions?sorteo=Nocturna&t=<cachebuster>` → verificar en la UI "sorteos oficiales analizados (de → hasta)".
-2. `/brinco`: mostrar "datos hasta" igual a la última fecha de sorteo importada.
-3. `/poceada-federal`: "Generar nuevo análisis" → la respuesta incluye `sincronizacion: { ok, datosNuevos, importados… }`.
-4. Logs del Worker y `cron_logs` en Supabase → `[refresh-on-demand] draw saved` o `[brinco-actualizar] extracto oficial`.
+2. Logs del Worker y `cron_logs` en Supabase → `[refresh-on-demand] draw saved`.
 
 ## Qué NO cubre (y por qué)
 

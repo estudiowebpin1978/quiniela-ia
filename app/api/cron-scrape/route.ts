@@ -4,9 +4,7 @@
  * También reintenta sorteos faltantes de los últimos cuatro días calendario.
  *
  * Fuente única autorizada: quiniela.loteriadelaciudad.gob.ar (quiniela)
- *                          poceada.loteriadelaciudad.gob.ar (poceada)
  *   - fetchWithConsensus → parseOficial (HTML de resultados + resultados-data.php)
- *   - fetchPoceadaDraw   → oficial LOTBA (home + resultados-data.php)
  *   - Auto-healing: si un sorteo oficial de hoy no quedó en DB, se carga
  *     al final del mismo run (mismo módulo oficial).
  *
@@ -18,10 +16,8 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { esDiaSinSorteo, esTurnoSinSorteo } from "@/lib/feriados"
 import { fetchWithConsensus } from "@/lib/scrapers/consensus"
-import { fetchPoceadaDraw } from "@/lib/scrapers/poceada"
-import { fetchQuinielaDraw, fetchPoceadaDrawOficial, SOURCE_LOTBA } from "@/lib/scrapers/lotba-oficial"
+import { fetchQuinielaDraw, SOURCE_LOTBA } from "@/lib/scrapers/lotba-oficial"
 import { SourceStats, TURNOS, TurnoType, GAME_ID } from "@/lib/scrapers/types"
-import { POCEADA_GAME_ID } from "@/lib/config"
 import { validateCronAuth, unauthorizedResponse, logCronExecution } from "@/lib/cron/auth"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { invalidateAllPredictionCaches } from "@/lib/cache/prediction-cache-invalidation"
@@ -182,7 +178,7 @@ export async function GET(req: NextRequest) {
   // Parallelize turnos for faster scraping (each turno is independent)
   const TURNO_TIMES_UTC: Record<string, string> = {
     Previa: "13:15", Primera: "15:00", Matutina: "18:00", Vespertina: "21:00", 
-    Nocturna: "00:00", Poceada: "00:00",
+    Nocturna: "00:00",
   }
   const turnoResults = await Promise.allSettled(turnosToScrape.map(async (turno) => {
     // Time guard: don't save draws before the official turno time (+5 min buffer)
@@ -192,8 +188,8 @@ export async function GET(req: NextRequest) {
         const now = new Date()
         const [h, m] = officialTimeUTC.split(":").map(Number)
         let officialCutoffUTC: Date
-        if (turno === "Nocturna" || turno === "Poceada") {
-          // Nocturna & Poceada are at 00:00 UTC (21:00 ART previous day)
+        if (turno === "Nocturna") {
+          // Nocturna is at 00:00 UTC (21:00 ART previous day)
           // Check against next day's midnight UTC (fechaISO is ART date, which is still yesterday in UTC for early hours)
           officialCutoffUTC = new Date(`${fechaISO}T${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:00Z`)
           officialCutoffUTC.setUTCDate(officialCutoffUTC.getUTCDate() + 1)
@@ -359,7 +355,7 @@ export async function GET(req: NextRequest) {
             n: r.numero, score: r.puntaje_total, rank: 0
           })),
           p_weights_used: { w_frequency: 0.18, w_markov: 0.15, w_hot: 0.18, w_cold: 0.12, w_gap: 0.10, w_cooccurrence: 0.10, w_positional: 0.07, w_pattern: 0.05, w_trend: 0.05 },
-          p_confidence: getCalibration(turno === "Poceada").confidencePct,
+          p_confidence: getCalibration().confidencePct,
           p_factor_attribution: predData[0]?.factor_attribution || null,
         } as never)
 
@@ -368,78 +364,6 @@ export async function GET(req: NextRequest) {
     }
   } catch (e) {
     logger.error("cron-scrape: error generating engine predictions", { error: String(e) })
-  }
-
-  // ── Poceada LOTBA scraping ──
-  try {
-    const poceadaDraw = await fetchPoceadaDraw(fechaISO)
-    // Integridad: Poceada son exactamente 20 números (misma forma que el resto
-    // de los sorteos; la guarda anterior aceptaba desde 8 → parciales en BD).
-    if (poceadaDraw && poceadaDraw.numbers.length === 20) {
-      const supabasePoceada = getSupabaseAdmin()
-      const poceadaTurno = "Poceada"
-
-      // Check if draw already exists
-      const { data: existingPoceada } = await supabasePoceada
-        .from("draws")
-        .select("id, numbers")
-        .eq("date", fechaISO)
-        .eq("turno", poceadaTurno)
-        .eq("jurisdiccion", "ciudad")
-        .limit(1)
-
-      if (existingPoceada && existingPoceada.length > 0) {
-        if (JSON.stringify(existingPoceada[0].numbers) !== JSON.stringify(poceadaDraw.numbers)) {
-          // Numbers changed — update
-          await supabasePoceada.rpc("upsert_draw" as never, {
-            p_date: fechaISO,
-            p_turno: poceadaTurno,
-            p_numbers: poceadaDraw.numbers,
-            p_source: poceadaDraw.source,
-            p_game_id: POCEADA_GAME_ID,
-            p_jurisdiccion: "ciudad",
-          } as never)
-          guardados++
-          resultados[poceadaTurno] = poceadaDraw.numbers
-          logger.info("cron-scrape: poceada updated", { fecha: fechaISO, numbers: poceadaDraw.numbers })
-        }
-      } else {
-        // New draw
-        await supabasePoceada.rpc("upsert_draw" as never, {
-          p_date: fechaISO,
-          p_turno: poceadaTurno,
-          p_numbers: poceadaDraw.numbers,
-          p_source: poceadaDraw.source,
-          p_game_id: POCEADA_GAME_ID,
-          p_jurisdiccion: "ciudad",
-        } as never)
-        guardados++
-        resultados[poceadaTurno] = poceadaDraw.numbers
-        logger.info("cron-scrape: poceada saved", { fecha: fechaISO, numbers: poceadaDraw.numbers })
-      }
-
-      // Verify Poceada predictions immediately
-      try {
-        const { data: verifyData, error: verifyErr } = await supabasePoceada.schema("api").rpc("verify_predictions_for_draw" as never, {
-          p_date: fechaISO,
-          p_turno: poceadaTurno,
-        } as never)
-        if (verifyErr) logger.warn("cron-scrape: poceada verify failed", { error: verifyErr.message })
-        else if (verifyData) logger.info("cron-scrape: poceada verified", { resultado: verifyData })
-      } catch (e) {
-        logger.warn("cron-scrape: poceada verify exception", { error: String(e) })
-      }
-
-      // Trigger precompute for Poceada
-      try {
-        const cronKey = process.env.CRON_SECRET || ""
-        fetch(`${appOrigin}/api/cron-precompute?turno=Poceada`, {
-          headers: { Authorization: `Bearer ${cronKey}` },
-        }).catch(() => {})
-      } catch { /* non-fatal */ }
-    }
-  } catch (e) {
-    logger.warn("cron-scrape: poceada scrape failed", { error: String(e) })
   }
 
   // Background tasks (after response) — logging only
@@ -514,7 +438,7 @@ export async function GET(req: NextRequest) {
     const quinielaTurnos = (singleTurno
       ? [singleTurno as TurnoType]
       : (["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"] as TurnoType[])
-    ).filter((t) => t !== "Poceada")
+    )
 
     for (const turno of quinielaTurnos) {
       if (resultados[turno] && resultados[turno].length >= 20) continue
@@ -532,26 +456,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Poceada: idem si la sección principal no pudo guardarla
-    if (!singleTurno && !(resultados["Poceada"] && resultados["Poceada"].length >= 20) && !(await tieneDraw(fechaISO, "Poceada"))) {
-      const nums = await fetchPoceadaDrawOficial(fechaISO)
-      if (nums && nums.length === 20) {
-        const { error } = await getSupabaseAdmin().rpc("upsert_draw" as never, {
-          p_date: fechaISO,
-          p_turno: "Poceada",
-          p_numbers: nums,
-          p_source: SOURCE_LOTBA,
-          p_game_id: POCEADA_GAME_ID,
-          p_jurisdiccion: "ciudad",
-        } as never)
-        if (!error) {
-          guardados++
-          resultados["Poceada"] = nums
-          clearTurnoError("Poceada")
-          logger.info("[cron-scrape] auto-healed poceada from official LOTBA", { fecha: fechaISO })
-        }
-      }
-    }
   } catch (e) {
     logger.warn("[cron-scrape] official auto-healing skipped", { error: String(e) })
   }

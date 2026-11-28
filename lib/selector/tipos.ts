@@ -52,7 +52,7 @@ export interface CandidatoSelector {
   evaluar: (ctx: CorteContexto) => number[] | Promise<number[]>
 }
 
-/** Turnos de la Quiniela Ciudad (sin Poceada: es juego distinto). */
+/** Turnos de la Quiniela Ciudad. */
 export const TURNOS_QUINIELA_CIUDAD = [
   "Previa",
   "Primera",

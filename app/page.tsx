@@ -12,6 +12,7 @@ import { useSound } from "@/lib/sound/audio-manager"
 import { useSettings } from "@/components/ui/Settings"
 
 import type { TrendItem } from "@/lib/types/client"
+import { readJsonObject } from "@/lib/json-response"
 
 interface CommunityData {
   trends: TrendItem[]
@@ -24,7 +25,7 @@ function CommunityTrends() {
 
   useEffect(() => {
     fetch("/api/community")
-      .then(r => r.json())
+      .then(r => readJsonObject<CommunityData>(r))
       .then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])

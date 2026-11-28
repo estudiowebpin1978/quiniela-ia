@@ -23,7 +23,7 @@ const MAX_DRAWS = 250
 const MAX_QUERY = 20
 const SIMILARITY_SCALE = 100
 
-const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"] as const
+const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"] as const
 
 function norm2(n: number): number {
   return ((Math.trunc(Math.abs(Number(n)))) % 100 + 100) % 100

@@ -3,9 +3,7 @@ import { useState, useEffect, useCallback } from "react"
 import { isLoggedIn, getAccessToken } from "@/lib/auth"
 import { xpForNextLevel, xpForCurrentLevel, ACHIEVEMENTS } from "@/lib/gamification"
 import type { Achievement } from "@/lib/types/client"
-
- 
-type AnyRecord = Record<string, any>
+import { readJsonObject } from "@/lib/json-response"
 
 interface GamificationResponse {
   level: number
@@ -21,9 +19,9 @@ interface Props {
 }
 
 export default function GamificationBadge({ compact = false, onNewAchievement }: Props) {
-  const [data, setData] = useState<AnyRecord | null>(null)
+  const [data, setData] = useState<GamificationResponse | null>(null)
   const [showDetails, setShowDetails] = useState(false)
-  const [newAchievement, setNewAchievement] = useState<AnyRecord | null>(null)
+  const [newAchievement, setNewAchievement] = useState<Achievement | null>(null)
 
   const fetchData = useCallback(() => {
     if (!isLoggedIn()) return
@@ -31,10 +29,10 @@ export default function GamificationBadge({ compact = false, onNewAchievement }:
     if (!token) return
 
     fetch("/api/gamification", { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
+      .then(r => readJsonObject<GamificationResponse>(r))
       .then(d => {
         setData(d)
-        if (d.newAchievements?.length > 0) {
+        if (d.newAchievements && d.newAchievements.length > 0) {
           const ach = d.newAchievements[0]
           setNewAchievement(ach)
           onNewAchievement?.(ach)
@@ -160,7 +158,7 @@ export default function GamificationBadge({ compact = false, onNewAchievement }:
             <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", marginBottom: 10 }}>Logros</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {ACHIEVEMENTS.map(ach => {
-                const unlocked = (data.achievements || []).some((a: AnyRecord) => a.id === ach.id)
+                const unlocked = (data.achievements || []).some((a) => a.id === ach.id)
                 return (
                   <div key={ach.id} style={{
                     display: "flex", alignItems: "center", gap: 10,

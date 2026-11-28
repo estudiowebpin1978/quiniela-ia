@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { getAuth } from "@/lib/auth"
 import { validateMisPrediccionesResponse, type MisPrediccion } from "@/lib/api/predictions"
-import { fechaLarga } from "@/lib/poceada/fechas"
+import { fechaLarga } from "@/lib/fechas"
+import { readJsonObject } from "@/lib/json-response"
 import "./perfil.css"
 
 export default function PerfilPage() {
@@ -23,7 +24,11 @@ export default function PerfilPage() {
     try {
       const r = await fetch("/api/auth/me", { headers: { Authorization: "Bearer " + a.access_token } })
       if (r.ok) {
-        const d = await r.json()
+        const d = await readJsonObject<{
+          canAccessPremiumFeatures?: boolean
+          role?: string
+          premium_until?: string | null
+        }>(r)
         setPremium(!!(d?.canAccessPremiumFeatures || d?.role === "premium" || d?.role === "admin"))
         if (d?.premium_until) {
           const days = Math.ceil((new Date(d.premium_until).getTime() - Date.now()) / 86400000)
@@ -34,8 +39,8 @@ export default function PerfilPage() {
     try {
       const r = await fetch("/api/mis-predicciones", { headers: { Authorization: "Bearer " + a.access_token } })
       if (r.ok) {
-        const d = await r.json()
-        const arr: unknown[] = Array.isArray(d?.predictions) ? d.predictions : []
+        const d = await readJsonObject<{ predictions?: unknown }>(r)
+        const arr: unknown[] = Array.isArray(d.predictions) ? d.predictions : []
         try { setPreds(validateMisPrediccionesResponse({ predictions: arr }).predictions) } catch { setPreds(arr as MisPrediccion[]) }
       }
     } catch {}
@@ -47,7 +52,7 @@ export default function PerfilPage() {
   // la carga real ocurre dentro de la IIFE, igual que antes (una sola vez al montar).
   useEffect(() => { void (async () => { await cargar() })() }, [cargar])
 
-  const predLabels: Record<string, string> = { previa: "Previa", primera: "Primera", matutina: "Matutina", vespertina: "Vespertina", nocturna: "Nocturna", poceada: "Poceada", brinco: "Brinco" }
+  const predLabels: Record<string, string> = { previa: "Previa", primera: "Primera", matutina: "Matutina", vespertina: "Vespertina", nocturna: "Nocturna" }
 
   const won = preds.filter((p) => String(p.status) === "WON").length
   const near = preds.filter((p) => String(p.status) === "NEAR_MISS").length
@@ -139,7 +144,7 @@ export default function PerfilPage() {
                 </div>
               </div>
               <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: "rgba(245,197,66,.08)", border: "1px solid rgba(245,197,66,.15)", fontSize: 12, color: "#cfc8b0", lineHeight: 1.6 }}>
-                <b>Nota honesta:</b> estas métricas reflejan solo lo que guardaste. No representan la probabilidad matemática de ganar (la lotería es aleatoria e independiente). El motor optimiza consistencia del modelo, no aciertos garantizados. No hay EV determinista ni premio fijo para Poceada (es poceado / parimutuel).
+                <b>Nota honesta:</b> estas métricas reflejan solo lo que guardaste. No representan la probabilidad matemática de ganar (la lotería es aleatoria e independiente). El motor optimiza consistencia del modelo, no aciertos garantizados.
               </div>
             </div>
           )}
@@ -166,7 +171,7 @@ export default function PerfilPage() {
                 </div>
               </div>
               <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: "rgba(245,197,66,.08)", border: "1px solid rgba(245,197,66,.15)", fontSize: 12, color: "#cfc8b0", lineHeight: 1.6 }}>
-                <b>Nota honesta:</b> estas métricas reflejan solo lo que guardaste. No representan la probabilidad matemática de ganar (la lotería es aleatoria e independiente). El motor optimiza consistencia del modelo, no aciertos garantizados. No hay EV determinista ni premio fijo para Poceada (es poceado / parimutuel).
+                <b>Nota honesta:</b> estas métricas reflejan solo lo que guardaste. No representan la probabilidad matemática de ganar (la lotería es aleatoria e independiente). El motor optimiza consistencia del modelo, no aciertos garantizados.
               </div>
             </div>
           )}

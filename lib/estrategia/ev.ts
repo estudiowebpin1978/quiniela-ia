@@ -15,11 +15,11 @@
  */
 
 import type { JuegoConfig } from "./probabilidades"
-import { pCoincidenciaMod, pCabezaMod, pPoceada } from "./probabilidades"
+import { pCoincidenciaMod, pCabezaMod } from "./probabilidades"
 
 /** Una modalidad de apuesta con su premio oficial (o null si falta). */
 export interface PremioModalidad {
-  /** Nombre de la modalidad ("2 cifras", "redoblona", "poceada ≥5", ...) */
+  /** Nombre de la modalidad ("2 cifras", "redoblona", ...) */
   modalidad: string
   /** Cantidad de números que elegís */
   kPicks: number
@@ -81,21 +81,18 @@ export function calcularEV(m: PremioModalidad): ResultadoEV {
  * `criterio`:
  *   - "coincidencia" → ≥1 de tus K clases mod-M entre los 20 sorteados
  *   - "cabeza"       → la cabeza (1er sorteado) cae en tus K picks (estricto)
- *   - "poceada"      → ≥ umbral aciertos de tus K números
  */
 export function probabilidadModalidad(
   juego: JuegoConfig,
-  tipo: "coincidencia" | "cabeza" | "poceada",
+  tipo: "coincidencia" | "cabeza",
   kPicks: number,
-  opts?: { modM?: number; umbral?: number },
+  opts?: { modM?: number },
 ): number {
   switch (tipo) {
     case "coincidencia":
       return pCoincidenciaMod(juego, kPicks, opts?.modM ?? 100)
     case "cabeza":
       return pCabezaMod(juego, kPicks, opts?.modM ?? 100)
-    case "poceada":
-      return pPoceada(juego, kPicks, opts?.umbral ?? 5)
   }
 }
 

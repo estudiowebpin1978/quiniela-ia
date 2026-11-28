@@ -73,14 +73,11 @@ Cloudflare Workers programa de forma nativa el scrapeo de seguridad cada 15 minu
 |-----|----------|------------|-------------|
 | **Verify predictions** | Cloudflare Cron → `/api/cron-verify-predictions` | Cada 5 min | Verifica aciertos contra sorteos oficiales y evalúa los factores V6 (`factor_weight_history`) |
 | **Scrape + catch-up** | Cloudflare Cron → `/api/cron-scrape` | Cada 15 min | Scrapea resultados publicados y reintenta huecos de los últimos 4 días |
-| **Poceada Federal** | cron-job.org → `/api/cron-poceada-federal` | Diario, después del sorteo | Importa resultados oficiales IAFAS y registra fallas de corroboración |
-| **Brinco** | cron-job.org → `/api/cron-brinco` | Domingos, después del sorteo | Importa resultados oficiales y verifica predicciones |
 | Scrape Previa | `/api/cron-scrape?turno=Previa` | 10:30 Mon-Sat | Scrape sorteo Previa |
 | Scrape Primera | `/api/cron-scrape?turno=Primera` | 12:30 Mon-Sat | Scrape sorteo Primera |
 | Scrape Matutina | `/api/cron-scrape?turno=Matutina` | 15:30 Mon-Sat | Scrape sorteo Matutina |
 | Scrape Vespertina | `/api/cron-scrape?turno=Vespertina` | 18:30 Mon-Sat | Scrape sorteo Vespertina |
 | Scrape Nocturna | `/api/cron-scrape?turno=Nocturna` | 21:30 Mon-Sat | Scrape sorteo Nocturna |
-| Scrape Poceada | `/api/cron-scrape?turno=Poceada` | 21:15 Mon-Sat | Scrape sorteo Poceada |
 | Auto-approve transfers | `/api/cron-auto-approve-transfers` | Cada 30 min | Auto-aprueba transferencias > N horas |
 | Push notifications | `/api/cron-push` | Cada 15 min | Envía notificaciones push |
 | Verify catchup | `/api/cron-verify-catchup` | 09:00 daily | Verifica predicciones pendientes |
@@ -124,14 +121,28 @@ npx wrangler login
 npm run deploy:vinext
 ```
 
-Agrega las variables de entorno en el dashboard de Cloudflare Workers o mediante secretos:
+Agrega las variables de entorno en **Workers & Pages → quiniela-ia → Settings →
+Variables and Secrets**. Configura `APP_URL` como variable con el origen público
+del Worker y guarda los secretos como secretos, no como texto plano:
 
 ```bash
-npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 npx wrangler secret put CRON_SECRET
+npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 ```
 
-El liveness del Worker está disponible en `/api/live`.
+Configura también `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+
+En **Settings → Triggers → Cron Triggers**, agrega exactamente estas dos
+frecuencias:
+
+- `*/5 * * * *`: verifica predicciones y ejecuta tareas auxiliares.
+- `*/15 * * * *`: scrapea resultados y recalcula cachés.
+
+El handler de `cloudflare-worker.ts` usa `APP_URL` para invocar las rutas del
+Worker y falla explícitamente si falta. Evita duplicar estos triggers en
+Supabase `pg_cron` u otro proveedor. Supabase sigue alojando la base de datos;
+no hay que migrar sus tablas a Cloudflare. El liveness del Worker está en
+`/api/live`.
 
 ---
 

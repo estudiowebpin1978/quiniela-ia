@@ -7,7 +7,7 @@
  * campos que nadie calcula.
  *
  * Corrida de referencia documentada: 2026-09-25 (ver lib/probability/calibration.ts):
- *   - Quiniela: n=1314 OOS · Poceada: n=427 OOS
+ *   - Quiniela: n=1314 OOS
  *   - Veredicto: ningún modelo supera al azar (|z| ≤ 1.8)
  *
  * Regla de honestidad: NO rellenar `lift`/`z` a mano; provienen de una corrida
@@ -27,7 +27,7 @@ export interface BenchmarkResult {
   pAtLeast1: number;
   /** P(≥3 aciertos) */
   pAtLeast3: number;
-  /** P(ganar) según regla del app (Quiniela P≥1 · Poceada P≥5) */
+  /** P(ganar) según regla del app (Quiniela: cabeza ∈ top-N) */
   pWin: number;
   /** P(cabeza en top-N) */
   cabezaAtTop: number;

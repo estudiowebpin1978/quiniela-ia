@@ -1,19 +1,16 @@
 /**
  * Motor de probabilidades EXACTAS para EV — matemática pura, sin I/O.
  *
- * Pools oficiales (tabla `games`, fuente primaria LOTBA):
+ * Pool oficial (tabla `games`, fuente primaria LOTBA):
  *   - Quiniela de la Ciudad (ex Nacional): 20 números sorteados de 0..9999
  *     (N=10000), 5 turnos.
- *   - Quiniela Poceada de la Ciudad:  20 números sorteados de 0..99   (N=100).
  *   - Sorteo SIN reemplazo (números distintos por sorteo).
  *
- * Tres familias de eventos, todas exactas:
+ * Dos familias de eventos, exactas:
  *   1. Coincidencia de "cifra" (mod-M): tus K picks de clase mod-M aparecen
  *      al menos una vez entre los D=20 sorteados. → hipergeométrica clásica
  *      tratando cada clase mod-M como un conjunto de N/M números.
  *   2. Cabeza (primer número sorteado mod-M): uniforme → K/(N/M).
- *   3. Poceada "≥ t aciertos": conteo hipergeométrico de tus K números
- *      elegidos que caen entre los D sorteados.
  *
  * Regla de honestidad: estas son probabilidades de azar EXACTAS (baseline).
  * NO contienen factor del modelo — sirven para (a) valor esperado y
@@ -21,7 +18,7 @@
  * inventadas.
  *
  * Numeración: las funciones evitan números gigantes (C(10000,20)~1e73)
- * usando productos de razones o log-factoriales.
+ * usando productos de razones.
  */
 
 /** Config de un juego — pools oficiales de la tabla `games`. */
@@ -40,13 +37,6 @@ export const QUINIELA: JuegoConfig = {
   poolSize: 10000,
   porSorteo: 20,
   clasesMod: 100, // 2 cifras (la app opera sobre mod 100)
-};
-
-export const POCEADA: JuegoConfig = {
-  nombre: "Quiniela Poceada de la Ciudad",
-  poolSize: 100,
-  porSorteo: 20,
-  clasesMod: 100, // 0..99 (identidad)
 };
 
 /**
@@ -90,40 +80,4 @@ export function pCabezaMod(cfg: JuegoConfig, kPicks: number, modM: number): numb
   if (kPicks <= 0) return 0;
   if (kPicks > clases) throw new Error(`kPicks ${kPicks} excede clases ${clases}`);
   return kPicks / clases;
-}
-
-/** log-C(n,k) estable vía suma de logs (para hipergeométricas grandes). */
-export function logChoose(n: number, k: number): number {
-  if (k < 0 || k > n) return -Infinity;
-  const kk = Math.min(k, n - k);
-  let s = 0;
-  for (let i = 0; i < kk; i++) s += Math.log(n - i) - Math.log(i + 1);
-  return s;
-}
-
-/**
- * Hipergeométrica P(X = k): de un pool de N, D sorteados, tus K picks,
- * ¿cuántos caen en los sorteados?
- */
-export function hipergeom(K: number, N: number, D: number, k: number): number {
-  if (k < 0 || k > Math.min(K, D)) return 0;
-  if (D - k > N - K) return 0;
-  return Math.exp(
-    logChoose(K, k) + logChoose(N - K, D - k) - logChoose(N, D),
-  );
-}
-
-/**
- * P(X ≥ t) hipergeométrica — usado para Poceada (WON con ≥5 aciertos).
- */
-export function pAlMenosT(K: number, N: number, D: number, t: number): number {
-  let s = 0;
-  const max = Math.min(K, D);
-  for (let k = t; k <= max; k++) s += hipergeom(K, N, D, k);
-  return Math.min(1, Math.max(0, s));
-}
-
-/** P(Poceada: tus K números tienen ≥ t aciertos entre los D sorteados). */
-export function pPoceada(cfg: JuegoConfig, kPicks: number, umbral: number): number {
-  return pAlMenosT(kPicks, cfg.poolSize, cfg.porSorteo, umbral);
 }

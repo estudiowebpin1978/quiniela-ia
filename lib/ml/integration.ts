@@ -40,7 +40,6 @@ const TURNOS_CANONICOS: Record<string, string> = {
   matutina: "Matutina",
   vespertina: "Vespertina",
   nocturna: "Nocturna",
-  poceada: "Poceada",
 }
 
 function turnoCanonico(turno: string): string {

@@ -100,7 +100,7 @@ export function predictV7(
   if (draws.length < 5) throw new Error(`Insufficient data: ${draws.length} draws`)
 
   const turnoDraws = draws.filter(d => d.turno === turno)
-  const minTurnoDraws = turno === "Poceada" ? 2 : 5
+  const minTurnoDraws = 5
   if (turnoDraws.length < minTurnoDraws) throw new Error(`Insufficient data for turno ${turno} (${turnoDraws.length}/${minTurnoDraws})`)
 
   // Extract number sequences (2-digit: 00-99)

@@ -3,7 +3,6 @@ export const LOTBA = {
   name: "Lotería de la Ciudad de Buenos Aires" as const,
   quinielaName: "Quiniela de la Ciudad" as const,
   quinielaUrl: "https://quiniela.loteriadelaciudad.gob.ar/" as const,
-  poceadaUrl: "https://poceada.loteriadelaciudad.gob.ar/" as const,
 } as const
 
 export const QUINIELA_TURNOS = [

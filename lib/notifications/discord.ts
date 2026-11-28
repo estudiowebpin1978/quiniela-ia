@@ -10,6 +10,7 @@
  */
 
 import logger from "@/lib/logger"
+import { getAppBaseUrl } from "@/lib/app-url"
 
 type AlertLevel = "info" | "warning" | "error" | "critical"
 
@@ -63,7 +64,7 @@ export async function sendDiscordAlert(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         username: "Quiniela IA Monitor",
-        avatar_url: "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev/icon-192.png",
+        avatar_url: `${getAppBaseUrl()}/icon-192.png`,
         embeds: [embed],
       }),
       signal: AbortSignal.timeout(5000),

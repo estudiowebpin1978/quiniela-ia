@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { resolveUserTier } from "@/lib/auth/tier"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import logger from "@/lib/logger"
+import { isJsonRecord } from "@/lib/json-response"
 
 export const maxDuration = 300
 
@@ -77,10 +78,18 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Parse body ──────────────────────────────────────────────
-    const body = await req.json().catch(() => ({}))
-    const engineVersion = body.engine_version || "omega_v6"
-    const turno = body.turno || "Primera"
-    const lookbackDays = body.lookback_days || 90
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json({ error: "JSON inválido" }, { status: 400 })
+    }
+    if (!isJsonRecord(body)) {
+      return NextResponse.json({ error: "JSON inválido" }, { status: 400 })
+    }
+    const engineVersion = typeof body.engine_version === "string" ? body.engine_version : "omega_v6"
+    const turno = typeof body.turno === "string" ? body.turno : "Primera"
+    const lookbackDays = typeof body.lookback_days === "number" ? body.lookback_days : 90
 
     const endDate = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
     const startDateObj = new Date()

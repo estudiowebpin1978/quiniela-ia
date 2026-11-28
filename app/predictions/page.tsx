@@ -21,7 +21,6 @@ import WhatsAppFAB from "@/components/WhatsAppFAB";
 import RedoblonasCoOcurrencia from "@/components/RedoblonasCoOcurrencia";
 import RedoblonasPlan5 from "@/components/RedoblonasPlan5";
 import FooterDisclaimer from "@/components/FooterDisclaimer";
-import HitRateBanner from "@/components/HitRateBanner";
 import GamificationBadge from "@/components/GamificationBadge";
 import HistorialAciertos from "@/components/HistorialAciertos";
 import ExpiryBanner from "@/components/ExpiryBanner";
@@ -110,15 +109,13 @@ interface BeforeInstallPromptEvent extends Event {
  
 const CONTACT = "estudiowebpin@gmail.com";
 const WA = "https://api.whatsapp.com/send?phone=5493412500029";
-const APP_URL = "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev";
 const SORTEOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"];
 const HORAS: Record<string, string> = {
   Previa: "10:15",
   Primera: "12:00",
   Matutina: "15:00",
   Vespertina: "18:00",
-  Nocturna: "21:00",
-  Poceada: "21:00"
+  Nocturna: "21:00"
 };
 type LocalRankingItem = NonNullable<PredData["ranking"]>[number];
 
@@ -271,7 +268,7 @@ function PageInner() {
         if (cancelled) return;
         if (draw.found === true && Array.isArray(draw.numbers) && draw.numbers.length > 0) {
             const reales = draw.numbers.map((n: string | number) => String(Number(n) % 100).padStart(2, "0"));
-          const predichos = dt.numeros_2.slice(0, currentTurno === "Poceada" ? 8 : 10).map((n: any) => String(n.num ?? n.numero ?? n).padStart(2, "0"));
+          const predichos = dt.numeros_2.slice(0, 10).map((n: any) => String(n.num ?? n.numero ?? n).padStart(2, "0"));
           const aciertos = predichos.filter((n: string) => reales.includes(n)).map((n: string) => ({ numero: n, puesto: reales.indexOf(n) + 1 }));
           setResultadoControl({ aciertos, predichos, reales, fecha: fechaPred, turno: currentTurno } as ResultadoControl);
         }
@@ -388,8 +385,8 @@ function PageInner() {
       setShowHowItWorks(true);
       localStorage.setItem("quiniela-ia-tour-visto", "true");
     }
-    const HORARIOS_POLL: Record<string, number> = { Previa: 10, Primera: 12, Matutina: 15, Vespertina: 18, Nocturna: 21, Poceada: 21 }
-    const TURNOS_LIST = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"]
+    const HORARIOS_POLL: Record<string, number> = { Previa: 10, Primera: 12, Matutina: 15, Vespertina: 18, Nocturna: 21 }
+    const TURNOS_LIST = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
     const pollInterval = setInterval(async () => {
       const artNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }))
@@ -550,7 +547,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + tkRef.current },
           body: JSON.stringify({
             turno: currentTurno,
-            topNumbers: (validatedPredData?.numeros || []).slice(0, currentTurno === "Poceada" ? 8 : 10).map((n) => (n as Record<string, unknown>).num || (n as Record<string, unknown>).numero),
+            topNumbers: (validatedPredData?.numeros || []).slice(0, 10).map((n) => (n as Record<string, unknown>).num || (n as Record<string, unknown>).numero),
           }),
         }).catch(() => {})
       }
@@ -778,12 +775,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     const nums3Save = (pr || userRole === "admin") ? nums3.slice(0, maxNums) : [];
     const nums4Save = (pr || userRole === "admin") ? nums4.slice(0, maxNums) : [];
     const rdblSave = (pr || userRole === "admin") && rdbl ? [rdbl] : [];
-    // Poceada (so === "Poceada") es un juego SOLO de 2 cifras (00-99):
-    // se guarda SIEMPRE como array plano — nunca con claves "3"/"4"/"r".
-    // ANTES un usuario premium guardaba {2,3,4,r} incluso en Poceada y la UI
-    // mostraba secciones "3 CIFRAS"/"4 CIFRAS" que no existen en ese juego.
-    const esPoceadaGuardar = so === "Poceada";
-    const esPremiumGuardar = (pr || userRole === "admin") && !esPoceadaGuardar;
+    const esPremiumGuardar = pr || userRole === "admin";
     const numerosGuardar: unknown = esPremiumGuardar
       ? { "2": nums, "3": nums3Save, "4": nums4Save, "r": rdblSave }
       : nums;
@@ -875,7 +867,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
       return "#" + (i + 1) + " " + p.numero + " " + emoji + " " + nombre;
     }).join("\n");
     const rdblLine = dt?.redoblona ? "\n🎯 Redoblona: " + dt.redoblona : "";
-    const txt = "🎰 QUINIELA IA ANÁLISIS\n" + proximoSorteo(so) + "\n\n" + lineas + rdblLine + "\n\n📊 " + APP_URL;
+    const appUrl = window.location.origin;
+    const txt = "🎰 QUINIELA IA ANÁLISIS\n" + proximoSorteo(so) + "\n\n" + lineas + rdblLine + "\n\n📊 " + appUrl;
     navigator.clipboard
       .writeText(txt)
       .then(() => toast("Copiado al portapapeles", "success"))
@@ -892,9 +885,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
 
   function share(p: string) {
     const txt = encodeURIComponent("Probá Quiniela IA - Análisis estadístico basado en datos reales");
-    const url = encodeURIComponent(APP_URL);
+    const url = encodeURIComponent(window.location.origin);
     if (p === "copy") {
-      navigator.clipboard.writeText(APP_URL).then(() => toast("Link copiado al portapapeles", "success")).catch(() => {});
+      navigator.clipboard.writeText(window.location.origin).then(() => toast("Link copiado al portapapeles", "success")).catch(() => {});
       return;
     }
     const urls: Record<string, string> = {
@@ -917,8 +910,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
     [rankingData],
   );
   const ranking = rankingData;
-  const isPoceada = so === "Poceada";
-  const maxNums = isPoceada ? 8 : 10;
+  const maxNums = 10;
 
 // Previously calculated numeric math heavy expressions (useMemo to prevent unnecessary recalculations)
   // Use current numeric data for rendering (avoid recreating objects each render)
@@ -965,8 +957,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         .sl{font-size:11px;color:#a5b4fc;margin-top:6px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
         /* Los estilos de .sorteo-label / .sorteo-btns / .sb viven en predictions.css
            (fuente única). Antes había un bloque duplicado acá con
-           grid-template-columns:repeat(6,1fr): 6 columnas para 5 botones = un hueco
-           vacío donde estaba Poceada, y además pisaba los tamaños de predictions.css. */
+           grid-template-columns:repeat(6,1fr) que pisaba los tamaños de predictions.css. */
         .sb::before{content:'';position:absolute;top:0;left:0;right:0;height:50%;background:linear-gradient(180deg,rgba(255,255,255,.05),transparent);border-radius:20px 20px 0 0;pointer-events:none}
         .btn3d { padding: 22px 28px; font-size: 1.05rem; border-radius: 16px; letter-spacing: 0.5px; width: 100%; margin-bottom: 10px; box-shadow: 0 10px 0 rgba(0,0,0,.4), 0 14px 40px rgba(236,72,153,.5) }
         .btn3d:active{transform:translateY(6px)!important;box-shadow:none!important;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
@@ -1267,64 +1258,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               <button className="btn3d btn-gen btn-game" onClick={() => { setTab("mis"); cargarMisPreds(tkRef.current); }} style={{ opacity: ld ? 0.6 : 1, background: "linear-gradient(135deg,rgba(34,197,94,.18),rgba(34,197,94,.08))", color: "#15803d", boxShadow: "0 8px 0 #15803d,0 12px 36px rgba(34,197,94,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}>
                 🗂️ Análisis Guardados
               </button>
-              <a
-                className="btn3d btn-gen btn-game"
-                href="/brinco"
-                onClick={(e) => {
-                  if (!(pr || userRole === "admin")) {
-                    e.preventDefault();
-                    setLeyendaModalidad(true);
-                  }
-                }}
-                style={{ background: "linear-gradient(180deg,#bf5af2 0%,#9333ea 50%,#7c3aed 100%)", color: "#fff", boxShadow: "0 10px 0 #6d28d9,0 14px 40px rgba(191,90,242,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}
-              >
-                🎱 Brinco
-                <span className="gsub">Tradicional + Junior · Lotería de Santa Fe</span>
-              </a>
-              <a
-                className="btn3d btn-gen btn-game"
-                href="/poceada"
-                onClick={(e) => {
-                  if (!(pr || userRole === "admin")) {
-                    e.preventDefault();
-                    setLeyendaModalidad(true);
-                  }
-                }}
-                style={{ background: "linear-gradient(180deg,#ffd60a 0%,#f59e0b 50%,#d97706 100%)", color: "#111", boxShadow: "0 10px 0 #b45309,0 14px 40px rgba(245,158,11,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}
-              >
-                🔮 Poceada Ciudad
-                <span className="gsub">2 cifras · Ciudad de Buenos Aires</span>
-              </a>
-              <a
-                className="btn3d btn-gen btn-game"
-                href="/poceada-federal"
-                onClick={(e) => {
-                  if (!(pr || userRole === "admin")) {
-                    e.preventDefault();
-                    setLeyendaModalidad(true);
-                  }
-                }}
-                style={{ background: "linear-gradient(180deg,#38bdf8 0%,#0ea5e9 50%,#0284c7 100%)", color: "#fff", boxShadow: "0 10px 0 #0369a1,0 14px 40px rgba(14,165,233,.5),inset 0 2px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.15)" }}
-              >
-                🎟️ Poceada Federal
-                <span className="gsub">Combinaciones de 2 a 5 números · IAFAS</span>
-              </a>
-              {leyendaModalidad && !(pr || userRole === "admin") && (
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: "#fbbf24",
-                    textAlign: "center",
-                    padding: "8px 12px",
-                    border: "1px dashed rgba(251,191,36,.55)",
-                    borderRadius: 10,
-                    background: "rgba(251,191,36,.08)",
-                  }}
-                >
-                  🔒 Esta opción es con acceso premium.
-                </div>
-              )}
               <div style={{ fontSize: 12, color: "#94a3b8", textAlign: "center" }}>🔔 Activa la campanita para recibir avisos de resultados y coincidencias.</div>
             </div>
           )}
@@ -1546,7 +1479,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   <span className="tb-ico">📈</span>
                   <span className="tb-lbl">Tendencias</span>
                 </button>
-                <button className={"tb tb-mis" + (tab === "mis" ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para guardar y ver tus análisis", "info"); return; } sound.pop(); triggerHaptic("light"); setTab("mis"); }}>
+                <button className={"tb tb-mis" + (tab === "mis" ? " on" : "")} onClick={() => { if (guestMode) { toast("Creá una cuenta para guardar y ver tus análisis", "info"); return; } sound.pop(); triggerHaptic("light"); const t = tkRef.current || getAccessToken(); if (t) cargarMisPreds(t); setTab("mis"); }}>
                   <span className="tb-ico">{guestMode ? "🔒" : "📋"}</span>
                   <span className="tb-lbl">Mis Análisis</span>
                 </button>
@@ -1583,34 +1516,8 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                   </div>
                   <div className={dg > 2 && !pr ? "lk" : ""}>
                     <div style={{ position: "relative" }}>
-                      {/* Poceada Ciudad — 2 juegos de predicciones */}
-                      {isPoceada && (
-                        <div style={{ marginBottom: 10 }}>
-                          <div style={{ fontSize: 11, fontWeight: 800, color: "#f5c542", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 8 }}>
-                            Poceada Ciudad — 2 combinaciones (2 cifras · 00-99)
-                          </div>
-                          <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr" }}>
-                            <div style={{ background: "rgba(245,197,66,0.08)", border: "1px solid rgba(245,197,66,0.3)", borderRadius: 14, padding: 12 }}>
-                              <div style={{ fontSize: 12, fontWeight: 800, color: "#f5c542", marginBottom: 6 }}>🎯 Juego 1 — Frecuencia histórica</div>
-                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {(cur.slice(0, 4)).map((p, i) => (
-                                  <span key={"j1-"+i} style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "#141414", background: "linear-gradient(180deg,#f5c542,#e0a800)", boxShadow: "0 4px 0 rgba(120,85,0,.55), inset 0 2px 4px rgba(255,255,255,.35)" }}>{String(p.numero).padStart(2,"0")}</span>
-                                ))}
-                              </div>
-                            </div>
-                            <div style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 14, padding: 12 }}>
-                              <div style={{ fontSize: 12, fontWeight: 800, color: "#22c55e", marginBottom: 6 }}>🎯 Juego 2 — Tendencias validadas</div>
-                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {(cur.slice(4, 8)).map((p, i) => (
-                                  <span key={"j2-"+i} style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 800, color: "#f8fafc", background: "linear-gradient(180deg,#22c55e,#15803d)", boxShadow: "0 4px 0 rgba(0,0,0,.4), inset 0 2px 4px rgba(255,255,255,.15)" }}>{String(p.numero).padStart(2,"0")}</span>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
                       <div
-                        className={isPoceada ? "g8" : "g5"}
+                        className="g5"
                         style={(guestMode || (userRole === "free" && dg > 2)) ? { filter: "blur(8px)", userSelect: "none", pointerEvents: "none" } : {}}
                       >
                         {cur.slice(0, maxNums).map((p, i) => {
@@ -1620,7 +1527,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                           const fa = (p as { factor_attribution?: Record<string, number> }).factor_attribution || {};
                           const recencyFactor = fa.recency || 0;
                           const heatLabel = recencyFactor > 0.6 ? "🔥" : recencyFactor > 0.3 ? "🌡️" : "❄️";
-                          const poceadaProb = (dt as any)?.poceada_probs?.numbers?.find((x: any) => x.numero === p.numero);
                           return (
                           <div className={`cd${dg===3?" c3":""}${dg===4?" c4":""}`} key={i} onClick={() => setNumDetail(r || p)} style={{cursor:"pointer", position:"relative"}}>
                             {isCabeza && <span className="cabeza-badge">CABEZA</span>}
@@ -1643,11 +1549,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                               {r?.score ? (r.score * 100).toFixed(0) + "%" : ""}
                               <span title={recencyFactor > 0.6 ? "Caliente" : recencyFactor > 0.3 ? "Tibio" : "Frío"} style={{fontSize:8}}>{heatLabel}</span>
                             </div>
-                            {poceadaProb?.p_draw != null && (
-                              <div style={{fontSize:8,color:"#22c55e",marginTop:2,fontWeight:700}}>
-                                P: {(poceadaProb.p_draw * 100).toFixed(0)}%
-                              </div>
-                            )}
                             {/* Factores de predicción */}
                             {Object.entries(fa).filter(([k, v]) => (v as number) > 0.1).map(([k, v]) => `${k}:${Math.round((v as number) * 100)}%`).slice(0, 3).join(" · ") ? (
                               <div style={{fontSize: 9, color: "#a78bfa", marginTop: 3, fontStyle: "italic"}}>
@@ -2036,13 +1937,9 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                     const fechaValida = fecha && !isNaN(Date.parse(fecha));
                     const titulo = fechaValida ? `${p.turno} — ${new Date(fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}` : `${p.turno} — ${fecha || "Sin fecha"}`;
                     const nums2: string[] = Array.isArray(p.numeros) ? p.numeros : (typeof p.numeros === "object" && p.numeros?.["2"] ? p.numeros["2"] : []);
-                    // Poceada es un juego SOLO de 2 cifras (00-99), distinto de
-                    // la Quiniela: nunca mostrar 3/4 cifras ni redoblona, aunque
-                    // datos legacy tengan esas claves.
-                    const esPoceadaPred = /poceada/i.test(p.turno || "");
-                    const nums3: string[] = esPoceadaPred ? [] : (Array.isArray(p.numeros_3) ? p.numeros_3 : (typeof p.numeros === "object" && p.numeros?.["3"] ? p.numeros["3"] : []));
-                    const nums4: string[] = esPoceadaPred ? [] : (Array.isArray(p.numeros_4) ? p.numeros_4 : (typeof p.numeros === "object" && p.numeros?.["4"] ? p.numeros["4"] : []));
-                    const rdblStr: string = esPoceadaPred ? "" : ((typeof p.numeros === "object" && p.numeros?.["r"]) ? (Array.isArray(p.numeros["r"]) ? p.numeros["r"][0] || "" : p.numeros["r"] || "") : "");
+                    const nums3: string[] = Array.isArray(p.numeros_3) ? p.numeros_3 : (typeof p.numeros === "object" && p.numeros?.["3"] ? p.numeros["3"] : []);
+                    const nums4: string[] = Array.isArray(p.numeros_4) ? p.numeros_4 : (typeof p.numeros === "object" && p.numeros?.["4"] ? p.numeros["4"] : []);
+                    const rdblStr: string = (typeof p.numeros === "object" && p.numeros?.["r"]) ? (Array.isArray(p.numeros["r"]) ? p.numeros["r"][0] || "" : p.numeros["r"] || "") : "";
                     return (
                       <div key={i} className={`saved-card ${tieneAciertos ? "saved-card-success" : ""}`}>
                         <div className="saved-card-header">
@@ -2138,9 +2035,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                                 const hit3 = p.aciertos_3?.some((a: any) => a.numero === n3)
                                 const hit2 = p.aciertos_2?.some((a: any) => a.numero === n2)
                                 const isHit = hit4 || hit3 || hit2
-                                // Poceada: solo 2 cifras — el "tipo" de acierto
-                                // es siempre "2" (sin 3/4 cifras).
-                                const hitType = esPoceadaPred ? (hit2 ? "2" : null) : (hit4 ? "4" : hit3 ? "3" : hit2 ? "2" : null)
+                                const hitType = hit4 ? "4" : hit3 ? "3" : hit2 ? "2" : null
                                 return (
                                   <span key={idx} style={{
                                     padding:"4px 7px",borderRadius:6,fontSize:11,fontWeight:700,
@@ -2160,19 +2055,15 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
                                       : "1px solid rgba(168,85,247,0.4)"
                                       : "1px solid rgba(255,255,255,0.08)"
                                   }}>
-                                    {esPoceadaPred ? n2 : n4}
+                                    {n4}
                                   </span>
                                 );
                               })}
                             </div>
                             <div style={{display:"flex",gap:10,marginTop:6,fontSize:9,color:"#64748b"}}>
                               <span><span style={{color:"#c4b5fd"}}>●</span> 2 cifras</span>
-                              {!esPoceadaPred && (
-                                <>
-                                  <span><span style={{color:"#60a5fa"}}>●</span> 3 cifras</span>
-                                  <span><span style={{color:"#22c55e"}}>●</span> 4 cifras</span>
-                                </>
-                              )}
+                              <span><span style={{color:"#60a5fa"}}>●</span> 3 cifras</span>
+                              <span><span style={{color:"#22c55e"}}>●</span> 4 cifras</span>
                             </div>
                           </div>
                         )}
@@ -2515,7 +2406,7 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
               <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>1. Datos reales</strong><br/>Scrapeamos resultados oficiales de la Quiniela de la Ciudad cada 15 min. Histórico oficial +260 días (domingos y feriados sin sorteo).</p>
               <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>2. Motor estadístico determinista</strong><br/>Cada número recibe un score combinando frecuencia, ausencia, recencia, ciclos, co-ocurrencia y 3 modelos ML (Random Forest, Red Neuronal, Markov). Todo cálculado sobre datos reales. Zero aleatorio.</p>
               <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>3. Monte Carlo + Ensemble</strong><br/>5.000 simulaciones (bootstrap sobre histórico) estiman estabilidad del top-10. Pesos del ensemble se recalibran con rendimiento verificado.</p>
-              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>4. No hay magia ni promesa</strong><br/>No se garantiza acierto. La lotería es aleatoria. Este motor optimiza consistencia estadística, no probabilidad de ganancia fija (Poceada es poceado / parimutuel, sin premio fija).</p>
+              <p style={{marginBottom:12}}><strong style={{color:"var(--text)"}}>4. No hay magia ni promesa</strong><br/>No se garantiza acierto. La lotería es aleatoria. Este motor optimiza consistencia estadística, no probabilidad de ganancia fija.</p>
               <p><strong style={{color:"var(--text)"}}>5. Verificable</strong><br/>Guardá tus análisis y comparalos con resultados oficiales automáticamente.</p>
             </div>
             <button onClick={() => setShowHowItWorks(false)} style={{marginTop:20,width:"100%",padding:"12px 20px",borderRadius:10,border:"none",background:"var(--red)",color:"#fff",fontWeight:700,cursor:"pointer"}}>Entendido</button>
@@ -2626,7 +2517,6 @@ function mostrarNotifResultado(turno: string, numeros: string[], aciertos: strin
         userId={userId}
       />
       <WhatsAppFAB />
-      <HitRateBanner />
       <FooterDisclaimer />
     </>
   );

@@ -3,6 +3,7 @@ import { ADMIN_EMAILS } from "@/lib/config"
 import { validateJwt } from "@/lib/auth/jwt"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import logger from "@/lib/logger"
+import { readJsonObject } from "@/lib/json-response"
 
 const SB = () => (process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/"/g, "").trim()
 const SK = () => (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "").replace(/"/g, "").trim()
@@ -71,8 +72,9 @@ export async function POST(req: NextRequest) {
         headers: { "apikey": SK(), "Authorization": `Bearer ${SK()}`, "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, email_confirm: true })
       })
-      const data = await r.json()
+      const data = await readJsonObject<{ id?: string }>(r)
       if (!r.ok) return NextResponse.json({ error: "Error creando usuario" }, { status: 400 })
+      if (!data.id) return NextResponse.json({ error: "Respuesta de Supabase inválida" }, { status: 502 })
       const d = Number(days) || 30
       const until = safeRole === "free" ? null : new Date(Date.now() + d * 86400000).toISOString()
       await fetch(`${SB()}/rest/v1/user_profiles`, {

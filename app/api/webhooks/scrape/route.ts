@@ -31,6 +31,8 @@ import { fetchWithConsensus } from "@/lib/scrapers/consensus"
 import type { SourceStats } from "@/lib/scrapers/types"
 import { esDiaSinSorteo } from "@/lib/feriados"
 import logger from "@/lib/logger"
+import { getAppBaseUrl } from "@/lib/app-url"
+import { readJsonObject } from "@/lib/json-response"
 
 const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
 
@@ -240,13 +242,15 @@ export async function POST(request: Request) {
 
         // Pre-compute predictions for this turno
         try {
-          const baseUrl = process.env.VERCEL_URL
-            ? `https://${process.env.VERCEL_URL}`
-            : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev"
-          fetch(`${baseUrl}/api/cron-precompute?turno=${encodeURIComponent(turno)}`, {
+          const baseUrl = getAppBaseUrl()
+          fetch(new URL(`/api/cron-precompute?turno=${encodeURIComponent(turno)}`, baseUrl), {
             headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
-          }).catch(() => {})
-        } catch { /* non-fatal */ }
+          }).catch((error) => {
+            logger.warn("[webhooks/scrape] Precompute request failed", { error: String(error), turno })
+          })
+        } catch (error) {
+          logger.warn("[webhooks/scrape] Precompute URL unavailable", { error: String(error), turno })
+        }
 
         // Clear precomputed cache
         try {
@@ -279,11 +283,9 @@ export async function POST(request: Request) {
 
               if (eligiblePremium.length > 0) {
                 // Compute prediction ONCE for the premium tier
-                const baseUrl = process.env.VERCEL_URL
-                  ? `https://${process.env.VERCEL_URL}`
-                  : process.env.NEXT_PUBLIC_APP_URL || "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev"
+                const baseUrl = getAppBaseUrl()
 
-                const predRes = await fetch(`${baseUrl}/api/predictions`, {
+                const predRes = await fetch(new URL("/api/predictions", baseUrl), {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
@@ -294,7 +296,16 @@ export async function POST(request: Request) {
                 })
 
                 if (predRes.ok) {
-                  const predData = await predRes.json()
+                  const predData = await readJsonObject<{
+                    pred?: {
+                      numeros_2?: string[]
+                      numeros_3?: string[]
+                      numeros_4?: string[]
+                      redoblona?: string | string[] | { cabeza: string; acompanante: string } | null
+                    }
+                    engine?: string
+                    confidence?: number | null
+                  }>(predRes)
                   if (predData?.pred) {
                     const { buildPredictionRows } = await import("@/lib/batch-upsert")
                     const rows = buildPredictionRows(eligiblePremium, {
@@ -389,9 +400,8 @@ export async function POST(request: Request) {
     // Invalidate in-memory prediction cache so fresh predictions are served
     if (saved > 0) {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
-          || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
-        await fetch(`${baseUrl}/api/predictions?invalidate=1`, {
+        const baseUrl = getAppBaseUrl()
+        await fetch(new URL("/api/predictions?invalidate=1", baseUrl), {
           signal: AbortSignal.timeout(3000),
         }).catch(() => {})
       } catch { /* best-effort cache invalidation */ }

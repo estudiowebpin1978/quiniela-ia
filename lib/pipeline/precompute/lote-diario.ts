@@ -4,7 +4,7 @@
  * Extraído de /api/cron-precompute para reutilizar la misma ejecución desde:
  *  - el route del cron (disparo externo / manual con auth),
  *  - las tareas auxiliares del ticker (lib/cron/tareas-auxiliares.ts, gate 23 h)
- *    como respaldo, igual que Brinco y Premium-expires el 2026-10-12.
+ *    como respaldo, igual que Premium-expires el 2026-10-12.
  *
  * Idempotente: reescribe la fila de predictions_cache del (día, turno) de hoy
  * (ART) con la semilla determinista del día; re-corridas no divergen.
@@ -46,7 +46,7 @@ import {
 } from "@/lib/pipeline/precompute/persistencia"
 import { auditarReglaOmega } from "@/lib/pipeline/precompute/omega-audit"
 
-const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"]
+const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
 export interface ResultadoLotePrecompute {
   ok: boolean
@@ -86,29 +86,16 @@ export async function ejecutarLotePrecompute(
         .limit(1)
         .single()
 
-      // Poceada necesita 20 numeros (2 combinaciones de 8). Un cache corto
-      // (heredado del MMR que topaba a 10) se ignora para que se recompute.
-      let numsCacheLen = Array.isArray(existing?.numeros_2) ? existing.numeros_2.length : -1
-      if (!Array.isArray(existing?.numeros_2) && existing?.numeros_2) {
-        try {
-          const parsed = JSON.parse(String(existing.numeros_2))
-          numsCacheLen = Array.isArray(parsed) ? parsed.length : -1
-        } catch { /* ignora */ }
-      }
-
       if (existing?.computed_at) {
         const ageMin = (Date.now() - new Date(existing.computed_at).getTime()) / 60000
-        // Poceada con menos de 16 numeros guardados (p. ej. por el MMR que
-        // limitaba a 10) => cache invalida, recomputar con topN=20.
-        const cacheValido = turno !== "Poceada" || (numsCacheLen >= 16)
-        if (ageMin < 120 && cacheValido) {
+        if (ageMin < 120) {
           results.push({ turno, ok: true, confidence: 0, error: `Fresco (${Math.round(ageMin)}m < 2h); skip` })
           continue
         }
       }
     } catch { /* ignora errores de lectura de cache */ }
 
-    const GAME_ID = turno === "Poceada" ? "d0e1f2a3-b4c5-6789-0abc-def012345678" : "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
+    const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
     try {
       // 1. Semilla determinista por día+turno (antes: hash del último id UUID,
       // que es aleatorio → cambiaba las predicciones al insertarse cualquier fila).
@@ -117,9 +104,8 @@ export async function ejecutarLotePrecompute(
       // 2. Histórico COMPLETO del turno con fecha estrictamente anterior a hoy.
       const draws = await cargarHistorico(supabase, turno, GAME_ID, today)
 
-      const esPoceada = turno === "Poceada"
-      const topN = esPoceada ? 20 : 10
-      const minDraws = esPoceada ? 3 : 10
+      const topN = 10
+      const minDraws = 10
       if (!draws || draws.length < minDraws) {
         results.push({ turno, ok: false, error: `Insufficient draws (${draws?.length || 0}/${minDraws})` })
         continue
@@ -177,12 +163,10 @@ export async function ejecutarLotePrecompute(
 
       const top10nums = blendedDiversified.map((p) => p.n)
 
-      // Poceada es SOLO 2 cifras (8 números vs 20 extraídos). No hay 3/4 ni redoblona.
       let numeros_3: string[] = []
       let numeros_4: string[] = []
       let redoblona: { cabeza: string; acompanante: string } | null = null
 
-      if (!esPoceada) {
         const { tres: v6_3rows, cuatro: v6_4rows } = await scoreCifrasV6(supabase, turno, today)
 
       // Take top-30 V6 candidates for V7/ML re-scoring
@@ -224,7 +208,6 @@ export async function ejecutarLotePrecompute(
       if (numeros_3.length === 0) logger.warn("[cron-precompute] 3 cifras empty", { turno, dataLen: v6_3rows?.length ?? 0 })
 
       redoblona = construirRedoblona(top10nums)
-      }
 
       // Monte Carlo sembrado: capa de estabilidad del top-10 (no toca scores
       // ni ranking; determinista por día+turno).
@@ -265,8 +248,9 @@ export async function ejecutarLotePrecompute(
   }
 
   const elapsed = Date.now() - t0
-  logger.info("[cron-precompute] Completed", { turnos: results.length, elapsed, origen })
-  logCronExecution("cron-precompute", { origen, results, elapsed }, t0)
+  const ok = results.every((result) => result.ok)
+  logger.info("[cron-precompute] Completed", { turnos: results.length, elapsed, origen, ok })
+  logCronExecution("cron-precompute", { origen, results, elapsed, ok }, t0)
 
   // Invalidar Redis / generation bump para que /api/predictions no sirva cache obsoleto
   await invalidateAllPredictionCaches()
@@ -279,5 +263,5 @@ export async function ejecutarLotePrecompute(
     revalidatePath("/predictions", "page")
   } catch { /* non-fatal */ }
 
-  return { ok: true, results, elapsed }
+  return { ok, results, elapsed }
 }

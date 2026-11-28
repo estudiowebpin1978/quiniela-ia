@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseUrl, getSupabaseKey, sbHeaders } from "@/lib/config"
 import { validateJwt } from "@/lib/auth/jwt"
+import { readJsonArray } from "@/lib/json-response"
+
+interface CommunityRow {
+  turno: string
+  hot_numbers?: { num: string; count: number }[]
+  hot_correlations?: unknown[]
+  analysis_count?: number
+}
+
+interface CommunityCountRow {
+  analysis_count?: number
+  hot_numbers?: { num: string; count: number }[]
+  hot_correlations?: unknown[]
+}
 
 const SB_URL = getSupabaseUrl();
 const SB_KEY = getSupabaseKey();
@@ -25,12 +39,12 @@ export async function GET(req: NextRequest) {
       { headers: sbHeaders(), next: { revalidate: 60 } }
     )
     if (!res.ok) return NextResponse.json({ trends: [], totalToday: 0 })
-    const rows = await res.json()
+    const rows = await readJsonArray<CommunityRow>(res)
 
-    const totalToday = rows.reduce((sum: number, r: { analysis_count?: number }) => sum + (r.analysis_count || 0), 0)
+    const totalToday = rows.reduce((sum, r) => sum + (r.analysis_count || 0), 0)
 
     return NextResponse.json({
-      trends: rows.map((r: { turno: string; hot_numbers?: { num: string; count: number }[]; hot_correlations?: unknown[]; analysis_count?: number }) => ({
+      trends: rows.map((r) => ({
         turno: r.turno,
         hot_numbers: r.hot_numbers || [],
         hot_correlations: r.hot_correlations || [],
@@ -63,7 +77,7 @@ export async function POST(req: NextRequest) {
       `${SB_URL}/rest/v1/community_trends?date=eq.${today}&turno=eq.${turno}&limit=1`,
       { headers: sbHeaders() }
     )
-    const rows = await existing.json()
+    const rows = await readJsonArray<CommunityCountRow>(existing)
 
     if (rows.length > 0) {
       const current = rows[0]

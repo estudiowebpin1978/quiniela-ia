@@ -78,7 +78,7 @@ describe("predecirCrossTurno", () => {
   })
 
   it("turno desconocido → mapa vacía", () => {
-    const scores = predecirCrossTurno([sorteo("2026-01-01", "Previa", 5)], "2026-01-02", "Poceada")
+    const scores = predecirCrossTurno([sorteo("2026-01-01", "Previa", 5)], "2026-01-02", "TurnoInvalido")
     expect(scores.size).toBe(0)
   })
 

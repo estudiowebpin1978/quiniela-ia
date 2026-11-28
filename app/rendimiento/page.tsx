@@ -399,7 +399,7 @@ export default function RendimientoPage() {
               onChange={(e) => setSimTurno(e.target.value)}
               className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-gray-200"
             >
-              {["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"].map((t) => (
+              {["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"].map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>

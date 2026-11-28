@@ -20,8 +20,8 @@ if (!key) { console.error("Falta SUPABASE_SERVICE_ROLE_KEY"); process.exit(1) }
 const sb = createClient(url, key)
 
 function seededInterleaveShuffle(arrays: number[][], seedBase: number): number[] {
-  // Los sorteos Poceada se almacenan ORDENADOS ASCENDENTEMENTE (artefacto del
-  // guardado, no orden de extracción). La secuencia intercalada es una sierra
+  // Los números de cada sorteo se almacenan ORDENADOS ASCENDENTEMENTE
+  // (artefacto del guardado, no orden de extracción). La secuencia intercalada es una sierra
   // periódica → Ljung-Box/runs generan un falso positivo astronómico.
   // Para una prueba de autocorrelación válida, barajamos GLOBALMENTE TODA la
   // secuencia (perdiendo fronteras por-sorteo, aceptable e irrelevante para
@@ -37,7 +37,7 @@ function seededInterleaveShuffle(arrays: number[][], seedBase: number): number[]
   return out
 }
 
-const TURNOS: string[] = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"]
+const TURNOS: string[] = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
 const norm2 = (n: number) => ((Math.trunc(Number(n)) % 100) + 100) % 100
 
@@ -137,7 +137,7 @@ function fmtP(p: number): string {
     }
     const twoCarrays = data.map((row) => (row.numbers as number[]).map(norm2))
     const twoC = twoCarrays.flat()
-    // Poceada: orden de extracción perdido por orden de guardado (ascend).
+    // Orden de extracción perdido por el orden de guardado (ascend).
     // Barajamos deterministicamente para Ljung-Box / runs (ver doc del bug).
     const interleaved = seededInterleaveShuffle(twoCarrays, hashSeed("sbq", turno))
 

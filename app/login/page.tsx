@@ -1,5 +1,15 @@
 "use client"
 import { useState, useEffect } from "react"
+import { readJsonObject } from "@/lib/json-response"
+
+interface LoginResponse {
+  error?: string
+  needsConfirmation?: boolean
+  access_token?: string | null
+  refresh_token?: string | null
+  expires_in?: number
+  user?: { id?: string; email?: string }
+}
 import { getAuth, saveAuth, isLoggedIn, clearGuest } from "@/lib/auth"
 import Button3D from "@/components/ui/Button3D"
 import { GlowOrbs, NeonBackground } from "@/components/ui/Effects"
@@ -32,9 +42,10 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password: pass, action: tab === "up" ? "signup" : "signin" })
       })
-      const data = await res.json()
+      const data = await readJsonObject<LoginResponse>(res)
       if (!res.ok) { setErr(data.error || "Error"); sound.error(); return }
       if (data.needsConfirmation) { setOk("Cuenta creada! Ahora iniciá sesión."); setTab("in"); setPass(""); sound.success(); return }
+      if (!data.access_token) { setErr("No se recibió el token de sesión"); sound.error(); return }
       saveAuth({
         access_token: data.access_token,
         refresh_token: data.refresh_token || "",
@@ -61,7 +72,10 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json", "apikey": SB_KEY },
         body: JSON.stringify({ email: email.trim(), redirect_to: `${window.location.origin}/login` })
       })
-      if (!r.ok) { const d = await r.json(); setErr(d.msg || "Error al enviar email"); sound.error(); return }
+      if (!r.ok) {
+        const d = await readJsonObject<{ msg?: string }>(r)
+        setErr(d.msg || "Error al enviar email"); sound.error(); return
+      }
       setResetSent(true); sound.success()
     } catch { setErr("Error de conexión"); sound.error() }
     finally { setBusy(false) }

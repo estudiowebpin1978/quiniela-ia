@@ -36,9 +36,8 @@ import { esDiaSinSorteo } from "@/lib/feriados"
 export const maxDuration = 60
 
 const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9" // Quiniela de la Ciudad (ex Nacional)
-const POCEADA_GAME_ID = "d0e1f2a3-b4c5-6789-0abc-def012345678" // Quiniela Poceada
 const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
-const TURNOS_ALL = [...TURNOS, "Poceada"]
+const TURNOS_ALL = TURNOS
 
 /** Los crons conocidos y su frecuencia esperada, en MINUTOS HÁBILES (ver minutosHabilesEntre). */
 const CRON_ESPERADOS: Array<{ nombre: string; aliases: string[]; maxEdadMin: number }> = [
@@ -217,7 +216,7 @@ export async function GET(req: NextRequest) {
     const { data: drawsByTurno, error: drawsErr } = await supabase
       .from("draws")
       .select("turno, id, date, numbers, created_at")
-      .in("game_id", [GAME_ID, POCEADA_GAME_ID])
+      .in("game_id", [GAME_ID])
       .order("date", { ascending: false })
     if (drawsErr) throw new Error(drawsErr.message)
 
@@ -354,7 +353,7 @@ export async function GET(req: NextRequest) {
     const { data: cacheRows, error: cacheErr } = await supabase
       .from("predictions_cache")
       .select("turno, date, engine_version, numeros_2, numeros_3, numeros_4, redoblona, confidence")
-      .in("game_id", [GAME_ID, POCEADA_GAME_ID])
+      .in("game_id", [GAME_ID])
       .eq("date", today)
     if (cacheErr) throw new Error(cacheErr.message)
 
@@ -411,7 +410,7 @@ export async function GET(req: NextRequest) {
     const { data: recentPreds, error: predErr } = await supabase
       .from("predictions_cache")
       .select("turno, date, engine_version, confidence")
-      .in("game_id", [GAME_ID, POCEADA_GAME_ID])
+      .in("game_id", [GAME_ID])
       .order("date", { ascending: false })
       .limit(15)
     if (predErr) throw new Error(predErr.message)
@@ -423,7 +422,7 @@ export async function GET(req: NextRequest) {
       recentEngineVersions: Array.from(engineVersions),
       hasCanonicalEngine,
       recentCount: (recentPreds || []).length,
-      games: ["Nacional", "Poceada"],
+      games: ["Nacional"],
     }
 
     if (!hasCanonicalEngine) {
@@ -568,7 +567,7 @@ export async function GET(req: NextRequest) {
     const { data: lastDrawRows, error: lastDrawErr } = await supabase
       .from("draws")
       .select("date, turno, game_id, created_at")
-      .in("game_id", [GAME_ID, POCEADA_GAME_ID])
+      .in("game_id", [GAME_ID])
       .order("date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1)
@@ -590,7 +589,7 @@ export async function GET(req: NextRequest) {
       report.components.latest_official_draw.details = {
         lastDate: lastDraw.date,
         lastTurno: lastDraw.turno || "N/A",
-        game: lastDraw.game_id === POCEADA_GAME_ID ? "Poceada" : "Nacional",
+        game: "Nacional",
         lastCreated: lastDraw.created_at || "N/A",
         ageMinutes,
         ageHours: Math.round((ageMinutes / 60) * 10) / 10,

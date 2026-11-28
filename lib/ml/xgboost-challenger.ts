@@ -17,8 +17,8 @@ export const CHALLENGER: ChallengerConfig = {
   version: "0.0-scaffold",
 };
 
-export function challengerPredict(isPoceada: boolean): { score: number; calibrated?: number } {
+export function challengerPredict(): { score: number; calibrated?: number } {
   // Scaffold: no hay modelo entrenado aún. Si se entrena, debe usar SAME LOTBA input que V6.
   // calibrated usa la OOS real (no inventada).
-  return { score: 0, calibrated: calibrateConfidence(isPoceada) };
+  return { score: 0, calibrated: calibrateConfidence() };
 }

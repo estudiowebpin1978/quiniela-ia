@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Providers from "@/components/Providers";
+import { getAppBaseUrl } from "@/lib/app-url";
 
-const BASE_URL = "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev";
+const BASE_URL = getAppBaseUrl();
 
 export const metadata: Metadata = {
-  metadataBase: new URL(BASE_URL),
+  metadataBase: new URL(getAppBaseUrl()),
   title: {
     default: "Quiniela IA | Pronósticos Estadísticos y Cálculos Matemáticos",
     template: "%s | Quiniela IA",

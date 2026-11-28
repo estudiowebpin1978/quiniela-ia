@@ -16,9 +16,9 @@ export const maxDuration = 30
  * dispara la alerta que el usuario configuró allí (webhook/telegram/email).
  */
 
-const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"] as const
+const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"] as const
 const hhmm = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m }
-const OFFICIAL = { Previa: "10:30", Primera: "12:30", Matutina: "15:00", Vespertina: "18:30", Nocturna: "21:30", Poceada: "21:15" }
+const OFFICIAL = { Previa: "10:30", Primera: "12:30", Matutina: "15:00", Vespertina: "18:30", Nocturna: "21:30" }
 
 /** Fecha ART como YYYY-MM-DD */
 function todayArt(now: Date): string {
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
   try {
     const sb = getSupabaseAdmin()
     for (const turno of TURNOS) {
-      const jurisdiccion = turno === "Poceada" ? ["ciudad"] : ["CABA"]
+      const jurisdiccion = ["CABA"]
       const { data } = await sb
         .from("draws")
         .select("date")

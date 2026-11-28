@@ -6,9 +6,7 @@
  * posiciones y clasificación por su cuenta, con divergencias sutiles:
  *   - parseo de `numeros` (auto-verify rompía con valores string-coma);
  *   - posiciones: auto-verify ordenaba, cron-verify no;
- *   - Poceada: auto-verify usaba POCEADA_MATCHES.includes([5..8]) mientras
- *     la RPC canónica (verify_predictions_for_draw) marca WON con count >= 5.
- * Resolución: un solo criterio, alineado con la RPC del lado BD.
+ *   - verificación: un solo criterio, alineado con la RPC del lado BD.
  *
  * Sin I/O ni Supabase: recibe datos ya leídos y devuelve resultados.
  */
@@ -66,8 +64,8 @@ export interface MatchedAciertos {
 
 export type EstadoPrediccion = "WON" | "NEAR_MISS" | "LOST"
 
-/** Turnos canónicos de la quiniela (incluye Poceada). */
-export const TODOS_TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"] as const
+/** Turnos canónicos de la quiniela. */
+export const TODOS_TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"] as const
 
 // ─── Normalización ───────────────────────────────────────────────────────────
 
@@ -121,19 +119,13 @@ export function parseNumeros(numeros: unknown): ParsedNumeros {
   }
 }
 
-/** Deriva las cifras oficiales desde los 20 números del sorteo.
- *  En Poceada (esPoceada) el sorteo es SOLO de 2 cifras (00-99): nums3/nums4
- *  quedan vacíos para no fabricar cifras inexistentes. */
-export function deriveNums(
-  numbers: number[],
-  esPoceada = false,
-): {
+/** Deriva las cifras oficiales desde los 20 números del sorteo. */
+export function deriveNums(numbers: number[]): {
   nums2: string[]
   nums3: string[]
   nums4: string[]
 } {
   const nums2 = numbers.map((n: number) => String(Number(n) % 100).padStart(2, "0"))
-  if (esPoceada) return { nums2, nums3: [], nums4: [] }
   return {
     nums2,
     nums3: numbers.map((n: number) => String(Number(n) % 1000).padStart(3, "0")),
@@ -217,11 +209,9 @@ export function estadoQuiniela(resultadoOficial: number[], numeros2: string[]): 
 
 /**
  * Estado final de una predicción. Criterio estricto alineado con la RPC:
- * - Poceada: WON con total_aciertos >= 5 (la RPC marca `count >= 5`);
  * - quiniela: cabeza/±1 vía estadoQuiniela.
  */
-export function estadoFinal(h: HistoryInsert, esPoceada: boolean): EstadoPrediccion {
-  if (esPoceada) return h.total_aciertos >= 5 ? "WON" : "LOST"
+export function estadoFinal(h: HistoryInsert): EstadoPrediccion {
   return estadoQuiniela(h.resultado_oficial, h.numeros_2)
 }
 

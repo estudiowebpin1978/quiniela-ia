@@ -43,7 +43,7 @@ condiciones y ésta se confirma con datos nuevos posteriores.
   pareada (2000 sign-flips), 4 bloques, veto de holdout y comparación
   meta-vs-mejor-candidato (elegido en validación, medido en holdout).
   Reutiliza `mulberry32`/`permutacionPareada`/`decidirCondiciones` de
-  `lib/poceada-federal/backtest.ts` (ya testeados).
+  `lib/estadistica/backtest-utils.ts` (ya testeados).
 
 ## 3. Candidatos y exclusiones (honestidad)
 

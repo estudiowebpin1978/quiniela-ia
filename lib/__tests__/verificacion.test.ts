@@ -15,7 +15,6 @@ import { buildHistoryInsert } from "../verificacion/historial"
 import { esDiaSinSorteo, esFeriado, esTurnoSinSorteo } from "../feriados"
 
 const GAME_ID_NACIONAL = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
-const GAME_ID_POCEADA = "d0e1f2a3-b4c5-6789-0abc-def012345678"
 
 function hist(partial: Partial<HistoryInsert>): HistoryInsert {
   return {
@@ -41,8 +40,8 @@ function hist(partial: Partial<HistoryInsert>): HistoryInsert {
 }
 
 describe("turnos canónicos", () => {
-  it("TODOS_TURNOS son los 6 turnos oficiales en orden", () => {
-    expect([...TODOS_TURNOS]).toEqual(["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"])
+  it("TODOS_TURNOS son los 5 turnos oficiales en orden", () => {
+    expect([...TODOS_TURNOS]).toEqual(["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"])
   })
 
   it("normalizeTurno acepta variantes sufijo/mayúsculas/espacios", () => {
@@ -50,7 +49,7 @@ describe("turnos canónicos", () => {
     expect(normalizeTurno("Matutina-2cifras")).toBe("Matutina")
     expect(normalizeTurno("Matutina-3cifra")).toBe("Matutina")
     expect(normalizeTurno("matutina")).toBe("Matutina")
-    expect(normalizeTurno("  poceada ")).toBe("Poceada")
+    expect(normalizeTurno("  nocturna ")).toBe("Nocturna")
     expect(normalizeTurno("")).toBe("")
   })
 })
@@ -175,13 +174,6 @@ describe("estadoFinal", () => {
     const near = hist({ resultado_oficial: [1234], numeros_2: ["35"] })
     expect(estadoFinal(near, false)).toBe("NEAR_MISS")
   })
-
-  it("Poceada: WON con >= 5 aciertos (alineado con la RPC count >= 5)", () => {
-    expect(estadoFinal(hist({ total_aciertos: 5 }), true)).toBe("WON")
-    expect(estadoFinal(hist({ total_aciertos: 9 }), true)).toBe("WON") // POCEADA_MATCHES excluía 9-10
-    expect(estadoFinal(hist({ total_aciertos: 4 }), true)).toBe("LOST")
-    expect(estadoFinal(hist({ total_aciertos: 0 }), true)).toBe("LOST")
-  })
 })
 
 describe("posicionesDe", () => {
@@ -220,46 +212,20 @@ describe("buildHistoryInsert", () => {
     expect(h.redoblonas).toEqual(["61-95"])
   })
 
-  it("game_id del sorteo manda; fallback paramétrico para Poceada", () => {
-    const pred = { id: "p3", user_id: "u1", date: "2026-10-05", turno: "Poceada", numeros: [1, 2, 3, 4, 5] }
-    const conGame = buildHistoryInsert(pred, { numbers: [11, 22], game_id: GAME_ID_POCEADA })
-    expect(conGame.game_id).toBe(GAME_ID_POCEADA)
-    const sinGame = buildHistoryInsert(pred, { numbers: [11, 22] }, GAME_ID_POCEADA)
-    expect(sinGame.game_id).toBe(GAME_ID_POCEADA)
+  it("game_id del sorteo manda; fallback paramétrico", () => {
+    const OTRO_GAME = "11111111-2222-3333-4444-555555555555"
+    const pred = { id: "p3", user_id: "u1", date: "2026-10-05", turno: "Nocturna", numeros: [1, 2, 3, 4, 5] }
+    const conGame = buildHistoryInsert(pred, { numbers: [11, 22], game_id: OTRO_GAME })
+    expect(conGame.game_id).toBe(OTRO_GAME)
+    const sinGame = buildHistoryInsert(pred, { numbers: [11, 22] }, OTRO_GAME)
+    expect(sinGame.game_id).toBe(OTRO_GAME)
   })
 
-  /**
-   * Regresión del bug 2026-10-09: Poceada = juego SOLO de 2 cifras (00-99),
-   * distinto de la Quiniela. El historial de Poceada NO debe contener
-   * numeros_3/numeros_4 ni aciertos 3/4 fabricados desde el sorteo 0-99.
-   */
-  it("Poceada: legacy con claves 3/4 no fabrica aciertos 3/4 en el historial", () => {
-    const raw = ['{"2":["07","12"],"3":["007"],"4":["0007"],"r":["07-12"]}']
-    const h = buildHistoryInsert(
-      { id: "p4", user_id: "u1", date: "2026-10-05", turno: "Poceada", numeros: raw },
-      { numbers: [7, 12, 45, 3, 88], game_id: GAME_ID_POCEADA },
-    )
-    // Solo 2 cifras en todo el historial.
-    expect(h.numeros_3).toEqual([])
-    expect(h.numeros_4).toEqual([])
-    expect(h.redoblonas).toEqual([])
-    expect(h.aciertos_3).toEqual([])
-    expect(h.aciertos_4).toEqual([])
-    expect(h.aciertos_redoblona).toEqual([])
-    // Los aciertos 2 sí se calculan (7 y 12 están en el sorteo).
-    expect(h.aciertos_2).toHaveLength(2)
-    expect(h.total_aciertos).toBe(2) // no inflado por 3/4/redoblona
-  })
-
-  it("deriveNums con esPoceada → nums3/nums4 vacíos (no '000'..'099')", () => {
-    const d = deriveNums([7, 45, 99], true)
-    expect(d.nums2).toEqual(["07", "45", "99"])
-    expect(d.nums3).toEqual([])
-    expect(d.nums4).toEqual([])
-    // Sin esPoceada (Quiniela) sigue derivando 3/4 cifras.
-    const q = deriveNums([4661, 8804], false)
-    expect(q.nums3).toHaveLength(2)
-    expect(q.nums4).toHaveLength(2)
+  it("deriveNums deriva nums2/nums3/nums4 a partir del sorteo", () => {
+    const d = deriveNums([4661, 8804])
+    expect(d.nums2).toHaveLength(2)
+    expect(d.nums3).toHaveLength(2)
+    expect(d.nums4).toHaveLength(2)
   })
 })
 

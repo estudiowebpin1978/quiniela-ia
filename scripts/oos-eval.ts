@@ -7,7 +7,7 @@
  * Métricas por turno:
  *   - meanHits     : intersección media top-N vs 2C distinct del sorteo
  *   - pAtLeast1/3  : P(≥1) / P(≥3) aciertos
- *   - pWin         : Poceada P(≥5) · Quiniela P(≥1)
+ *   - pWin         : P(≥1)
  *                    [la regla histórica de WON; el WON ACTUAL de quiniela es
  *                     cabeza ∈ top-10 → usar cabeza@10, azar = topN/100]
  *   - cabeza@10    : P(pos01 mod100 ∈ top-N)  (cabeza/redoblona)
@@ -15,7 +15,7 @@
  *   - lift         : meanHits / esperanza aleatoria (hipergeométrica)
  *   - z            : score z vs hipergeométrica
  *
- * Run: npx tsx scripts/oos-eval.ts [--turnos=Primera,Poceada] [--warmup=60] [--step=1] [--no-ens] [--quick]
+ * Run: npx tsx scripts/oos-eval.ts [--turnos=Primera,Nocturna] [--warmup=60] [--step=1] [--no-ens] [--quick]
  */
 
 import { createClient } from "@supabase/supabase-js"
@@ -30,7 +30,7 @@ if (!key) {
 }
 const supabase = createClient(url, key)
 
-const ALL_TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"]
+const ALL_TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
 // ── CLI args ────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2)
@@ -138,10 +138,9 @@ const MODELS = ["random", "freq30", "decay15", "bayes", "v7", "v7_noheat", "v7_o
 type ModelName = (typeof MODELS)[number]
 
 async function evalTurno(turno: string): Promise<void> {
-  const isPoceada = turno === "Poceada"
-  const topN = isPoceada ? 8 : 10
-  const winThreshold = isPoceada ? 5 : 1
-  const priorMean = isPoceada ? 0.2 : 0.18
+  const topN = 10
+  const winThreshold = 1
+  const priorMean = 0.18
 
   const draws = await loadDraws(turno)
   if (draws.length < warmup + 20) {
@@ -217,8 +216,8 @@ async function evalTurno(turno: string): Promise<void> {
   // ── Aggregate & report ──
   const n = results.get("v7")!.hits.length
   console.log(`\n═══ ${turno}  (n=${n} test draws, topN=${topN}, ${((Date.now() - t0) / 1000).toFixed(0)}s) ═══`)
-  const col3 = isPoceada ? "P>=5(win)" : "P>=3   "
-  const col4 = isPoceada ? "" : "cabeza@10"
+  const col3 = "P>=3   "
+  const col4 = "cabeza@10"
   const header = `model           meanHits  lift     z     P>=1    ${col3} ${col4}  mrr`
   console.log(header)
   console.log("-".repeat(header.length))
@@ -241,15 +240,15 @@ async function evalTurno(turno: string): Promise<void> {
 
   for (const row of rows) {
     if (!row.agg) {
-      const p1 = isPoceada ? "  --   " : (1 - noHitProb(topN, 20)).toFixed(3)
-      const p3 = isPoceada ? hyperTail(5, topN, 20).toFixed(4) : hyperTail(3, topN, 20).toFixed(3)
-      const cab = isPoceada ? "" : (topN / 100).toFixed(3) + "  "
+      const p1 = (1 - noHitProb(topN, 20)).toFixed(3)
+      const p3 = hyperTail(3, topN, 20).toFixed(3)
+      const cab = (topN / 100).toFixed(3) + "  "
       console.log(`${"random".padEnd(15)} ${randMean.toFixed(4).padStart(8)} ${1 .toFixed(3).padStart(6)} ${"0.0".padStart(5)} ${p1.padStart(7)} ${p3.padStart(8)}  ${cab}${mrrRandom.toFixed(3)}`)
       continue
     }
     const a = row.agg
-    const p3 = isPoceada ? a.pWin.toFixed(4).padStart(8) : a.pAtLeast3.toFixed(3).padStart(7)
-    const cab = isPoceada ? "" : a.cabezaAtTop.toFixed(3) + "  "
+    const p3 = a.pAtLeast3.toFixed(3).padStart(7)
+    const cab = a.cabezaAtTop.toFixed(3) + "  "
     console.log(
       `${row.name.padEnd(15)} ${a.meanHits.toFixed(4).padStart(8)} ${row.lift.toFixed(3).padStart(6)} ${row.z.toFixed(1).padStart(5)} ${a.pAtLeast1.toFixed(3).padStart(7)} ${p3.padStart(8)}  ${cab}${a.mrr.toFixed(3)}`
     )
@@ -278,9 +277,8 @@ function hyperTail(min: number, n: number, K: number): number {
   return s
 }
 
-// Nota (2026-10-13): se eliminó `binomTail` — la cola de Poceada se calcula
-// con `hyperTail` (hipergeométrica exacta, sorteo sin reemplazo). Ver
-// lib/probability/calibration.ts y lib/__tests__/probabilidades.test.ts.
+// Nota (2026-10-13): se eliminó `binomTail` — la cola se calcula con
+// `hyperTail` (hipergeométrica exacta, sorteo sin reemplazo).
 
 async function main() {
   console.log("═══ OOS Walk-Forward Evaluation ═══")

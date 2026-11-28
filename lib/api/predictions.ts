@@ -212,7 +212,9 @@ export const MisPrediccionSchema = z.object({
   numeros_2: z.array(z.string()).optional(),
   numeros_3: z.array(z.string()).optional(),
   numeros_4: z.array(z.string()).optional(),
-  resultado: z.array(z.string()).optional(),
+  resultado: z.array(z.string()).nullable().optional(),
+  resultado_3: z.array(z.string()).nullable().optional(),
+  resultado_4: z.array(z.string()).nullable().optional(),
   aciertos: z.array(z.object({
     numero: z.string(),
     puesto: z.number(),
@@ -232,7 +234,7 @@ export const MisPrediccionSchema = z.object({
   acerto: z.boolean().optional(),
   status: z.enum(["WON", "NEAR_MISS", "LOST"]).nullable().optional(),
   created_at: z.string().optional(),
-  resultado_original: z.array(z.string()).optional(),
+  resultado_original: z.array(z.string()).nullable().optional(),
 });
 
 export type MisPrediccion = z.infer<typeof MisPrediccionSchema>;

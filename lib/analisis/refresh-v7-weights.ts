@@ -23,7 +23,7 @@ export async function refrescarPesosV7(turno: string) {
       .from("draws")
       .select("numbers")
       .eq("turno", turno)
-      .in("jurisdiccion", turno === "Poceada" ? ["ciudad"] : ["CABA"])
+      .in("jurisdiccion", ["CABA"])
       .order("date", { ascending: false })
       .limit(1)
       .single()

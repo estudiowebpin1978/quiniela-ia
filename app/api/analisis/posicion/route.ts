@@ -5,14 +5,13 @@ import logger from '@/lib/logger'
 export const maxDuration = 30
 
 const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
-const POCEADA_GAME_ID = "d0e1f2a3-b4c5-6789-0abc-def012345678"
-const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"]
+const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"]
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const turnoRaw = searchParams.get("turno") || "Primera"
   const turno = TURNOS.includes(turnoRaw) ? turnoRaw : "Primera"
-  const juegoId = turno === "Poceada" ? POCEADA_GAME_ID : GAME_ID
+  const juegoId = GAME_ID
   const limite = Number(searchParams.get("limite")) || 200
 
   try {
@@ -64,7 +63,7 @@ export async function GET(req: NextRequest) {
       posiciones.push({ posicion: pos, frecuente, atrasado, totalSorteos })
     }
 
-    return NextResponse.json({ ok: true, turno, juego: turno === "Poceada" ? "Poceada Federal" : "Quiniela Nacional", totalSorteosAnalizados: totalSorteos, posiciones, aviso: "Análisis estadístico por posición. No garantiza acierto." })
+    return NextResponse.json({ ok: true, turno, juego: "Quiniela Nacional", totalSorteosAnalizados: totalSorteos, posiciones, aviso: "Análisis estadístico por posición. No garantiza acierto." })
   } catch (e: any) {
     logger.error("[analisis-posicion] error", { error: String(e), turno })
     return NextResponse.json({ ok: false, error: "Error interno" }, { status: 500 })

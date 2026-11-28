@@ -1,7 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js"
 import { getSupabaseAdmin } from "@/lib/supabase-client"
 import { updateMotorPerformance, ALL_MOTORS } from "@/lib/analisis/motor-performance"
-import { POCEADA_GAME_ID } from "@/lib/config"
 import {
   estadoFinal,
   normalizeTurno,
@@ -36,7 +35,6 @@ async function incrementarStatsInsertadas(
   supabase: SupabaseClient,
   insertedRows: { prediction_id: string; user_id: string | null; total_aciertos: number }[],
   hById: Map<string, HistoryInsert>,
-  esPoceada: boolean,
 ): Promise<void> {
   const porUsuario = new Map<string, { preds: number; hits: number; won: boolean }>()
   for (const r of insertedRows) {
@@ -45,7 +43,7 @@ async function incrementarStatsInsertadas(
     cur.preds++
     cur.hits += r.total_aciertos || 0
     const h = hById.get(r.prediction_id)
-    if (h) cur.won = cur.won || estadoFinal(h, esPoceada) === "WON"
+    if (h) cur.won = cur.won || estadoFinal(h) === "WON"
     porUsuario.set(r.user_id, cur)
   }
 
@@ -62,90 +60,6 @@ async function incrementarStatsInsertadas(
       logger.error("[auto-verify] Failed to update user_stats", { userId, error: String(e) })
     }
   }
-}
-
-async function _verifyPoceada(supabase: SupabaseClient, fecha: string, normalizedTurno: string, draw: { numbers: number[]; game_id?: string }): Promise<VerificationResult[]> {
-  const { data: allPredictions } = await supabase
-    .from("user_predictions")
-    .select("id, user_id, date, turno, numeros")
-    .eq("date", fecha)
-    .or("status.eq.PENDING,status.is.null")
-
-  if (!allPredictions?.length) return []
-
-  const predictions = (allPredictions as PredictionRow[]).filter((p) => normalizeTurno(p.turno || "") === normalizedTurno)
-  if (!predictions.length) return []
-
-  const predIds = predictions.map((p) => p.id).filter(Boolean)
-  const { data: existing } = await supabase
-    .from("prediction_history")
-    .select("prediction_id")
-    .in("prediction_id", predIds)
-
-  const verifiedSet = new Set((existing || []).map((e: { prediction_id: string }) => e.prediction_id))
-
-  const results: VerificationResult[] = []
-  const historyInserts: HistoryInsert[] = []
-  // stats: read-modify-write eliminado — ver incrementarStatsInsertadas()
-  // (solo filas realmente insertadas, vía RPC, igual que cron-verify).
-
-  for (const pred of predictions) {
-    if (verifiedSet.has(pred.id)) continue
-
-    // Mismo constructor que cron-verify: parseo + matching unificados en
-    // lib/verificacion/historial (con fallback de game_id de Poceada).
-    const h = buildHistoryInsert(pred, draw, POCEADA_GAME_ID)
-    historyInserts.push(h)
-
-    results.push({
-      id: pred.id,
-      fecha,
-      turno: pred.turno,
-      aciertos_2: h.aciertos_2,
-      aciertos_3: h.aciertos_3,
-      aciertos_4: h.aciertos_4,
-      aciertos_redoblona: h.aciertos_redoblona,
-      total_aciertos: h.total_aciertos,
-      resultado_oficial: h.resultado_oficial,
-    })
-  }
-
-  if (historyInserts.length > 0) {
-    // Idempotente bajo concurrencia (ver nota en la rama quiniela). El .select()
-    // devuelve SOLO las filas realmente insertadas → stats exactamente una vez
-    // aunque otro verificador concurrente ya hubiera escrito la fila.
-    const { data: insertedRows, error: phErr } = await supabase
-      .from("prediction_history")
-      .upsert(historyInserts, { onConflict: "prediction_id", ignoreDuplicates: true })
-      .select("prediction_id, user_id, total_aciertos")
-    if (phErr) {
-      logger.error("[auto-verify] Poceada history upsert error", { error: phErr.message })
-      return []
-    }
-
-    // Poceada: WON con total_aciertos >= 5 — alineado con la RPC canónica
-    // (verify_predictions_for_draw usa `count >= 5`; POCEADA_MATCHES.includes
-    // [5..8] divergía para 9-10 aciertos, que la RPC marca WON).
-    const wonIds = historyInserts.filter((h) => estadoFinal(h, true) === "WON").map((h) => h.prediction_id)
-    const lostIds = historyInserts.filter((h) => estadoFinal(h, true) === "LOST").map((h) => h.prediction_id)
-    const now = new Date().toISOString()
-
-    if (wonIds.length > 0) {
-      await supabase.from("user_predictions").update({ status: "WON", verified_at: now }).in("id", wonIds)
-    }
-    if (lostIds.length > 0) {
-      await supabase.from("user_predictions").update({ status: "LOST", verified_at: now }).in("id", lostIds)
-    }
-
-    const hById = new Map(historyInserts.map((hh) => [hh.prediction_id, hh] as const))
-    await incrementarStatsInsertadas(supabase, insertedRows || [], hById, true)
-  }
-
-  if (results.length > 0) {
-    logger.info("[auto-verify] Verified Poceada predictions", { fecha, turno: normalizedTurno, count: results.length })
-  }
-
-  return results
 }
 
 export async function autoVerifyPredictions(fecha: string, turno: string, maxRetries = 2): Promise<VerificationResult[]> {
@@ -186,12 +100,6 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
   if (!draw.numbers?.length) {
     logger.warn("[auto-verify] Draw exists but numbers empty — skipping", { fecha, turno: normalizedTurno })
     return []
-  }
-
-  const isPoceada = draw.game_id === POCEADA_GAME_ID || normalizedTurno === "Poceada"
-
-  if (isPoceada) {
-    return await _verifyPoceada(supabase, fecha, normalizedTurno, draw)
   }
 
   const { data: allPredictions } = await supabase
@@ -260,7 +168,7 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
     // (antes faltaba el campo aciertos y no se contemplaba NEAR_MISS).
     for (const h of historyInserts) {
       const { error: updErr } = await supabase.from("user_predictions")
-        .update({ status: estadoFinal(h, false), aciertos: posicionesDe(h), verified_at: h.verified_at })
+        .update({ status: estadoFinal(h), aciertos: posicionesDe(h), verified_at: h.verified_at })
         .eq("id", h.prediction_id)
       if (updErr) {
         logger.error("[auto-verify] status update failed", { error: updErr.message, predId: h.prediction_id })
@@ -271,7 +179,7 @@ async function _autoVerifyInternal(supabase: SupabaseClient, fecha: string, turn
     // (mismo patrón que cron-verify-predictions; antes read-modify-write sobre
     // user_stats que podía doble-contear bajo carrera con el otro verificador).
     const hById = new Map(historyInserts.map((hh) => [hh.prediction_id, hh] as const))
-    await incrementarStatsInsertadas(supabase, insertedRows || [], hById, false)
+    await incrementarStatsInsertadas(supabase, insertedRows || [], hById)
   }
 
   if (results.length > 0) {

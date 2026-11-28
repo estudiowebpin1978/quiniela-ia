@@ -11,10 +11,12 @@
  */
 
 import logger from "@/lib/logger"
+import { getAppBaseUrl } from "@/lib/app-url"
+import { readJsonObject } from "@/lib/json-response"
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY
 const FROM_EMAIL = "Quiniela IA <notificaciones@quiniela-ia.com>"
-const APP_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev"
+const APP_URL = () => getAppBaseUrl()
 
 interface EmailResult {
   ok: boolean
@@ -42,7 +44,7 @@ async function sendEmail(
       body: JSON.stringify({ from: FROM_EMAIL, to: [to], subject, html }),
     })
 
-    const data = await res.json()
+    const data = await readJsonObject<{ message?: string; id?: string }>(res)
 
     if (!res.ok) {
       logger.error("[email] Send failed", { to, subject, status: res.status, error: data })
@@ -92,7 +94,7 @@ export async function sendWelcomeEmail(to: string, name: string): Promise<EmailR
       </p>
     </div>
     <div style="text-align:center;margin:24px 0">
-      <a href="${APP_URL}/predictions" class="btn">Abrir Quiniela IA</a>
+      <a href="${APP_URL()}/predictions" class="btn">Abrir Quiniela IA</a>
     </div>
     <div class="card" style="display:flex;gap:12px;text-align:center">
       <div class="stat" style="flex:1">
@@ -110,7 +112,7 @@ export async function sendWelcomeEmail(to: string, name: string): Promise<EmailR
     </div>
     <div class="footer">
       <p>Estás recibiendo este email porque creaste una cuenta en Quiniela IA.</p>
-      <p><a href="${APP_URL}/predictions">Abrir la app</a></p>
+      <p><a href="${APP_URL()}/predictions">Abrir la app</a></p>
     </div>
   `))
 }
@@ -140,7 +142,7 @@ export async function sendWinEmail(
       <div style="margin:12px 0">${numbersHtml}</div>
     </div>
     <div style="text-align:center;margin:24px 0">
-      <a href="${APP_URL}/predictions" class="btn">Ver mis predicciones</a>
+      <a href="${APP_URL()}/predictions" class="btn">Ver mis predicciones</a>
     </div>
     <div class="footer">
       <p>Siguite prediciendo para subir de nivel 🔥</p>
@@ -185,10 +187,10 @@ export async function sendWeeklyDigest(
       </p>
     </div>
     <div style="text-align:center;margin:24px 0">
-      <a href="${APP_URL}/predictions" class="btn">Seguir prediciendo</a>
+      <a href="${APP_URL()}/predictions" class="btn">Seguir prediciendo</a>
     </div>
     <div class="footer">
-      <p>Este resumen se envía todos los lunes. <a href="${APP_URL}/predictions">Desactivar</a></p>
+      <p>Este resumen se envía todos los lunes. <a href="${APP_URL()}/predictions">Desactivar</a></p>
     </div>
   `))
 }
@@ -211,7 +213,7 @@ export async function sendReengagementEmail(
       </p>
     </div>
     <div style="text-align:center;margin:24px 0">
-      <a href="${APP_URL}/predictions" class="btn">Volver a predecir</a>
+      <a href="${APP_URL()}/predictions" class="btn">Volver a predecir</a>
     </div>
     <div class="card" style="text-align:center">
       <p style="color:#94a3b8;font-size:13px;margin:0">
@@ -220,7 +222,7 @@ export async function sendReengagementEmail(
       </p>
     </div>
     <div class="footer">
-      <p>Si no querés recibir estos emails, <a href="${APP_URL}/predictions?unsubscribe=email">desuscribite</a>.</p>
+      <p>Si no querés recibir estos emails, <a href="${APP_URL()}/predictions?unsubscribe=email">desuscribite</a>.</p>
     </div>
   `))
 }
@@ -245,7 +247,7 @@ export async function sendPremiumExpiryEmail(
       </p>
     </div>
     <div style="text-align:center;margin:24px 0">
-      <a href="${APP_URL}/predictions" class="btn">Renovar Premium</a>
+      <a href="${APP_URL()}/predictions" class="btn">Renovar Premium</a>
     </div>
     <div class="footer">
       <p>Renová antes de que expire para no perder tu racha 🔥</p>

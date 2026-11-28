@@ -13,7 +13,7 @@
  *  5. Referencias: K conjuntos aleatorios sembrados + modelo de frecuencia
  *     simple, comparados en el MISMO corte.
  *  6. IC 95 % + permutación pareada + 4 bloques + holdout con veto — misma
- *     maquinaria estadística ya testeada en `lib/poceada-federal/backtest.ts`.
+ *     maquinaria estadística ya testeada en `lib/estadistica/backtest-utils.ts`.
  *  7. Detección de duplicación de señales entre candidatos (solape top-K y
  *     Spearman), porque los motores NO son independientes (V6/V7/ML comparten
  *     frecuencia/recencia/markov).
@@ -29,7 +29,7 @@ import {
   permutacionPareada,
   decidirCondiciones,
   type HoldoutBacktest,
-} from "@/lib/poceada-federal/backtest"
+} from "@/lib/estadistica/backtest-utils"
 import { resolverRanking, rankingFrecuencia } from "./candidatos"
 import {
   agregarMetricas2C,

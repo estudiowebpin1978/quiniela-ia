@@ -135,7 +135,6 @@ export async function parseQuinieleando(
         Matutina: ["MATUTINA, QUINIELA NACIONAL"],
         Vespertina: ["VESPERTINA, QUINIELA NACIONAL"],
         Nocturna: ["NOCTURNA, QUINIELA NACIONAL"],
-        Poceada: ["POCEADA, QUINIELA POCEADA", "QUINIELA POCEADA"],
       }
 
       // Parse target date as DD/MM/YYYY for header matching
@@ -512,7 +511,6 @@ export async function parseLoteriaSantaFe(
     Matutina: "https://apps.loteriasantafe.gov.ar:8443/Extractos/paginas/mostrarQuinielaMatutina.xhtml?display=0",
     Vespertina: "https://apps.loteriasantafe.gov.ar:8443/Extractos/paginas/mostrarQuinielaVespertina.xhtml?display=0",
     Nocturna: "https://apps.loteriasantafe.gov.ar:8443/Extractos/paginas/mostrarQuinielaNocturna.xhtml?display=0",
-    Poceada: "",
   }
 
   try {
@@ -719,7 +717,7 @@ export async function parseLoteriaMundiales(
 
     // Column index per turno
     const turnoIdxMap: Record<TurnoType, number> = {
-      Previa: 0, Primera: 1, Matutina: 2, Vespertina: 3, Nocturna: 4, Poceada: 5,
+      Previa: 0, Primera: 1, Matutina: 2, Vespertina: 3, Nocturna: 4,
     }
     const colIdx = turnoIdxMap[turno]
 
@@ -828,7 +826,6 @@ export async function parseNacionalQuiniela(
       Matutina: ["MATUTINA"],
       Vespertina: ["VESPERTINA"],
       Nocturna: ["NOCTURNA"],
-      Poceada: ["POCEADA"],
     }
 
     const headers = turnoHeaders[turno]

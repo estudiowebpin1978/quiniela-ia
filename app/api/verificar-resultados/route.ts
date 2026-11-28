@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import logger from "@/lib/logger";
 import { validateJwt } from "@/lib/auth/jwt";
+import { readJsonArray } from "@/lib/json-response";
 
 const SB = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/"/g, "").trim() || "";
 const SK = process.env.SUPABASE_SERVICE_ROLE_KEY?.replace(/"/g, "").trim() || process.env.SUPABASE_SERVICE_KEY?.replace(/"/g, "").trim() || "";
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
             headers: { "apikey": SK, "Authorization": `Bearer ${SK}` },
           }
         );
-        const rows = await res.json();
+        const rows = await readJsonArray<{ numbers?: number[] }>(res);
 
         if (rows?.[0]?.numbers) {
           const nums = rows[0].numbers.map((n: number) =>

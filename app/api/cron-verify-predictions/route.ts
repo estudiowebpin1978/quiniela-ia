@@ -32,12 +32,8 @@ import {
   type PredictionRow,
 } from "@/lib/verificacion/criterio"
 import { buildHistoryInsert } from "@/lib/verificacion/historial"
-import {
-  ejecutarTareasAuxiliares,
-  type InformeTareasAuxiliares,
-} from "@/lib/cron/tareas-auxiliares"
-import logger from "@/lib/logger"
 import { jurisParaTurno } from "@/lib/procedencia"
+import logger from "@/lib/logger"
 
 export const maxDuration = 120
 
@@ -179,13 +175,11 @@ async function verificarTurno(
     ((insertedRows || []) as { prediction_id: string }[]).map((r) => r.prediction_id),
   )
   const hById = new Map(totalInserts.map((h) => [h.prediction_id, h] as const))
-  const esPoceada = (h: HistoryInsert) =>
-    turno === "Poceada" || h.game_id === "d0e1f2a3-b4c5-6789-0abc-def012345678"
 
   // 5b. status estricto SOLO para filas que venían de PENDING (el backfill ya
   // tiene status marcado por la RPC y no se toca). Antes: total_aciertos > 0.
   for (const h of historyInserts) {
-    const estado = estadoFinal(h, esPoceada(h))
+    const estado = estadoFinal(h)
     const { error: updErr } = await supabase
       .from("user_predictions")
       .update({ status: estado, aciertos: posicionesDe(h), verified_at: h.verified_at })
@@ -214,7 +208,7 @@ async function verificarTurno(
   for (const r of ((insertedRows || []) as { prediction_id: string; user_id: string | null; total_aciertos: number }[])) {
     if (!r.user_id) continue
     const h = hById.get(r.prediction_id)
-    const estado = h ? estadoFinal(h, esPoceada(h)) : "LOST"
+    const estado = h ? estadoFinal(h) : "LOST"
     const cur = statsPorUsuario.get(r.user_id) || { preds: 0, hits: 0, won: false }
     cur.preds++
     cur.hits += r.total_aciertos || 0
@@ -249,7 +243,7 @@ async function verificarTurno(
     if (!r.user_id || !idsRecienVerificadas.has(r.prediction_id)) continue
     const h = hById.get(r.prediction_id)
     if (!h) continue
-    const estado = estadoFinal(h, esPoceada(h))
+    const estado = estadoFinal(h)
     if (estado !== "WON" && estado !== "LOST") continue
     const aciertos = r.total_aciertos || 0
     notifInserts.push({
@@ -361,18 +355,6 @@ export async function GET(req: NextRequest) {
     verifiedTurnos,
     errors: totalErrors,
   }, t0)
-
-  // ── Tareas auxiliares (best-effort): Brinco y vencimientos Premium ──────
-  // Se acoplan al tick vivo de este cron con gate de frecuencia propio
-  // (ver lib/cron/tareas-auxiliares). Nunca rompen ni bloquean la
-  // verificación de Quiniela: si fallan, quedan registradas en su log.
-  let auxiliares: InformeTareasAuxiliares | null = null
-  try {
-    auxiliares = await ejecutarTareasAuxiliares()
-  } catch (e) {
-    logger.warn("[cron-verify] tareas auxiliares fallaron (no bloquean)", { error: String(e) })
-  }
-
   return NextResponse.json({
     ok: totalErrors === 0,
     fecha,
@@ -381,7 +363,6 @@ export async function GET(req: NextRequest) {
     verifiedTurnos,
     totalErrors,
     porTurno,
-    auxiliares,
     elapsed_ms: Date.now() - t0,
   })
 }

@@ -38,9 +38,8 @@ import { jurisParaTurno } from "@/lib/procedencia"
 export const maxDuration = 300
 
 const GAME_ID = "ac593199-c299-4f03-b1b7-8675fe4fa6d9"
-const POCEADA_GAME_ID = "d0e1f2a3-b4c5-6789-0abc-def012345678"
 
-const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna", "Poceada"] as const
+const TURNOS = ["Previa", "Primera", "Matutina", "Vespertina", "Nocturna"] as const
 
 /** Draw times in Buenos Aires (hour.decimal) */
 const TURNO_TIMES: Record<string, number> = {
@@ -49,7 +48,6 @@ const TURNO_TIMES: Record<string, number> = {
   Matutina: 15.0,
   Vespertina: 18.0,
   Nocturna: 21.0,
-  Poceada: 21.0,
 }
 
 /** How many minutes after draw time to run scrape */
@@ -91,9 +89,8 @@ async function checkDependency(
   artDate: string,
 ): Promise<{ ok: boolean; reason: string }> {
   const dep = getDependency(targetTurno as typeof TURNOS_ORDER[number])
-  // No dependency (Poceada is independent)
   if (!dep) {
-    return { ok: true, reason: `${targetTurno} has no dependency (independent)` }
+    return { ok: true, reason: `${targetTurno} has no dependency` }
   }
   // Expectativa REAL de la dependencia: salta días calendario sin sorteo
   // (domingos/feriados) y turnos suspendidos (24/12, 31/12). Sin esto, la
@@ -215,12 +212,7 @@ export async function GET(req: NextRequest) {
         p_turno: turno,
         p_numbers: scrapeResult.numbers,
         p_source: scrapeResult.source || "consensus",
-        // Poceada pertenece a su propio juego (verificado en BD: sus 263 filas
-        // usan d0e1f2a3..., no el game_id Nacional).
-        p_game_id: turno === "Poceada" ? POCEADA_GAME_ID : GAME_ID,
-        // Poceada (jurisdiccion 'ciudad'): si se guarda como 'CABA' el
-        // verificador TS (jurisParaTurno) nunca la verifica y el historial
-        // queda vacío — bug detectado en auditoría 2026-11.
+        p_game_id: GAME_ID,
         p_jurisdiccion: jurisParaTurno(turno)[0],
       } as never)
 
@@ -305,7 +297,7 @@ async function runPrecompute(
 ): Promise<{ ok: boolean; error?: string }> {
   // 1. Semilla determinista por día+turno (antes: hash del último id UUID,
   // aleatorio → cambiaba entre corridas al insertarse cualquier fila)
-  const turnGameId = turno === "Poceada" ? "d0e1f2a3-b4c5-6789-0abc-def012345678" : GAME_ID
+  const turnGameId = GAME_ID
   const ctxSeed = hashSeed(today, turno)
 
   // 2. Histórico COMPLETO del turno con fecha estrictamente anterior a hoy
@@ -322,7 +314,7 @@ async function runPrecompute(
     .lt("date", today)
     .order("date", { ascending: true })
 
-  const minDraws = turno === "Poceada" ? 3 : 10
+  const minDraws = 10
   if (!histDraws || histDraws.length < minDraws) return { ok: false, error: `Insufficient draws (${histDraws?.length || 0}/${minDraws})` }
 
   type Draw = { fecha: string; turno: string; numbers: number[] }

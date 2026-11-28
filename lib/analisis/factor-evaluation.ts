@@ -49,7 +49,7 @@ interface CachedItem {
   factor_attribution?: Record<string, number> | null
 }
 
-/** Normaliza cualquier número al dominio 0–99 de la quiniela/poceada. */
+/** Normaliza cualquier número al dominio 0–99 de la quiniela. */
 const norm100 = (n: number): number => ((Math.trunc(n) % 100) + 100) % 100
 
 /**

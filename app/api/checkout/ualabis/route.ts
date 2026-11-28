@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import logger from "@/lib/logger"
 import { validateJwt } from "@/lib/auth/jwt"
 import { PLAN_AMOUNTS } from "@/lib/config"
+import { getAppBaseUrl } from "@/lib/app-url"
 
 const PLANS = {
   "15_days": { amount: String(PLAN_AMOUNTS["15_days"]), description: "Pase 15 Días - Quiniela IA", days: 15 },
@@ -74,6 +75,14 @@ export async function POST(req: NextRequest) {
   }
   logger.info(`[checkout/${debugId}] Plan: ${plan}, amount: ${PLANS[plan].amount}`)
 
+  let baseUrl: string
+  try {
+    baseUrl = getAppBaseUrl()
+  } catch (error) {
+    logger.error(`[checkout/${debugId}] App URL is not configured`, { error: String(error) })
+    return NextResponse.json({ error: "URL pública de la aplicación no configurada" }, { status: 500 })
+  }
+
   // ── 3. Check UALA credentials ──────────────────────────────────────
   const username = (process.env.UALA_USERNAME || "").trim()
   const clientId = (process.env.UALA_CLIENT_ID || "").trim()
@@ -94,7 +103,7 @@ export async function POST(req: NextRequest) {
       ].filter(Boolean),
     })
     return NextResponse.json({
-      error: "Variables UALA_* no configuradas en Vercel",
+      error: "Variables UALA_* no configuradas",
     }, { status: 500 })
   }
 
@@ -146,9 +155,6 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 5. Create checkout order ───────────────────────────────────────
-  const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || "https://quiniela-ia.httpsquiniela-ia-twovercelapp.workers.dev")
-    .replace(/"/g, "").trim()
-
   const planData = PLANS[plan]
   const orderBody = {
     amount: planData.amount,
